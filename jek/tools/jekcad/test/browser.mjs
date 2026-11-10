@@ -198,7 +198,7 @@ export async function check(pw, base, shots) {
     const rmenu = await p.evaluate(() => ({ shown: !document.getElementById('skMenu-rect').hidden, items: [...document.querySelectorAll('#skMenu-rect [data-skpick]')].map(b => b.dataset.skpick).join() }));
     await p.click('[data-skpick="crect"]');
     const rbtn = await p.evaluate(() => ({ tool: window.JEKcad.sk.tool, on: !!document.querySelector('.cad-toolgroup [data-sktool="crect"].on'), hidden: document.getElementById('skMenu-rect').hidden }));
-    ok('The rectangle button’s arrow lists the corner and the centre rectangle; the one chosen becomes the button', rmenu.shown && rmenu.items === 'rect,crect' && rbtn.tool === 'crect' && rbtn.on && rbtn.hidden, JSON.stringify([rmenu, rbtn]));
+    ok('The rectangle button’s arrow lists the corner, the centre and the aligned rectangle; the one chosen becomes the button', rmenu.shown && rmenu.items === 'rect,crect,arect' && rbtn.tool === 'crect' && rbtn.on && rbtn.hidden, JSON.stringify([rmenu, rbtn]));
     const clickUV = async (uv, o) => { const q = await uvXY(uv); await p.mouse.move(q[0], q[1], { steps: 3 }); await p.mouse.click(q[0], q[1], o); };
     await clickUV([0, 0]); await clickUV([27, 17]);
     await p.keyboard.type('60'); await p.keyboard.press('Enter'); await p.keyboard.type('40'); await p.keyboard.press('Enter');
@@ -437,6 +437,33 @@ export async function check(pw, base, shots) {
     if (await p.$('#featureCancel')) await p.click('#featureCancel');
     await regen();
     ok('A double-click on a row of the feature list edits it (the first click marks the row without remaking it): a sketch, an extrude, its regions ready to click', sameRow && rowSk === 'Sketch 2' && rowEx === 'Extrude 2' && rowField === 'regions', JSON.stringify([sameRow, rowSk, rowEx, rowField]));
+    // ---- the further sketch tools: an ellipse, a spline closed on its start, a pattern by its panel; extruded ----
+    await p.evaluate(() => window.JEKcad.load({ format: 'jekcad', features: [] })); await regen();
+    await p.dblclick('.cad-frow-p[data-plane="top"] .nm');
+    await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 8000 }).catch(() => {});
+    await p.waitForTimeout(200);
+    const pickTool = async (g, t) => { await p.click('[data-skgroup="' + g + '"]'); await p.click('[data-skpick="' + t + '"]'); };
+    const groups = await p.evaluate(() => [...document.querySelectorAll('.cad-toolgroup .cad-caret')].map(b => b.dataset.skgroup).join());
+    await pickTool('circle', 'ellipse'); await clickUV([-30, 25]); await clickUV([-18, 25.2]); await clickUV([-28, 31]);
+    await pickTool('spline', 'spline'); for (const q of [[10, 20], [22, 30], [30, 18], [10.3, 20.2]]) await clickUV(q);
+    await p.keyboard.press('c'); await clickUV([-30, -20]); await moveUV([-27, -19]); await p.keyboard.type('6'); await p.keyboard.press('Enter');
+    await p.keyboard.press('s'); await p.keyboard.press('Escape');
+    await pickTool('mirror', 'lpat'); await p.waitForSelector('#skPanel', { timeout: 3000 }).catch(() => {});
+    await clickUV([-27, -20]); await p.fill('#sk-dx', '12'); await p.fill('#sk-dy', '0'); await p.fill('#sk-count', '4'); await p.click('#mirrorOk'); await p.waitForTimeout(150);
+    sk = await p.evaluate(() => { const f = window.JEKcad.app.sketch.f; return { kinds: f.ents.map(e => e.t + (e.closed ? '!' : '')).join(), xs: f.ents.filter(e => e.t === 'circle').map(e => +e.c[0].toFixed(3)).join(), el: Math.abs(f.ents[0].rx - 12) < 0.01 && Math.abs(f.ents[0].rot) < 2, dias: f.dims.filter(d => d.t === 'dia').length }; });
+    await p.click('#sketchOk'); await regen();
+    await p.click('[data-feature="extrude"]'); await p.waitForSelector('#fd-depth'); await p.fill('#fd-depth', '2'); await p.waitForTimeout(400); await p.click('#featureOk'); await regen();
+    const made = await p.evaluate(() => window.JEKcad.app.result.parts.map(x => +x.volume.toFixed(1)).sort((x, y) => x - y));
+    ok('More sketch tools, from the arrows by their groups: an ellipse, a spline closed on its first point, a circle patterned four in a row by its panel; all extruded', /line,rect,circle,arc3,polygon,spline,use,trim,fillet,mirror/.test(groups) && sk.kinds === 'ellipse,spline!,circle,circle,circle,circle' && sk.xs === '-30,-18,-6,6' && sk.el && sk.dias === 4 && made.length === 6 && made.slice(0, 4).every(x => near(x, Math.PI * 9 * 2, 0.2)) && made.some(x => near(x, Math.PI * 12 * 5.97 * 2, 2)), JSON.stringify([groups, sk, made]));
+    // a feature's dialog does not bring hidden sketches back into the view: only the one it uses shows
+    await p.evaluate(() => window.JEKcad.load({ format: 'jekcad', features: [] })); await regen();
+    for (const d of ['10', '20']) { await p.dblclick('.cad-frow-p[data-plane="top"] .nm'); await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 8000 }).catch(() => {}); await p.waitForTimeout(150); await p.keyboard.press('c'); await clickUV([0, 0]); await moveUV([3, 1]); await p.keyboard.type(d); await p.keyboard.press('Enter'); await p.click('#sketchOk'); await regen(); await p.click('[data-feature="extrude"]'); await p.waitForSelector('#fd-depth'); await p.waitForTimeout(300); await p.click('#featureOk'); await regen(); }
+    await p.click('[data-feature="extrude"]'); await p.waitForSelector('#fd-depth'); await p.waitForTimeout(300);
+    const fresh3 = await p.evaluate(() => ({ sketch: window.JEKcad.app.editing.f.sketch, n: window.JEKcad.app.editing.f.regions.length }));
+    const shownNow = await p.evaluate(() => { const J = window.JEKcad, pts = [[2, 0, 0], [7, 0, 0]]; return pts.map(w => { const q = J.project(w); const k = J.overlayPick(q[0], q[1], 'regions'); return k ? k.sketch : null; }); });
+    const sketchIds = await p.evaluate(() => window.JEKcad.app.doc.features.filter(f => f.type === 'sketch').map(f => f.id + ':' + !!f.hide));
+    await p.click('#featureCancel'); await regen();
+    ok('A new Extrude does not take up the sketch and regions of the one before (both sketches here are used), and its dialog brings no hidden sketch back into the view', sketchIds.every(x => /:true$/.test(x)) && new Set(shownNow.filter(Boolean)).size <= 1 && fresh3.sketch === null && fresh3.n === 0, JSON.stringify([shownNow, sketchIds, fresh3]));
     // a part deleted from its row's menu: a Delete part feature, and Undo brings the part back
     { const n0 = await p.evaluate(() => [window.JEKcad.app.result.parts.length, window.JEKcad.app.doc.features.length]);
       await p.click('.cad-part .cad-more[aria-label^="More for"]'); await p.click('.cad-rowmenu button:has-text("Delete part")'); await regen();

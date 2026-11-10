@@ -1,5 +1,5 @@
 import { STD_PLANES, TOOL_FEATURES, appliedCount, fieldValue, normDoc, partLook, prepareDoc } from '../core/doc.js';
-import { WELD, arcSweep, carryPt, distToEnt, entCross, regionAt, regionsOf, weldEnts } from '../core/sketch-tools.js';
+import { WELD, arcSweep, carryPt, curvePts, distToEnt, entCross, regionAt, regionsOf, weldEnts } from '../core/sketch-tools.js';
 import { entKeys, hpt, inside, solveSketch } from '../core/sketch.js';
 
 /* ==========================================================================
@@ -231,10 +231,29 @@ export function makeKernel(oc) {
     return faceFrame(b.faces[i]);
   }
   /* ---------- sketches: their shapes as edges, and their regions as faces ---------- */
+  /* a smooth curve through points of the sketch's plane (an ellipse's or a spline's, taken finely along it): one
+     edge, within a thousandth of a micron of them */
+  function curveEdge(F, pts) {
+    if (pts.length < 2) throw new Error('a curve of one point');
+    if (pts.length === 2) return T(new oc.BRepBuilderAPI_MakeEdge(pnt(toWorld(F, pts[0])), pnt(toWorld(F, pts[1])))).Edge();
+    const arr = T(new oc.NCollection_Array1_gp_Pnt(1, pts.length));
+    pts.forEach((q, i) => arr.SetValue(i + 1, pnt(toWorld(F, q))));
+    const mk = T(new oc.GeomAPI_PointsToBSpline(arr, Math.min(3, pts.length - 1), 8, oc.GeomAbs_Shape.GeomAbs_C1, 1e-7));
+    if (!mk.IsDone()) throw new Error('a curve could not be made through its points');
+    return T(new oc.BRepBuilderAPI_MakeEdge(mk.Curve())).Edge();
+  }
+  /* the same curve as several edges end to end, a dozen points to each: the kernel measures a face's area and a
+     solid's volume by sampling each edge of its outline, and one long edge of many bends is sampled too thinly */
+  function curveEdges(F, pts) {
+    const out = [], per = 12;
+    for (let i = 0; i + 1 < pts.length; i += per) out.push(curveEdge(F, pts.slice(i, Math.min(pts.length, i + per + 1))));
+    return out;
+  }
   function entEdges(F, ents) {
     const out = [];
     for (const e of ents) {
       if (e.k || e.t === 'point') continue;
+      if (e.t === 'ellipse' || e.t === 'spline') { const P = curvePts(e, 1.5); if (e.t === 'ellipse' || e.closed) P.push(P[0]); try { for (const edge of curveEdges(F, P)) out.push({ e, edge }); } catch (err) { /* left out */ } continue; }
       let edge;
       if (e.t === 'line') { if (Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]) < 1e-9) continue; edge = T(new oc.BRepBuilderAPI_MakeEdge(pnt(toWorld(F, e.a)), pnt(toWorld(F, e.b)))).Edge(); }
       else {
@@ -253,25 +272,33 @@ export function makeKernel(oc) {
     const circOf = e => T(new oc.gp_Circ(T(new oc.gp_Ax2(pnt(toWorld(F, e.c)), gdir(F.n), gdir(F.x))), e.r));
     const turn = [];
     for (let i = 0; i < n; i++) if (src[(i - 1 + n) % n] !== src[i]) turn.push(i);
-    if (!turn.length) { if (!src[0] || src[0].t === 'line') throw new Error('an outline of one line'); mw.Add(T(new oc.BRepBuilderAPI_MakeEdge(circOf(src[0]))).Edge()); return mw.Wire(); }
+    const free = e => e.t === 'ellipse' || e.t === 'spline';
+    if (!turn.length) {
+      if (!src[0] || src[0].t === 'line') throw new Error('an outline of one line');
+      // an ellipse or a closed spline all the way round: through the points the page drew it with
+      if (free(src[0])) for (const ed of curveEdges(F, ring.concat([ring[0]]))) mw.Add(ed); else mw.Add(T(new oc.BRepBuilderAPI_MakeEdge(circOf(src[0]))).Edge());
+      return mw.Wire();
+    }
     const ends = e => (e.t === 'line' ? [e.a, e.b] : e.t === 'arc' ? [e.a0, e.a0 + arcSweep(e)].map(a => [e.c[0] + e.r * Math.cos(a * DEGR), e.c[1] + e.r * Math.sin(a * DEGR)]) : []);
     const exact = i => {
       const A = src[(i - 1 + n) % n], B = src[i], q = ring[i], reach = 0.02 + 0.002 * Math.max(A.r || 0, B.r || 0);
       let best = q, bd = reach;
       for (const c of [...entCross(A, B), ...ends(A), ...ends(B)]) { const d = Math.hypot(c[0] - q[0], c[1] - q[1]); if (d < bd) { bd = d; best = c; } }
       // shapes that only just touch here (or miss by a hair): the corner is put on the round one, and the other's side ends there
-      if (best === q) { const Rn = A.t !== 'line' ? A : B.t !== 'line' ? B : null; if (Rn) { const d = Math.hypot(q[0] - Rn.c[0], q[1] - Rn.c[1]) || 1; best = [Rn.c[0] + (q[0] - Rn.c[0]) / d * Rn.r, Rn.c[1] + (q[1] - Rn.c[1]) / d * Rn.r]; } }
+      if (best === q) { const round = e => e.t === 'arc' || e.t === 'circle', Rn = round(A) ? A : round(B) ? B : null; if (Rn) { const d = Math.hypot(q[0] - Rn.c[0], q[1] - Rn.c[1]) || 1; best = [Rn.c[0] + (q[0] - Rn.c[0]) / d * Rn.r, Rn.c[1] + (q[1] - Rn.c[1]) / d * Rn.r]; } }
       return best;
     };
     const P = turn.map(exact), m2pi = a => ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
     // where a side truly starts and stops: a line at its corners; an arc on its own circle, which a corner shared with
     // another arc a hair off it is not quite on (the hair is then bridged by a line as short)
     const onRound = (E, z) => { const d = Math.hypot(z[0] - E.c[0], z[1] - E.c[1]) || 1; return [E.c[0] + (z[0] - E.c[0]) / d * E.r, E.c[1] + (z[1] - E.c[1]) / d * E.r]; };
-    const span = turn.map((i0, k) => { const E = src[i0], p = P[k], q = P[(k + 1) % turn.length]; return E.t === 'line' ? [p, q] : [onRound(E, p), onRound(E, q)]; });
+    const span = turn.map((i0, k) => { const E = src[i0], p = P[k], q = P[(k + 1) % turn.length]; return E.t === 'line' || free(E) ? [p, q] : [onRound(E, p), onRound(E, q)]; });
     turn.forEach((i0, k) => {
       { const was = span[(k - 1 + turn.length) % turn.length][1], now = span[k][0], gap = Math.hypot(now[0] - was[0], now[1] - was[1]); if (gap > 1e-9 && gap < 4 * WELD) mw.Add(T(new oc.BRepBuilderAPI_MakeEdge(pnt(toWorld(F, was)), pnt(toWorld(F, now)))).Edge()); }
       const i1 = turn[(k + 1) % turn.length], E = src[i0], p = P[k], q = P[(k + 1) % turn.length], gap = Math.hypot(q[0] - p[0], q[1] - p[1]);
       if (E.t === 'line') { if (gap > 1e-9) mw.Add(T(new oc.BRepBuilderAPI_MakeEdge(pnt(toWorld(F, p)), pnt(toWorld(F, q)))).Edge()); return; }
+      // a stretch of an ellipse or a spline: a curve through the corners the page stepped along it, from one true end to the other
+      if (free(E)) { const steps2 = (i1 - i0 + n) % n || n, mids = []; for (let j = 1; j < steps2; j++) mids.push(ring[(i0 + j) % n]); for (const ed of curveEdges(F, [p, ...mids, q])) mw.Add(ed); return; }
       // the way round the circle the outline goes: by a corner in the middle of the run (or the middle of its one step)
       const steps = (i1 - i0 + n) % n || n, mid = steps > 1 ? ring[(i0 + Math.floor(steps / 2)) % n] : [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
       const an = z => Math.atan2(z[1] - E.c[1], z[0] - E.c[0]), ap = an(p), aq = an(q), am = an(mid);
@@ -981,6 +1008,23 @@ export function makeKernel(oc) {
     for (let k = 1; k <= n; k++) { const q = toPlane(F, xyz(T(c.Value(t0 + (t1 - t0) * k / n)))); out.push({ t: 'line', a: prev, b: q }); prev = q; }
     return out;
   }
+  /* where a part (or one face of it) cuts the sketch's plane, as sketch shapes: lines, circles and arcs where the
+     cut is one, else short steps */
+  function sectionEdges(picks, F) {
+    const out = [];
+    try {
+      const pln = T(new oc.gp_Pln(T(new oc.gp_Ax3(pnt(F.o), gdir(F.n), gdir(F.x)))));
+      for (const p of picks) {
+        const b = last.S.parts.find(x => x.id === p.part);
+        if (!b) continue;
+        const sc = T(new oc.BRepAlgoAPI_Section(p.kind === 'face' ? b.faces[p.index] : b.shape, pln, false));
+        sc.Build(prog());
+        if (!sc.IsDone()) continue;
+        for (const e of subShapes(sc.Shape(), TA.TopAbs_EDGE)) out.push(...edgeShapes(e, F));
+      }
+    } finally { flush(); }
+    return out;
+  }
   /* model edges flattened onto a sketch's plane, as sketch shapes (Use); one that is a single shape carries its
      edge's ref (src), so the sketch can follow the edge when the model changes */
   function projectEdges(picks, F) {
@@ -999,5 +1043,5 @@ export function makeKernel(oc) {
     } finally { flush(); }
     return out;
   }
-  return { regen, refs, measure, exportStep, exportStl, project: projectEdges, state: () => last.S };
+  return { regen, refs, measure, exportStep, exportStl, project: projectEdges, section: sectionEdges, state: () => last.S };
 }

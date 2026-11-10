@@ -95,7 +95,9 @@ function prefill(f, at) {
   if (f.type === 'loft' && regions.length) { const by = new Map(); for (const r of regions) { if (!by.has(r.sketch)) by.set(r.sketch, []); by.get(r.sketch).push(r.pt); } f.sections = [...by].map(([sketch, regs]) => ({ sketch, regions: regs })); }
   // nothing chosen: the last sketch before the bar, all its regions that are not holes
   if (('regions' in f) && f.type !== 'sweep' && !f.sketch) {
-    const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && !x.suppressed && regionsCached(x).length);
+    // (one no feature has used yet: a sketch already extruded is not offered again, with the same regions, to the next)
+    const taken = new Set(app.doc.features.flatMap(x => [x.sketch, x.path, ...(x.sections || []).map(s2 => s2.sketch)]));
+    const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && !x.suppressed && !taken.has(x.id) && regionsCached(x).length);
     if (sk) { f.sketch = sk.id; f.regions = defaultRegionPts(sk.ents, f.op === 'remove'); f.autoRegions = true; }
   }
   // a loft or a sweep with nothing chosen: the sketches no feature has used yet (a loft's profiles in order; a

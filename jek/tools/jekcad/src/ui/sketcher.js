@@ -1,6 +1,6 @@
 import { STD_PLANES, appliedCount } from '../core/doc.js';
 import { definedEnts, dimMeasure, entKeys, hpt, lineDir, sketchId, solveNear, solveSketch } from '../core/sketch.js';
-import { arc3, arcSweep, carryRegions, distToEnt, entOutline, filletCorner, mirrorEnts, offsetEnts, polygonEnts, rectEnts, regionAt, regionsOf, slotEnts, tangentArc, trimEnt } from '../core/sketch-tools.js';
+import { alignedRectEnts, arc3, arcSweep, carryRegions, centreArc, chamferCorner, circularPattern, distToEnt, dxfEnts, entOutline, extendEnt, filletCorner, linearPattern, mirrorEnts, offsetEnts, polygonEnts, rectEnts, regionAt, regionsOf, slotEnts, splitEnt, tangentArc, transformEnts, trimEnt } from '../core/sketch-tools.js';
 import { evalExpr, fmtNum } from '../core/units.js';
 import { toWorld } from '../engines/kernel.js';
 import { app, changed, checkpoint, editGate, emit, isDark, on, regenDone, regenNow, toast } from './app.js';
@@ -23,7 +23,7 @@ import { h } from '../../../jekray/src/ui/dom.js';
    edge comes into the sketch as a fixed construction shape, as Use would bring it). While a shape is drawn its
    size shows by the pointer; a number typed straight after a line, circle or arc dimensions it.
    ========================================================================== */
-export const SK = { tool: 'select', draft: null, sel: [], hover: null, uv: null, snap: null, constr: false, undo: [], redoStack: [], clip: null, defined: new Set(), drag: null, box: null, polySides: 6, filletR: '2', offsetD: '2', dimInput: null, model: null, last: [], lineK: false, variant: {} };
+export const SK = { tool: 'select', draft: null, sel: [], hover: null, uv: null, snap: null, constr: false, undo: [], redoStack: [], clip: null, defined: new Set(), drag: null, box: null, polySides: 6, filletR: '2', chamferD: '2', offsetD: '2', dimInput: null, model: null, last: [], lineK: false, variant: {} };
 const SNAP_PX = 10, ON_PX = 8;
 /* ---------- the sketch being edited ---------- */
 const S = () => app.sketch;
@@ -205,7 +205,7 @@ function snap(sx, sy, from, skipIds) {
   for (const g of M.edges) { const q = g.t === 'line' ? [(g.a[0] + g.b[0]) / 2, (g.a[1] + g.b[1]) / 2] : g.t === 'circle' || g.t === 'arc' ? g.c : null; if (!q) continue; const s = toScreen(q), d = Math.hypot(s[0] - sx, s[1] - sy); if (d < bd) { bd = d; mm = { g, q }; } }
   if (mm) return Object.assign({ p: mm.q.slice(), ref: null, hv: hvOf(mm.q) }, mm.g.t === 'line' ? { mmid: mm.g, glyph: 'M', kind: 'midpoint' } : { mcen: mm.g, glyph: '◎', kind: 'coincident' });
   let onEnt = null, od = ON_PX;
-  for (const e of ents()) { if (skip.has(e.id) || e.t === 'point') continue; const d = distToEnt(e, uv) / pxToMm(1); if (d < od) { od = d; onEnt = e; } }
+  for (const e of ents()) { if (skip.has(e.id) || e.t === 'point' || e.t === 'ellipse' || e.t === 'spline') continue; const d = distToEnt(e, uv) / pxToMm(1); if (d < od) { od = d; onEnt = e; } }
   const out = { p: uv, ref: null };
   if (onEnt) {
     // onto the curve
@@ -265,9 +265,11 @@ function snapCons(sn, e, k) {
   return (sn.al || []).map(a => mkCon(a.t, { e, k }, a.ref));
 }
 /* ---------- drawing tools ---------- */
-const TOOL_STEPS = { line: 2, mline: 2, rect: 2, crect: 2, circle: 2, circle3: 3, arc3: 3, tarc: 2, slot: 3, polygon: 2, point: 1 };
+const TOOL_STEPS = { line: 2, mline: 2, rect: 2, crect: 2, arect: 3, circle: 2, circle3: 3, ellipse: 3, arc3: 3, tarc: 2, carc: 3, slot: 3, polygon: 2, cpolygon: 2, point: 1, spline: Infinity, bezier: Infinity };
 /* the tools whose second point is inferred level with, or straight above, their first */
-const FROM_TOOLS = { line: 1, mline: 1, rect: 1, polygon: 1 };
+const FROM_TOOLS = { line: 1, mline: 1, rect: 1, polygon: 1, cpolygon: 1 };
+/* the tools that work on what is selected, through a small panel: the shapes clicked into it, its numbers typed, then applied */
+const PANEL_TOOLS = { mirror: 'Mirror', lpat: 'Linear pattern', cpat: 'Circular pattern', transform: 'Transform' };
 export function setTool(t) {
   cancelDraft();
   if (t === 'construct') { toggleConstruction(); return; }
@@ -283,6 +285,8 @@ export function setTool(t) {
     SK.sel = SK.sel.filter(x => x.t === 'ent');
     SK.mirror = { line: null, field: 'shapes' };
   }
+  if (t === 'lpat' || t === 'cpat' || t === 'transform') { SK.sel = SK.sel.filter(x => x.t === 'ent'); SK.mirror = { line: null, field: 'shapes', v: { dx: '10', dy: '0', count: t === 'cpat' ? '6' : '3', ax: '0', ay: '0', angle: '360', rot: '0', scale: '1' } }; }
+  if (t === 'dxf') { dxfOpen(); return; }
   // a centre line is the line tool drawing construction lines
   SK.lineK = t === 'cline';
   if (t === 'cline') t = 'line';
@@ -299,6 +303,12 @@ function toolClick(sx, sy, forced) {
   const t = SK.tool, d = SK.draft, from = d && d.pts.length ? d.pts[d.pts.length - 1] : null;
   const sn = forced || snap(sx, sy, FROM_TOOLS[t] ? from : null);
   if (!sn) return;
+  if ((t === 'spline' || t === 'bezier') && d && d.pts.length) {
+    // a point on the last one again adds nothing; on the first, with three or more, the spline closes
+    const lastP = d.pts[d.pts.length - 1], firstP = d.pts[0];
+    if (Math.hypot(sn.p[0] - lastP[0], sn.p[1] - lastP[1]) < pxToMm(2)) return;
+    if (t === 'spline' && d.pts.length >= 3 && Math.hypot(sn.p[0] - firstP[0], sn.p[1] - firstP[1]) < pxToMm(6)) { splineCommit(true); return; }
+  }
   const pts = d ? d.pts.concat([sn.p]) : [sn.p], snaps = d ? d.snaps.concat([sn]) : [sn];
   if (pts.length < TOOL_STEPS[t]) { SK.draft = { pts, snaps }; drawOverlay(); return; }
   const [p0, p1, p2] = pts;
@@ -352,6 +362,22 @@ function toolClick(sx, sy, forced) {
     addEnts([e], [mkCon('coincident', { e: e.id, k: start }, r0), { id: sketchId('c'), t: 'tangent', r: [{ e: E0.id }, { e: e.id }], at: start }, ...snapCons(snaps[1], e.id, end)]); SK.last = [e.id];
   } else if (t === 'slot') { const r = slotEnts(p0, p1, Math.max(pxToMm(2), Math.abs(distToEnt({ t: 'line', a: p0, b: p1 }, p2)))); // (its two centres held to what they were clicked on: a slot drawn from a hole's centre, or from another slot's end, stays on it)
     const kl = r.ents.find(e => e.k && e.t === 'line'); addEnts(r.ents, r.cons.concat(kl ? [...snapCons(snaps[0], kl.id, 'a'), ...snapCons(snaps[1], kl.id, 'b')] : [])); }
+  else if (t === 'arect') { if (Math.abs(distToEnt({ t: 'line', a: p0, b: p1 }, p2)) < pxToMm(2)) { SK.undo.pop(); return; } const r = alignedRectEnts(p0, p1, p2); addEnts(r.ents, r.cons.concat(snapCons(snaps[0], r.ents[0].id, 'a'), snapCons(snaps[1], r.ents[0].id, 'b'))); SK.last = [r.ents[0].id, r.ents[1].id]; }
+  else if (t === 'ellipse') {
+    // its centre, the end of one half-width (which turns it), then a point for the other half-width
+    const rx = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]), rot = Math.atan2(p1[1] - p0[1], p1[0] - p0[0]) * 180 / Math.PI, ry = Math.max(pxToMm(2), distToEnt({ t: 'line', a: [p0[0] - (p1[0] - p0[0]) * 1e3, p0[1] - (p1[1] - p0[1]) * 1e3], b: [p0[0] + (p1[0] - p0[0]) * 1e3, p0[1] + (p1[1] - p0[1]) * 1e3] }, p2));
+    if (rx < pxToMm(2)) { SK.undo.pop(); SK.draft = null; return; }
+    const e = { id: sketchId('e'), t: 'ellipse', c: p0, rx, ry, rot };
+    addEnts([e], [...snapCons(snaps[0], e.id, 'c'), ...snapCons(snaps[1], e.id, 'pa'), ...(snaps[1].hv ? [mkCon(snaps[1].hv, { e: e.id, k: 'c' }, { e: e.id, k: 'pa' })] : [])]);
+  }
+  else if (t === 'carc') {
+    // its centre, where it starts, then where it ends: the short way round from the one to the other
+    const cw = (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p1[1] - p0[1]) * (p2[0] - p0[0]) < 0, a = centreArc(p0, p1, p2, cw);
+    if (!a) { SK.undo.pop(); SK.draft = null; return; }
+    const e = { id: sketchId('a'), t: 'arc', c: a.c, r: a.r, a0: a.a0, a1: a.a1 };
+    addEnts([e], [...snapCons(snaps[0], e.id, 'c'), ...snapCons(snaps[1], e.id, a.rev ? 'p1' : 'p0'), ...snapCons(snaps[2], e.id, a.rev ? 'p0' : 'p1')]); SK.last = [e.id];
+  }
+  else if (t === 'cpolygon') { const r = polygonEnts(p0, p1, SK.polySides, true); const cid = r.ents[r.ents.length - 1].id; addEnts(r.ents, r.cons.concat(snapCons(snaps[0], cid, 'c'))); SK.last = [cid]; }
   else if (t === 'polygon') { const r = polygonEnts(p0, p1, SK.polySides); const cid = r.ents[r.ents.length - 1].id; addEnts(r.ents, r.cons.concat(snapCons(snaps[0], cid, 'c'), snaps[1].hv ? [mkCon(snaps[1].hv, { e: cid, k: 'c' }, { e: r.ents[0].id, k: 'a' })] : [])); SK.last = [cid]; }
   SK.draft = null;
   resolve();
@@ -369,8 +395,45 @@ function draftShapes() {
   if (t === 'arc3') { if (!p2) return [{ t: 'line', a: p0, b: p1, k: true }]; const a = arc3(p0, p1, p2); return a ? [{ t: 'arc', ...a }] : []; }
   if (t === 'tarc') { const r0 = d.snaps[0].ref, E0 = r0 && entById(r0.e); if (!E0 || E0.t !== 'line') return [{ t: 'line', a: p0, b: p1, k: true }]; const dd = lineDir(E0), a = tangentArc(p0, r0.k === 'b' ? dd : [-dd[0], -dd[1]], p1); return a ? [{ t: 'arc', ...a }] : []; }
   if (t === 'slot') { if (!p2) return [{ t: 'line', a: p0, b: p1, k: true }]; return slotEnts(p0, p1, Math.max(1e-3, distToEnt({ t: 'line', a: p0, b: p1 }, p2))).ents; }
-  if (t === 'polygon') return polygonEnts(p0, p1, SK.polySides).ents;
+  if (t === 'polygon' || t === 'cpolygon') return polygonEnts(p0, p1, SK.polySides, t === 'cpolygon').ents;
+  if (t === 'arect') return p2 ? alignedRectEnts(p0, p1, p2).ents : [{ t: 'line', a: p0, b: p1 }];
+  if (t === 'ellipse') { if (!p2) return [{ t: 'line', a: p0, b: p1, k: true }]; const rx = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]), L = { t: 'line', a: [p0[0] - (p1[0] - p0[0]) * 1e3, p0[1] - (p1[1] - p0[1]) * 1e3], b: [p0[0] + (p1[0] - p0[0]) * 1e3, p0[1] + (p1[1] - p0[1]) * 1e3] }; return rx > 0 ? [{ t: 'ellipse', c: p0, rx, ry: Math.max(1e-3, distToEnt(L, p2)), rot: Math.atan2(p1[1] - p0[1], p1[0] - p0[0]) * 180 / Math.PI }] : []; }
+  if (t === 'carc') { if (!p2) return [{ t: 'line', a: p0, b: p1, k: true }]; const a = centreArc(p0, p1, p2, (p1[0] - p0[0]) * (p2[1] - p0[1]) - (p1[1] - p0[1]) * (p2[0] - p0[0]) < 0); return a ? [{ t: 'arc', c: a.c, r: a.r, a0: a.a0, a1: a.a1 }] : []; }
+  if (t === 'spline' || t === 'bezier') return pts.length >= 2 ? [Object.assign({ t: 'spline', pts }, t === 'bezier' ? { cv: true } : {})].concat(t === 'bezier' ? pts.slice(1).map((q, i) => ({ t: 'line', a: pts[i], b: q, k: true })) : []) : [];
   return [];
+}
+/* a spline being drawn, made of the points clicked so far (two or more): through them, or, a Bézier curve, steered by them */
+function splineCommit(closed) {
+  const d = SK.draft, t = SK.tool;
+  if (!d || d.pts.length < 2 || (t !== 'spline' && t !== 'bezier')) { cancelDraft(); drawOverlay(); return false; }
+  keep();
+  const e = Object.assign({ id: sketchId('s'), t: 'spline', pts: d.pts.map(q => q.slice()) }, t === 'bezier' ? { cv: true } : {}, closed ? { closed: true } : {});
+  addEnts([e], d.snaps.flatMap((sn, i) => (t === 'bezier' && i > 0 && i < d.pts.length - 1 ? [] : snapCons(sn, e.id, 'q' + i))));
+  SK.draft = null; SK.snap = null;
+  resolve();
+  return true;
+}
+/* a DXF drawing's shapes brought into the sketch, where the file puts them */
+function dxfOpen() {
+  const inp = h('input', { type: 'file', accept: '.dxf' });
+  inp.addEventListener('change', async () => {
+    const fl = inp.files[0]; if (!fl || !S()) return;
+    let es; try { es = dxfEnts(await fl.text()); } catch (err) { toast('That DXF could not be read: ' + err.message, true); return; }
+    if (!es.length) { toast('No lines, circles, arcs or polylines found in ' + fl.name + ' (splines, text and blocks are not read)', true); return; }
+    keep(); S().f.ents.push(...es.slice(0, 3000)); SK.sel = es.slice(0, 3000).map(e => ({ t: 'ent', id: e.id })); resolve();
+    toast('Brought in ' + Math.min(es.length, 3000) + ' shape' + (es.length === 1 ? '' : 's') + ' from ' + fl.name + ', selected: drag them, or Transform them, into place');
+  });
+  inp.click();
+  SK.tool = 'select'; sketchBar();
+}
+/* where a part cuts the sketch's plane, brought in as fixed shapes */
+async function useSection(pick) {
+  const out = await kernelAsk('section', { picks: [pick], frame: S().F });
+  if (!out || !out.length) { toast('That part does not cross the sketch’s plane', true); return; }
+  keep();
+  for (const e of out) { e.id = sketchId(e.t[0]); e.ref = true; S().f.ents.push(e); for (const k of entKeys(e)) S().f.cons.push({ id: sketchId('c'), t: 'fix', r: [{ e: e.id, k }], at: hpt(new Map([[e.id, e]]), { e: e.id, k }).slice() }); if (e.t !== 'line') S().f.dims.push({ id: sketchId('d'), t: 'rad', r: [{ e: e.id }], v: e.r, x: fmtNum(e.r, 6) }); }
+  resolve();
+  toast('Brought in ' + out.length + ' shape' + (out.length === 1 ? '' : 's') + ' where the part cuts the sketch’s plane');
 }
 function toggleConstruction() {
   const ids = SK.sel.filter(x => x.t === 'ent').map(x => x.id);
@@ -426,9 +489,19 @@ export function sketchDown(e, sx, sy) {
   if (SK.dimInput) dimInputCommit();
   typeClose();
   const t = SK.tool;
-  if (t === 'select' || t === 'dim' || t === 'trim' || t === 'fillet' || t === 'mirror' || t === 'use') {
+  if (t === 'select' || t === 'dim' || t === 'trim' || t === 'extend' || t === 'split' || t === 'fillet' || t === 'chamfer' || PANEL_TOOLS[t] || t === 'use' || t === 'usex') {
     const it = sketchPick(sx, sy);
     if (t === 'use') { const p = pickAt(sx, sy, 'edge'); if (p) useEdges([p]); return true; }
+    if (t === 'usex') { const p = pickAt(sx, sy, 'face'); if (p) useSection({ part: p.part, kind: 'part' }); else toast('Click a part that the sketch’s plane cuts through'); return true; }
+    if (t === 'extend' || t === 'split') { const eid = it && (it.t === 'ent' ? it.id : it.t === 'pt' && it.e !== 'origin' ? it.e : null); if (eid) { keep(); if ((t === 'extend' ? extendEnt : splitEnt)(S().f, eid, uvAt(sx, sy))) resolve(); else { SK.undo.pop(); toast(t === 'extend' ? 'Click a line near the end to carry on: it goes to the first shape in its way' : 'Click a line or an arc where to cut it in two', true); } } return true; }
+    if (t === 'chamfer') {
+      const sn = snap(sx, sy);
+      let dd; try { dd = evalExpr(SK.chamferD, app.result ? app.result.vars : {}, 'len'); } catch (err) { toast('Chamfer distance: ' + err.message, true); return true; }
+      if (sn && sn.ref && sn.ref.e !== 'origin') { keep(); if (chamferCorner(S().f, sn.p, dd, pxToMm(1))) resolve(); else { SK.undo.pop(); toast('Click a corner where two lines meet (the distance must fit them)', true); } }
+      else toast('Click a corner where two lines meet');
+      return true;
+    }
+    if (t === 'trim' && it && it.t === 'ent' && /^(ellipse|spline)$/.test(entById(it.id).t)) { toast('An ellipse or a spline is not trimmed: split what crosses it, or draw to where it is cut', true); return true; }
     if (t === 'trim') { if (it && it.t === 'ent') { keep(); if (trimEnt(S().f, it.id, uvAt(sx, sy))) resolve(); else SK.undo.pop(); } return true; }
     if (t === 'fillet') {
       const sn = snap(sx, sy);
@@ -437,7 +510,7 @@ export function sketchDown(e, sx, sy) {
       else toast('Click a corner where two lines meet');
       return true;
     }
-    if (t === 'mirror') {
+    if (PANEL_TOOLS[t]) {
       const M = SK.mirror;
       if (M.field === 'line') { if (it && it.t === 'ent' && entById(it.id).t === 'line') { M.line = it.id; SK.sel = SK.sel.filter(x => x.id !== it.id); } else toast('The mirror line is a line of the sketch: click one (a construction line will do)'); }
       else if (it && it.t === 'ent') { const i = SK.sel.findIndex(x => sameItem(x, it)); if (i >= 0) SK.sel.splice(i, 1); else if (it.id !== M.line) SK.sel.push(it); }
@@ -478,13 +551,15 @@ export function sketchMove(e, sx, sy) {
     return;
   }
   if (SK.box) { Object.assign(SK.box, { x1: sx, y1: sy }); drawOverlay(); return; }
-  if (SK.tool === 'select' || SK.tool === 'dim' || SK.tool === 'trim' || SK.tool === 'mirror') SK.hover = sketchPick(sx, sy);
+  if (SK.tool === 'select' || SK.tool === 'dim' || SK.tool === 'trim' || SK.tool === 'extend' || SK.tool === 'split' || PANEL_TOOLS[SK.tool]) SK.hover = sketchPick(sx, sy);
+  else if (SK.tool === 'usex') { app.hover = pickAt(sx, sy, 'part'); emit('hover'); }
   else if (SK.tool === 'use') { app.hover = pickAt(sx, sy, 'edge'); emit('hover'); }
   else { const d = SK.draft, from = d && d.pts.length ? d.pts[d.pts.length - 1] : null; SK.snap = snap(sx, sy, FROM_TOOLS[SK.tool] ? from : null); }
   drawOverlay();
 }
 /* a double-click: a dimension's value to type again; a line, circle or arc dimensioned; a chain of lines ended */
 export function sketchDbl(sx, sy) {
+  if (SK.tool === 'spline' || SK.tool === 'bezier') { splineCommit(false); return true; }
   if (TOOL_STEPS[SK.tool]) { if (SK.draft) { cancelDraft(); drawOverlay(); } return true; }
   if (SK.tool !== 'select') return false;
   const it = sketchPick(sx, sy);
@@ -496,6 +571,7 @@ export function sketchDbl(sx, sy) {
    nothing being drawn, the tool is put down */
 export function sketchRight() {
   if (SK.dimInput) { dimInputClose(true); return; }
+  if (SK.draft && (SK.tool === 'spline' || SK.tool === 'bezier')) { splineCommit(false); return; }
   if (SK.draft) { cancelDraft(); drawOverlay(); return; }
   if (SK.tool !== 'select') setTool('select');
 }
@@ -558,7 +634,7 @@ export function sketchUp() {
       const lo = [Math.min(b.x0, b.x1), Math.min(b.y0, b.y1)], hi = [Math.max(b.x0, b.x1), Math.max(b.y0, b.y1)];
       for (const e of ents()) if (entOutline(e, 20).every(p => { const s = toScreen(p); return s[0] >= lo[0] && s[0] <= hi[0] && s[1] >= lo[1] && s[1] <= hi[1]; }) && !SK.sel.some(x => x.t === 'ent' && x.id === e.id)) SK.sel.push({ t: 'ent', id: e.id });
     }
-    if (SK.tool === 'mirror') mirrorPanel();
+    if (PANEL_TOOLS[SK.tool]) mirrorPanel();
     drawOverlay(); emit('sketchsel');
   }
 }
@@ -571,7 +647,8 @@ export function sketchKey(e) {
   if (ctrl) return false;
   if (e.key === 'Escape') { if (SK.dimInput) dimInputClose(); else if (SK.draft) { SK.draft = null; drawOverlay(); } else if (SK.tool !== 'select') setTool('select'); else { SK.sel = []; drawOverlay(); } return true; }
   if (e.key === 'Delete' || e.key === 'Backspace') { deleteSel(); return true; }
-  if (e.key === 'Enter' && !SK.dimInput && SK.tool === 'mirror') { mirrorApply(); return true; }
+  if (e.key === 'Enter' && !SK.dimInput && PANEL_TOOLS[SK.tool]) { mirrorApply(); return true; }
+  if (e.key === 'Enter' && !SK.dimInput && SK.draft && (SK.tool === 'spline' || SK.tool === 'bezier')) { splineCommit(false); return true; }
   if (e.key === 'Enter' && !SK.dimInput) { finishSketch(); return true; }
   // a number typed while a line, circle or rectangle is being drawn: its size, there and then
   if (/^[0-9.]$/.test(e.key) && !SK.dimInput && SK.draft && SK.snap && TYPED[SK.tool] && SK.draft.pts.length === TOOL_STEPS[SK.tool] - 1 && Math.hypot(SK.snap.p[0] - SK.draft.pts[SK.draft.pts.length - 1][0], SK.snap.p[1] - SK.draft.pts[SK.draft.pts.length - 1][1]) > pxToMm(3)) { typeSize(e.key); return true; }
@@ -613,7 +690,7 @@ function pasteClip() {
   for (const e of c.ents) for (const p of entOutline(e, 30)) { lo = [Math.min(lo[0], p[0]), Math.min(lo[1], p[1])]; hi = [Math.max(hi[0], p[0]), Math.max(hi[1], p[1])]; }
   const mid = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2], to = SK.uv || [mid[0] + pxToMm(30), mid[1] - pxToMm(30)], dv = [to[0] - mid[0], to[1] - mid[1]];
   const mv = p => [p[0] + dv[0], p[1] + dv[1]];
-  for (const e of c.ents) { if (e.a) { e.a = mv(e.a); e.b = mv(e.b); } if (e.c) e.c = mv(e.c); delete e.ref; delete e.src; }
+  for (const e of c.ents) { if (e.a) { e.a = mv(e.a); e.b = mv(e.b); } if (e.c) e.c = mv(e.c); if (e.pts) e.pts = e.pts.map(mv); delete e.ref; delete e.src; }
   keep();
   S().f.ents.push(...c.ents); S().f.cons.push(...c.cons); S().f.dims.push(...c.dims);
   SK.sel = c.ents.map(e => ({ t: 'ent', id: e.id }));
@@ -634,6 +711,7 @@ export function addConstraint(t) {
   else if (t === 'equal') { const g = lines.length >= 2 ? lines : curves; for (let i = 1; i < g.length; i++) made.push(mkCon('equal', { e: g[0].id }, { e: g[i].id })); }
   else if (t === 'tangent') { if (entsSel.length === 2 && curves.length >= 1) made.push(mkCon('tangent', { e: entsSel[0].id }, { e: entsSel[1].id })); }
   else if (t === 'concentric') { if (curves.length >= 2) for (let i = 1; i < curves.length; i++) made.push(mkCon('concentric', { e: curves[0].id }, { e: curves[i].id })); }
+  else if (t === 'normal') { if (lines.length === 1 && curves.length === 1) made.push(mkCon('normal', { e: lines[0].id }, { e: curves[0].id })); }
   else if (t === 'midpoint') { if (ptsSel.length === 1 && lines.length === 1) made.push(mkCon('midpoint', P(ptsSel[0]), { e: lines[0].id })); }
   else if (t === 'symmetric') { if (ptsSel.length === 2 && lines.length === 1) made.push(mkCon('symmetric', P(ptsSel[0]), P(ptsSel[1]), { e: lines[0].id })); }
   else if (t === 'fix') {
@@ -641,7 +719,7 @@ export function addConstraint(t) {
     const Em = new Map(ents().map(e => [e.id, e]));
     for (const r of all) made.push(Object.assign(mkCon('fix', r), { at: hpt(Em, r).slice() }));
   }
-  const HELP = { coincident: 'two points, or a point and a curve', horizontal: 'lines, or two points', vertical: 'lines, or two points', parallel: 'two lines or more', perpendicular: 'two lines', equal: 'two lines, or two circles or arcs', tangent: 'a line or curve and a circle or arc', concentric: 'two circles or arcs', midpoint: 'a point and a line', symmetric: 'two points and the line between them', fix: 'points or shapes' };
+  const HELP = { normal: 'a line and a circle or arc (the line then points at its centre)', coincident: 'two points, or a point and a curve', horizontal: 'lines, or two points', vertical: 'lines, or two points', parallel: 'two lines or more', perpendicular: 'two lines', equal: 'two lines, or two circles or arcs', tangent: 'a line or curve and a circle or arc', concentric: 'two circles or arcs', midpoint: 'a point and a line', symmetric: 'two points and the line between them', fix: 'points or shapes' };
   if (!made.length) { toast('Select ' + HELP[t] + ' first'); return; }
   keep();
   S().f.cons.push(...made);
@@ -747,8 +825,10 @@ export function regionsCached(f) { const key = f.id + ':' + JSON.stringify(f.ent
 /* the sketches the overlay shows (and can be picked in): applied, visible, with a frame */
 export function shownSketches() {
   const out = [], frames = app.result ? app.result.frames : {}, n = app.sketch ? app.sketch.at : app.editing ? app.editing.at : appliedCount(app.doc);
-  const want = app.editing && app.editing.field && /^(regions|sketch|sketchLine|sections)$/.test(app.editing.field.kind);
-  app.doc.features.forEach((f, i) => { if (f.type === 'sketch' && i < n && !f.suppressed && (!f.hide || want || (app.editing && app.editing.f.sketch === f.id)) && frames[f.id]) out.push({ f, F: frames[f.id] }); });
+  // a hidden sketch shows only while it is the one the feature being edited uses (its profile, its path, one of its
+  // sections): a feature's dialog does not bring every hidden sketch back into the view
+  const E = app.editing, mine = E ? new Set([E.f.sketch, E.f.path, ...(E.f.sections || []).map(x => x.sketch)].filter(x => typeof x === 'string')) : new Set();
+  app.doc.features.forEach((f, i) => { if (f.type === 'sketch' && i < n && !f.suppressed && (!f.hide || mine.has(f.id)) && frames[f.id]) out.push({ f, F: frames[f.id] }); });
   return out;
 }
 /* the planes the overlay shows: the three standard ones and the Plane features before the bar */
@@ -957,10 +1037,10 @@ function strokeEnt(c, e, P) {
   c.beginPath();
   if (e.t === 'point') { const s = P(e.c); c.rect(s[0] - 2.5, s[1] - 2.5, 5, 5); c.stroke(); return; }
   entOutline(e, 4).forEach((p, i) => { const s = P(p); if (i) c.lineTo(s[0], s[1]); else c.moveTo(s[0], s[1]); });
-  if (e.t === 'circle') c.closePath();
+  if (e.t === 'circle' || e.t === 'ellipse' || (e.t === 'spline' && e.closed)) c.closePath();
   c.stroke();
 }
-const GLYPH = { horizontal: 'H', vertical: 'V', parallel: '∥', perpendicular: '⊥', equal: '=', tangent: 'T', midpoint: 'M', concentric: '◎', symmetric: '⇋', fix: '⚓', oncurve: '⌒' };
+const GLYPH = { horizontal: 'H', vertical: 'V', parallel: '∥', perpendicular: '⊥', equal: '=', tangent: 'T', midpoint: 'M', concentric: '◎', symmetric: '⇋', fix: '⚓', oncurve: '⌒', normal: 'N' };
 function drawSketch(c, C) {
   const s = S(), f = s.f, E = new Map(f.ents.map(e => [e.id, e])), P = toScreen;
   const isSel = it => SK.sel.some(x => sameItem(x, it)), isHov = it => sameItem(SK.hover, it);
@@ -975,7 +1055,7 @@ function drawSketch(c, C) {
   // shapes: ink when fully defined, blue while free; construction dashed
   for (const e of f.ents) {
     const it = { t: 'ent', id: e.id }, sel = isSel(it), hov = isHov(it);
-    const axis = SK.tool === 'mirror' && SK.mirror && SK.mirror.line === e.id;
+    const axis = PANEL_TOOLS[SK.tool] && SK.mirror && SK.mirror.line === e.id;
     c.strokeStyle = axis ? '#3aa860' : sel ? C.sel : hov ? C.hov : e.ref ? C.con : SK.defined.has(e.id) ? C.ink : C.free;
     c.lineWidth = sel || hov ? 2.6 : 1.7; c.setLineDash(e.k ? [6, 4] : []);
     strokeEnt(c, e, P);
@@ -994,7 +1074,7 @@ function drawSketch(c, C) {
   SK.labels = [];
   // constraint glyphs, stacked by where they are
   const slots = new Map();
-  const anchor = x => { const e = E.get(x.e); if (!e) return [0, 0]; if (x.k) return P(hpt(E, x)); if (e.t === 'line') return P([(e.a[0] + e.b[0]) / 2, (e.a[1] + e.b[1]) / 2]); if (e.t === 'arc') { const a = (e.a0 + arcSweep(e) / 2) * Math.PI / 180; return P([e.c[0] + e.r * Math.cos(a), e.c[1] + e.r * Math.sin(a)]); } if (e.t === 'circle') return P([e.c[0] + e.r * 0.7071, e.c[1] + e.r * 0.7071]); return P(e.c); };
+  const anchor = x => { const e = E.get(x.e); if (!e) return [0, 0]; if (x.k) return P(hpt(E, x)); if (e.t === 'line') return P([(e.a[0] + e.b[0]) / 2, (e.a[1] + e.b[1]) / 2]); if (e.t === 'arc') { const a = (e.a0 + arcSweep(e) / 2) * Math.PI / 180; return P([e.c[0] + e.r * Math.cos(a), e.c[1] + e.r * Math.sin(a)]); } if (e.t === 'circle') return P([e.c[0] + e.r * 0.7071, e.c[1] + e.r * 0.7071]); return P(e.c || (e.pts && e.pts[0]) || [0, 0]); };
   c.font = 'bold 10px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
   for (const k of f.cons) {
     if (k.t === 'coincident') { const q = anchor(k.r[0]); c.strokeStyle = C.con; c.lineWidth = 1; c.beginPath(); c.arc(q[0], q[1], 4.5, 0, 7); c.stroke(); continue; }
@@ -1104,7 +1184,7 @@ function dimPlace0(d, E, P) {
   const e0 = E.get(d.r[0].e);
   // the side of a line a dimension goes: away from the middle of the sketch, so it sits outside the shape
   let mid = E.mid;
-  if (!mid) { let n = 0; const m = [0, 0]; for (const e of E.values()) for (const q of e.t === 'line' ? [e.a, e.b] : [e.c]) { m[0] += q[0]; m[1] += q[1]; n++; } mid = E.mid = n ? [m[0] / n, m[1] / n] : [0, 0]; }
+  if (!mid) { let n = 0; const m = [0, 0]; for (const e of E.values()) for (const q of e.t === 'line' ? [e.a, e.b] : e.t === 'spline' ? e.pts : [e.c]) { m[0] += q[0]; m[1] += q[1]; n++; } mid = E.mid = n ? [m[0] / n, m[1] / n] : [0, 0]; }
   const out = (a, b, n) => { const c = P(mid), s = (((a[0] + b[0]) / 2 - c[0]) * n[0] + ((a[1] + b[1]) / 2 - c[1]) * n[1]) < -1e-6 ? -1 : 1; return [n[0] * s, n[1] * s]; };
   if (d.t === 'len' && e0) { const a = P(e0.a), b = P(e0.b), dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, n = out(a, b, [-dy / L * 24, dx / L * 24]); const A = [a[0] + n[0], a[1] + n[1]], B = [b[0] + n[0], b[1] + n[1]]; return { p: [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], lines: [[a, A], [b, B], [A, B]] }; }
   // a diameter: a line right across the circle through its centre, an arrow at each side, the value beyond one; a
@@ -1125,34 +1205,69 @@ function dimPlace0(d, E, P) {
 }
 /* ---------- Mirror's panel: what to mirror, and in which line; nothing is made until Mirror is pressed ---------- */
 function mirrorApply() {
-  const M = SK.mirror, ids = SK.sel.filter(x => x.t === 'ent' && x.id !== (M && M.line)).map(x => x.id);
-  if (!M || !ids.length) { toast('Click the shapes to mirror first'); if (M) { M.field = 'shapes'; mirrorPanel(); } return; }
-  if (!M.line) { toast('Now click the line to mirror them in'); M.field = 'line'; mirrorPanel(); return; }
-  keep(); mirrorEnts(S().f, ids, M.line); SK.sel = []; resolve();
+  const M = SK.mirror, t = SK.tool, ids = SK.sel.filter(x => x.t === 'ent' && x.id !== (M && M.line)).map(x => x.id);
+  if (!M || !ids.length) { toast('Click the shapes first'); if (M) { M.field = 'shapes'; mirrorPanel(); } return; }
+  if (t === 'mirror') {
+    if (!M.line) { toast('Now click the line to mirror them in'); M.field = 'line'; mirrorPanel(); return; }
+    keep(); mirrorEnts(S().f, ids, M.line);
+  } else {
+    // the panel's numbers: lengths, a count, angles, a scale (each a number or an expression, #variables too)
+    const vars = app.result ? app.result.vars : {}, v = {};
+    try { for (const [k, kind] of Object.entries({ dx: 'len', dy: 'len', ax: 'len', ay: 'len', count: 'num', angle: 'ang', rot: 'ang', scale: 'num' })) v[k] = evalExpr(M.v[k], vars, kind); } catch (err) { toast('That value: ' + err.message, true); return; }
+    if (t !== 'transform' && !(v.count >= 2)) { toast('A pattern has two or more in it', true); return; }
+    if (t === 'transform' && !(v.scale > 0)) { toast('The scale must be more than 0', true); return; }
+    keep();
+    if (t === 'lpat') linearPattern(S().f, ids, [v.dx, v.dy], v.count);
+    else if (t === 'cpat') circularPattern(S().f, ids, [v.ax, v.ay], v.count, v.angle);
+    else {
+      // turned and sized about the middle of what is selected
+      let lo = [Infinity, Infinity], hi = [-Infinity, -Infinity];
+      for (const e of ents()) if (ids.includes(e.id)) for (const q of entOutline(e, 20)) { lo = [Math.min(lo[0], q[0]), Math.min(lo[1], q[1])]; hi = [Math.max(hi[0], q[0]), Math.max(hi[1], q[1])]; }
+      transformEnts(S().f, ids, { dx: v.dx, dy: v.dy, rot: v.rot, scale: v.scale, about: [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2] });
+    }
+  }
+  SK.sel = []; resolve();
   setTool('select');
 }
 export function mirrorPanel() {
-  const old = document.getElementById('skPanel'), on = app.sketch && SK.tool === 'mirror' && SK.mirror;
+  const old = document.getElementById('skPanel'), t = SK.tool, on = app.sketch && PANEL_TOOLS[t] && SK.mirror;
   if (!on) { if (old) old.remove(); return; }
   const M = SK.mirror, n = SK.sel.filter(x => x.t === 'ent' && x.id !== M.line).length;
   const box = (key, label, text, empty) => h('div', { class: 'cad-frow sel' }, h('label', null, label), h('div', { class: 'cad-selwrap' },
     h('div', { class: 'cad-selbox' + (M.field === key ? ' on' : '') + (empty ? ' empty' : ''), role: 'button', tabindex: '0', 'data-mirror': key, 'aria-pressed': String(M.field === key), onclick: () => { M.field = key; mirrorPanel(); } }, text),
     empty ? null : h('button', { type: 'button', class: 'cad-selclear', title: 'Clear', 'aria-label': 'Clear ' + label, onclick: () => { if (key === 'line') M.line = null; else SK.sel = []; M.field = key; mirrorPanel(); drawOverlay(); } }, '×')));
-  const panel = h('div', { class: 'cad-dialog', id: 'skPanel', role: 'group', 'aria-label': 'Mirror' },
-    h('div', { class: 'cad-fhead' }, h('span', { class: 'cad-fkind', 'data-icon': 'mirror' }, 'Mirror')),
-    h('div', { class: 'cad-fbody' },
-      box('shapes', 'Shapes to mirror', n ? n + (n === 1 ? ' shape' : ' shapes') : M.field === 'shapes' ? 'Click shapes in the sketch, or drag a box round them' : 'Nothing chosen', !n),
-      box('line', 'Mirror line', M.line ? 'A line of the sketch' : M.field === 'line' ? 'Click the line to mirror in' : 'Nothing chosen', !M.line)),
-    h('div', { class: 'cad-factions' }, h('button', { type: 'button', class: 'rt-btn', id: 'mirrorCancel', onclick: () => { SK.sel = []; setTool('select'); } }, 'Cancel'), h('button', { type: 'button', class: 'rt-btn primary', id: 'mirrorOk', disabled: n && M.line ? null : true, onclick: mirrorApply }, '✓ Mirror')));
+  const num = (key, label) => h('div', { class: 'cad-frow' }, h('label', { for: 'sk-' + key }, label), h('input', { type: 'text', id: 'sk-' + key, value: M.v[key], spellcheck: 'false', oninput: e => { M.v[key] = e.target.value; }, onkeydown: e => { e.stopPropagation(); if (e.key === 'Enter') mirrorApply(); } }));
+  const rows = [box('shapes', t === 'mirror' ? 'Shapes to mirror' : t === 'transform' ? 'Shapes to move' : 'Shapes to copy', n ? n + (n === 1 ? ' shape' : ' shapes') : M.field === 'shapes' ? 'Click shapes in the sketch, or drag a box round them' : 'Nothing chosen', !n)];
+  if (t === 'mirror') rows.push(box('line', 'Mirror line', M.line ? 'A line of the sketch' : M.field === 'line' ? 'Click the line to mirror in' : 'Nothing chosen', !M.line));
+  if (t === 'lpat') rows.push(num('dx', 'Step across (x)'), num('dy', 'Step up (y)'), num('count', 'How many in all'));
+  if (t === 'cpat') rows.push(num('ax', 'About x'), num('ay', 'About y'), num('count', 'How many in all'), num('angle', 'Over an angle (360: equally round)'));
+  if (t === 'transform') rows.push(num('dx', 'Move across (x)'), num('dy', 'Move up (y)'), num('rot', 'Turn (degrees, about their middle)'), num('scale', 'Scale (1: as they are)'));
+  const ready = n && (t !== 'mirror' || M.line);
+  const panel = h('div', { class: 'cad-dialog', id: 'skPanel', role: 'group', 'aria-label': PANEL_TOOLS[t] },
+    h('div', { class: 'cad-fhead' }, h('span', { class: 'cad-fkind', 'data-icon': t === 'mirror' ? 'mirror' : t }, PANEL_TOOLS[t])),
+    h('div', { class: 'cad-fbody' }, ...rows),
+    h('div', { class: 'cad-factions' }, h('button', { type: 'button', class: 'rt-btn', id: 'mirrorCancel', onclick: () => { SK.sel = []; setTool('select'); } }, 'Cancel'), h('button', { type: 'button', class: 'rt-btn primary', id: 'mirrorOk', disabled: ready ? null : true, onclick: mirrorApply }, '✓ ' + (t === 'mirror' ? 'Mirror' : t === 'transform' ? 'Apply' : 'Pattern'))));
+  // (typing in the panel is kept: only its boxes are made again when the selection changes)
+  const focus = old && document.activeElement && old.contains(document.activeElement) ? document.activeElement.id : null;
   if (old) old.replaceWith(panel); else document.getElementById('stage').append(panel);
+  if (focus) { const el = document.getElementById(focus); if (el) { el.focus(); } }
   emit('icons', panel);
 }
 /* ---------- the sketch's bar of tools ---------- */
-const SK_TOOLS = [['select', 'Select (S)', 'select'], ['line', 'Line (L)', 'line'], ['cline', 'Centre line: a construction line', 'construct'], ['mline', 'Midpoint line: its middle, then an end', 'mline'], ['rect', 'Corner rectangle (R)', 'rect'], ['crect', 'Centre rectangle', 'crect'], ['circle', 'Centre circle (C)', 'circle'], ['circle3', '3-point circle', 'circle3'], ['arc3', '3-point arc (A)', 'arc3'], ['tarc', 'Tangent arc (T)', 'tarc'], ['slot', 'Slot', 'slot'], ['polygon', 'Polygon (G)', 'polygon'], ['point', 'Point (P)', 'point'],
-  'sep', ['construct', 'Construction (Q)', 'construct'], ['use', 'Use model edges (U)', 'use'], ['trim', 'Trim (M)', 'trim'], ['fillet', 'Sketch fillet', 'fillet'], ['offset', 'Offset (O)', 'offset'], ['mirror', 'Mirror', 'mirror'], 'sep', ['dim', 'Dimension (D)', 'dim']];
+const SK_TOOLS = [['select', 'Select (S)', 'select'], ['line', 'Line (L)', 'line'], ['cline', 'Centre line: a construction line', 'construct'], ['mline', 'Midpoint line: its middle, then an end', 'mline'],
+  ['rect', 'Corner rectangle (R)', 'rect'], ['crect', 'Centre rectangle', 'crect'], ['arect', 'Aligned rectangle: one side, then how far across', 'arect'],
+  ['circle', 'Centre circle (C)', 'circle'], ['circle3', '3-point circle', 'circle3'], ['ellipse', 'Ellipse: its centre, the end of one half-width, the other', 'ellipse'],
+  ['arc3', '3-point arc (A)', 'arc3'], ['tarc', 'Tangent arc (T)', 'tarc'], ['carc', 'Centre-point arc: its centre, its start, its end', 'carc'],
+  ['slot', 'Slot', 'slot'], ['polygon', 'Polygon by a corner (G)', 'polygon'], ['cpolygon', 'Polygon by the middle of a side', 'cpolygon'],
+  ['spline', 'Spline through points (right-click, Enter or a double-click ends it)', 'spline'], ['bezier', 'Bézier curve: its ends and the points that steer it', 'bezier'], ['point', 'Point (P)', 'point'],
+  'sep', ['construct', 'Construction (Q)', 'construct'], ['use', 'Use model edges (U)', 'use'], ['usex', 'Intersection: where a part cuts the sketch’s plane', 'usex'], ['dxf', 'Insert a DXF drawing', 'import'],
+  ['trim', 'Trim (M)', 'trim'], ['extend', 'Extend a line to the next shape', 'extend'], ['split', 'Split a line or an arc in two', 'split'],
+  ['fillet', 'Sketch fillet', 'fillet'], ['chamfer', 'Sketch chamfer', 'chamfer'], ['offset', 'Offset (O)', 'offset'],
+  ['mirror', 'Mirror', 'mirror'], ['lpat', 'Linear pattern', 'lpattern'], ['cpat', 'Circular pattern', 'cpattern'], ['transform', 'Transform: move, turn and scale', 'transform'], 'sep', ['dim', 'Dimension (D)', 'dim']];
 /* the tools that share a button: it shows the one last used, and the arrow beside it lists them all */
-const SK_GROUPS = [['line', 'cline', 'mline'], ['rect', 'crect'], ['circle', 'circle3'], ['arc3', 'tarc']];
-const SK_CONS = [['coincident', 'Coincident', '●'], ['horizontal', 'Horizontal', 'H'], ['vertical', 'Vertical', 'V'], ['parallel', 'Parallel', '∥'], ['perpendicular', 'Perpendicular', '⊥'], ['tangent', 'Tangent', 'T'], ['equal', 'Equal', '='], ['midpoint', 'Midpoint', 'M'], ['concentric', 'Concentric', '◎'], ['symmetric', 'Symmetric', '⇋'], ['fix', 'Fix', '⚓']];
+const SK_GROUPS = [['line', 'cline', 'mline'], ['rect', 'crect', 'arect'], ['circle', 'circle3', 'ellipse'], ['arc3', 'tarc', 'carc'], ['polygon', 'cpolygon'], ['spline', 'bezier'], ['use', 'usex', 'dxf'], ['trim', 'extend', 'split'], ['fillet', 'chamfer'], ['mirror', 'lpat', 'cpat', 'transform']];
+const GROUP_NAMES = { line: 'lines', rect: 'rectangles', circle: 'circles and ellipses', arc3: 'arcs', polygon: 'polygons', spline: 'splines', use: 'ways to bring shapes in', trim: 'ways to cut and extend', fillet: 'corners', mirror: 'copies and moves' };
+const SK_CONS = [['coincident', 'Coincident', '●'], ['horizontal', 'Horizontal', 'H'], ['vertical', 'Vertical', 'V'], ['parallel', 'Parallel', '∥'], ['perpendicular', 'Perpendicular', '⊥'], ['tangent', 'Tangent', 'T'], ['equal', 'Equal', '='], ['midpoint', 'Midpoint', 'M'], ['concentric', 'Concentric', '◎'], ['symmetric', 'Symmetric', '⇋'], ['normal', 'Normal: a line square to a circle or arc', 'N'], ['fix', 'Fix', '⚓']];
 export function sketchBar() {
   const bar = document.getElementById('sketchBar');
   if (!bar) return;
@@ -1171,14 +1286,14 @@ export function sketchBar() {
       // the group's button is the tool last used of it; the arrow opens the rest
       const cur = SK_TOOLS.find(x => x[0] === (g.includes(now) ? now : SK.variant[g[0]] || g[0])), menu = h('div', { class: 'rt-menu rt-imenu cad-toolmenu', role: 'menu', hidden: '', id: 'skMenu-' + g[0] },
         ...g.map(id => { const x = SK_TOOLS.find(y => y[0] === id); return h('button', { type: 'button', role: 'menuitemradio', 'aria-checked': String(now === id), 'data-skpick': id, 'data-icon': x[2], onclick: () => setTool(id) }, x[1]); }));
-      const caret = h('button', { type: 'button', class: 'rt-btn quiet cad-caret', 'data-skgroup': g[0], title: 'More ' + ({ line: 'lines', rect: 'rectangles', circle: 'circles', arc3: 'arcs' })[g[0]], 'aria-label': 'More ' + ({ line: 'lines', rect: 'rectangles', circle: 'circles', arc3: 'arcs' })[g[0]], 'aria-haspopup': 'true', 'aria-expanded': 'false',
+      const caret = h('button', { type: 'button', class: 'rt-btn quiet cad-caret', 'data-skgroup': g[0], title: 'More ' + GROUP_NAMES[g[0]], 'aria-label': 'More ' + GROUP_NAMES[g[0]], 'aria-haspopup': 'true', 'aria-expanded': 'false',
         onclick: e => { e.stopPropagation(); const open = menu.hidden; for (const m of bar.querySelectorAll('.cad-toolmenu')) m.hidden = true; menu.hidden = !open; caret.setAttribute('aria-expanded', String(open)); } }, '▾');
       return h('span', { class: 'rt-more cad-toolgroup' }, btn(cur[0], cur[1], cur[2], g.includes(now)), caret, menu);
     }),
     h('span', { class: 'rt-qsep' }),
     ...SK_CONS.map(([t, title, g]) => h('button', { type: 'button', class: 'rt-btn quiet cad-con', 'data-con': t, title: title + ' (on what is selected)', 'aria-label': title, onclick: () => addConstraint(t) }, g)),
     h('span', { class: 'rt-qsep' }),
-    SK.tool === 'polygon' ? num('Sides ', 'polySides', 'The polygon’s sides') : null, SK.tool === 'fillet' ? num('R ', 'filletR', 'The fillet’s radius') : null, SK.tool === 'select' || SK.tool === 'offset' ? num('Offset ', 'offsetD', 'The distance Offset copies shapes by (negative: the other side)') : null,
+    SK.tool === 'polygon' || SK.tool === 'cpolygon' ? num('Sides ', 'polySides', 'The polygon’s sides') : null, SK.tool === 'chamfer' ? num('Distance ', 'chamferD', 'How far back from the corner the chamfer starts') : null, SK.tool === 'fillet' ? num('R ', 'filletR', 'The fillet’s radius') : null, SK.tool === 'select' || SK.tool === 'offset' ? num('Offset ', 'offsetD', 'The distance Offset copies shapes by (negative: the other side)') : null,
     h('span', { class: 'cad-grow' }),
     h('button', { type: 'button', class: 'rt-btn', id: 'sketchCancel', onclick: cancelSketch }, 'Cancel'),
     h('button', { type: 'button', class: 'rt-btn primary', id: 'sketchOk', onclick: finishSketch, title: 'Finish the sketch (Enter)' }, '✓ Finish')].filter(Boolean));

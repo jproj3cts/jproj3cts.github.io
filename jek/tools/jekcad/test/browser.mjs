@@ -165,6 +165,16 @@ export async function check(pw, base, shots) {
     const zTurn = await zOut();
     await p.click('.cad-turn.up'); await p.waitForTimeout(100);
     const zUp = await zOut();
+    // the curved arrows roll the view about the line of sight: the part turns the way the arrow points
+    await p.evaluate(() => window.JEKcad.viewFrom('front')); await p.waitForTimeout(300);
+    const rollAng = () => p.evaluate(() => { const o = window.JEKcad.project([0, 0, 0]), x = window.JEKcad.project([10, 0, 0]); return Math.atan2(x[1] - o[1], x[0] - o[0]) * 180 / Math.PI; });
+    const roll0 = await rollAng(), zr0 = await zOut();
+    await p.click('.cad-turn.cw'); await p.waitForTimeout(100);
+    const roll1 = await rollAng(), zr1 = await zOut();
+    await p.click('.cad-turn.ccw'); await p.click('.cad-turn.ccw'); await p.waitForTimeout(100);
+    const roll2 = await rollAng();
+    ok('The view cube: the curved arrows roll the view 15° clockwise and anticlockwise, the line of sight kept', near(roll1 - roll0, 15, 0.05) && near(roll2 - roll0, -15, 0.05) && zr0.every((v, i) => near(v, zr1[i], 1e-6)), JSON.stringify([roll0, roll1, roll2, zr0, zr1]));
+    await p.evaluate(() => window.JEKcad.viewFrom('front')); await p.waitForTimeout(300);
     ok('The view cube: a strip along an edge looks from between two faces; the arrows turn the view 15° across and up', !!edgeAt && near(Math.abs(zEdge[2]), Math.SQRT1_2, 2e-3) && zEdge.filter(v => Math.abs(v) < 1e-3).length === 1 && near(Math.abs(zTurn[0]), Math.sin(15 * Math.PI / 180), 2e-3) && near(zTurn[2], 0, 2e-3) && near(Math.abs(zUp[2]), Math.sin(15 * Math.PI / 180), 2e-3), JSON.stringify([edgeAt, zEdge, zTurn, zUp]));
     await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300);
     await p.click('#btnViewMenu'); await p.click('[data-mode="hidden"]');

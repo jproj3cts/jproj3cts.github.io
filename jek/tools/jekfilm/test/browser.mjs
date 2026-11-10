@@ -125,6 +125,15 @@ export async function check(pw, base, shots) {
       ok('JEKrayPro: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
+    // a coating marked as a JEKray bench (saved by an API from before JEKfilm): opened here all the same
+    {
+      const { p, errs } = await page('#cloud=c3', { signedIn: true, pro: true });
+      await p.waitForFunction(() => window.JEKfilm.link(), null, { timeout: 8000 }).catch(() => {});
+      const o = await p.evaluate(() => ({ name: window.JEKfilm.film().name, link: window.JEKfilm.link(), opened: window.__opened.length }));
+      ok('A coating marked JEKray’s by an old API opens in JEKfilm, by its content', o.name === '1550-5%' && o.link && o.link.id === 'c3' && !o.opened, JSON.stringify(o));
+      ok('Mismarked coating: no page errors', !errs.length, errs.join(' | '));
+      await p.close();
+    }
     // someone else editing a coating: said, saving refused until taken over; the lease let go when the page goes
     {
       const { p, errs, api } = await page('#cloud=c2', { signedIn: true, pro: true, othersEditing: true });

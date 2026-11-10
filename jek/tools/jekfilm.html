@@ -4532,7 +4532,10 @@ const OTHER_APPS = { jekray: ['/jek/tools/jekray.html', 'jekray', 'a JEKray benc
 async function filmCloudOpen(id, version) {
   const b = await api('/v1/benches/' + id + (version ? '/versions/' + version : ''));
   const meta = version ? await api('/v1/benches/' + id) : b;
-  if (meta.tool !== 'jekfilm') {
+  // its content decides: a coating saved by an API from before JEKfilm is marked JEKray's, and opens here all the same
+  let fmt = null;
+  try { fmt = JSON.parse(b.content).format; } catch (err) { /* not JSON: another app's */ }
+  if (meta.tool !== 'jekfilm' && fmt !== 'jekfilm') {
     const a = OTHER_APPS[meta.tool] || OTHER_APPS.jekray, w = window.open(a[0] + '#cloud=' + id + (version ? '@' + version : ''), a[1]);
     if (w) w.focus(); toast('“' + meta.name + '” is ' + a[2] + ': opened in ' + a[3]); return;
   }

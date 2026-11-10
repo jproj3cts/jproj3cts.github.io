@@ -8,6 +8,7 @@ export async function route(page, opts = {}) {
   const me = { user: { id: 'u1', name: 'Jo Kelly', email: 'jo@example.ac.uk' }, identities: [{ provider: 'google', subject: 'x' }],
     workspaces: [{ id: WS, kind: 'personal', name: 'Jo', role: 'owner', active: !!opts.pro, plan: opts.pro ? { plan: 'individual', billing: true, status: 'active', interval: 'month' } : null }] };
   const benches = { c2: { id: 'c2', name: 'HR 1064', tool: 'jekfilm', workspace_id: WS, folder_id: 'f1', version: 2, content: JSON.stringify(Object.assign({}, COATING, { name: 'HR 1064' })), editing: opts.othersEditing ? { id: 'u2', name: 'Sam Reid' } : null },
+    c3: { id: 'c3', name: '1550-5%', tool: 'jekray', workspace_id: WS, folder_id: null, version: 1, content: JSON.stringify(Object.assign({}, COATING, { name: '1550-5%' })) },
     c1: { id: 'c1', name: 'V-coat 1064', tool: 'jekfilm', workspace_id: WS, folder_id: 'f1', version: 3, content: JSON.stringify(COATING) },
     b1: { id: 'b1', name: 'Michelson', tool: 'jekray', workspace_id: WS, folder_id: null, version: 2, content: '{"format":"jekray"}' } };
   const cors = req => ({ 'Access-Control-Allow-Origin': req.headers().origin || '*', 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'Content-Type, If-Match', 'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE' });

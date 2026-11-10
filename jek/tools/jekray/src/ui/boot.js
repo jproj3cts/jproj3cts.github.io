@@ -38,7 +38,7 @@ import { osaLines, osaSpan, osaTrace, pdInstSignal, pdNetMw, pdSignal } from '..
 import { antennaNow } from '../engines/antenna-field.js';
 import { specReading } from '../engines/spectrometer.js';
 import { V3D, wireView3d } from './view3d.js';
-import { MODEL3D_API, wireModel3d } from './model3d.js';
+import { MATE3D_API, wireMate3d } from './mate3d.js';
 import { INST } from './instruments.js';
 import { ELEC_UI } from './elec.js';
 import { METRICS, metricRaw, optimise, optimiseMany, sensitivity, updateSweepButtons } from './optimise.js';
@@ -105,6 +105,7 @@ import { rfReportPdfBlob, rfReportRecs } from './rf-report.js';
 import { closeLensDesign, lensDesignOpen, lensOptState, lensTolRun, openLensDesign, optStart } from './lens-workspace.js';
 import { closeRfDesign, newRfDesign } from './rf-workspace.js';
 import { closeCoatDesign, coatDesignOpen, openCoatDesign, wireCoatDesign } from './coat-workspace.js';
+import { benchCoats, designInFilm, filmFolder, filmStale, updateFilms, wireFilmCoats } from '../io/film-coats.js';
 import { designFigures, designPrescription } from '../engines/lens-design.js';
 import { anaSystems, footprints, huygensPsf, mtfAnalysis, psfAnalysis, relIllum, spotDiagram } from '../engines/lens-analysis.js';
 import { besselJ01, besselZerosJ0 } from '../core/special.js';
@@ -138,7 +139,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireMods(); wireView3d(); wireModel3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline }); wireCommands(); wireRecent();
+wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireFilmCoats(); wireMods(); wireView3d(); wireMate3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline }); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -198,7 +199,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // the page in an iframe, in test mode, so nothing here touches saved work.
   window.JEKray = {
     view3d: V3D.api,
-    model3d: MODEL3D_API,
+    mates: MATE3D_API,
     ...scriptCalls(),        // the calls a script is given (ui/script-calls.js), as the script worker has them too
     // on the page, a change made by J.set or J.setFibre is drawn, and its panel follows
     set(name, props) { const el = scriptCalls().set.call(this, name, props); renderPanel(); requestRender(); return el; },
@@ -470,6 +471,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // the coating design workspace: on a part's face (its surface index for a lens) or on its own
     openCoatDesign(name, i) { const el = name ? this.byName(name) : null; return openCoatDesign(el ? { el, holder: el.type === 'lens' ? el.surfaces[i || 0] : el, label: el.name } : null); },
     coatDesignOpen() { return coatDesignOpen(); },
+    // JEKfilm's coatings on the faces (io/film-coats.js): the cloud folder's list, the faces whose coating moved on, updating them
+    films: { folder: () => filmFolder, stale: () => filmStale(), update: s => updateFilms(s), coats: () => benchCoats().map(x => x.coat) },
     selectAssembly(name) { const a = assemblies().find(x => x.name === name); if (!a) return false; traceScene(); setSelection(asmMembers(a)); renderPanel(); return true; },
     lensDesignOpen() { return lensDesignOpen(); },
     lensOptimise(mode, opts) { return optStart(mode || 'dls', Object.assign({ sync: true }, opts)) && lensOptState(); },
@@ -638,7 +641,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     openDemo(demo[1]);
   }
   // #examples opens the gallery, #tour=<name> starts a tour, #pro offers JEKrayPro (the product page links to all three);
-  // #benches opens JEKspace, where the benches are; and from JEKspace, #cloud=<id> (or <id>@<version>, a copy of a version)
+  // #benches opens JEKsuite, where the benches are; and from JEKsuite, #cloud=<id> (or <id>@<version>, a copy of a version)
   // opens a cloud bench, :lens, :rf or :coat after it into a designer, and #new (or #new=lens|rf|coat) starts a new bench
   const helpLink = () => {
     const tr = location.hash.match(/^#tour=([a-z]+)/), pro = location.hash === '#pro', benches = location.hash === '#benches';
@@ -646,7 +649,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     if (location.hash !== '#examples' && !pro && !benches && !cl && !nw && !(tr && TOURS[tr[1]])) return false;
     window.history.replaceState(null, '', location.pathname);
     hideWelcome();
-    const into = w => { if (w === 'lens') newLensDesign(); else if (w === 'rf') newRfDesign(); else if (w === 'coat') openCoatDesign(null); };
+    const into = w => { if (w === 'lens') newLensDesign(); else if (w === 'rf') newRfDesign(); else if (w === 'coat') designInFilm(null); };
     setTimeout(async () => {
       if (tr) startTour(tr[1]); else if (pro) proLink();
       else if (cl) { await accountLoaded; try { await openCloudBench(cl[1], cl[2] ? Number(cl[2]) : undefined); into(cl[3]); } catch (err) { toast(err.status === 401 ? 'Sign in, top right, to open that bench' : err.status === 404 ? 'That bench is not available to you' : err.message, true); } }

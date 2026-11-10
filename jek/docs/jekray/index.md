@@ -41,7 +41,7 @@ The RF parts are not a separate program. A horn's beam is a Gaussian beam traced
 <ul class="dx-cards dx-two">
   <li><a href="/jek/docs/jekray/lens-design/"><b>Optical designer</b><small>A lens system surface by surface: prescription, aberrations, spots, wavefront, MTF, optimisation, tolerancing, drawings and a report.</small></a></li>
   <li><a class="rf" href="/jek/docs/jekray/rf/designer/"><b>RF designer</b><small>A feed horn's beam through RF lenses and mirrors as an antenna: gain, sidelobes, cross-polar, scan, tolerancing, and a lens that can be made.</small></a></li>
-  <li><a href="/jek/docs/jekray/coating-design/"><b>Coating design</b><small>A thin-film stack on a face, judged over a band and a range of angles, its thicknesses optimised, and put straight on the face.</small></a></li>
+  <li><a href="/jek/docs/jekray/jekfilm/"><b>JEKfilm</b><small>A thin-film coating designed over a band and a range of angles, kept in the cloud beside your benches, and put on a face.</small></a></li>
 </ul>
 
 Each opens from a part on the bench, works on the same data, and writes its result back to the bench, so what is designed is what is traced.

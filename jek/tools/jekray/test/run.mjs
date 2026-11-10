@@ -70,6 +70,7 @@ if (!failed && !flag('--no-browser') && (plan.full || plan.browser.length)) {
     console.log(`\n== browser: ${plan.full ? 'all groups' : plan.browser.length + ' group(s)'} at ${url}`);
     const b = await pw.chromium.launch(); const p = await b.newPage({ viewport: { width: 1400, height: 900 } });
     const errs = []; p.on('pageerror', e => errs.push(e.message));
+    if (flag('--console')) p.on('console', m => console.log('  console: ' + m.text().slice(0, 600)));     // what the tests log, to see why one failed
     await p.goto(url);
     try { await p.waitForFunction(() => /passed|failed|did not/.test(document.getElementById('summary').textContent), null, { timeout: 1800000 }); } catch { console.log('the browser suite did not finish in 30 minutes'); failed = true; }
     const sum = await p.textContent('#summary'); console.log('browser: ' + sum);

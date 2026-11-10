@@ -15,12 +15,12 @@ export const AREAS = {
       'src/core/geometry.js', 'src/core/sag.js', 'src/core/coatings.js', 'src/core/coatdesign.js', 'src/core/face-pol.js', 'src/core/glass.js', 'src/core/glass-catalog.js', 'src/core/glass-thermal.js',
       'src/core/maths.js', 'src/core/numeric.js', 'src/core/special.js', 'src/core/format.js', 'src/core/colour.js', 'src/core/freeform.js', 'src/core/diffractive.js', 'src/core/gradient.js', 'src/core/mask.js', 'src/core/traps.js',
       'src/parts/', 'src/ui/parts/', 'src/ui/render.js', 'src/ui/panel.js', 'src/ui/panels.js', 'src/ui/pointer.js', 'src/ui/picker.js', 'src/ui/rail.js', 'src/ui/actions.js', 'src/ui/readouts.js',
-      'src/ui/plots.js', 'src/ui/sweeps.js', 'src/ui/instruments.js', 'src/ui/optimise.js', 'src/ui/heavy.js', 'src/ui/tours.js', 'src/ui/commands.js', 'src/ui/part-uses.js', 'src/io/figure.js', 'src/io/recent.js', 'src/ui/news.js', 'src/ui/experimental.js', 'src/ui/coat-workspace.js'],
+      'src/ui/plots.js', 'src/ui/sweeps.js', 'src/ui/instruments.js', 'src/ui/optimise.js', 'src/ui/heavy.js', 'src/ui/tours.js', 'src/ui/commands.js', 'src/ui/part-uses.js', 'src/io/figure.js', 'src/io/recent.js', 'src/ui/news.js', 'src/ui/experimental.js', 'src/ui/coat-workspace.js', 'src/io/film-coats.js'],
     node: ['engines.test.mjs', 'physics-reels.test.mjs', 'physics-gain-aperture.test.mjs', 'demos.test.mjs', 'parts.test.mjs', 'numeric.test.mjs', 'face-pol.test.mjs', 'coatdesign.test.mjs', 'zoned.test.mjs', 'grin.test.mjs', 'cyl-roll.test.mjs', 'phosphor.test.mjs', 'phosphor-line.test.mjs', 'pro-gate.test.mjs', 'optimise-stress.test.mjs'],
     demos: true,
     browser: ['Materials and dispersion', 'Paraxial optics', 'Geometric tracing', 'Fresnel, coatings and polarisation', 'Thin-film coatings', 'Optical path and interference', 'Gaussian beams',
       'Stops and masks on the field', 'Measurements and the ray fan', 'Off-axis apertures, near and far', 'Tolerancing', 'System, absorption and screens', 'A beam across an element’s edge',
-      'Working with several elements', 'Tracing', 'Aberrations', 'Masks as ideal lenses', 'Optimising several parameters', 'Optimiser stress', 'Heights', 'Surfaces: holes, stacks and mirror coatings'],
+      'Working with several elements', 'Tracing', 'Aberrations', 'Masks as ideal lenses', 'Optimising several parameters', 'Optimiser stress', 'Heights', 'Surfaces: holes, stacks and mirror coatings', 'JEKfilm coatings on the faces'],
   },
   field: {
     what: 'the diffracted field: propagation, the close-up, vector focusing, coherence and the 3D field volume',
@@ -54,11 +54,11 @@ export const AREAS = {
     browser: ['Import, files and tools', 'Projects written elsewhere, and the AI guide', 'Share links', 'Tabs and link planes', 'Part packs', 'Modules', 'Exercises', 'Optimiser stress'],
   },
   view3d: {
-    what: 'the 3D view, STL objects and the field drawn in 3D',
+    what: 'the 3D view, STL objects, mates and the field drawn in 3D',
     src: ['src/ui/view3d.js', 'src/ui/rf-lens3d.js', 'src/core/stl.js', 'src/core/step.js', 'src/io/step-reader.js', 'src/io/step.js', 'src/parts/stl.js', 'src/ui/parts/stl.js', '../../assets/vendor/occt-import-js/',
-      'src/core/model.js', 'src/core/sketch.js', 'src/ui/model3d.js', '../../assets/vendor/manifold-3d/'],
-    node: ['zoned.test.mjs', 'step-import.test.mjs', 'pro-gate.test.mjs', 'model.test.mjs', 'sketch.test.mjs'],
-    browser: ['The 3D view', 'STL objects', 'The field in 3D', 'Modelling in 3D'],   // The 3D view is two groups of that name
+      'src/core/mates.js', 'src/ui/mate3d.js'],
+    node: ['zoned.test.mjs', 'step-import.test.mjs', 'pro-gate.test.mjs', 'mates.test.mjs', 'model-convert.test.mjs'],
+    browser: ['The 3D view', 'STL objects', 'The field in 3D', 'Mates and groups in 3D'],   // The 3D view is two groups of that name
   },
   'lens-design': {
     what: 'the Optical designer: assemblies, the sequential engine, analyses, optimiser, tolerancing, drawings, report',

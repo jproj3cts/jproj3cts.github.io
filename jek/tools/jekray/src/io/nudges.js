@@ -14,7 +14,7 @@ import { drag } from '../ui/pointer.js';
 import { FREE_GIVES, UNI_LINE, account, accountKnown, accountsOn, showEmailSignIn, showSubscribe, signIn, signInRow } from './account.js';
 
 /* ==========================================================================
-   JEKray's own sign-in prompts, on the bench; the account itself is io/account.js, shared with JEKion and JEKspace,
+   JEKray's own sign-in prompts, on the bench; the account itself is io/account.js, shared with JEKion and JEKsuite,
    whose hooks JEKray installs here (wireNudges): its work kept before the page leaves to sign in or pay, its cloud
    bench sent up once the account or a plan is there, the account menu put in the bar's menu.
    ========================================================================== */

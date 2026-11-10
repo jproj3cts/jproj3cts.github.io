@@ -1,0 +1,115 @@
+{
+ "format": "jekray",
+ "version": 1,
+ "elements": [
+  {
+   "type": "source",
+   "id": "S",
+   "name": "S",
+   "x": -60,
+   "y": 0,
+   "angle": 0,
+   "wavelength": 633,
+   "rays": 5,
+   "width": 4
+  },
+  {
+   "id": "mdl1",
+   "type": "stl",
+   "name": "Model 1",
+   "x": 12,
+   "y": -7,
+   "angle": 30,
+   "bench": null,
+   "z": 32.5,
+   "mesh": {
+    "enc": "q16",
+    "data": "CbD4VwAAM7OpUwAAAAAAAAAAO60sXQAApbZXUAAATboVTgAAFr7xTAAAAAAAAP////8AAAAAiafocAAAr6ZeeAAAZqYAgAAAr6ahhwAA2KooYwAA76jJaQAAAAD/////CbD4V///M7OpU///O60sXf//pbZXUP//TboVTv//Fr7xTP//iafocP//r6ZeeP//ZqYAgP//r6ahh///2KooY///76jJaf//AAD//wAAiacXjwAA76g2lgAA2KrXnAAAO63TogAACbAHqAAAM7NWrAAApbaorwAATbrqsQAAFr4OswAAiacXj///76g2lv//2KrXnP//O63Tov//////////CbAHqP//M7NWrP//pbaor///Tbrqsf//Fr4Os///ssUVTgAA6cHxTAAAWslXUAAAzMypUwAA9c/4VwAAw9IsXQAAJtUoYwAAENfJaQAAdtjocAAAUNleeAAAmdkAgAAA6cHxTP//ssUVTv//WslXUP//zMypU///9c/4V///w9IsXf//JtUoY///ENfJaf//dtjocP//UNleeP//mdkAgP////8AAP///////wAA6cEOswAAssXqsQAAUNmhhwAAdtgXjwAAENc2lgAAw9LTogAAJtXXnAAAUNmhh///dtgXj///ENc2lv//JtXXnP//Wsmor///WsmorwAAzMxWrAAAzMxWrP//9c8HqAAA6cEOs///ssXqsf//w9LTov//9c8HqP//AAABAAIAAAACAAMAAgABAAQAAgAEAAUAAgAFAAYABwACAAgACQACAAoACgACAAsACwACAAwAAwACAA0ADQACAA4ADgACAAkABwAPAAIAEAAHABEAEAASAAcABwATABEABwAUABMABwAVABQAFgAXAAcAFwAYAAcAGAAZAAcAEgAaAAcAGgAbAAcAGwAWAAcADAACABwADwAcAAIADAAcAB0AHQAcAB4AHgAcAB8AHwAcACAAIAAcACEAIQAcACIAIgAcACMAIwAcACQAJAAcACUAGQAPAAcAGQAmAA8AJgAnAA8AJwAoAA8AKAApAA8ADwAqABwAKQArAA8AKwAsAA8ALAAtAA8ALQAuAA8ALgAvAA8AAgAwAAgAAgAGADEAAgAxADAAEAAAAAMAEgADAA0AFAAFAAQAFQAGAAUAEQABAAAAEwAEAAEAGgANAA4AGwAOAAkAFgAJAAoAFwAKAAsACAAwADIACAAyADMACAAzADQACAA0ADUACAA1ADYACAA2ADcACAA3ADgACAA4ADkACAA5ADoAOwAxAAYAPAAwADEAPQAyADAAPgAzADIAPwA0ADMAQAA1ADQAQQA2ADUAQgA3ADYAQwA4ADcARAA5ADgARQA6ADkARgAIAEcARgAHAAgABwBGADwABwA7ABUABwA8ADsAEgAQAAMAEwAUAAQAFAAVAAUAFQA7AAYAEAARAAAAEQATAAEAGgASAA0AGwAaAA4AFgAbAAkAFwAWAAoAGAAXAAsARgA9ADwARgA+AD0ARgA/AD4ARgBAAD8AOwA8ADEAPAA9ADAAPQA+ADIAPgA/ADMAPwBAADQAQABBADUAQQBCADYAQgBDADcAQwBEADgARABFADkARgBBAEAARgBCAEEARgBDAEIARgBEAEMARgBFAEQAGAALAAwAGQAMAB0AJgAdAB4AJwAeAB8AKAAfACAAKQAgACEAKwAhACIALAAiACMALQAjACQALgAkACUALwAlAEgAJQAcAEgASAAcAEkASQAcAEcAKgBHABwACAA6AEcASgBHADoASwBHAEoATABHAEsATQBHAE4ATgBHAEwATwBKADoAUABLAEoAUQBMAEsAUgBOAEwAUwBUAFUAVgBVAFcAWABIAEkAWQBJAFQAWgBNAE4AWwBXAE0AVQBHAFcASQBHAFQAVABHAFUAVwBHAE0AGQAYAAwAJgAZAB0AJwAmAB4AKAAnAB8AKQAoACAAKwApACEALAArACIALQAsACMALgAtACQALwAuACUALwBYAA8AWABZAA8AWQAqAA8ARQBPADoATwBQAEoAUABRAEsAUQBSAEwAUgBaAE4AVgBTAFUAWwBWAFcAWAAvAEgAWQBYAEkAUwBZAFQAWgBbAE0AKgBGAEcARgAqAEUATwBFACoAUABPACoAUQBQACoAWgBSACoAUgBRACoAVgBbACoAWQBTACoAUwBWACoAWwBaACoA",
+    "n": 184,
+    "nv": 92,
+    "size": [
+     40,
+     20,
+     5
+    ],
+    "file": "model"
+   },
+   "units": "mm",
+   "scale": 1,
+   "colour": "#7d8794",
+   "model": {
+    "feats": [
+     {
+      "id": "f7nh32zx",
+      "t": "sketch",
+      "name": "Sketch 1",
+      "plane": {
+       "o": [
+        0,
+        0,
+        0
+       ],
+       "x": [
+        1,
+        0,
+        0
+       ],
+       "y": [
+        0,
+        1,
+        0
+       ]
+      },
+      "ents": [
+       {
+        "id": "f7nh30hf",
+        "t": "rect",
+        "c": [
+         0,
+         0
+        ],
+        "w": 40,
+        "h": 20,
+        "rot": 0
+       },
+       {
+        "id": "f7nh31g1",
+        "t": "circle",
+        "c": [
+         10,
+         0
+        ],
+        "r": 4
+       }
+      ]
+     },
+     {
+      "id": "f7nh3356",
+      "t": "extrude",
+      "name": "Extrude 1",
+      "sk": "f7nh32zx",
+      "op": "add",
+      "d": 5
+     }
+    ],
+    "c": [
+     0,
+     0,
+     2.5
+    ]
+   },
+   "sweeps": {},
+   "tip": 10,
+   "roll": 5
+  },
+  {
+   "type": "screen",
+   "id": "Sc",
+   "name": "Sc",
+   "x": 80,
+   "y": 0,
+   "angle": 180,
+   "length": 100
+  }
+ ]
+}

@@ -21,6 +21,7 @@ import { linkBudget, rfSweep } from '../engines/rf-sweep.js';
 import { getCss, inkA, removeFibre } from './render.js';
 import { getPath, setParam } from '../state/params.js';
 import { groupEls, ungroupEls } from './drawings.js';
+import { groupMovePanel } from './mate3d.js';
 import { snapVal } from './pointer.js';
 import { CONNS, FIBRE_N, netPower, pkey, portName, portsOf } from '../engines/fibre.js';
 import { signalSection } from './instruments.js';
@@ -543,32 +544,45 @@ function screenPlots(el) {
 
 /* a surface's coating, the list alone (the lens's face table) */
 export function coatingSelect(el, holder, label) {
-  return selectBox(coatingOptions(el, true), () => coatingValue(el, holder), v => setCoating(el, holder, v), { aria: label || 'Coating' });
+  return selectBox(coatingOptions(el, true, holder), () => coatingValue(el, holder), v => setCoating(el, holder, v), { aria: label || 'Coating' });
 }
-function coatingOptions(el, short) {
+function coatingOptions(el, short, holder) {
   return [['bare', short ? 'Uncoated' : el.mmw ? 'Uncoated face (its own reflection)' : 'Uncoated (about 4% a face)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
     ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack'], ['mirror', 'Mirror coating'], ['hr', short ? 'Dielectric HR' : 'Dielectric HR (over a band)'], ...(el.mmw ? [['match', short ? 'Matching layer' : 'Matching layer (\u03bb/4 at the bench frequency)']] : []),
-    ['design', 'Design a coating\u2026'], ...(hooks.keptCoatings ? hooks.keptCoatings().map(k => ['kept:' + k.id, '\u2605 ' + k.name]) : [])];
+    ['design', el.mmw ? 'Design a matching layer\u2026' : 'Design a coating in JEKfilm\u2026'], ...(hooks.keptCoatings ? hooks.keptCoatings().map(k => ['kept:' + k.id, '\u2605 ' + k.name]) : []),
+    // JEKfilm's coatings: those in the bench's cloud folder, the one this face is linked to, and a .jekfilm file
+    ...filmOptions(holder), ...(hooks.filmFileOn ? [['filmfile', 'A JEKfilm coating from a file\u2026']] : [])];
 }
-const coatingValue = (el, holder) => (holder.coat.label === 'Matching layer' && el.mmw ? 'match' : holder.coat.mode === 'band' && holder.coat.label === 'Dielectric HR' ? 'hr' : holder.coat.mode);
+/* the ◆ entries: each JEKfilm coating in the cloud bench's folder, and the face's own linked one if it is elsewhere */
+function filmOptions(holder) {
+  const list = hooks.filmFolder ? hooks.filmFolder() : [], src = holder && holder.coat && holder.coat.src;
+  const out = list.map(f => ['film:' + f.id, '\u25c6 ' + f.name + ' (JEKfilm)']);
+  if (src && !list.some(f => f.id === src.id)) out.push(['film:' + src.id, '\u25c6 ' + (holder.coat.label || 'JEKfilm coating') + ' (JEKfilm)']);
+  return out;
+}
+const coatingValue = (el, holder) => (holder.coat.src ? 'film:' + holder.coat.src.id : holder.coat.label === 'Matching layer' && el.mmw ? 'match' : holder.coat.mode === 'band' && holder.coat.label === 'Dielectric HR' ? 'hr' : holder.coat.mode);
 function setCoating(el, holder, v) {
   const keep = holder.coat;
   // the coating design workspace, on this face; a coating kept by name there, written here
-  if (v === 'design') { if (hooks.openCoatDesign) hooks.openCoatDesign({ el, holder, label: el.name + (el.type === 'lens' ? ', surface ' + (el.surfaces.indexOf(holder) + 1) : '') }); return;
+  // RF's matching layer in JEKray's own coating workspace; an optical face's coating in JEKfilm, which sends it back to this face
+  if (v === 'design') { const from = { el, holder, label: el.name + (el.type === 'lens' ? ', surface ' + (el.surfaces.indexOf(holder) + 1) : '') }; if (el.mmw) { if (hooks.openCoatDesign) hooks.openCoatDesign(from); } else if (hooks.designInFilm) hooks.designInFilm(from); return;
   } else if (v.startsWith('kept:')) { const k = (hooks.keptCoatings ? hooks.keptCoatings() : []).find(q => 'kept:' + q.id === v); if (k) holder.coat = normCoat(k.coat); return; }
+  // a JEKfilm coating: from the cloud folder (fetched, then put on), or from a file; the face linked to one already keeps it
+  if (v.startsWith('film:')) { if (!(keep.src && 'film:' + keep.src.id === v) && hooks.useFilmOn) hooks.useFilmOn(holder, v.slice(5)); return; }
+  if (v === 'filmfile') { if (hooks.filmFileOn) hooks.filmFileOn(holder); return; }
   if (v === 'match') { holder.coat = matchLayer(refIndex((el.materials || [])[0] || { glass: 'HDPE' }, benchNms()[0]), benchNms()[0]); return; }
   // a mirror coating (ideal, or a metal's reflectance), or a dielectric high reflector over a band (bare glass outside it)
   if (v === 'mirror') { holder.coat = normCoat({ mode: 'mirror', metal: keep.metal || 'ideal' }); return; }
   if (v === 'hr') { const nm = benchNms()[0]; holder.coat = normCoat({ mode: 'band', R: 99.9, lo: Math.round(nm * 0.85), hi: Math.round(nm * 1.15), label: 'Dielectric HR' }); return; }
   holder.coat = normCoat({ mode: v, R: v === 'ar' ? 0.5 : keep.R, design: keep.design, layers: keep.layers,
-    lo: keep.lo, hi: keep.hi, label: keep.label });
+    lo: keep.lo, hi: keep.hi, label: keep.label });     // no src: a stack chosen plainly is this face's own, to edit
   if (v === 'stack' && !holder.coat.layers.length) holder.coat.layers = coatPreset('mgf2', holder.coat.design);
 }
 /* a surface's coating: its list (unless opts.noSelect: the list is elsewhere) and what the coating chosen takes */
 export function coatingRows(el, holder, label, opts = {}) {
   const box = h('div', null);
   const rows = h('div', { class: 'rt-rows', style: opts.noSelect ? '' : 'margin-top:0.6rem' });
-  if (!opts.noSelect) rows.append(selectField(label || 'Coating', coatingOptions(el), () => coatingValue(el, holder), v => setCoating(el, holder, v), { wide: holder.coat.mode === 'bare' }));
+  if (!opts.noSelect) rows.append(selectField(label || 'Coating', coatingOptions(el, false, holder), () => coatingValue(el, holder), v => setCoating(el, holder, v), { wide: holder.coat.mode === 'bare' || !!holder.coat.src }));
   if (holder.coat.mode === 'ar' || holder.coat.mode === 'custom') rows.append(param('Reflectance (%)', el, coatPath(el, holder) + '.R'));
   if (holder.coat.mode === 'mirror') {
     rows.append(selectField('Metal', Object.entries(MIRROR_METALS), () => holder.coat.metal, v => { holder.coat = normCoat(Object.assign({}, holder.coat, { metal: v })); }));
@@ -585,10 +599,22 @@ export function coatingRows(el, holder, label, opts = {}) {
       (holder.coat.label ? holder.coat.label + '. ' : '') +
       'Inside the band the surface reflects this much; outside it the coating is ignored and the bare glass is traced.'));
   }
-  if (holder.coat.mode === 'stack') box.append(stackRows(el, holder));
+  if (holder.coat.src) box.append(filmNote(holder));
+  else if (holder.coat.mode === 'stack') box.append(stackRows(el, holder));
   return box;
 }
 
+/* a face linked to a JEKfilm coating: where it came from, its version, and the ways on (its layers are edited in
+   JEKfilm; Thin-film stack in the list makes them this face's own to edit here) */
+function filmNote(holder) {
+  const c = holder.coat, f = (hooks.filmFolder ? hooks.filmFolder() : []).find(x => x.id === c.src.id);
+  const newer = f && f.version > c.src.v;
+  return h('div', { class: 'note rt-filmnote', style: 'margin-top:0.4rem' },
+    c.layers.length + (c.layers.length === 1 ? ' layer' : ' layers') + ' at ' + c.design + ' nm, from the JEKfilm coating “' + (c.label || 'coating') + '”, version ' + c.src.v + (newer ? ' (version ' + f.version + ' is saved)' : '') + '. ',
+    newer ? h('button', { class: 'rt-link', type: 'button', onclick: () => { if (hooks.updateFilms) hooks.updateFilms([{ id: f.id, name: f.name, from: c.src.v, to: f.version, holders: [holder] }]); } }, 'Update this face') : null,
+    newer ? ' ' : null,
+    h('button', { class: 'rt-link', type: 'button', onclick: () => { if (hooks.openFilm) hooks.openFilm(c.src.id); } }, 'Open in JEKfilm'));
+}
 function stackRows(el, holder) {
   const base = coatPath(el, holder);
   const coat = holder.coat;
@@ -988,6 +1014,8 @@ export function groupPanel(list) {
     B('Align on a vertical line', () => alignEls(list, 'x')), B('Align on a horizontal line', () => alignEls(list, 'y')),
     B('Space evenly across', () => alignEls(list, 'dx')), B('Space evenly up', () => alignEls(list, 'dy')),
     B('Rotate 90\u00b0 \u21ba', () => rotateEls(list, 90)), B('Rotate 90\u00b0 \u21bb', () => rotateEls(list, -90))));
+  // moved and turned together by numbers, as one body (about their middle), with whatever is mated to them
+  panel.append(h('h3', null, 'Move and turn them together'), groupMovePanel(list));
   const shared = sharedFields(list);
   if (shared) panel.append(h('h3', null, 'Set them all'), shared);
   // a group can turn about one of its parts (a lighthouse's ring, a polygon scanner): its Spin turns the rest about it,
@@ -1017,7 +1045,7 @@ export function groupPanel(list) {
   if (mk) { panel.append(h('h3', null, 'Optical designer')); panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' }, mk)); }
   if (project.benches.length > 1) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
     selectField('Move to tab', [['', 'Choose a tab\u2026'], ...project.benches.map(b => [b.id, b.name])], () => '', v => { if (v) moveToTab(list, v); }, { wide: true })));
-  panel.append(helpLine('Drag any of them to move them all; right-click for more.', ['Drag any of them to move them all; the arrow keys nudge them. Shift- or Ctrl-click an element to add it or take it out; drag across empty bench to pick a boxful (Shift to add to these). Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste, between tabs and projects too; right-click for the rest. Locked elements stay where they are.'], 'note', 'margin-top:0.6rem'));
+  panel.append(helpLine('Drag any of them to move them all; right-click for more.', ['Drag any of them to move them all; the arrow keys nudge them. Shift- or Ctrl-click an element to add it or take it out; drag across empty bench (or empty space in 3D) to pick a boxful (Shift to add to these). Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste, between tabs and projects too; right-click for the rest. Locked elements stay where they are.'], 'note', 'margin-top:0.6rem'));
 }
 /* a partner for a link plane: same pair, same orientation, in the middle of that tab's view */
 export function makeLinkPartner(el, benchId) {

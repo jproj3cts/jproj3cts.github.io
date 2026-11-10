@@ -80,7 +80,7 @@ renderPanel();
 initView().then(() => { regenNow().then(() => { if (!V.fitted) fit(true); usageDrawn(); }); });
 usageStart(saved ? 'cad-restored' : 'cad-fresh');
 if (!saved && !TEST_MODE && !EMBED) setTimeout(() => toast('Welcome to JEKcad. Click Sketch, pick the Top plane, draw a rectangle and dimension it (D), then Finish and Extrude.'), 700);
-// #cloud=<id> (or @<version> for a copy) opens a cloud Part Studio; #benches opens JEKspace; #new starts a new one
+// #cloud=<id> (or @<version> for a copy) opens a cloud Part Studio; #benches opens JEKsuite; #new starts a new one
 const cloudAt = !TEST_MODE && !EMBED && location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/);
 const cloudHash = async cl => { window.history.replaceState(null, '', location.pathname); await accountLoaded; openCloudBench(cl[1], cl[2] ? Number(cl[2]) : undefined); };
 if (cloudAt) cloudHash(cloudAt);

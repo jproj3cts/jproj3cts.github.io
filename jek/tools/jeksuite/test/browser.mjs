@@ -14,7 +14,7 @@ export async function check(pw, base, shots) {
       await p.goto(base + '/jek/tools/jeksuite.html');
       await p.waitForSelector('#homeSignIn', { timeout: 10000 }).catch(() => {});
       const s = await p.evaluate(() => ({ signIn: !!document.getElementById('homeSignIn'), apps: [...document.querySelectorAll('.rt-happlinks button')].map(a => a.textContent), cards: document.querySelectorAll('.rt-happ').length, appsBtn: !!document.getElementById('homeApps'), btn: document.getElementById('btnAcct').textContent }));
-      ok('Signed out: a sign-in panel, and the apps under it as buttons (no cards, no Apps button)', s.signIn && s.apps.join() === 'Open JEKray,Open JEKion,Open JEKfilm' && !s.cards && !s.appsBtn && s.btn === 'Sign in', JSON.stringify(s));
+      ok('Signed out: a sign-in panel, and the apps under it as buttons (no cards, no Apps button)', s.signIn && s.apps.join() === 'Open JEKray,Open JEKion,Open JEKfilm,Open JEKcad' && !s.cards && !s.appsBtn && s.btn === 'Sign in', JSON.stringify(s));
       await p.click('#homeSignIn');
       const menu = await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].map(x => x.textContent));
       ok('Signed out: Sign in offers Google, Microsoft and email', ['Continue with Google', 'Continue with Microsoft (university or work)', 'Continue with email'].every(t => menu.includes(t)), menu.join(' | '));
@@ -89,7 +89,7 @@ export async function check(pw, base, shots) {
       // New: only what can be started (opening an app is on its page), a bench in each app first, then JEKray's designers
       await p.click('#homeNew');
       const kinds = await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].map(x => x.textContent));
-      ok('New offers a bench in each app (a coating in JEKfilm), then JEKray’s two designers, and no way to merely open an app', kinds.join('|') === 'JEKray bench|JEKion bench|JEKfilm coating|Optical design (JEKray)|RF design (JEKray)', kinds.join('|'));
+      ok('New offers a bench in each app (a coating in JEKfilm, a part studio in JEKcad), then JEKray’s two designers, and no way to merely open an app', kinds.join('|') === 'JEKray bench|JEKion bench|JEKfilm coating|JEKcad part studio|Optical design (JEKray)|RF design (JEKray)', kinds.join('|'));
       await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'Optical design (JEKray)').click());
       await p.click('#spaceNewMake'); await p.waitForTimeout(400);
       const op3 = await p.evaluate(() => window.__opened.slice(-1)[0]);
@@ -108,6 +108,15 @@ export async function check(pw, base, shots) {
       const op5 = await p.evaluate(() => window.__opened.slice(-1)[0]);
       ok('New › JEKfilm coating: an untitled coating made in the cloud (a .jekfilm) and opened in JEKfilm’s tab', film.title === 'New JEKfilm coating' && film.name === 'Untitled coating' && JSON.parse(body.content).format === 'jekfilm'
         && op5 && op5[0] === '/jek/tools/jekfilm.html#cloud=bnew' && op5[1] === 'jekfilm', JSON.stringify([film, op5]));
+      await p.click('#homeNew');
+      await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'JEKcad part studio').click());
+      const cad = await p.evaluate(() => ({ title: document.getElementById('spaceNewTitle').textContent, name: document.getElementById('spaceNewName').value }));
+      const postedCad = p.waitForRequest(r => r.method() === 'POST' && /\/v1\/workspaces\/w_me\/benches$/.test(r.url()));
+      await p.click('#spaceNewMake');
+      const cadBody = JSON.parse((await postedCad).postData()); await p.waitForTimeout(300);
+      const op6 = await p.evaluate(() => window.__opened.slice(-1)[0]);
+      ok('New › JEKcad part studio: an empty .jekcad made in the cloud and opened in JEKcad’s tab', cad.title === 'New JEKcad part studio' && cad.name === 'Untitled part studio' && JSON.parse(cadBody.content).format === 'jekcad'
+        && op6 && op6[0] === '/jek/tools/jekcad.html#cloud=bnew' && op6[1] === 'jekcad', JSON.stringify([cad, op6]));
       // the account menu: plan, teams, theme
       await p.click('#btnAcct');
       const acct = await p.evaluate(() => document.querySelector('.rt-hmenu').innerText);
@@ -168,6 +177,24 @@ export async function check(pw, base, shots) {
       ok('A coating in its folder, marked JEKfilm, opens in JEKfilm’s tab', tag && tag[0] === 'JEKfilm' && /jekfilm/.test(tag[1]) && /JEKfilm coating/.test(tag[2]) && op && op[0] === '/jek/tools/jekfilm.html#cloud=b5' && op[1] === 'jekfilm', JSON.stringify([tag, op]));
       if (shots) await p.screenshot({ path: shots + '/jeksuite-launch-jekfilm.png' });
       ok('JEKfilm’s launch page: no page errors', !errs.length, errs.join(' | '));
+      await p.close();
+    }
+    // JEKcad's launch page: its part studios alone, counted in their folders; one opens in JEKcad's tab
+    {
+      const p = await b.newPage({ viewport: { width: 1300, height: 860 } }), errs = []; p.on('pageerror', e => errs.push(e.message));
+      await route(p, { signedIn: true });
+      await p.goto(base + '/jek/tools/jeksuite.html#app=jekcad');
+      await p.waitForSelector('.rt-happhead.jekcad', { timeout: 10000 }).catch(() => {}); await p.waitForTimeout(300);
+      const d = await p.evaluate(() => ({ counts: [...document.querySelectorAll('.rt-hcard.folder .rt-hcount')].map(x => x.textContent), starts: [...document.querySelectorAll('.rt-happhead .rt-btn')].map(x => x.textContent), where: document.getElementById('homeWhere').textContent }));
+      ok('#app=jekcad: JEKcad’s launch page, its part studios counted in their folders, New part studio', d.where === 'JEKcad' && d.counts.join() === '0 part studios,1 part studio' && d.starts.join('|') === 'Open JEKcad|New part studio', JSON.stringify(d));
+      await p.evaluate(() => [...document.querySelectorAll('.rt-hcard.folder .rt-hopen')].find(x => /Levisense/.test(x.textContent)).click());
+      await p.waitForSelector('.rt-hcard[data-bench=b6]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(200);
+      const tag = await p.evaluate(() => { const t = document.querySelector('.rt-hcard[data-bench=b6] .rt-htool'); return t ? [t.textContent, t.className] : null; });
+      await p.click('#appPreviewOpen'); await p.waitForTimeout(200);
+      const op = await p.evaluate(() => window.__opened.slice(-1)[0]);
+      ok('A part studio in its folder, marked JEKcad, opens in JEKcad’s tab', tag && tag[0] === 'JEKcad' && /jekcad/.test(tag[1]) && op && op[0] === '/jek/tools/jekcad.html#cloud=b6' && op[1] === 'jekcad', JSON.stringify([tag, op]));
+      if (shots) await p.screenshot({ path: shots + '/jeksuite-launch-jekcad.png' });
+      ok('JEKcad’s launch page: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
   } finally { await b.close(); }

@@ -9,7 +9,7 @@ export const NEWS = [
     'The first JEKcad: a Part Studio with a feature list you can roll back, reorder, suppress and edit.',
     'Sketches with lines, rectangles, circles, arcs, slots, polygons and points; constraints inferred as you draw and added from the bar; dimensions typed in place, with units, expressions and #variables.',
     'Extrude, revolve, sweep, loft, fillet, chamfer, shell, hole, linear and circular patterns, mirror, booleans and offset planes, on OpenCascade running in your browser.',
-    'STEP in and out, STL out, .jekcad files, autosave, and Part Studios kept in the cloud and listed in JEKspace.',
+    'STEP in and out, STL out, .jekcad files, autosave, and Part Studios kept in the cloud and listed in JEKsuite.',
   ] },
 ];
 export function wireNews() {

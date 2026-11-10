@@ -9,7 +9,7 @@ import { API_BASE, account, accountsOn, api, fillAccount, setAccount } from '../
 import { cadSignIn } from './cad-account.js';
 
 /* ==========================================================================
-   Cloud documents, as JEKion's benches: the same accounts, workspaces and API, so a person's JEKspace holds every
+   Cloud documents, as JEKion's benches: the same accounts, workspaces and API, so a person's JEKsuite holds every
    app's work, each marked with its app (the API keeps a bench's tool from its content: a .jekcad is JEKcad's for good).
    A bench opened from, or saved to, the cloud stays linked to it: `cloud` holds its id, workspace and the version
    this copy is based on. Edits save themselves at most every 30 seconds and when the page is hidden; Save to cloud
@@ -19,7 +19,7 @@ import { cadSignIn } from './cad-account.js';
    in this browser's autosave and goes up when the connection returns: the link is kept with the autosave.
    ========================================================================== */
 const CLOUD_KEY = 'jek-cad-cloud-link', CLOUD_EVERY = 30000, CLOUD_RETRY = 60000, LEASE_EVERY = 60000;
-const OTHER_APPS = { jekray: ['/jek/tools/jekray.html', 'JEKray'], jekion: ['/jek/tools/jekion.html', 'JEKion'] };
+const OTHER_APPS = { jekray: ['/jek/tools/jekray.html', 'JEKray'], jekion: ['/jek/tools/jekion.html', 'JEKion'], jekfilm: ['/jek/tools/jekfilm.html', 'JEKfilm'] };
 let cloudTimer = null, cloudBusy = false, cloudAgain = false;
 export const lease = { held: false, editing: null, timer: null };
 const jsonBody = body => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -174,7 +174,7 @@ export function newCloudBench(ws) {
   const where = h('select', { id: 'cloudNewWhere' }, ...places.map(w => h('option', { value: w.id }, placeName(w))));
   where.value = places.some(w => w.id === ws) ? ws : places[0].id;
   const note = h('p', { class: 'rt-subsmall' });
-  const sayWhere = () => { const w = places.find(x => x.id === where.value); note.textContent = (w.kind === 'personal' ? 'Yours alone, in My benches' : 'Shared with everyone in ' + w.name + ', who can open and edit it as their role allows') + '. It then saves there as you work, and JEKspace lists it too, marked JEKcad.'; };
+  const sayWhere = () => { const w = places.find(x => x.id === where.value); note.textContent = (w.kind === 'personal' ? 'Yours alone, in My benches on JEKsuite' : 'Shared with everyone in ' + w.name + ', who can open and edit it as their role allows') + '. It then saves there as you work, and JEKspace lists it too, marked JEKcad.'; };
   where.addEventListener('change', sayWhere); sayWhere();
   const go = h('button', { class: 'rt-btn primary', type: 'button', id: 'cloudNewMake' }, 'Save');
   dlg = h('dialog', { class: 'rt-dialog', id: 'cloudNewDialog', 'aria-labelledby': 'cloudNewTitle' },
@@ -283,15 +283,15 @@ function cloudConflict(theirs, by, at) {
   if (!dlg.open) dlg.showModal();
 }
 /* ---------- My benches ----------
-   The home of every bench, JEKion's with JEKray's, is JEKspace (jek/tools/jekspace.html), the JEK hub: places and
+   The home of every app's cloud work is JEKsuite (jek/tools/jeksuite.html), the JEK hub: places and
    folders down the side, the benches as cards with their pictures, each one's history and forks, the bin, parts and
    links, the account and teams. It opens in its own tab (each app's and the hub's tab named, so they hand benches to
    each other without multiplying tabs), and a JEKion bench chosen there opens back here (#cloud=<id>). */
-const SPACE_URL = '/jek/tools/jekspace.html';
+const SPACE_URL = '/jek/tools/jeksuite.html';
 export function openCloudList() {
   if (!accountsOn()) { toast('Accounts are not available here', true); return; }
   track('view', 'cad-benches');
-  const w = window.open(SPACE_URL, 'jekspace'); if (w) w.focus();
+  const w = window.open(SPACE_URL + '#app=jekcad', 'jeksuite'); if (w) w.focus();
 }
 /* ---------- the gates and the wiring ---------- */
 export function cloudGates() {

@@ -2024,7 +2024,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   <div class="rt-wrap">
     <div class="rt-toolbar" role="toolbar" aria-label="JEKcad controls">
       <div class="rt-row rt-bar">
-        <a class="cad-space" id="btnSpace" href="/jek/tools/jekspace.html" target="jekspace" title="JEKspace: every document of every app, in the cloud (in its own tab)"><span class="cad-spacemark" aria-hidden="true"></span>JEKspace</a>
+        <a class="cad-space" id="btnSpace" href="/jek/tools/jeksuite.html#app=jekcad" target="jeksuite" title="JEKsuite: every part studio and bench you keep in the cloud (in its own tab)"><span class="cad-spacemark" aria-hidden="true"></span>JEKsuite</a>
         <h1 class="rt-title"><a href="/jek/products/design-software/jekcad/" title="About JEKcad: its product page"><span class="jek-wm">JEK<b>cad</b></span></a></h1>
         <div class="rt-menubar" role="group" aria-label="Menus">
         <div class="rt-more">
@@ -2035,7 +2035,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekcad<span class="k">Ctrl+S</span></button>
             <div class="sep"></div>
-            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every document in the cloud, of every app, on JEKspace (it opens in its own tab)">My documents on JEKspace…</button>
+            <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Your part studios in the cloud, on JEKsuite (it opens in its own tab)">My part studios on JEKsuite…</button>
             <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" data-need="pro" data-what="save to the cloud" hidden title="Put this Part Studio in the cloud, where it saves as you work and keeps its history">Save to cloud</button>
             <button type="button" role="menuitem" id="btnCloudFork" class="rt-cloud" data-icon="fork" hidden>Fork this Part Studio…</button>
             <div class="sep"></div>
@@ -2206,7 +2206,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   </dialog>
   <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
     <h2 id="subTitle">JEKrayPro</h2>
-    <p>Keep your benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders in JEKspace. Do the full design work in JEKray’s Optical and RF designers, and share any bench as a short link. The apps themselves stay free.</p>
+    <p>Keep your benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders in JEKsuite. Do the full design work in JEKray’s Optical and RF designers, and share any bench as a short link. The apps themselves stay free.</p>
     <p class="rt-founding"><b>Founding member price.</b> Subscribe while JEKray is in its open beta and you keep the price you start on for as long as your subscription carries on, whatever later prices are.</p>
     <div id="subPlans"></div>
     <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>
@@ -6235,7 +6235,7 @@ const NEWS = [
     'The first JEKcad: a Part Studio with a feature list you can roll back, reorder, suppress and edit.',
     'Sketches with lines, rectangles, circles, arcs, slots, polygons and points; constraints inferred as you draw and added from the bar; dimensions typed in place, with units, expressions and #variables.',
     'Extrude, revolve, sweep, loft, fillet, chamfer, shell, hole, linear and circular patterns, mirror, booleans and offset planes, on OpenCascade running in your browser.',
-    'STEP in and out, STL out, .jekcad files, autosave, and Part Studios kept in the cloud and listed in JEKspace.',
+    'STEP in and out, STL out, .jekcad files, autosave, and Part Studios kept in the cloud and listed in JEKsuite.',
   ] },
 ];
 function wireNews() {
@@ -7215,7 +7215,7 @@ function wireCadAccount() {
   accountShown();
 }
 /* ==========================================================================
-   Cloud documents, as JEKion's benches: the same accounts, workspaces and API, so a person's JEKspace holds every
+   Cloud documents, as JEKion's benches: the same accounts, workspaces and API, so a person's JEKsuite holds every
    app's work, each marked with its app (the API keeps a bench's tool from its content: a .jekcad is JEKcad's for good).
    A bench opened from, or saved to, the cloud stays linked to it: `cloud` holds its id, workspace and the version
    this copy is based on. Edits save themselves at most every 30 seconds and when the page is hidden; Save to cloud
@@ -7225,7 +7225,7 @@ function wireCadAccount() {
    in this browser's autosave and goes up when the connection returns: the link is kept with the autosave.
    ========================================================================== */
 const CLOUD_KEY = 'jek-cad-cloud-link', CLOUD_EVERY = 30000, CLOUD_RETRY = 60000, LEASE_EVERY = 60000;
-const OTHER_APPS = { jekray: ['/jek/tools/jekray.html', 'JEKray'], jekion: ['/jek/tools/jekion.html', 'JEKion'] };
+const OTHER_APPS = { jekray: ['/jek/tools/jekray.html', 'JEKray'], jekion: ['/jek/tools/jekion.html', 'JEKion'], jekfilm: ['/jek/tools/jekfilm.html', 'JEKfilm'] };
 let cloudTimer = null, cloudBusy = false, cloudAgain = false;
 const lease = { held: false, editing: null, timer: null };
 const jsonBody = body => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -7380,7 +7380,7 @@ function newCloudBench(ws) {
   const where = h('select', { id: 'cloudNewWhere' }, ...places.map(w => h('option', { value: w.id }, placeName(w))));
   where.value = places.some(w => w.id === ws) ? ws : places[0].id;
   const note = h('p', { class: 'rt-subsmall' });
-  const sayWhere = () => { const w = places.find(x => x.id === where.value); note.textContent = (w.kind === 'personal' ? 'Yours alone, in My benches' : 'Shared with everyone in ' + w.name + ', who can open and edit it as their role allows') + '. It then saves there as you work, and JEKspace lists it too, marked JEKcad.'; };
+  const sayWhere = () => { const w = places.find(x => x.id === where.value); note.textContent = (w.kind === 'personal' ? 'Yours alone, in My benches on JEKsuite' : 'Shared with everyone in ' + w.name + ', who can open and edit it as their role allows') + '. It then saves there as you work, and JEKspace lists it too, marked JEKcad.'; };
   where.addEventListener('change', sayWhere); sayWhere();
   const go = h('button', { class: 'rt-btn primary', type: 'button', id: 'cloudNewMake' }, 'Save');
   dlg = h('dialog', { class: 'rt-dialog', id: 'cloudNewDialog', 'aria-labelledby': 'cloudNewTitle' },
@@ -7489,15 +7489,15 @@ function cloudConflict(theirs, by, at) {
   if (!dlg.open) dlg.showModal();
 }
 /* ---------- My benches ----------
-   The home of every bench, JEKion's with JEKray's, is JEKspace (jek/tools/jekspace.html), the JEK hub: places and
+   The home of every app's cloud work is JEKsuite (jek/tools/jeksuite.html), the JEK hub: places and
    folders down the side, the benches as cards with their pictures, each one's history and forks, the bin, parts and
    links, the account and teams. It opens in its own tab (each app's and the hub's tab named, so they hand benches to
    each other without multiplying tabs), and a JEKion bench chosen there opens back here (#cloud=<id>). */
-const SPACE_URL = '/jek/tools/jekspace.html';
+const SPACE_URL = '/jek/tools/jeksuite.html';
 function openCloudList() {
   if (!accountsOn()) { toast('Accounts are not available here', true); return; }
   track('view', 'cad-benches');
-  const w = window.open(SPACE_URL, 'jekspace'); if (w) w.focus();
+  const w = window.open(SPACE_URL + '#app=jekcad', 'jeksuite'); if (w) w.focus();
 }
 /* ---------- the gates and the wiring ---------- */
 function cloudGates() {
@@ -7586,7 +7586,7 @@ renderPanel();
 initView().then(() => { regenNow().then(() => { if (!V.fitted) fit(true); usageDrawn(); }); });
 usageStart(saved ? 'cad-restored' : 'cad-fresh');
 if (!saved && !TEST_MODE && !EMBED) setTimeout(() => toast('Welcome to JEKcad. Click Sketch, pick the Top plane, draw a rectangle and dimension it (D), then Finish and Extrude.'), 700);
-// #cloud=<id> (or @<version> for a copy) opens a cloud Part Studio; #benches opens JEKspace; #new starts a new one
+// #cloud=<id> (or @<version> for a copy) opens a cloud Part Studio; #benches opens JEKsuite; #new starts a new one
 const cloudAt = !TEST_MODE && !EMBED && location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/);
 const cloudHash = async cl => { window.history.replaceState(null, '', location.pathname); await accountLoaded; openCloudBench(cl[1], cl[2] ? Number(cl[2]) : undefined); };
 if (cloudAt) cloudHash(cloudAt);

@@ -73,7 +73,7 @@ export function render() {
   if (!body) return;
   const scroll = body.scrollTop, spec = filmSpec(film);
   // the tab shown: the design itself, its tolerancing, or what a maker needs (ui/make.js, through hooks.filmMakeCards)
-  const main = filmTab === 'tolerance' ? [tolCard(), yieldCard(spec), fieldCard(spec)] : filmTab === 'make' ? hooks.filmMakeCards(spec) : [plotsCard(), layersCard(spec)];
+  const main = filmTab === 'tolerance' ? [tolCard(), fieldCard(spec)] : filmTab === 'make' ? hooks.filmMakeCards(spec) : [plotsCard(), layersCard(spec)];
   body.replaceChildren(settingsCard(spec), h('div', { class: 'rt-lmain' }, ...main));
   for (const b of document.querySelectorAll('.film-tabs [role=tab]')) b.setAttribute('aria-selected', String(b.dataset.tab === filmTab));
   body.scrollTop = scroll;
@@ -260,7 +260,7 @@ function tolCard() {
       h('span', { class: 'film-tolline' }, 'Each layer off by σ', dsNum(T.sigma, v => { film.tol.sigma = v; }, 'Thickness error σ', 4),
         dsSelect([['rel', '% of its thickness'], ['abs', 'nm']], T.kind, v => edit(f => { f.tol.kind = v; }), 'σ as a share or in nm'),
         'over', dsNum(T.runs, v => { film.tol.runs = Math.round(v); }, 'Runs', 4), 'runs'), run));
-  if (!res) { out.append(h('p', { class: 'rt-lsub' }, 'Run to see how the coating fares as made: the spread of its reflectance and merit over the runs.')); return out; }
+  if (!res) { out.append(h('p', { class: 'rt-lsub' }, 'Run to see how the coating fares as made: the spread of its reflectance and merit over the runs, and how many runs meet the limits set in Make it.')); return out; }
   const r3 = (label, o, f) => [label, f(o.nominal), f(o.median), f(o.p90)];
   const tbl = (h('div', { class: 'film-twrap film-perf' }, h('table', { class: 'film-results', id: 'filmTolTable', 'aria-label': 'Tolerance' },
     h('thead', null, h('tr', null, ...['', 'Nominal', 'Median', '90th percentile'].map((t, k) => h('th', { scope: 'col', class: k ? 'n' : null }, t)))),
@@ -272,6 +272,7 @@ function tolCard() {
     yr: [0, Math.min(100, Math.max(0.5, 1.15 * 100 * Math.max(...res.p95)))],
     series: [{ label: 'nominal', cls: 's0', xs: res.nms, ys: res.nominal.map(v => 100 * v) }, { label: 'median', cls: 's1', xs: res.nms, ys: res.p50.map(v => 100 * v) },
       { label: '5th and 95th percentiles', cls: 'tgt', dash: true, xs: res.nms, ys: res.p95.map(v => 100 * v) }, { label: '', cls: 'tgt', dash: true, xs: res.nms, ys: res.p5.map(v => 100 * v) }] });
+  const y = yieldPart(); if (y) out.append(y);
   return out;
 }
 /* the yield of the tolerance run: the runs that meet every limit of Make it (worked out again when the limits change) */
@@ -283,11 +284,11 @@ export function filmYieldResult() {
   if (!filmYieldMemo || filmYieldMemo.res !== res || filmYieldMemo.key !== key) filmYieldMemo = { res, key, y: filmYield(res.stacks, film, filmSpec(film), film.make) };
   return filmYieldMemo.y;
 }
-function yieldCard() {
+/* the yield, the lower part of the Tolerance box (shown once there is a run) */
+function yieldPart() {
   const Y = filmYieldResult();
-  const out = section('Yield');
-  out.id = 'filmYield';
-  if (!Y) { out.append(h('p', { class: 'rt-lsub' }, 'Run the tolerance above to see how many coatings as made meet the limits set in Make it.')); return out; }
+  if (!Y) return null;
+  const out = h('div', { class: 'film-part', role: 'group', 'aria-label': 'Yield', id: 'filmYield' }, h('h3', null, 'Yield'));
   const share = (k, n) => (n ? dsFix(100 * k / n, 1) : '—');
   const ops = { le: '≤ ', ge: '≥ ' };
   out.append(h('p', { class: 'film-yield', id: 'filmYieldLine' }, h('strong', { class: 'mono' }, share(Y.pass, Y.runs) + ' %'), ' of ' + Y.runs + ' runs meet every limit (' + Y.pass + ' of ' + Y.runs + ').'),

@@ -163,3 +163,5 @@ html, body { margin: 0; background: var(--jek-well); }
 
 .film-yield { margin: 0 0 0.5rem; font-size: 0.95rem; }
 .film-yield strong { font-size: 1.15rem; }
+.film-part + .film-part, .film-sec > .rt-lpair + .film-part { margin-top: 1.1rem; padding-top: 0.9rem; border-top: 1px solid var(--jek-line); }
+.film-part h3 { margin: 0 0 0.45rem; font-size: 0.82rem; font-weight: 700; color: var(--jek-ink); }

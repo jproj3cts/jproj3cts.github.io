@@ -16,12 +16,12 @@ const safe = (s) =>
 
 // a share link's bench as JSON text: its text is a letter (z, i, f: deflated JSON of JEKray, JEKion, JEKfilm; j, k, g:
 // plain) then base64url; and the file it is kept as
-export const LINK_EXT = { z: 'jekray', j: 'jekray', i: 'jekion', k: 'jekion', f: 'jekfilm', g: 'jekfilm' };
+export const LINK_EXT = { z: 'jekray', j: 'jekray', i: 'jekion', k: 'jekion', f: 'jekfilm', g: 'jekfilm', c: 'jekcad', d: 'jekcad' };
 async function linkBench(t) {
   try {
     const b = atob(t.slice(1).replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((t.length - 1 + 3) % 4));
     let bytes = Uint8Array.from(b, (c) => c.charCodeAt(0));
-    if ('zif'.includes(t[0])) bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+    if ('zifc'.includes(t[0])) bytes = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
     const json = new TextDecoder().decode(bytes);
     JSON.parse(json);
     return json;

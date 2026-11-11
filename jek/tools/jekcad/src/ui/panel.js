@@ -1,7 +1,8 @@
-import { MATERIALS, appliedCount, canMove, featureLabel, partLook } from '../core/doc.js';
-import { fmtNum } from '../core/units.js';
+import { measureReadout } from '../core/measure.js';
+import { asmItems } from './assembly.js';
+import { MATERIALS, appliedCount, canMove, featureLabel, newFeature, partLook } from '../core/doc.js';
 import { h } from '../../../jekray/src/ui/dom.js';
-import { app, changed, checkpoint, emit, on, toast } from './app.js';
+import { app, changed, checkpoint, editGate, emit, on, toast } from './app.js';
 import { editFeature, fieldPick, fieldWants, openFeature, setPartLook } from './dialog.js';
 import { kernelAsk } from '../page/kernel.js';
 
@@ -15,7 +16,7 @@ import { kernelAsk } from '../page/kernel.js';
    it to reorder (where what it uses allows). A failed feature is red, its reason in its row. And the measure box
    in the view's corner: what the selection measures.
    ========================================================================== */
-const ICON_OF = { sketch: 'sketch', plane: 'plane', extrude: 'extrude', revolve: 'revolve', sweep: 'sweep', loft: 'loft', fillet: 'fillet', chamfer: 'chamfer', shell: 'shell', hole: 'hole', lpattern: 'lpattern', cpattern: 'cpattern', mirror: 'mirror', boolean: 'boolean', import: 'import' };
+const ICON_OF = { sketch: 'sketch', plane: 'plane', extrude: 'extrude', revolve: 'revolve', sweep: 'sweep', loft: 'loft', fillet: 'fillet', chamfer: 'chamfer', shell: 'shell', hole: 'hole', lpattern: 'lpattern', cpattern: 'cpattern', mirror: 'mirror', boolean: 'boolean', import: 'import', delete: 'trash' };
 let menuEl = null;
 function closeRowMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
 function rowMenu(x, y, items) {
@@ -27,6 +28,7 @@ function rowMenu(x, y, items) {
 }
 const statusOf = id => (app.result ? app.result.features.find(r => r.id === id) : null);
 export function moveFeature(i, j) {
+  if (!editGate()) return false;
   if (!canMove(app.doc, i, j)) { toast('It cannot move there: a feature cannot come before what it uses', true); return false; }
   checkpoint();
   const [f] = app.doc.features.splice(i, 1);
@@ -36,7 +38,7 @@ export function moveFeature(i, j) {
 }
 export function deleteFeature(i) {
   const f = app.doc.features[i];
-  if (!f) return;
+  if (!f || !editGate()) return;
   checkpoint();
   app.doc.features.splice(i, 1);
   if (app.doc.rollback !== null && i < app.doc.rollback) app.doc.rollback--;
@@ -45,11 +47,13 @@ export function deleteFeature(i) {
   toast('Deleted “' + f.name + '”. Undo brings it back; features that used it now show why they fail.');
 }
 export function setRollback(n) {
+  if (!editGate()) { renderPanel(); return; }
   checkpoint();
   app.doc.rollback = n >= app.doc.features.length ? null : Math.max(0, n);
   changed();
 }
 function renameFeature(i) {
+  if (!editGate()) return;
   const f = app.doc.features[i], row = document.querySelector('.cad-frow-f[data-i="' + i + '"] .nm');
   if (!row) return;
   const inp = h('input', { type: 'text', value: f.name, class: 'cad-rename', 'aria-label': 'New name' });
@@ -61,7 +65,7 @@ function renameFeature(i) {
 function featureMenu(i, x, y) {
   const f = app.doc.features[i], n = appliedCount(app.doc);
   rowMenu(x, y, [['Edit…', () => editFeature(i)], ['Rename', () => renameFeature(i)],
-    [f.suppressed ? 'Unsuppress' : 'Suppress', () => { checkpoint(); if (f.suppressed) delete f.suppressed; else f.suppressed = true; changed(); }],
+    [f.suppressed ? 'Unsuppress' : 'Suppress', () => { if (!editGate()) return; checkpoint(); if (f.suppressed) delete f.suppressed; else f.suppressed = true; changed(); }],
     f.type === 'sketch' || f.type === 'plane' ? [f.hide ? 'Show' : 'Hide', () => { checkpoint(); if (f.hide) delete f.hide; else f.hide = true; changed(); }] : null,
     'sep', ['Roll to here', () => setRollback(i + 1), i + 1 !== n], ['Move up', () => moveFeature(i, i - 1), canMove(app.doc, i, i - 1)], ['Move down', () => moveFeature(i, i + 1), canMove(app.doc, i, i + 1)],
     'sep', ['Delete', () => deleteFeature(i)]]);
@@ -75,6 +79,8 @@ const isHidden = f => (f.type === 'sketch' || f.type === 'plane' ? !!f.hide : ((
 export function toggleFeatureShown(i) {
   const f = app.doc.features[i];
   if (!f) return;
+  // (showing and hiding is looking; a feature that can only be suppressed is changed by it)
+  if (f.type !== 'sketch' && f.type !== 'plane' && !madeParts(f).length && !editGate()) return;
   checkpoint();
   if (f.type === 'sketch' || f.type === 'plane') { if (f.hide) delete f.hide; else f.hide = true; }
   else {
@@ -97,12 +103,12 @@ export function renderPanel() {
   const bar = () => h('li', { class: 'cad-rollbar', id: 'rollbar', draggable: 'false', title: 'The rollback bar: drag it to see the model as it was there; new features go in at it', role: 'separator', 'aria-label': 'Rollback bar' });
   doc.features.forEach((f, i) => {
     if (i === n) rows.push(bar());
-    const st = statusOf(f.id), err = st && st.ok === false, rolled = i >= n, editing = (app.editing && !app.editing.isNew && app.editing.at === i) || (app.sketch && !app.sketch.isNew && app.sketch.at === i);
+    const st = statusOf(f.id), err = st && st.ok === false, skip = st && st.ok && st.info && st.info.skipped ? st.info.skipped : 0, rolled = i >= n, editing = (app.editing && !app.editing.isNew && app.editing.at === i) || (app.sketch && !app.sketch.isNew && app.sketch.at === i);
     const chosen = wantsFeatures && app.editing.f.items.includes(f.id);
     const solid = f.type !== 'sketch' && f.type !== 'plane', off = isHidden(f), parts = solid ? madeParts(f) : [];
     const li = h('li', { class: 'cad-frow-f' + (err ? ' err' : '') + (rolled ? ' rolled' : '') + (f.suppressed ? ' supp' : '') + (editing ? ' editing' : '') + (chosen ? ' chosen' : '') + (off && !f.suppressed ? ' hid' : '') + (app.picked === f.id ? ' picked' : ''), 'data-i': String(i), 'data-id': f.id, draggable: 'true', tabindex: '0',
-      title: err ? featureLabel(f.type) + ' failed: ' + st.error : featureLabel(f.type) + (f.suppressed ? ' (suppressed)' : rolled ? ' (after the rollback bar)' : '') },
-    h('span', { class: 'ic2', 'data-icon': ICON_OF[f.type] || 'cube' }), h('span', { class: 'nm' }, f.name),
+      title: err ? featureLabel(f.type) + ' failed: ' + st.error : featureLabel(f.type) + (f.suppressed ? ' (suppressed)' : rolled ? ' (after the rollback bar)' : skip ? ': ' + skip + (skip === 1 ? ' edge does' : ' edges do') + ' not fit this size and ' + (skip === 1 ? 'is' : 'are') + ' left square' : '') },
+    h('span', { class: 'ic2', 'data-icon': ICON_OF[f.type] || 'cube' }), h('span', { class: 'nm' }, f.name), skip ? h('span', { class: 'cad-fwarn', 'aria-label': skip + ' edges left square' }, '⚠ ' + skip) : null,
     eyeBtn(off, !solid ? f.name : parts.length ? (parts.length === 1 ? 'the part ' : 'the parts ') + f.name + ' made' : f.name + ' (suppress it: the model without it)', () => toggleFeatureShown(i)),
     h('button', { type: 'button', class: 'cad-more', 'aria-label': 'More for ' + f.name, title: 'More', onclick: e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); featureMenu(i, r.left, r.bottom + 2); } }, '⋯'),
     err ? h('span', { class: 'cad-ferr' }, st.error) : null);
@@ -137,6 +143,20 @@ function wireRollbar(list) {
     bar.addEventListener('pointermove', move); bar.addEventListener('pointerup', up);
   });
 }
+/* a whole part taken away: a Delete part feature added where the list ends (the bar), so it can be undone,
+   suppressed or rolled before like any other; the part's colour and name are kept in case it comes back */
+export function deletePart(id, name) {
+  if (!editGate() || app.sketch || app.editing) return false;
+  checkpoint();
+  const at = appliedCount(app.doc), f = newFeature(app.doc, 'delete', { targets: [id] });
+  if (name) f.name = 'Delete ' + name;
+  app.doc.features.splice(at, 0, f);
+  if (app.doc.rollback !== null) app.doc.rollback = Math.min(app.doc.features.length, app.doc.rollback + 1);
+  app.sel = app.sel.filter(s => s.part !== id); emit('sel');
+  changed();
+  toast('Deleted ' + (name || 'the part') + ': a “' + f.name + '” feature in the list. Undo, or delete that feature, brings it back.');
+  return true;
+}
 /* ---------- the parts list ---------- */
 function renderParts() {
   const box = document.getElementById('partsList');
@@ -152,9 +172,10 @@ function renderParts() {
     const li = h('li', { class: 'cad-part' + (sel ? ' sel' : '') + (look.hidden ? ' hid' : ''), 'data-part': p.id },
       colour, name,
       h('button', { type: 'button', class: 'cad-more', title: look.hidden ? 'Show' : 'Hide', 'aria-label': (look.hidden ? 'Show ' : 'Hide ') + look.name, onclick: e => { e.stopPropagation(); setPartLook(p.id, 'hidden', look.hidden ? null : true); } }, look.hidden ? '◌' : '●'),
-      h('button', { type: 'button', class: 'cad-more', 'aria-label': 'More for ' + look.name, onclick: e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); rowMenu(r.left, r.bottom + 2, [['Export as STEP…', () => emit('exportPart', { id: p.id, fmt: 'step' })], ['Export as STL…', () => emit('exportPart', { id: p.id, fmt: 'stl' })]]); } }, '⋯'),
+      h('button', { type: 'button', class: 'cad-more', 'aria-label': 'More for ' + look.name, onclick: e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); rowMenu(r.left, r.bottom + 2, [['Export as STEP…', () => emit('exportPart', { id: p.id, fmt: 'step' })], ['Export as STL…', () => emit('exportPart', { id: p.id, fmt: 'stl' })], 'sep', ['Delete part', () => deletePart(p.id, look.name)]]); } }, '⋯'),
       h('div', { class: 'cad-partmat' }, mat));
-    li.addEventListener('click', e => { const pk = { part: p.id, kind: 'part' }; if (fieldWants() === 'parts') { fieldPick(pk); return; } if (e.ctrlKey || e.shiftKey || e.metaKey) { const k = app.sel.findIndex(s => s.kind === 'part' && s.part === p.id); if (k >= 0) app.sel.splice(k, 1); else app.sel.push(pk); } else app.sel = [pk]; emit('sel'); });
+    // (not from its colour, its material list or its buttons: choosing the part redraws the row, which would shut the list)
+    li.addEventListener('click', e => { if (e.target.closest('select, input, button')) return; const pk = { part: p.id, kind: 'part' }; if (fieldWants() === 'parts') { fieldPick(pk); return; } if (e.ctrlKey || e.shiftKey || e.metaKey) { const k = app.sel.findIndex(s => s.kind === 'part' && s.part === p.id); if (k >= 0) app.sel.splice(k, 1); else app.sel.push(pk); } else app.sel = [pk]; emit('sel'); });
     return li;
   }));
 }
@@ -163,28 +184,36 @@ let measureSeq = 0;
 async function measureShown() {
   const box = document.getElementById('measure');
   if (!box) return;
-  const picks = app.sel.filter(s => s.part && (s.kind === 'part' || s.kind === 'face' || s.kind === 'edge' || s.kind === 'vertex')).slice(0, 2);
+  const picks = app.sel.filter(s => s.part && (s.kind === 'part' || s.kind === 'face' || s.kind === 'edge' || s.kind === 'vertex')).slice(0, 40);
   if (!picks.length || app.sketch) { box.hidden = true; return; }
   const seq = ++measureSeq;
   let m;
-  try { m = await kernelAsk('measure', { picks, doc: app.doc }); } catch (err) { box.hidden = true; return; }
+  // (in an assembly each pick is measured where its part is placed)
+  try { m = app.asm ? await kernelAsk('asmMeasure', { picks: picks.map(s => Object.assign({}, asmItems([s.part])[0], { kind: s.kind, index: s.index })) }) : await kernelAsk('measure', { picks, doc: app.doc }); } catch (err) { box.hidden = true; return; }
   if (seq !== measureSeq) return;
-  const L = [], mm = v => fmtNum(v, 3) + ' mm', mm2 = v => fmtNum(v, 3) + ' mm²';
-  for (const it of m.items) {
-    if (it.kind === 'part') L.push([it.name, ''], ['Volume', fmtNum(it.volume, 3) + ' mm³'], ['Surface area', mm2(it.area)], ['Mass', it.mass !== null ? fmtNum(it.mass, 3) + ' g (' + it.density + ' g/cm³)' : 'choose a material'], ['Centre of mass', it.centroid.map(v => fmtNum(v, 3)).join(', ')]);
-    else if (it.kind === 'face') L.push(['Face (' + it.type + ')', mm2(it.area)], it.radius ? ['Radius', mm(it.radius)] : null);
-    else if (it.kind === 'edge') L.push(['Edge (' + it.type + ')', mm(it.length)], it.radius ? ['Radius', mm(it.radius)] : null);
-    else L.push(['Vertex', it.pt.map(v => fmtNum(v, 3)).join(', ')]);
-  }
-  if (m.distance !== undefined) L.push(['Distance', mm(m.distance)]);
-  if (m.angle !== undefined) L.push(['Angle', fmtNum(m.angle, 3) + '°']);
-  box.replaceChildren(h('dl', null, ...L.filter(Boolean).flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)])));
+  // the readout: a tab at the foot of the view with the one value most likely wanted (between two parallel faces,
+  // how far apart), opened to every value; a value clicked is copied
+  const R = measureReadout(m);
+  if (!R) { box.hidden = true; return; }
+  const open = measureOpen();
+  const copy = (v, el) => { if (v === undefined || v === null || !navigator.clipboard) return; navigator.clipboard.writeText(String(+(+v).toFixed(6))).then(() => { el.classList.add('copied'); setTimeout(() => el.classList.remove('copied'), 700); }, () => {}); };
+  const body = h('dl', { id: 'measureRows' }, ...R.rows.flatMap(r => (r.length === 1 ? [h('dt', { class: 'grp' }, r[0]), h('dd', { class: 'grp' })] : [h('dt', null, r[0]), h('dd', Object.assign({ onclick: e => copy(r[2], e.currentTarget) }, r[2] !== undefined && r[2] !== null ? { title: 'Click to copy', class: 'num' } : {}), r[1])])));
+  body.hidden = !open;
+  const tab = h('button', { type: 'button', class: 'cad-mtab', id: 'measureTab', 'aria-expanded': String(open), 'aria-controls': 'measureRows', title: open ? 'Hide the other measurements' : 'Show every measurement of the selection' },
+    h('span', { class: 'k' }, R.head[0]), h('span', { class: 'v' }, R.head[1]), h('span', { class: 'car', 'aria-hidden': 'true' }, open ? '▾' : '▴'));
+  tab.addEventListener('click', () => { try { if (measureOpen()) localStorage.setItem(MEASURE_KEY, 'shut'); else localStorage.removeItem(MEASURE_KEY); } catch (err) { /* this visit */ } measureWide = !open; measureShown(); });
+  box.replaceChildren(body, tab);
   box.hidden = false;
 }
+const MEASURE_KEY = 'jekcad-measure';
+let measureWide = null;
+const measureOpen = () => { if (measureWide !== null) return measureWide; try { return localStorage.getItem(MEASURE_KEY) !== 'shut'; } catch (err) { return true; } };
 export function wirePanel() {
   on('model', renderPanel); on('doc', renderPanel); on('history', renderPanel); on('editing', renderPanel); on('sketch', renderPanel);
   on('sel', () => { renderParts(); measureShown(); for (const r of document.querySelectorAll('.cad-frow-p[data-plane]')) r.classList.toggle('picked', app.sel.some(s => s.kind === 'plane' && s.std === r.dataset.plane)); }); on('model', measureShown);
-  on('picked', renderPanel);
+  // (only the mark changes: the rows are not made again, or the second click of a double-click would land on a new row
+  // and the double-click, which edits the feature, would never come)
+  on('picked', () => { for (const r of document.querySelectorAll('.cad-frow-f')) r.classList.toggle('picked', r.dataset.id === app.picked); });
   document.addEventListener('pointerdown', e => { if (menuEl && !menuEl.contains(e.target)) closeRowMenu(); }, true);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRowMenu(); });
 }

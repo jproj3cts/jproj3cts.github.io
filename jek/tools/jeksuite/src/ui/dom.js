@@ -6,13 +6,13 @@ import { h } from '../../../jekray/src/ui/dom.js';
 
 /* the apps, as the hub lists and opens them: their page, their tab's name, what they are */
 export const APPS = [
-  { id: 'jekray', name: 'JEKray', url: '/jek/tools/jekray.html', tab: 'jekray', about: '/jek/products/design-software/jekray/',
+  { id: 'jekray', name: 'JEKray', url: '/jek/tools/jekray.html', tab: 'jekray', icon: 'bench', about: '/jek/products/design-software/jekray/',
     line: 'Optics, fibre, electronics and RF on one bench: rays, Gaussian beams and the diffracted field, in 2D and 3D; lens and RF design.' },
-  { id: 'jekion', name: 'JEKion', url: '/jek/tools/jekion.html', tab: 'jekion', about: '/jek/products/design-software/jekion/',
+  { id: 'jekion', name: 'JEKion', url: '/jek/tools/jekion.html', tab: 'jekion', icon: 'ion', about: '/jek/products/design-software/jekion/',
     line: 'Charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live.' },
-  { id: 'jekfilm', name: 'JEKfilm', url: '/jek/tools/jekfilm.html', tab: 'jekfilm', about: '/jek/products/design-software/jekfilm/', thing: 'coating',
+  { id: 'jekfilm', name: 'JEKfilm', url: '/jek/tools/jekfilm.html', tab: 'jekfilm', icon: 'coat', about: '/jek/products/design-software/jekfilm/', thing: 'coating',
     line: 'Thin-film coatings designed over a band and a range of angles: anti-reflection, high reflectors, beam splitters and dichroic edges.' },
-  { id: 'jekcad', name: 'JEKcad', url: '/jek/tools/jekcad.html', tab: 'jekcad', about: '/jek/products/design-software/jekcad/', thing: 'part studio',
+  { id: 'jekcad', name: 'JEKcad', url: '/jek/tools/jekcad.html', tab: 'jekcad', icon: 'cube', about: '/jek/products/design-software/jekcad/', thing: 'part studio',
     line: 'Parametric CAD: sketches with constraints and dimensions, a feature list you can roll back, and solids made on OpenCascade, with STEP in and out.' },
 ];
 /* what an app's files are called: a JEKfilm coating, a JEKcad part studio, a JEKray or JEKion bench */
@@ -33,13 +33,16 @@ export function helpLine(short, long, cls) {
   return h('p', { class: cls || 'rt-lsub' }, short, ' ', btn, more);
 }
 let toastTimer = null;
-export function toast(msg, bad) {
+/* (action: { label, fn }, a button beside the note for as long as it shows, which is longer: an Undo) */
+export function toast(msg, bad, action) {
   const t = document.getElementById('homeToast');
   t.textContent = msg;
+  if (action) t.append(' ', h('button', { type: 'button', class: 'rt-link', onclick: () => { t.classList.remove('show', 'act'); action.fn(); } }, action.label));
   t.classList.toggle('bad', !!bad);
+  t.classList.toggle('act', !!action);
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), bad ? 5000 : 2500);
+  toastTimer = setTimeout(() => t.classList.remove('show', 'act'), action ? 9000 : bad ? 5000 : 2500);
 }
 
 /* the icons (JEKray's menu icons, those used here) */

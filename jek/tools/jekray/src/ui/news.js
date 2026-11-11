@@ -4,6 +4,7 @@ import { project } from '../state/project.js';
 import { phoneSheet } from './panel.js';
 import { h } from './dom.js';
 import { saveFile, toast, typingIn } from './actions.js';
+import { accountGate } from './pro.js';
 import { shareBase, shareHash } from '../io/share.js';
 import { openProjectData } from '../io/open.js';
 import { EXPERIMENTAL, exp, expOn, expPicked, expWhy, setExperimental } from './experimental.js';
@@ -21,6 +22,8 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>The design work needs only a free account now</b>: the optimiser, tolerancing, design reports, lens drawings, design export, scripts, and data as Excel, NumPy or MATLAB files, any number of kinds at once. JEKrayPro is the cloud: benches saved online with their history, forks, My parts, teams, and more than a free account’s three share links.',
+    '<b>Signed out, nothing is kept</b>: no autosave in this browser, no earlier versions, no recent files. <b>Not kept</b> beside Save says so, turns to <b>Not saved</b> once the bench is changed, and opens the sign-in; the bench comes with you. A free account keeps your work as before and saves it as a .jekray file (Save, Ctrl+S).',
     'The examples send their rays in <b>hexapolar rings</b> (3, 5 or 7 across: 7, 19 or 37 rays), so in 3D each beam fills its round aperture: the lenses, mirrors and traps, the interferometers, the RF horns and the fibre launches. A source of one guide ray, a slit, a pulse, the double slit and the SLM\u2019s vortex keep a line.',
     'The Bench panel\u2019s list of parts reads as JEKcad\u2019s feature list: one line a part, its kind small beside it, under a heading for each kind (free space, fibre, circuits, objects, drawings) with its count; the parts selected are marked, and the eye shows on hover (or while the part is hidden in 3D).',
     'In 3D the bar no longer shows the Parts / Draw switcher: Parts is the only mode there (Draw is for the 2D bench).',
@@ -548,7 +551,7 @@ export function wireNews() {
           catch (err) { toast('Could not open that version (' + err.message + ').', true); }
         } }, 'Open'))) : [h('p', null, 'Nothing kept yet. Copies appear here once you have been working for a few minutes.')]));
     };
-    document.getElementById('btnSnaps').addEventListener('click', () => { fill(); dlg.showModal(); });
+    document.getElementById('btnSnaps').addEventListener('click', () => { if (!accountGate('see the earlier versions kept in this browser')) return; fill(); dlg.showModal(); });
     document.getElementById('snapsClose').addEventListener('click', () => dlg.close());
   }
 

@@ -36,6 +36,8 @@
             <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" data-need="pro" data-what="save to the cloud" hidden title="Put this Part Studio in the cloud, where it saves as you work and keeps its history">Save to cloud</button>
             <button type="button" role="menuitem" id="btnCloudFork" class="rt-cloud" data-icon="fork" hidden>Fork this Part Studio…</button>
             <div class="sep"></div>
+            <button type="button" role="menuitem" id="btnShare" data-icon="link" data-need="account" data-what="share a link" title="A link that opens this Part Studio as it is now: it travels in the link itself">Share a link…</button>
+            <div class="sep"></div>
             <button type="button" role="menuitem" id="btnImportStep" data-icon="import" title="Each solid of a STEP file becomes a part, from an Import feature in the list">Import STEP…</button>
             <button type="button" role="menuitem" id="btnExportStep" data-icon="export" data-need="account" data-what="export STEP files">Export all parts as STEP</button>
             <button type="button" role="menuitem" id="btnExportStl" data-icon="export" data-need="account" data-what="export STL files">Export all parts as STL</button>
@@ -105,7 +107,7 @@
           <input class="rt-name" id="docName" type="text" aria-label="Part Studio name" spellcheck="false">
         </div>
         <div class="rt-group rt-right">
-          <button class="rt-btn" id="btnSave" title="Save the Part Studio as a .jekcad file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekcad</span></button>
+          <button class="rt-btn rt-tbl" id="btnSave" data-icon="save" title="Save the Part Studio as a .jekcad file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save</button>
           <div class="rt-more" id="acct" hidden>
             <button class="rt-btn rt-acct quiet" id="btnAcct" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu">Sign in</button>
             <div class="rt-menu rt-menu-right rt-imenu rt-acctmenu" id="acctMenu" role="menu" hidden></div>
@@ -135,32 +137,54 @@
         <span class="cad-grow"></span>
         <label class="cad-filter" title="What a click in the view picks">Select <select id="selFilter" aria-label="Selection filter"><option value="any">Anything</option><option value="face">Faces</option><option value="edge">Edges</option><option value="vertex">Vertices</option><option value="part">Parts</option><option value="region">Sketch regions</option><option value="plane">Planes</option></select></label>
       </div>
+      <div class="rt-row cad-fbar" id="asmBar" role="group" aria-label="Assembly" hidden>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="insert" data-icon="import" title="Insert parts from the Part Studios">Insert</button>
+        <span class="rt-qsep" aria-hidden="true"></span>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="fastened" data-icon="mate" title="Fastened mate: a face of one part onto a face of another, nothing left free">Fastened</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="revolute" data-icon="revolve" title="Revolute mate: the part turns about the axis">Revolute</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="slider" data-icon="slider" title="Slider mate: the part slides along the axis">Slider</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="cylindrical" data-icon="hole" title="Cylindrical mate: the part turns about the axis and slides along it">Cylindrical</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="planar" data-icon="plane" title="Planar mate: the part slides on the face and turns on it">Planar</button>
+        <span class="rt-qsep" aria-hidden="true"></span>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="clash" data-icon="measure" title="Check which parts run into each other as they are placed">Interference</button>
+      </div>
       <div class="rt-row cad-fbar cad-skbar" id="sketchBar" role="group" aria-label="Sketch tools" hidden></div>
     </div>
 
     <div class="cad-main" id="cadMain">
       <aside class="cad-side" id="side" aria-label="Feature list and parts">
-        <h2 class="cad-shead">Features</h2>
-        <ul class="cad-flist" id="featureList"></ul>
-        <h2 class="cad-shead">Parts <span id="partsCount"></span></h2>
-        <ul class="cad-plist" id="partsList"></ul>
+        <div id="studioSide">
+          <h2 class="cad-shead">Features</h2>
+          <ul class="cad-flist" id="featureList"></ul>
+          <h2 class="cad-shead">Parts <span id="partsCount"></span></h2>
+          <ul class="cad-plist" id="partsList"></ul>
+        </div>
+        <div id="asmSide" hidden></div>
       </aside>
       <button type="button" class="cad-sidetab" id="sideTab" aria-controls="side" aria-expanded="true" title="Hide the feature list" aria-label="Hide the feature list"><span aria-hidden="true">‹</span></button>
       <div class="rt-stage cad-stage" id="stage">
         <canvas id="view" aria-hidden="true"></canvas>
         <canvas id="over" tabindex="0" aria-label="The model: click to select faces, edges and vertices; right-drag to orbit"></canvas>
         <div class="cad-dialog" id="featureDialog" hidden></div>
-        <div class="cad-cube" id="viewCube" aria-label="View cube"><div class="cad-cubebtns"><button type="button" class="rt-btn quiet" data-view="iso" title="Isometric (7)">Iso</button><button type="button" class="rt-btn quiet" data-click="btnFit" title="Zoom to fit (F)">Fit</button></div></div>
+        <div class="cad-cube" id="viewCube" aria-label="View cube"><button type="button" class="cad-turn ccw" data-turn="ccw" title="Roll the view 15° anticlockwise" aria-label="Roll the view anticlockwise"><svg viewBox="0 0 22 16" width="22" height="16" aria-hidden="true"><path d="M19 4 Q9 4 6 11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M1.5 9.5 L10 9 L6.5 15.5 Z" fill="currentColor"/></svg></button><button type="button" class="cad-turn cw" data-turn="cw" title="Roll the view 15° clockwise" aria-label="Roll the view clockwise"><svg viewBox="0 0 22 16" width="22" height="16" aria-hidden="true"><path d="M3 4 Q13 4 16 11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/><path d="M20.5 9.5 L12 9 L15.5 15.5 Z" fill="currentColor"/></svg></button><button type="button" class="cad-turn up" data-turn="up" title="Turn the view 15° up" aria-label="Turn the view up">▲</button><button type="button" class="cad-turn left" data-turn="left" title="Turn the view 15° left" aria-label="Turn the view left">◀</button><button type="button" class="cad-turn right" data-turn="right" title="Turn the view 15° right" aria-label="Turn the view right">▶</button><button type="button" class="cad-turn down" data-turn="down" title="Turn the view 15° down" aria-label="Turn the view down">▼</button><div class="cad-cubebtns"><button type="button" class="rt-btn quiet" data-view="iso" title="Isometric (7)">Iso</button><button type="button" class="rt-btn quiet" data-click="btnFit" title="Zoom to fit (F)">Fit</button></div></div>
         <div class="cad-section" id="sectionCtl" hidden><label>Section <select id="secPlane"><option value="front">Front</option><option value="top">Top</option><option value="right">Right</option></select></label><input type="range" id="secAt" min="-50" max="50" step="0.1" value="0" aria-label="Where the section cuts"><span id="secAtOut">0 mm</span><label><input type="checkbox" id="secFlip"> Flip</label></div>
         <div class="cad-measure" id="measure" hidden aria-live="polite"></div>
         <div class="cad-busy" id="busy" hidden>Regenerating…</div>
         <p class="cad-note" id="viewNote" hidden></p>
+        <div class="rt-benchtabs cad-tabs" id="tabBar" role="tablist" aria-label="Tabs: Part Studios and Assemblies"></div>
         <div class="cad-hint" id="hint"></div>
         <div class="rt-flyhint" id="flyHint" role="status" hidden></div>
         <div class="rt-toast" id="toast" role="status"></div>
       </div>
     </div>
   </div>
+
+  <dialog class="rt-dialog" id="asmInsert" aria-labelledby="asmInsertTitle">
+    <h2 id="asmInsertTitle">Insert parts</h2>
+    <p class="rt-subsmall">Click a part to put it in the assembly. The first is fixed where its Part Studio has it; drag the others, or mate them.</p>
+    <div id="asmInsertList" class="cad-inslist"></div>
+    <div class="rt-actions"><button type="button" class="rt-btn primary" id="asmInsertClose">Close</button></div>
+  </dialog>
 
   <dialog class="rt-dialog rt-wide" id="varsDialog" aria-labelledby="varsTitle">
     <h2 id="varsTitle">Variables</h2>
@@ -173,9 +197,16 @@
     <h2 id="helpTitle">Mouse and keys</h2>
     <div class="rt-keycols"><h3>Looking</h3><dl class="rt-shortcuts"><dt>Right-drag</dt><dd>orbit</dd><dt>Middle-drag, or Shift and right-drag</dt><dd>pan</dd><dt>Wheel</dt><dd>zoom about the pointer</dd><dt>F, or double-click on nothing</dt><dd>zoom to fit</dd><dt>N</dt><dd>look normal to the flat face, plane or sketch chosen</dd><dt>1 to 7</dt><dd>front, back, left, right, top, bottom, isometric</dd><dt>View cube</dt><dd>click a face to look at it</dd><dt>Fly (the bird in the bar)</dt><dd>W A S D and the mouse, full screen; Esc lands</dd></dl>
     <h3>Choosing</h3><dl class="rt-shortcuts"><dt>Click</dt><dd>a face, edge, vertex, sketch region or plane (the filter, top right, limits it)</dd><dt>Click again</dt><dd>each click adds to the selection; a click on what is chosen takes it out, a click on nothing empties it</dd><dt>Drag from nothing</dt><dd>select by a box</dd><dt>Esc</dt><dd>select nothing, or close the feature dialog</dd></dl>
-    <h3>Features</h3><dl class="rt-shortcuts"><dt>Double-click a plane</dt><dd>sketch on it</dd><dt>Double-click a feature</dt><dd>edit it</dd><dt>Right-click a feature</dt><dd>rename, suppress, roll to, move, delete</dd><dt>The eye on a row</dt><dd>show or hide the origin, a plane, a sketch or a feature’s parts</dd><dt>Click a sketch or the feature made from it</dt><dd>its dimensions show on the model: double-click one to change it</dd><dt>The tab on the feature list’s edge</dt><dd>close the list, so the view has the whole window; open it again</dd><dt>Drag the rollback bar</dt><dd>see the model as it was there</dd><dt>Enter</dt><dd>OK in a feature dialog</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl>
+    <h3>Features</h3><dl class="rt-shortcuts"><dt>Double-click a plane</dt><dd>sketch on it</dd><dt>Double-click a sketch</dt><dd>edit it</dd><dt>Double-click a feature</dt><dd>edit it</dd><dt>Right-click a feature</dt><dd>rename, suppress, roll to, move, delete</dd><dt>The eye on a row</dt><dd>show or hide the origin, a plane, a sketch or a feature’s parts</dd><dt>Click a sketch or the feature made from it</dt><dd>its dimensions show on the model: double-click one to change it</dd><dt>The tab on the feature list’s edge</dt><dd>close the list, so the view has the whole window; open it again</dd><dt>A part’s ⋯ menu, or Delete with parts selected</dt><dd>delete the part (a feature in the list)</dd><dt>Drag the rollback bar</dt><dd>see the model as it was there</dd><dt>Enter</dt><dd>OK in a feature dialog</dd><dt>Ctrl+Z, Ctrl+Shift+Z</dt><dd>undo, redo</dd></dl>
     <h3>Sketching</h3><dl class="rt-shortcuts"><dt>L, R, C, A, T, G, P</dt><dd>line, rectangle, circle, 3-point arc, tangent arc, polygon, point</dd><dt>D</dt><dd>dimension: a line, a circle, two points, a point and a line, two lines</dd><dt>Q, U, M, O</dt><dd>construction, use model edges, trim, offset</dd><dt>A number typed while drawing a line, circle or rectangle</dt><dd>its length, diameter, or width then height (Enter)</dd><dt>A number typed after a line, circle or arc</dt><dd>its length, diameter or radius</dd><dt>Shift held while drawing</dt><dd>nothing is inferred</dd><dt>Double-click a line, circle or arc</dt><dd>dimension it; double-click a dimension to change it</dd><dt>Right-click, or Esc</dt><dd>end a chain of lines</dd><dt>S</dt><dd>select</dd><dt>Drag</dt><dd>move what is free (blue)</dd><dt>Ctrl+C, Ctrl+V</dt><dd>copy and paste shapes</dd><dt>Delete</dt><dd>remove what is selected</dd><dt>Enter</dt><dd>finish the sketch</dd></dl></div>
     <div class="rt-actions"><button class="rt-btn primary" id="helpClose">Close</button></div>
+  </dialog>
+
+  <dialog class="rt-dialog rt-wide" id="shareDialog" aria-labelledby="shareTitle">
+    <h2 id="shareTitle">Share a link</h2>
+    <p><input id="shareUrl" type="text" readonly aria-label="The link" spellcheck="false" style="width:100%"></p>
+    <p class="note" id="shareNote"></p>
+    <div class="rt-actions"><button class="rt-btn" id="shareCopy" type="button">Copy link</button><button class="rt-btn primary" id="shareClose" type="button">Close</button></div>
   </dialog>
 
   <dialog class="rt-dialog rt-wide" id="newsDialog" aria-labelledby="newsTitle">
@@ -209,7 +240,7 @@
   </dialog>
   <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
     <h2 id="subTitle">JEKrayPro</h2>
-    <p>Keep your benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders in JEKsuite. Do the full design work in JEKray’s Optical and RF designers, and share any bench as a short link. The apps themselves stay free.</p>
+    <p>Keep your benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders in JEKsuite. Keep your own parts and assemblies to use on any bench, work with a team in a shared workspace, and make any number of share links. Everything done in the apps themselves needs only a free account.</p>
     <p class="rt-founding"><b>Founding member price.</b> Subscribe while JEKray is in its open beta and you keep the price you start on for as long as your subscription carries on, whatever later prices are.</p>
     <div id="subPlans"></div>
     <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>

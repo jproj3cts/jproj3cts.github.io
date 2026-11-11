@@ -33,6 +33,7 @@ Now double-click the sketch in the feature list, double-click its `40` and type 
 - **Double-click** a feature to edit it. Its dialog opens and the model is shown as it was before the feature, with the feature's result drawn over it.
 - **Right-click** a feature, or use its **⋯**, to rename, suppress, roll to, move up or down, hide (a sketch or plane), or delete it.
 - **Click** a sketch, or a feature made from one, and the sketch's dimensions show on the model. Double-click a dimension there, type a new value and press Enter: the part follows, and the sketch stays closed. **View › Sketch dimensions on the model** shows them for every visible sketch.
+- **Click** any feature and the faces it made are tinted orange in the view. Click it again, click on nothing or press Esc to clear it.
 - **The eye** on a row shows or hides what the row is: the origin, a plane or a sketch. On a feature that made parts it shows or hides those parts. On a feature that changes a part, such as a fillet or a cut, it suppresses the feature, so you see the part without it.
 - **Drag** a feature to reorder it. A feature cannot move above anything it uses, such as its sketch or the part it changes.
 - **Drag the rollback bar** to see the part as it was at that point. New features go in at the bar.
@@ -42,13 +43,16 @@ Now double-click the sketch in the feature list, double-click its `40` and type 
 
 | Do | To |
 |---|---|
-| Right-drag | Orbit, in a sketch too (N looks straight at the sketch again) |
+| Right-drag | Orbit about the screen's axes, through the middle of the part; in a sketch too (N looks straight at the sketch again) |
+| Double-click a sketch | Edit it |
 | Middle-drag, or Shift and right-drag | Pan |
 | Wheel | Zoom about the pointer |
 | F, or double-click on nothing | Zoom to fit |
 | N | Look straight at the flat face, plane or sketch chosen |
 | 1 to 7 | Front, back, left, right, top, bottom, isometric |
-| Click a face of the view cube | Look at that side |
+| Click a face of the view cube | Look at that side. A strip along one of its sides looks along that edge, and a corner looks from the corner |
+| The arrows round the view cube | Turn the view 15° |
+| The curved arrows above the view cube | Roll the view 15° about the line of sight |
 | The bird in the bar | Fly through the model, full screen |
 | Double-click a face | Edit the feature that made it |
 
@@ -62,4 +66,16 @@ A click picks a vertex, edge or face of a part, or a sketch region or plane. The
 
 Whatever is selected when you start a feature goes into it. Select a sketch region and click Extrude, or select edges and click Fillet.
 
-With one or two items selected, the box at the bottom right gives their measurements: a face's area, an edge's length and radius, the distance and angle between two items, and a part's volume, surface area, mass and centre of mass. The mass comes from the material chosen in the parts list.
+Select faces, edges, corners or parts and the readout at the bottom right measures them. Its tab shows the one value most likely wanted, and a click on the tab opens the full list. Click a value in the list to copy it.
+
+| Selected | The tab shows |
+|---|---|
+| Two parallel flat faces, or two parallel straight edges | Parallel distance |
+| A hole's wall, a pin's side or a round edge | Diameter |
+| Two round faces or round edges | Centre distance |
+| A flat face and a corner, or a face and an edge that runs along it | Parallel distance |
+| Two things that are not parallel | Minimum distance |
+| One straight edge, one flat face, one part | Length, area, volume |
+| Three or more edges, or faces | Total length, or total area |
+
+The list adds the least distance with its parts along X, Y and Z, the angle between two things that are not parallel, the totals, and each item's own numbers. A part's own numbers are its volume, surface area, mass and centre of mass. The mass comes from the material chosen in the parts list.

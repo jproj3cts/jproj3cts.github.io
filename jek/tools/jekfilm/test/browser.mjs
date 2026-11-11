@@ -66,6 +66,9 @@ export async function check(pw, base, shots) {
       }
       ok('The plots switch between R, T and A: titles, columns and the switch follow, and R + T + A comes to 100 %', qs.T.band === 'Transmittance against wavelength' && qs.A.band === 'Absorbed against wavelength' && qs.R.band === 'Reflectance against wavelength'
         && qs.T.head.startsWith('Angle|T mean') && qs.A.head.startsWith('Angle|A mean') && qs.T.on === 'T' && qs.R.on === 'R' && Math.abs(qs.R.mean + qs.T.mean + qs.A.mean - 100) < 0.01, JSON.stringify(qs));
+      // Share at the top right, as the other apps have it, and in File; on a narrow screen only File's (as JEKray), and File keeps its examples
+      const shareSeen = await p.evaluate(() => ({ bar: getComputedStyle(document.getElementById('btnShare')).display, menu: !!document.getElementById('btnShareMenu'), right: document.getElementById('btnShare').getBoundingClientRect().left > innerWidth / 2 }));
+      ok('Share: a button at the top right and File › Copy a share link…', shareSeen.bar !== 'none' && shareSeen.menu && shareSeen.right, JSON.stringify(shareSeen));
       ok('The field in the stack is not on the Design tab', !(await p.evaluate(() => !!document.getElementById('filmField'))));
       ok('A dichroic edge asks where it turns and which side passes', edge.turns && edge.passes, JSON.stringify(edge));
       await p.selectOption('select[aria-label="How the angles are judged"]', 'band'); await p.waitForTimeout(100);
@@ -81,7 +84,7 @@ export async function check(pw, base, shots) {
       await p.evaluate(c => window.JEKfilm.load(c), COATING);
       const l = await p.evaluate(() => ({ name: document.getElementById('filmName').value, rows: document.querySelectorAll('#filmLayers tbody tr').length, fig: document.getElementById('filmAngleFigures').innerText, heads: [...document.querySelectorAll('#filmFigures thead th')].map(t => t.textContent), csv: window.JEKfilm.csv().split('\r\n').slice(0, 2) }));
       ok('A coating opened: its name, layers and figures at its design wavelength; its curves as CSV with units', l.name === 'V-coat 1064' && l.rows === 2 && /At λ₀ = 1064 nm/.test(l.fig) && l.heads.join('|') === 'Angle|R mean (%)|R max (%)|R min (%)' && l.csv[0] === '﻿wavelength (nm),R square on (%),target R (%)' && /^1000,/.test(l.csv[1]), JSON.stringify(l));
-      await p.click('#btnFile'); await p.click('#btnExamples'); await p.waitForTimeout(100);
+      await p.click('#btnFile'); await p.click('#btnFilmExamples'); await p.waitForTimeout(100);
       const exs = await p.evaluate(() => [...document.querySelectorAll('#filmExamples .film-ex')].map(b => b.dataset.ex));
       await p.click('#filmExamples [data-ex="hr-1064"]'); await p.waitForFunction(() => window.JEKfilm.film().name === 'HR mirror, 1064 nm', null, { timeout: 5000 }).catch(() => {});
       const hr = await p.evaluate(() => window.JEKfilm.film().layers.length);
@@ -104,6 +107,8 @@ export async function check(pw, base, shots) {
       await p.setViewportSize({ width: 390, height: 800 }); await p.waitForTimeout(200);
       const wide = await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1 && document.getElementById('filmBody').scrollWidth <= document.getElementById('filmBody').clientWidth + 1);
       ok('At phone width: nothing wider than the screen', wide, 'scrolls sideways');
+      const narrowFile = await p.evaluate(() => ['btnFilmExamples', 'btnShareMenu'].map(id => getComputedStyle(document.getElementById(id)).display));
+      ok('At phone width File still has Open an example… and Copy a share link…', narrowFile.every(d => d !== 'none'), JSON.stringify(narrowFile));
       if (shots) await p.screenshot({ path: shots + '/jekfilm-phone.png', fullPage: true });
       // a coating through a link (no accounts here: the coating in the link itself) and back
       const link = await p.evaluate(async () => { const before = JSON.stringify(window.JEKfilm.film()); const h = await window.JEKfilm.shareHash(); window.JEKfilm.load({ format: 'jekfilm', version: 1, name: 'Other', layers: [] }); await window.JEKfilm.openHash(h); return { kind: h[0], same: JSON.stringify(window.JEKfilm.film()) === before, len: h.length }; });
@@ -111,29 +116,34 @@ export async function check(pw, base, shots) {
       ok('The designer alone: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
-    // signed out: optimising and saving ask to sign in; exporting asks for a free account
+    // signed out: optimising, saving and exporting each ask for a free account; the cloud is JEKrayPro's
     {
       const { p, errs } = await page('', { signedIn: false });
       await p.waitForSelector('#btnAcct', { timeout: 5000 }); await p.waitForTimeout(400);
-      const marks = await p.evaluate(() => ({ opt: document.getElementById('filmOptimise').classList.contains('rt-proneed'), save: document.getElementById('btnSaveFile').classList.contains('rt-proneed'), csv: document.getElementById('btnExportCsv').classList.contains('rt-acctneed') }));
-      ok('Signed out: Optimise and Save as .jekfilm marked Pro, Export the curves Free account', marks.opt && marks.save && marks.csv, JSON.stringify(marks));
+      const marks = await p.evaluate(() => { const c = id => document.getElementById(id).classList; return { opt: c('filmOptimise').contains('rt-acctneed') && !c('filmOptimise').contains('rt-proneed'), save: c('btnSaveFile').contains('rt-acctneed') && !c('btnSaveFile').contains('rt-proneed'), csv: c('btnExportCsv').contains('rt-acctneed'), cloud: c('btnCloudSave').contains('rt-proneed') }; });
+      ok('Signed out: Optimise, Save as .jekfilm and Export the curves marked Free account; Save to cloud marked Pro', marks.opt && marks.save && marks.csv && marks.cloud, JSON.stringify(marks));
       const d0 = await p.evaluate(() => window.JEKfilm.film().layers[0].d);
       await p.click('#filmOptimise'); await p.waitForTimeout(200);
       const so = await p.evaluate(() => ({ open: !!document.querySelector('#filmSignIn[open]'), h: (document.querySelector('#filmSignIn h2') || {}).textContent, d: window.JEKfilm.film().layers[0].d }));
-      ok('Signed out: Optimise asks to sign in, and changes nothing', so.open && so.h === 'Sign in first' && so.d === d0, JSON.stringify(so));
+      ok('Signed out: Optimise asks for a free account, and changes nothing', so.open && so.h === 'A free account is needed' && so.d === d0, JSON.stringify(so));
       await p.keyboard.press('Escape');
       await p.click('#btnFile'); await p.click('#btnExportCsv'); await p.waitForTimeout(200);
       ok('Signed out: Export the curves asks for a free account', await p.evaluate(() => (document.querySelector('#filmSignIn[open] h2') || {}).textContent === 'Exporting needs a free account'), 'no prompt');
       ok('Signed out: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
-    // a free account: Pro's work offers the plans
+    // a free account: the file saves and the optimiser runs; the cloud offers the plans
     {
       const { p, errs } = await page('', { signedIn: true, pro: false });
       await p.waitForSelector('#btnAcct.in', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(300);
-      await p.keyboard.press('Control+s'); await p.waitForTimeout(200);
+      const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 5000 }).catch(() => null), p.keyboard.press('Control+s')]);
+      const d0 = await p.evaluate(() => window.JEKfilm.film().layers[0].d);
+      await p.click('#filmOptimise'); await p.waitForTimeout(1200);
+      const ran = await p.evaluate(() => ({ prompt: !!document.querySelector('#filmSignIn[open]'), d: window.JEKfilm.film().layers[0].d, marked: document.getElementById('filmOptimise').classList.contains('rt-proneed') || document.getElementById('filmOptimise').classList.contains('rt-acctneed') }));
+      ok('A free account: Ctrl+S saves the .jekfilm file, and Optimise runs with nothing asked', !!dl && /\.jekfilm$/.test(dl.suggestedFilename()) && !ran.prompt && !ran.marked && ran.d !== d0, JSON.stringify([dl && dl.suggestedFilename(), ran, d0]));
+      await p.click('#btnFile'); await p.click('#btnCloudSave'); await p.waitForTimeout(300);
       const s = await p.evaluate(() => ({ h: (document.querySelector('#filmSignIn[open] h2') || {}).textContent, plans: !!document.querySelector('#filmSignIn[open] .rt-btn.primary') }));
-      ok('A free account: Ctrl+S (Save as .jekfilm) says JEKrayPro is needed, with the plans', s.h === 'JEKrayPro is needed' && s.plans, JSON.stringify(s));
+      ok('A free account: Save to cloud says JEKrayPro is needed, with the plans', s.h === 'JEKrayPro is needed' && s.plans, JSON.stringify(s));
       ok('A free account: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
@@ -162,7 +172,7 @@ export async function check(pw, base, shots) {
       const folders = await p.evaluate(() => [...document.querySelectorAll('#filmCloudFolder option')].map(o => o.textContent));
       await p.selectOption('#filmCloudFolder', 'f2'); await p.fill('#filmCloudName', 'AR 1064'); await p.click('#filmCloudMake'); await p.waitForTimeout(400);
       const post = api.bodies.slice(-1)[0], nl = await p.evaluate(() => window.JEKfilm.link());
-      ok('Save to the cloud…: a new coating named and put in a folder (its path shown), then linked', folders.join('|') === 'The top folder|Nd:YAG laser|Nd:YAG laser › Cavity' && post.folder_id === 'f2' && post.name === 'AR 1064'
+      ok('Save to cloud…: a new coating named and put in a folder (its path shown), then linked', folders.join('|') === 'The top folder|Nd:YAG laser|Nd:YAG laser › Cavity' && post.folder_id === 'f2' && post.name === 'AR 1064'
         && JSON.parse(post.content).format === 'jekfilm' && nl && nl.id === 'cnew', JSON.stringify([folders, post && post.folder_id, nl]));
       if (shots) await p.screenshot({ path: shots + '/jekfilm-cloud.png' });
       // a JEKray bench sent here goes to JEKray
@@ -170,7 +180,7 @@ export async function check(pw, base, shots) {
       const op = await p.evaluate(() => window.__opened.slice(-1)[0]);
       ok('A JEKray bench’s link opens it in JEKray’s tab', op && op[0] === '/jek/tools/jekray.html#cloud=b1' && op[1] === 'jekray', JSON.stringify(op));
       // a short link: made with JEKrayPro (/f/<id>), and opened by anyone (#s=<id>) as a copy linked to nothing
-      await p.click('#btnFile'); await p.click('#btnShare');
+      await p.click('#btnShare');
       await p.waitForSelector('#filmShare[open]', { timeout: 3000 }).catch(() => {});
       const url = await p.evaluate(() => (document.getElementById('filmShareUrl') || {}).value), posted = api.bodies.slice(-1)[0];
       ok('Copy a share link…: a short link on /f/, holding the coating', /\/f\/ABCDEFGHJK$/.test(url || '') && posted && posted.data[0] === 'f' && posted.name === 'AR 1064', JSON.stringify([url, posted && posted.name]));

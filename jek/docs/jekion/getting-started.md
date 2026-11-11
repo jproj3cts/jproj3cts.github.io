@@ -30,7 +30,7 @@ In a **planar** or **cylindrical** array the cut is the array itself (the x–y 
 
 **The bar** starts with **JEKsuite**, the hub where every cloud bench of every app lives; then holds the menus, **File**, **Edit**, **View**, **Insert** (an ion group, a detector; the key **A**), **Tools** and **Help**, then Undo, Redo, Fit and Fly, the bench's name, and **Save**, Examples and your account at the right. The bar on the bench says what the simulation is doing (solving, flying, done) and stops a long flight.
 
-**Flying** happens after every change (Tools › *Fly after every change*); for a heavy three-dimensional array turn that off and press **Fly** (or **Space**) when ready. **Esc** stops a flight.
+**Flying** needs a free account: signed out, the fields are still solved and drawn, and a line under the bench says what is needed. Signed in, it happens after every change (Tools › *Fly after every change*); for a heavy three-dimensional array turn that off and press **Fly** (or **Space**) when ready. **Esc** stops a flight.
 
 ## The 3D view
 
@@ -38,4 +38,4 @@ The **2D / 3D** switch at the bench's top right (or **View › 3D view**) shows 
 
 ## Keeping your work
 
-The bench is autosaved in this browser as you work and comes back when you return. **Save** (Ctrl+S) writes a `.jekion` file, which **File › Open** or a drop on the bench reads back; a CAD file dropped on the bench becomes electrodes. Exports (pictures, data) need a free account; scripts and the richer exports are JEKrayPro's, the same account as [JEKray](/jek/tools/jekray.html)'s. [Files and examples](/jek/docs/jekion/files/) has the details.
+Signed in, the bench is autosaved in this browser as you work and comes back when you return. Signed out, nothing is kept: **Not kept** beside Save says so, and opens the sign-in. **Save** (Ctrl+S) writes a `.jekion` file with a free account, which **File › Open** or a drop on the bench reads back; a CAD file dropped on the bench becomes electrodes. Exports (pictures, data in every format) and scripts need a free account, the same account as [JEKray](/jek/tools/jekray.html)'s. [Files and examples](/jek/docs/jekion/files/) has the details.

@@ -18,13 +18,45 @@
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
 <link rel="stylesheet" href="/jek/assets/css/jek.css?v={{ site.css_v }}">
 <style>
+  /* the words start at the top beside the picture, not centred on it */
   .jek-hero .jek-wrap { align-items: start; }
-  .cad-plans { width: 100%; max-width: 46rem; border-collapse: collapse; font-size: 0.95rem; }
-  .cad-plans th, .cad-plans td { text-align: left; padding: 0.55rem 0.8rem 0.55rem 0; border-bottom: 1px solid var(--jek-line); vertical-align: top; }
-  .cad-plans thead th { font-size: 0.8rem; color: var(--jek-ink-soft); font-weight: 600; border-bottom-width: 2px; }
-  .cad-plans td:last-child { white-space: nowrap; }
-  .cad-checks { margin: 0.6rem 0 0; padding-left: 1.1rem; line-height: 1.6; color: var(--jek-ink-soft); max-width: 70ch; }
-  .cad-checks li + li { margin-top: 0.35rem; }
+  /* the picture is cut to the height of the words beside it, so neither leaves a gap below */
+  @media (min-width: 861px) {
+    .jek-hero { padding-bottom: 1.5rem; }
+    .jek-hero .jek-wrap { align-items: stretch; }
+    .jek-hero .jek-shot { height: 0; min-height: 100%; display: flex; flex-direction: column; }
+    .jek-hero .jek-shot img, .jek-hero .jek-shot video { flex: 1 1 0; min-height: 0; height: auto; aspect-ratio: auto; object-fit: cover; object-position: center; }
+  }
+  /* the hero's key phrase, underlined in the JEK stripe */
+  .jek-twin { background: linear-gradient(90deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%) no-repeat left 0 bottom 0.04em / 100% 0.16em; padding-bottom: 0.06em; }
+  /* as on the JEKray page: the sections close, the features three to a row (a picture over its words), the examples
+     as a catalogue index by topic, the resources in four columns */
+  .jek-hero { padding-block: 2rem 1.6rem; }
+  .jek-section { padding-block: 1.8rem; }
+  .rt-feats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.6rem 1.8rem; align-items: start; }
+  .rt-feats .jek-feature { display: flex; flex-direction: column; gap: 0.7rem; padding: 0; border-top: 0; }
+  .rt-feats .jek-feature .jek-shot { order: -1; margin: 0; }
+  .rt-feats .jek-shot img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
+  .rt-feats .jek-feature h2 { font-size: 1.08rem; }
+  .rt-feats .jek-feature p { margin-top: 0.4rem; font-size: 0.9rem; line-height: 1.5; max-width: none; }
+  .rt-feats a, .rt-ex-lede a, .rt-topics a, .rt-res a { color: var(--jek-ink); text-decoration: underline; text-decoration-color: var(--jek-orange); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+  #examples h2 { margin: 0 0 0.5rem; }
+  .rt-ex-lede { margin: 0 0 1.4rem; max-width: 72ch; color: var(--jek-ink-soft); }
+  .rt-topics { columns: 4 15rem; column-gap: 2.5rem; }
+  .rt-topic { break-inside: avoid; margin: 0 0 1.4rem; }
+  .rt-topic h3, .rt-res h3 { margin: 0 0 0.5rem; padding-bottom: 0.35rem; border-bottom: 2px solid var(--jek-line); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--jek-ink); }
+  .rt-topic h3 span { float: right; font-weight: 600; color: var(--jek-ink-soft); letter-spacing: 0; }
+  .rt-topic ul, .rt-res ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+  .rt-topic li, .rt-res li { font-size: 0.98rem; line-height: 1.35; }
+  .rt-topic a, .rt-res a { text-decoration-color: transparent; }
+  .rt-topic a:hover, .rt-res a:hover { text-decoration-color: var(--jek-orange); }
+  .rt-res { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2.5rem; }
+  .rt-res p { margin: 0 0 0.7rem; font-size: 0.95rem; line-height: 1.5; color: var(--jek-ink-soft); }
+  @media (max-width: 1100px) { .rt-feats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 900px) { .rt-res { grid-template-columns: 1fr 1fr; gap: 1.8rem; } }
+  @media (max-width: 640px) { .rt-feats { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) { .rt-res { grid-template-columns: 1fr; } }
+  .rt-feats .jek-feature code { font-size: 0.85em; }
 </style>
 </head>
 
@@ -37,55 +69,62 @@
     <section class="jek-hero">
       <div class="jek-wrap">
         <div>
-          <h1>JEKcad, parametric CAD</h1>
-          <p class="jek-lede">A Part Studio in your browser. Sketch on a plane or a face, constrain and dimension it, and build solids from a feature list you can roll back and edit. The solids are made by Open CASCADE Technology, running on your computer.</p>
+          <h1>JEKcad: <span class="jek-twin">parametric CAD</span> in your browser.</h1>
+          <p class="jek-lede">Sketch on a plane or a face, dimension it, and build solids from a feature list you can roll back and edit. The solids are made by Open CASCADE Technology, running on your computer.</p>
           <div class="jek-acts">
-            <a class="jek-btn primary" href="/jek/tools/jekcad.html">Open JEKcad</a>
+            <a class="jek-btn primary" href="/jek/tools/jekcad.html">Launch JEKcad</a>
             <a href="/jek/docs/jekcad/">Documentation</a>
           </div>
-          <div class="jek-facts"><span>Runs in your browser</span><span>In development</span></div>
+          <div class="jek-facts"><span>Free, in your browser</span><span>Nothing to install</span><span>In development</span></div>
         </div>
         <figure class="jek-shot cover">
           <img src="img/plate.png" alt="JEKcad with a lens mount plate: the feature list on the left (two sketches, the plate's extrude, corner fillets, four counterbored holes, a boss and a one-inch bore), the part in aluminium, and the view cube" width="2560" height="1520">
-          <figcaption>An 80 × 50 mm mount plate for a one-inch optic in eight features. Its width is the variable #width; change it and every feature follows.</figcaption>
+          <figcaption>An 80 × 50 mm mount plate for a one-inch optic in eight features. Change its width and every feature follows.</figcaption>
         </figure>
       </div>
     </section>
 
     <section class="jek-section" style="padding-top: 0">
-      <div class="jek-wrap">
+      <div class="jek-wrap rt-feats">
         <div class="jek-feature">
-          <div><h2>Sketches</h2><p>Lines, rectangles, circles, arcs, slots, polygons and points, with the usual constraints inferred as you draw: coincident, horizontal, vertical, tangent, perpendicular, midpoint. Add the others from the sketch bar, and type each dimension where it sits. A dimension can be a number with a unit, an expression, or a variable such as <code>#width * 5 / 8</code>.</p><p>Shapes still free to move are blue; once fully defined they turn to ink. Drag what is free and the sketch solves as it moves.</p><p><a href="/jek/docs/jekcad/sketching/">Sketching &rarr;</a></p></div>
-          <figure class="jek-shot"><img src="img/sketch.png" alt="The plate's outline sketch: a rectangle centred on the origin by a construction diagonal, its sides dimensioned as #width and #width × 5/8, every shape fully defined" loading="lazy" width="2560" height="1520"></figure>
+          <div><h2>Sketches that stay defined</h2><p>Draw with constraints inferred as you go, and type each dimension where it sits. A dimension can be an expression or a variable such as <code>#width * 5 / 8</code>.</p><p><a href="/jek/docs/jekcad/sketching/">Sketching</a></p></div>
+          <figure class="jek-shot"><img src="img/sketch.png" alt="The plate's outline sketch: a rectangle centred on the origin by a construction diagonal, its sides dimensioned as #width and #width × 5/8, every shape fully defined" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><h2>Features</h2><p>Extrude, revolve, sweep and loft, as new parts or added to, cut from or intersected with others. Fillet, chamfer, shell, and holes with counterbores or countersinks. Linear and circular patterns, mirrors, booleans and offset planes.</p><p>A feature's dialog shows its result over the model as you change it, green where it adds and red where it cuts. Faces and edges keep their names when the model changes, so an edit lower in the list carries through to the fillets and holes above it.</p><p><a href="/jek/docs/jekcad/features/">Features &rarr;</a></p></div>
-          <figure class="jek-shot"><img src="img/hole.png" alt="The Hole feature edited: counterbores of 4.5 mm through, 8 mm across and 4.4 mm deep at the four points of a sketch, their cutters shown in red through the plate" loading="lazy" width="2560" height="1520"></figure>
+          <div><h2>A feature list you can edit</h2><p>Extrude, revolve, sweep, loft, fillet, shell and holes with counterbores. Each dialog previews its result over the model, and an edit lower in the list carries through.</p><p><a href="/jek/docs/jekcad/features/">Features</a></p></div>
+          <figure class="jek-shot"><img src="img/hole.png" alt="The Hole feature edited: counterbores of 4.5 mm through, 8 mm across and 4.4 mm deep at the four points of a sketch, their cutters shown in red through the plate" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><h2>Checked against</h2><ul class="cad-checks">
-            <li>A 40 × 20 × 10 mm block is 8000 mm³, and a 2 mm fillet on one edge takes (4 &minus; &pi;) × 10 mm³ from it.</li>
-            <li>Counterbored, countersunk and blind holes with a 118° tip remove the volumes worked out by hand, to 10<sup>&minus;6</sup> mm³.</li>
-            <li>A frustum lofted between squares of 20 and 10 mm, 10 mm apart, is (h/3)(A<sub>1</sub> + A<sub>2</sub> + &radic;(A<sub>1</sub>A<sub>2</sub>)).</li>
-            <li>A part written as STEP and read back has the same volume, and a part's mass is its volume times its material's density.</li>
-          </ul></div>
+          <div><h2>Checked by hand</h2><p>A 2&nbsp;mm fillet takes (4&nbsp;&minus;&nbsp;&pi;)&nbsp;&times;&nbsp;10&nbsp;mm&sup3; from a block, and counterbored and countersunk holes remove their hand-worked volumes to 10<sup>&minus;6</sup>&nbsp;mm&sup3;. A part written as STEP and read back keeps its volume.</p><p><a href="/jek/docs/jekcad/files/">Files and exports</a></p></div>
         </div>
       </div>
     </section>
 
     <section class="jek-section jek-band" id="plans">
       <div class="jek-wrap">
-        <h2>Plans</h2>
-        <p>JEKcad shares JEKray&rsquo;s accounts: one sign-in for every JEK app, and a JEKrayPro subscription covers JEKcad too.</p>
-        <table class="cad-plans">
-          <thead><tr><th scope="col">What you do</th><th scope="col">What it needs</th></tr></thead>
-          <tbody>
-            <tr><td>Model parts; save and open .jekcad files; import STEP</td><td>Nothing</td></tr>
-            <tr><td>Export parts as STEP or STL</td><td>A free account</td></tr>
-            <tr><td>Keep part studios in the cloud, with their history, beside your benches on JEKsuite</td><td><a href="/jek/products/design-software/jekray/#pricing">JEKrayPro</a></td></tr>
-          </tbody>
-        </table>
-        <div class="jek-acts" style="margin-top: 1.2rem"><a class="jek-btn primary" href="/jek/tools/jekcad.html">Open JEKcad</a></div>
+        <h2>Resources</h2>
+        <div class="rt-res">
+          <div><h3>Getting started</h3><p>JEKcad runs in your browser, with nothing to install. Anyone can open a part to look at it; a free account lets you change it.</p><ul>
+            <li><a href="/jek/tools/jekcad.html">Open JEKcad</a></li>
+            <li><a href="/jek/docs/jekcad/">Getting started</a></li>
+            <li><a href="/jek/products/design-software/">JEKsuite: every JEK app</a></li>
+            <li><a href="/jek/tools/jeksuite.html">My benches</a></li>
+          </ul></div>
+          <div><h3>Your account</h3><p>Modelling and exporting STEP or STL need a free account. Keeping part studios in the cloud needs JEKrayPro, which covers every JEK app.</p><ul>
+            <li><a href="/jek/products/design-software/jekray/#pricing">JEKrayPro plans</a></li>
+            <li><a href="/jek/terms.html">JEKrayPro Terms</a></li>
+            <li><a href="/jek/privacy.html">Privacy Policy</a></li>
+            <li><a href="/jek/security.html">Security overview</a></li>
+          </ul></div>
+          <div><h3>Modelling</h3><p>Each part of the Part Studio and how it works.</p><ul>
+            <li><a href="/jek/docs/jekcad/sketching/">Sketching</a></li>
+            <li><a href="/jek/docs/jekcad/features/">Features</a></li>
+            <li><a href="/jek/docs/jekcad/files/">Files, the cloud and exports</a></li>
+          </ul></div>
+          <div><h3>In development</h3><p>JEKcad is new. If a model fails or looks wrong, tell us and send the .jekcad file.</p><ul>
+            <li><a href="mailto:support@jeksys.net">Email support@jeksys.net</a></li>
+          </ul></div>
+        </div>
       </div>
     </section>
 

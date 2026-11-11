@@ -26,10 +26,10 @@ export async function filmShareHash(f) {
   if (typeof CompressionStream !== 'undefined') { try { return 'f' + fb64u(await fstream(json, new CompressionStream('deflate-raw'))); } catch (err) { /* plain below */ } }
   return 'g' + fb64u(json);
 }
-const OTHER_LINKS = { z: 'jekray', j: 'jekray', q: 'jekray', i: 'jekion', k: 'jekion' };
+const OTHER_LINKS = { z: 'jekray', j: 'jekray', q: 'jekray', i: 'jekion', k: 'jekion', c: 'jekcad', d: 'jekcad' };
 export async function readFilmHash(hash) {
   const kind = hash[0], body = hash.slice(1);
-  if (OTHER_LINKS[kind]) throw new Error('that is a ' + (OTHER_LINKS[kind] === 'jekion' ? 'JEKion' : 'JEKray') + ' bench: open the link in ' + (OTHER_LINKS[kind] === 'jekion' ? 'JEKion' : 'JEKray'));
+  if (OTHER_LINKS[kind]) { const nm = { jekion: 'JEKion', jekray: 'JEKray', jekcad: 'JEKcad' }[OTHER_LINKS[kind]]; throw new Error('that is a ' + nm + (nm === 'JEKcad' ? ' Part Studio' : ' bench') + ': open the link in ' + nm); }
   if (kind !== 'f' && kind !== 'g') throw new Error('the link is not one of JEKfilm’s');
   let bytes;
   try { bytes = funb64u(body); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
@@ -51,10 +51,10 @@ async function filmShortLink() {
   FILM_MADE.set(text, r.id);
   return r.id;
 }
-/* File › Copy a share link: a short link with an account (JEKrayPro's), the coating in the link itself without accounts */
+/* File › Copy a share link: a short link with an account (a free one keeps a few, JEKrayPro any number), the coating in the link itself without accounts */
 export async function shareFilm() {
   const short = accountsOn();
-  if (short && !account) { filmSignIn('pro', 'share a link'); return null; }
+  if (short && !account) { filmSignIn('export', 'share a link'); return null; }
   if (short && !designPro('share a link')) return null;
   const url = short ? filmShortUrl(await filmShortLink()) : location.origin + location.pathname + '#p=' + await filmShareHash();
   let dlg = document.getElementById('filmShare');
@@ -89,6 +89,10 @@ export async function openFilmShort(id) {
   return openFilmHash(r.data);
 }
 export function wireShare() {
-  document.getElementById('btnShare').addEventListener('click', () => { shareFilm().catch(err => toast('Could not make a link: ' + err.message, true)); });
-  if (TEST_MODE) document.getElementById('btnShare').dataset.test = '1';
+  // the bar's Share (top right, as in the other apps; hidden on a narrow screen) and File › Copy a share link…
+  for (const id of ['btnShare', 'btnShareMenu']) {
+    const b = document.getElementById(id);
+    b.addEventListener('click', () => { shareFilm().catch(err => toast('Could not make a link: ' + err.message, true)); });
+    if (TEST_MODE) b.dataset.test = '1';
+  }
 }

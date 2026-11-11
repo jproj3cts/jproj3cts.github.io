@@ -2,8 +2,8 @@ import { FEATURE_KINDS, MATERIALS, STD_PLANES, appliedCount, featureLabel, newFe
 import { defaultRegionPts, regionAt } from '../core/sketch-tools.js';
 import { evalExpr, exprIsFormula, fmtNum } from '../core/units.js';
 import { h } from '../../../jekray/src/ui/dom.js';
-import { app, changed, checkpoint, emit, on, regenNow, regenSoon, toast } from './app.js';
-import { regionsCached, startSketch } from './sketcher.js';
+import { app, changed, checkpoint, editGate, emit, on, regenNow, regenSoon, toast } from './app.js';
+import { regionsCached, regionsShown, splitDefaultPts, splitPts, startSketch } from './sketcher.js';
 import { kernelAsk } from '../page/kernel.js';
 
 /* ==========================================================================
@@ -41,16 +41,21 @@ export const FEATURE_FORMS = {
   cpattern: [['of', 'Pattern', 'seg', { options: [['features', 'Features'], ['parts', 'Parts']] }], ['items', 'What to pattern', 'sel', { pick: f => (f.of === 'parts' ? 'parts' : 'features') }],
     ['axis', 'Axis', 'select', { options: [['x', 'x'], ['y', 'y'], ['z', 'z']], show: f => !f.axisRef }], ['axisRef', 'Or about an edge (straight or round)', 'sel', { pick: 'edge' }], ['count', 'Instances', 'expr', { unit: 'num' }], ['angle', 'Angle (360°: equally round)', 'expr', { unit: 'ang' }]],
   mirror: [['of', 'Mirror', 'seg', { options: [['features', 'Features'], ['parts', 'Parts']] }], ['items', 'What to mirror', 'sel', { pick: f => (f.of === 'parts' ? 'parts' : 'features') }], ['plane', 'Mirror plane', 'sel', { pick: 'plane' }]],
+  delete: [['targets', 'Parts to delete', 'sel', { pick: 'parts' }]],
   boolean: [['op', '', 'seg', { options: [['union', 'Union'], ['subtract', 'Subtract'], ['intersect', 'Intersect']] }], ['targets', 'Parts', 'sel', { pick: 'parts' }], ['tools', 'Tools', 'sel', { pick: 'parts', show: f => f.op !== 'union' }], ['keep', 'Keep the tools', 'check', { show: f => f.op !== 'union' }]],
   import: [['file', 'STEP file', 'file']],
 };
 const pickOf = (fd, f) => (typeof fd[3].pick === 'function' ? fd[3].pick(f) : fd[3].pick);
 /* ---------- opening ---------- */
 export function openFeature(type, opts) {
+  if (app.asm) { toast('Features are made in a Part Studio: open one from the tabs below'); return; }
+  if (!editGate()) return;
   if (app.sketch) { toast('Finish the sketch first'); return; }
   if (app.editing) closeDialog(false);
   const at = appliedCount(app.doc), f = newFeature(app.doc, type);
   const planeSel = app.sel.find(s => s.kind === 'plane' || s.kind === 'face');     // before prefill empties the selection
+  // (faces chosen before Extrude is pressed, with no sketch region among them: those faces are what it pushes)
+  const faceSel = type === 'extrude' && !app.sel.some(s => s.kind === 'region') ? app.sel.filter(s => s.kind === 'face') : [];
   prefill(f, at);
   if (type === 'sketch') {
     if (planeSel) { refFor(planeSel).then(r => { if (!r) { toast('Choose a plane or a flat face to sketch on', true); return; } f.plane = r; startSketch(f, at, true); }); return; }
@@ -59,8 +64,15 @@ export function openFeature(type, opts) {
     app.editing = { f, at, isNew: true, field: null, sketchPlane: true };
     showDialog(); activate('plane'); return;
   }
-  app.editing = { f, at, isNew: true, field: null };
+  // (regions it was given by default follow Add or Remove until one is clicked: a cut takes in the model's holes)
+  const auto = !!f.autoRegions; delete f.autoRegions;
+  app.editing = { f, at, isNew: true, field: null, auto };
   showDialog();
+  if (faceSel.length) Promise.all(faceSel.map(refFor)).then(rs => {
+    rs = rs.filter(r => r && (!r.type || r.type === 'plane'));
+    if (!rs.length || !app.editing || app.editing.f !== f) return;
+    f.sketch = null; f.regions = []; f.faces = rs; app.editing.auto = false; showDialog(); regenSoon(60);
+  });
   const first = (FEATURE_FORMS[type] || []).find(fd => fd[2] === 'sel' && (!fd[3].show || fd[3].show(f)));
   // (an extrude's or a revolve's regions stay ready to be clicked in the view, though they start chosen: one click takes
   // a region out or puts one in)
@@ -70,13 +82,24 @@ export function openFeature(type, opts) {
 export function editFeature(i) {
   const f = app.doc.features[i];
   if (!f) return;
+  if (!editGate()) return;
   if (app.sketch) { toast('Finish the sketch first'); return; }
   if (app.editing) closeDialog(false);
   if (f.type === 'sketch') { startSketch(f, i, false); return; }
   app.editing = { f: JSON.parse(JSON.stringify(f)), at: i, isNew: false, field: null };
   // an extrude to a depth, ticked Opposite direction (from before a depth could be below 0): the same as a negative depth
   { const g = app.editing.f; if (g.type === 'extrude' && g.flip && (g.end === 'blind' || g.end === 'symmetric')) { g.flip = false; if (g.end === 'blind') g.depth = /^\s*-/.test(g.depth) ? g.depth.replace(/^\s*-\s*/, '') : '-(' + g.depth + ')'; } }
+  // one made before regions were cut by the model's edges: its regions as the pieces they are cut into, so any of
+  // them can be clicked out (nothing is changed unless OK is pressed, and what it makes is the same until then)
+  { const g = app.editing.f, skOf = id => app.doc.features.find(x => x.id === id && x.type === 'sketch');
+    if (!g.split && ('regions' in g || 'sections' in g)) {
+      if ('regions' in g && g.sketch && skOf(g.sketch) && g.regions.length) g.regions = splitPts(skOf(g.sketch), g.regions, g.type === 'extrude' && g.op === 'remove');
+      if (g.sections) for (const s of g.sections) if (skOf(s.sketch) && s.regions && s.regions.length) s.regions = splitPts(skOf(s.sketch), s.regions, false);
+      g.split = true;
+    } }
   showDialog();
+  // (its regions ready to be clicked in the view, as they are when the feature is new)
+  if ((FEATURE_FORMS[f.type] || []).some(fd => fd[0] === 'regions')) activate('regions');
   regenSoon(0);
 }
 const hasValue = v => (Array.isArray(v) ? v.length > 0 : !!v);
@@ -85,24 +108,29 @@ function prefill(f, at) {
   const sel = app.sel;
   const regions = sel.filter(s => s.kind === 'region');
   if (('regions' in f) && regions.length) { f.sketch = regions[0].sketch; f.regions = regions.filter(r => r.sketch === f.sketch).map(r => r.pt); }
+  // (a new extrude takes the pieces the model's edges cut its sketch's regions into, each for itself)
+  if ('regions' in f || 'sections' in f) f.split = true;
   if (f.type === 'loft' && regions.length) { const by = new Map(); for (const r of regions) { if (!by.has(r.sketch)) by.set(r.sketch, []); by.get(r.sketch).push(r.pt); } f.sections = [...by].map(([sketch, regs]) => ({ sketch, regions: regs })); }
   // nothing chosen: the last sketch before the bar, all its regions that are not holes
   if (('regions' in f) && f.type !== 'sweep' && !f.sketch) {
-    const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && !x.suppressed && regionsCached(x).length);
-    if (sk) { f.sketch = sk.id; f.regions = defaultRegionPts(sk.ents); }
+    // (one no feature has used yet: a sketch already extruded is not offered again, with the same regions, to the next)
+    const taken = new Set(app.doc.features.flatMap(x => [x.sketch, x.path, ...(x.sections || []).map(s2 => s2.sketch)]));
+    const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && !x.suppressed && !taken.has(x.id) && regionsCached(x).length);
+    if (sk) { f.sketch = sk.id; f.regions = splitDefaultPts(sk, f.type === 'extrude' && f.op === 'remove'); f.autoRegions = true; }
   }
   // a loft or a sweep with nothing chosen: the sketches no feature has used yet (a loft's profiles in order; a
   // sweep's profile the last with a region, its path the last without one)
   if ((f.type === 'loft' && !f.sections.length) || (f.type === 'sweep' && !f.sketch)) {
     const used = new Set(app.doc.features.flatMap(x => [x.sketch, x.path, ...(x.sections || []).map(s2 => s2.sketch)]));
     const free = app.doc.features.slice(0, at).filter(x => x.type === 'sketch' && !x.suppressed && !used.has(x.id)), closed = free.filter(x => regionsCached(x).length), open = free.filter(x => !regionsCached(x).length && x.ents.some(e => !e.k && e.t !== 'point'));
-    if (f.type === 'loft' && closed.length >= 2) f.sections = closed.map(x => ({ sketch: x.id, regions: defaultRegionPts(x.ents) }));
-    if (f.type === 'sweep' && closed.length) { const pr = closed[closed.length - 1]; f.sketch = pr.id; f.regions = defaultRegionPts(pr.ents); if (open.length && !f.path) f.path = open[open.length - 1].id; }
+    if (f.type === 'loft' && closed.length >= 2) f.sections = closed.map(x => ({ sketch: x.id, regions: splitDefaultPts(x) }));
+    if (f.type === 'sweep' && closed.length) { const pr = closed[closed.length - 1]; f.sketch = pr.id; f.regions = splitDefaultPts(pr); if (open.length && !f.path) f.path = open[open.length - 1].id; }
   }
   // a revolve about the sketch's centre line: its one construction line, if it has just one
   if (f.type === 'revolve' && f.sketch && !f.axis) { const sk = app.doc.features.find(x => x.id === f.sketch), ls = sk ? sk.ents.filter(e => e.t === 'line' && e.k && !e.ref) : []; if (ls.length === 1) f.axis = { e: ls[0].id }; }
   if (f.type === 'hole' && !f.sketch) { const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && x.ents.some(e => e.t === 'point' && !e.k)); if (sk) f.sketch = sk.id; }
   const parts = sel.filter(s => s.kind === 'part').map(s => s.part);
+  if (f.type === 'delete' && parts.length) f.targets = parts.slice();
   if (f.type === 'boolean' && parts.length) { f.targets = parts.slice(0, 1); f.tools = parts.slice(1); }
   if ((f.type === 'lpattern' || f.type === 'cpattern' || f.type === 'mirror') && parts.length) { f.of = 'parts'; f.items = parts; }
   const plane = sel.find(s => s.kind === 'plane');
@@ -133,9 +161,21 @@ export async function fieldPick(p) {
   if (!E || !E.field || !p) return false;
   const f = E.f, k = E.field.key, kind = E.field.kind;
   if (kind === 'regions') {
+    if (p.kind === 'face' && f.type === 'extrude') {
+      // a face of the model, pushed as it is: flat ones only; it takes the place of a sketch's regions
+      const r = await refFor(p);
+      if (!r) return true;
+      if (r.type && r.type !== 'plane') { toast('Only a flat face can be extruded', true); return true; }
+      E.auto = false; f.sketch = null; f.regions = [];
+      const i = f.faces.findIndex(x => Math.hypot(...x.pt.map((v, j) => v - r.pt[j])) < 1e-6);
+      if (i >= 0) f.faces.splice(i, 1); else f.faces.push(r);
+      showDialog(); regenSoon(120);
+      return true;
+    }
     if (p.kind !== 'region') return false;
+    E.auto = false; if (f.faces) f.faces = [];
     if (f.sketch !== p.sketch) { f.sketch = p.sketch; f.regions = [p.pt]; }
-    else { const R = regionsCached(app.doc.features.find(x => x.id === p.sketch)), mine = regionAt(R, p.pt), i = f.regions.findIndex(q => regionAt(R, q) === mine); if (i >= 0) f.regions.splice(i, 1); else f.regions.push(p.pt); }
+    else { const R = regionsShown(app.doc.features.find(x => x.id === p.sketch)), mine = regionAt(R, p.pt), i = f.regions.findIndex(q => regionAt(R, q) === mine); if (i >= 0) f.regions.splice(i, 1); else f.regions.push(p.pt); }
     if (f.axis && typeof f.axis === 'object' && f.axis.sketch && f.axis.sketch !== f.sketch) f.axis = null;
   } else if (kind === 'sections') {
     if (p.kind !== 'region') return false;
@@ -204,7 +244,8 @@ function exprField(f, key, label, unit) {
 function selField(E, fd) {
   const [key, label] = fd, f = E.f, kind = pickOf(fd, f), v = f[key], words = SEL_WORDS[kind] || ['item', 'items'];
   let n = Array.isArray(v) ? v.length : v ? 1 : 0, what;
-  if (kind === 'regions') { n = f.regions.length; what = n ? n + ' ' + (n === 1 ? 'region' : 'regions') + ' of ' + sketchName(f.sketch) : ''; }
+  if (kind === 'regions' && f.faces && f.faces.length) { n = f.faces.length; what = n + ' ' + (n === 1 ? 'face' : 'faces') + ' of the model'; }
+  else if (kind === 'regions') { n = f.regions.length; what = n ? n + ' ' + (n === 1 ? 'region' : 'regions') + ' of ' + sketchName(f.sketch) : ''; }
   else if (kind === 'sketch') what = v ? sketchName(v) : '';
   else if (kind === 'plane') what = v ? (v.std ? STD_PLANES[v.std].name + ' plane' : v.feature ? sketchName(v.feature) : 'a face') : '';
   else if (kind === 'sketchLine') what = v ? 'a line of ' + sketchName(f.sketch) : '';
@@ -215,8 +256,8 @@ function selField(E, fd) {
   const on = E.field && E.field.key === key;
   const box = h('div', { class: 'cad-selbox' + (on ? ' on' : '') + (n ? '' : ' empty'), role: 'button', tabindex: '0', 'data-key': key, id: 'fs-' + key, 'aria-pressed': String(on),
     title: on ? 'Click ' + words[1] + ' in the view' + (kind === 'features' ? ' or the feature list' : '') : 'Click here, then ' + words[1] + ' in the view',
-    onclick: () => activate(key) }, (what && on && kind === 'regions' ? what + ' · click a region in the view to add it or take it out' : what) || (on ? 'Click ' + words[1] + (kind === 'features' ? ' in the feature list' : ' in the view') : 'Nothing chosen'));
-  const clear = n ? h('button', { type: 'button', class: 'cad-selclear', title: 'Clear', 'aria-label': 'Clear ' + label, onclick: e => { e.stopPropagation(); f[key] = Array.isArray(v) ? [] : null; if (key === 'regions') f.sketch = null; showDialog(); regenSoon(0); } }, '×') : null;
+    onclick: () => activate(key) }, (what && on && kind === 'regions' ? what + (f.type === 'extrude' ? ' · click a region or a flat face in the view to add it or take it out' : ' · click a region in the view to add it or take it out') : what) || (on ? 'Click ' + (kind === 'regions' && f.type === 'extrude' ? 'regions of a sketch or flat faces of the model' : words[1]) + (kind === 'features' ? ' in the feature list' : ' in the view') : 'Nothing chosen'));
+  const clear = n ? h('button', { type: 'button', class: 'cad-selclear', title: 'Clear', 'aria-label': 'Clear ' + label, onclick: e => { e.stopPropagation(); f[key] = Array.isArray(v) ? [] : null; if (key === 'regions') { f.sketch = null; if (f.faces) f.faces = []; } showDialog(); regenSoon(0); } }, '×') : null;
   return h('div', { class: 'cad-frow sel' }, h('label', null, label), h('div', { class: 'cad-selwrap' }, box, clear));
 }
 const sketchName = id => { const f = app.doc.features.find(x => x.id === id) || (app.editing && app.editing.f.id === id ? app.editing.f : null); return f ? f.name : '—'; };
@@ -234,7 +275,7 @@ export function showDialog() {
     else if (kind === 'sel') rows.push(selField(E, fd));
     else if (kind === 'check') rows.push(h('label', { class: 'cad-frow check' }, h('input', { type: 'checkbox', 'data-key': key, id: 'fd-' + key, checked: f[key] ? true : null, onchange: e => { f[key] = e.target.checked; showDialog(); regenSoon(0); } }), label));
     else if (kind === 'select') { const s = h('select', { 'data-key': key, id: 'fd-' + key, onchange: e => { f[key] = e.target.value; showDialog(); regenSoon(0); } }, ...more.options.map(([v, t]) => h('option', { value: v, selected: f[key] === v ? true : null }, t))); rows.push(h('div', { class: 'cad-frow' }, h('label', { for: 'fd-' + key }, label), s)); }
-    else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; if (E.field) activate(E.field.key); else showDialog(); regenSoon(0); } }, t))));
+    else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; if (key === 'op' && E.auto) { const sk = app.doc.features.find(x => x.id === f.sketch); if (sk) f.regions = f.split ? splitDefaultPts(sk, f.type === 'extrude' && v === 'remove') : defaultRegionPts(sk.ents, v === 'remove'); } if (E.field) activate(E.field.key); else showDialog(); regenSoon(0); } }, t))));
     else if (kind === 'file') rows.push(h('div', { class: 'cad-frow' }, h('label', null, label), h('div', null, f.file || 'No file', ' ', h('button', { type: 'button', class: 'rt-btn', onclick: () => { const inp = h('input', { type: 'file', accept: '.step,.stp' }); inp.addEventListener('change', async () => { const fl = inp.files[0]; if (!fl) return; f.file = fl.name; f.data = await fl.text(); f.name = 'Import ' + fl.name.replace(/\.(step|stp)$/i, ''); showDialog(); regenSoon(0); }); inp.click(); } }, 'Choose…'))));
   }
   const rep = app.result && app.result.preview && app.result.preview.rep;
@@ -268,6 +309,7 @@ export function closeDialog(regen) {
 }
 /* ---------- the Variables table ---------- */
 export function showVariables() {
+  if (!editGate()) return;
   const dlg = document.getElementById('varsDialog'), body = document.getElementById('varsBody');
   const draw = () => {
     const vals = app.result ? app.result.vars : {}, rows = app.doc.variables.map((v, i) => {
@@ -289,6 +331,7 @@ export function showVariables() {
 }
 /* ---------- the parts' looks: name, colour, material ---------- */
 export function setPartLook(id, k, v) {
+  if (!editGate()) { emit('doc'); return; }
   checkpoint();
   const p = app.doc.parts[id] || (app.doc.parts[id] = {});
   if (v === '' || v === null) delete p[k]; else p[k] = v;
@@ -296,7 +339,7 @@ export function setPartLook(id, k, v) {
   changed();
 }
 export function wireDialog() {
-  on('model', () => { if (app.editing) { const st = document.getElementById('featureStatus'), rep = app.result.preview && app.result.preview.rep; if (st && rep) { st.textContent = rep.ok ? (rep.info && rep.info.made && rep.info.made.length ? 'Makes ' + rep.info.made.length + ' part' + (rep.info.made.length === 1 ? '' : 's') : 'Ready') : rep.error; st.classList.toggle('bad', !rep.ok); } } });
+  on('model', () => { if (app.editing) { const st = document.getElementById('featureStatus'), rep = app.result.preview && app.result.preview.rep; if (st && rep) { st.textContent = rep.ok ? (rep.info && rep.info.skipped ? rep.info.skipped + (rep.info.skipped === 1 ? ' edge does' : ' edges do') + ' not fit this size and ' + (rep.info.skipped === 1 ? 'is' : 'are') + ' left square; ' + rep.info.edges + ' done' : rep.info && rep.info.made && rep.info.made.length ? 'Makes ' + rep.info.made.length + ' part' + (rep.info.made.length === 1 ? '' : 's') : 'Ready') : rep.error; st.classList.toggle('bad', !rep.ok); st.classList.toggle('warn', !!(rep.ok && rep.info && rep.info.skipped)); } } });
   document.getElementById('varsClose').addEventListener('click', () => document.getElementById('varsDialog').close());
   void FEATURE_KINDS;
 }

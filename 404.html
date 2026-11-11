@@ -101,6 +101,15 @@
     return;
   }
 
+  /* A JEKcad Part Studio's share link: /c/ then its id, opened by JEKcad the same way. */
+  var cad = /^\/[cC]\/([A-Za-z2-7]{10})\/?$/.exec(path);
+  if (!target && cad) {
+    document.getElementById("missing").hidden = true;
+    document.getElementById("forwarding").hidden = false;
+    window.location.replace("/jek/tools/jekcad.html#s=" + cad[1].toUpperCase());
+    return;
+  }
+
   /* A JEKray bench in a QR code: /R/ then the bench, deflated, in base 32 capitals (the QR
      code's compact alphanumeric mode). The tool reads it as #p=q followed by the same. */
   var bench = /^\/R\/([A-Za-z2-7]+)\/?$/.exec(path);

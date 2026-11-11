@@ -20,8 +20,8 @@ export function filmSignIn(kind, what) {
   let dlg = document.getElementById('filmSignIn');
   if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'filmSignIn', 'aria-labelledby': 'filmSignInTitle' }); document.body.append(dlg); }
   const close = () => dlg.close(), pro = kind === 'pro' && account;
-  dlg.replaceChildren(h('h2', { id: 'filmSignInTitle' }, kind === 'export' ? 'Exporting needs a free account' : pro ? 'JEKrayPro is needed' : 'Sign in first'),
-    h('p', null, kind === 'export' ? 'Sign in to ' + what + '.' : pro ? 'To ' + what + ', JEKrayPro is needed, or a place in a team with a plan.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan.'),
+  dlg.replaceChildren(h('h2', { id: 'filmSignInTitle' }, kind === 'export' ? (/^keep/.test(what) ? 'Keeping your work needs a free account' : /^(export|save a picture|save plots|save a plot|make a part pack)/.test(what) ? 'Exporting needs a free account' : 'A free account is needed') : pro ? 'JEKrayPro is needed' : 'Sign in first'),
+    h('p', null, kind === 'export' ? 'Sign in to ' + what + '.' + (/^keep/.test(what) ? ' Signed out, nothing is kept when you leave this page; the coating comes with you when you sign in.' : '') : pro ? 'To ' + what + ', JEKrayPro is needed, or a place in a team with a plan.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan.'),
     h('p', null, h('b', null, 'One account for every JEK app.'), ' Your coating stays in this browser while you sign in.'),
     pro ? null : h('div', { class: 'rt-actions rt-signrow' }, ...signInRow(kind, close)),
     h('div', { class: 'rt-actions' }, pro ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { track('prompt', kind + '.pro'); close(); showSubscribe(); } }, 'See the plans') : null,
@@ -35,7 +35,8 @@ export function wireFilmAccount() {
     proWhy: () => (accountsOn() ? filmProWhy() : ''),
     proFix: what => filmSignIn('pro', what),
     tasterLeft: () => null, tasterUse: () => false,
-    keepWork: filmKeepNow,
+    keepWork: () => filmKeepNow(true),
+    keepNow: () => filmKeepNow(),
     accountMenu: rows => { const menu = document.getElementById('acctMenu'); if (!menu) return; menu.replaceChildren(...rows); filmIcons(menu); },
     accountMenuExtra: signedIn => (signedIn ? [] : [h('button', { type: 'button', role: 'menuitem', 'data-icon': 'star', onclick: () => showSubscribe() }, 'JEKrayPro: plans and prices…')]),
     accountMenuDone: closeBarMenu,

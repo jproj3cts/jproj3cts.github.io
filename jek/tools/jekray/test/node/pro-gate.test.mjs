@@ -14,7 +14,7 @@ const readSrc = p => readFileSync(srcUrl(p), 'utf8');
 
 // designWhyOf is a pure function: read it from the module's source, without the page it needs to load
 const src = readSrc('ui/pro.js');
-const body = src.slice(src.indexOf('export function designWhyOf'), src.indexOf('export const designWhy ='));
+const body = src.slice(src.indexOf('export function designWhyOf'), src.indexOf('export function designWhy('));
 const designWhyOf = new Function(body.replace('export ', '') + '\nreturn designWhyOf;')();
 const acctBody = src.slice(src.indexOf('export function acctWhyOf'), src.indexOf('export const acctWhy ='));
 const acctWhyOf = new Function(acctBody.replace('export ', '') + '\nreturn acctWhyOf;')();
@@ -146,12 +146,12 @@ test('share links are JEKrayPro’s: made through the API with a plan, the QR co
   assert.match(cl, /api\('\/v1\/links\/' \+ l\.id, \{ method: 'DELETE' \}\)/);
 });
 
-test('a script, in JavaScript or Python, runs from the Scripts window only with JEKrayPro', () => {
-  // the window's Run (and Ctrl+Enter) asks scriptsWhy first; scriptsWhy is JEKrayPro's reason, outside the tests and without accounts
+test('a script, in JavaScript or Python, runs from the Scripts window only with an account', () => {
+  // the window's Run (and Ctrl+Enter) asks scriptsWhy first; scriptsWhy is the account's reason (a free one is enough), outside the tests and without accounts
   assertGated('ui/scripts.js', 'run', undefined, ['scriptsWhy']);
   const ids = new Set();
   walk.full(fnOf('ui/scripts.js', 'scriptsWhy'), n => { if (n.type === 'Identifier') ids.add(n.name); else if (n.type === 'MemberExpression' && !n.computed) ids.add(n.property.name); });
-  assert.ok(ids.has('proWhy'), 'scriptsWhy asks for JEKrayPro');
+  assert.ok(ids.has('acctWhy') && !ids.has('proWhy'), 'scriptsWhy asks for an account, not for JEKrayPro');
   // the window runs a script, in either language, only through that run: runScript is called nowhere else in it
   let calls = 0;
   walk.fullAncestor(astOf('ui/scripts.js'), (n, st, anc) => {
@@ -200,20 +200,23 @@ const EXPORTS = [['io/layout.js', 'exportLayout', 'export the layout'], ['io/lay
   ['io/cad-export.js', 'exportCad', 'export for CAD'], ['io/zmx-export.js', 'exportZmx', 'export an element'],
   ['ui/plots.js', 'savePlot', 'save plots'], ['ui/view3d.js', 'png', 'save a picture of the 3D view'], ['io/packs.js', 'makePack', 'make a part pack'],
   ['io/packs.js', 'packSave', 'make a part pack'], ['io/packs.js', 'packSignFile', 'make a part pack'],
-  ['io/data-export.js', 'exportData', 'export data'], ['io/data-export.js', 'exportEverything', 'export data'], ['io/figure.js', 'exportFigure', 'export a figure']];
-// downloads that are not exports of images or data: the bench's .jekray file, and the scripts window's (JEKrayPro's already: a script's own code, a run's table);
+  ['io/data-export.js', 'exportData', 'export data'], ['io/data-export.js', 'exportEverything', 'export data'], ['io/figure.js', 'exportFigure', 'export a figure'],
+  // the bench's own .jekray file too (Save, Ctrl+S, every note's Save)
+  ['ui/actions.js', 'saveFile', 'save the bench as a file']];
+// downloads that are not exports of images or data: the scripts window's (JEKrayPro's already: a script's own code, a run's table);
 // the designers' reports, whose every call is behind designPro (checked above)
-const NOT_EXPORTS = new Set(['ui/actions.js saveFile', 'ui/scripts.js onclick', 'ui/lens-report.js saveReport', 'ui/rf-report.js saveRfReport']);
+const NOT_EXPORTS = new Set(['ui/scripts.js onclick', 'ui/lens-report.js saveReport', 'ui/rf-report.js saveRfReport']);
 const srcFiles = (d, at = '') => readdirSync(d).flatMap(f => statSync(join(d, f)).isDirectory() ? srcFiles(join(d, f), at + f + '/') : f.endsWith('.js') ? [at + f] : []);
 
-test('each export asks for an account before it does anything, and saving the bench as a .jekray file does not', () => {
+test('each export, and saving the bench as a .jekray file, asks for an account before it does anything', () => {
   for (const [file, name, reason] of EXPORTS) assertGated(file, name, reason, ACCT);
   // a design's .zmx is still JEKrayPro's: after the account, the plan
   const zx = assertGated('io/zmx-export.js', 'exportZmx', 'export a design');
   assert.ok(zx.before.some(s => hasGate(s, 'export an element', ACCT)), 'exportZmx asks for an account first');
-  // the .jekray file (Save, Save as a file, the prompts' file) and the download itself are gated by neither
-  for (const [file, name] of [['ui/actions.js', 'saveFile'], ['ui/actions.js', 'downloadFile']])
-    assert.ok(!hasGate(fnOf(file, name), undefined, [...GATES, ...ACCT, 'acctWhy']), file + ': ' + name + ' is not gated');
+  // the download itself is gated by neither: each thing that downloads asks first
+  assert.ok(!hasGate(fnOf('ui/actions.js', 'downloadFile'), undefined, [...GATES, ...ACCT, 'acctWhy']), 'ui/actions.js: downloadFile is not gated');
+  // the file needs the account alone, not JEKrayPro
+  assert.ok(!hasGate(fnOf('ui/actions.js', 'saveFile'), undefined, GATES), 'saving the .jekray file does not ask for JEKrayPro');
   // the gate is the account's alone: it asks nothing of JEKrayPro's
   const ids = new Set();
   walk.full(fnOf('ui/pro.js', 'accountGate'), n => { if (n.type === 'Identifier') ids.add(n.name); });
@@ -293,20 +296,51 @@ test('a script’s save() files and its Save as… are made on the page behind t
   assert.ok(!has(fnOf('ui/scripts.js', 'stopScript'), n => n.type === 'Identifier' && n.name === 'saves'), 'Stop carries no saves');
 });
 
-test('a free account\u2019s tasters: every piece of JEKrayPro work that runs in the browser has one, the same list as the API\u2019s, and share links are a free account\u2019s few', async () => {
+test('share links are a free account\u2019s few, counted by the API; the work in the browser has no count at all', async () => {
   const { TASTER_NAMES, tasterOf } = await import('../../src/core/tasters.js');
+  const { freeWork } = await import('../../src/ui/pro.js');
   const api = readFileSync(new URL('../../../../../jek-api/src/tasters.js', import.meta.url), 'utf8');
-  const keys = [...api.match(/TASTERS = \{([^}]*)\}/)[1].matchAll(/(\w+):/g)].map(m => m[1]);
-  assert.deepEqual(Object.keys(TASTER_NAMES).filter(k => k !== 'share').sort(), keys.sort());
-  assert.match(api, /left\.share = /, 'the API reports a free account\u2019s share links left as its taster');
+  assert.match(api, /TASTERS = \{\}/, 'the API keeps no month\u2019s uses');
+  assert.match(api, /left\.share = /, 'the API reports a free account\u2019s share links left');
+  assert.deepEqual(Object.keys(TASTER_NAMES), ['share']);
   const whats = new Set();
   for (const file of srcFiles(fileURLToPath(srcUrl('.')))) {
     if (/^(main|worker-main)\.js$/.test(file)) continue;
     for (const m of readSrc(file).matchAll(/designPro\('([^']+)'/g)) whats.add(m[1]);
   }
   const data = readSrc('io/data-export.js').match(/PRO_FMT_WHAT = '([^']+)', PRO_MANY_WHAT = '([^']+)', PRO_ALL_WHAT = '([^']+)'/).slice(1);
+  // every piece of work the page gates by name is a free account's, or a share link: nothing else is JEKrayPro's here
   for (const w of [...whats, ...data, 'run scripts', 'search for designs', 'substitute glasses']) {
     if (/share a link|QR code/.test(w)) assert.equal(tasterOf(w), 'share', w + ': a free account\u2019s share links');
-    else assert.ok(TASTER_NAMES[tasterOf(w)], w + ' has a taster');
+    else { assert.ok(freeWork(w), w + ' is a free account\u2019s'); assert.equal(tasterOf(w), '', w + ' is not counted'); }
   }
+});
+
+// What is JEKrayPro's is what lives on the server; everything done in the browser is a free account's.
+test('the work a free account does asks for the account alone; the cloud is JEKrayPro’s; a free account has share links', async () => {
+  const { hooks } = await import('../../src/core/hooks.js');
+  const { designWhy, freeWork } = await import('../../src/ui/pro.js');
+  const FREE = ['optimise a design', 'search for designs', 'substitute glasses', 'tolerance a design', 'save a design report', 'save drawings', 'export a design', 'run scripts',
+    'export data as Excel', 'export several kinds of data at once', 'export everything at once', 'save a coating file', 'optimise a coating', 'tolerance a coating', 'make a coating specification'];
+  const CLOUD = ['save to the cloud', 'fork a bench', 'fork a Part Studio'];
+  for (const w of FREE) assert.ok(freeWork(w), w + ' is a free account’s');
+  for (const w of [...CLOUD, 'share a link', 'make a QR code of the bench']) assert.ok(!freeWork(w), w + ' is not');
+  const was = { account: hooks.account, proWhy: hooks.proWhy, tasterLeft: hooks.tasterLeft };
+  try {
+    hooks.proWhy = () => 'Needs JEKrayPro: subscribe from the account menu, or join a team with a plan'; hooks.tasterLeft = () => null;
+    // signed in on a free account: its own work is open, the cloud is not
+    hooks.account = () => ({ on: true, signedIn: true, known: true });
+    for (const w of FREE) assert.equal(designWhy(w), '', w);
+    for (const w of CLOUD) assert.match(designWhy(w), /^JEKrayPro is needed/, w);
+    assert.equal(designWhy('share a link'), '', 'a share link: the API says when a free account’s are used up');
+    hooks.tasterLeft = () => 0;
+    assert.match(designWhy('share a link'), /^JEKrayPro is needed/, 'JEKray’s count of them, all used');
+    // signed out: everything asks for an account, and the cloud for JEKrayPro’s sign-in
+    hooks.account = () => ({ on: true, signedIn: false, known: true }); hooks.proWhy = () => 'Sign in, top right, to use the cloud'; hooks.tasterLeft = () => null;
+    for (const w of [...FREE, 'share a link']) assert.match(designWhy(w), /^Needs a free account/, w);
+    for (const w of CLOUD) assert.match(designWhy(w), /^Sign in with JEKrayPro/, w);
+    // no accounts here: nothing is gated
+    hooks.account = () => ({ on: false, signedIn: false, known: false });
+    for (const w of [...FREE, ...CLOUD, 'share a link']) assert.equal(designWhy(w), '', w);
+  } finally { Object.assign(hooks, was); }
 });

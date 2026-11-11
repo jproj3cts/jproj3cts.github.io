@@ -1313,12 +1313,11 @@
     .rt-file { flex: 0 1 auto; min-width: 0; }
     .rt-file .rt-name { flex: 0 1 var(--name-w, 15rem); width: var(--name-w, 15rem); min-width: 0; max-width: 26rem; }
   }
-  @media (max-width: 1440px) { .rt-btn .rt-wide { display: none; } }   /* the Save button's " .jekray" */
   @media (max-width: 1140px) { #btnExamples, #btnShare { display: none; } }
   @media (max-width: 1040px) { .rt-quick [data-click], .rt-qsep { display: none; } }
   .rt-btn.rt-mbar[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   @media (max-width: 600px), (max-height: 520px) and (pointer: coarse) {
-    #btnExamples, #btnShare, .rt-btn .rt-wide { display: none; }   /* the Save button's " .jekray", not the wide dialogs */
+    #btnExamples, #btnShare { display: none; }
     /* submenus open in place, under their item */
     .rt-sub { flex-wrap: wrap; }
     .rt-sub > .rt-menu { position: static; flex-basis: 100%; box-shadow: none; border: 0; padding-left: 1.2rem; }
@@ -1962,6 +1961,22 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-btn.rt-getpro { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); font-weight: 600; }
 .rt-btn.rt-getpro:hover { filter: brightness(1.08); }
 .rt-btn.rt-getpro[hidden] { display: none; }
+
+/* signed out, nothing is kept: the sign beside the bar's Save (ui/pro.js keepSign), which opens the sign-in */
+.rt-btn.rt-keepsign { flex: none; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; font-size: 0.8125rem; color: var(--jek-ink); background: color-mix(in srgb, var(--jek-orange) 12%, transparent); border: 1px solid var(--jek-orange); }
+.rt-btn.rt-keepsign b { color: var(--jek-orange); font-weight: 700; }
+.rt-btn.rt-keepsign.changed { background: color-mix(in srgb, var(--jek-orange) 24%, transparent); }
+.rt-btn.rt-keepsign:hover { background: color-mix(in srgb, var(--jek-orange) 30%, transparent); }
+/* (the sign says what the Free account chip on Save beside it says, so that chip rests while the sign is up; the
+   sign's second half only where the bar has room for it) */
+.rt-btn.rt-keepsign + #btnSave.rt-acctneed::after { content: none; }
+@media (max-width: 1799px) { .rt-btn.rt-keepsign span { display: none; } }
+
+/* a narrow bar, signed out: the badges on the bar's own buttons (Share, Save, the camera) rest, their reason
+   staying in the tooltip, so that Sign in is not pushed off the end */
+@media (max-width: 1500px) { .rt-toolbar .rt-btn.rt-acctneed::after, .rt-toolbar .rt-btn.rt-proneed::after { content: none; } }
+/* (narrower still, Get Pro leaves the bar: the plans are in the account menu) */
+@media (max-width: 1340px) { .rt-toolbar #btnGetPro { display: none; } }
 </style>
 </head>
 <body>
@@ -1986,10 +2001,10 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
               <div class="rt-menu rt-imenu" role="menu" id="recentMenu"></div>
             </div>
             <button type="button" role="menuitem" data-icon="gallery" data-click="btnExamples">Open an example…</button>
-            <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
+            <button type="button" role="menuitem" id="btnSnaps" data-icon="history" data-need="account" data-what="see the earlier versions kept in this browser" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
             <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every cloud bench, of every app, on JEKsuite (in its own tab)">My benches on JEKsuite…</button>
             <div class="sep"></div>
-            <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
+            <button type="button" role="menuitem" data-icon="save" data-click="btnSave" data-need="account" data-what="save the bench as a file">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" hidden>Save to cloud</button>
             <button type="button" role="menuitem" id="btnCloudFork" data-icon="fork" hidden title="Carry on in a new cloud bench, leaving this one as it is">Fork this bench…</button>
             <button type="button" role="menuitem" data-icon="link" data-click="btnShare" data-need="pro" data-what="share a link">Copy a share link</button>
@@ -2074,7 +2089,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <div class="sep"></div>
             <button type="button" role="menuitem" id="btnCoatDesign" data-ws="coat" data-icon="new" title="A thin-film coating designed in JEKfilm (in its own tab): an anti-reflection stack, a reflector, a splitter or an edge, kept in the cloud for every face’s Coating list">Coating design in JEKfilm…</button>
             <div class="sep"></div>
-            <button type="button" role="menuitem" id="btnScripts" data-icon="flask" data-need="pro" data-what="run scripts" title="JavaScript or Python run against this bench: read screens and detectors, move parts, sweep a parameter to a table (JEKrayPro)">Scripts…</button>
+            <button type="button" role="menuitem" id="btnScripts" data-icon="flask" data-need="account" data-what="run scripts" title="JavaScript or Python run against this bench: read screens and detectors, move parts, sweep a parameter to a table">Scripts…</button>
             <button type="button" role="menuitem" data-click="btnSideTab" data-icon="sliders" title="Light, snapping, notes and the parts list">Bench settings…</button>
           </div>
         </div>
@@ -2143,8 +2158,8 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         </div>
         <div class="rt-group rt-right">
           <button class="rt-btn rt-tbl rt-getpro" id="btnGetPro" type="button" hidden title="JEKrayPro: plans and prices">Get Pro</button>
-          <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro)">Share</button>
-          <button class="rt-btn" id="btnSave" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save<span class="rt-wide"> .jekray</span></button>
+          <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (a free account keeps three at once; JEKrayPro any number)">Share</button>
+          <button class="rt-btn rt-tbl" id="btnSave" data-icon="save" data-need="account" data-what="save the bench as a file" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save</button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>
           <a class="rt-btn rt-icon rt-cartbtn quiet rt-tbi" id="btnCart" href="/jek/cart.html" target="_blank" rel="noopener" data-icon="cart" title="Your quote cart, on the JEK Systems site, in a new tab" aria-label="Quote cart"><span class="rt-cartcount" id="cartCount" hidden>0</span></a>
           <div class="rt-more rt-phonegone" id="acct" hidden>
@@ -2411,7 +2426,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 
   <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
     <h2 id="subTitle">JEKrayPro</h2>
-    <p>Do the full design work in the Optical and RF designers: the optimiser, global search and glass substitution, tolerancing, design reports, lens drawings and exporting a design. Share any bench as a short link, an embed or a QR code. Keep your benches in the cloud: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, organise them in folders on a page of their own, and keep your own parts and assemblies to use on any bench. The rest of the simulator stays free.</p>
+    <p>Keep your benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders in JEKsuite. Keep your own parts and assemblies to use on any bench, work with a team in a shared workspace, and make any number of share links. Everything done in the apps themselves needs only a free account.</p>
     <p class="rt-founding"><b>Founding member price.</b> Subscribe while JEKray is in its open beta and you keep the price you start on for as long as your subscription carries on, whatever later prices are.</p>
     <div id="subPlans"></div>
     <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>
@@ -6910,17 +6925,12 @@ function fibreBendDb(F, nm) {
   const n = F.turns > 0 ? F.turns : 1;
   return Math.min(300, n * bendDbPerTurn(F.bendR, nm));
 }
-/* The tasters (io/tasters.js; jek-api src/tasters.js keeps the count): the JEKrayPro work a free account may try a
-   few times a month, by the name its gate gives it (ui/pro.js designPro, ui/scripts.js), and what each is called. Share
-   links ('share') are not a month's uses but a free account's links kept at once (jek-api src/links.js FREE_LINKS). */
-const TASTER_NAMES = { optimise: 'optimiser runs', tolerance: 'tolerance runs', script: 'script runs', report: 'design reports', drawing: 'drawing saves',
-  design: 'design exports', data: 'Excel, NumPy or MATLAB exports', share: 'share links' };
+/* A free account's share links (io/tasters.js; jek-api src/links.js FREE_LINKS, reported by GET /v1/tasters as
+   'share'): kept at once, not a month's uses. Everything else that was once a taster of JEKrayPro's work (the
+   optimiser, tolerancing, scripts, reports, drawings, exports) is a free account's outright now (ui/pro.js freeWork). */
+const TASTER_NAMES = { share: 'share links' };
 // the work, as the gates name it, to its taster
-function tasterOf(what) {
-  const w = String(what || '');
-  return /share a link|QR code/.test(w) ? 'share' : /optimise a design|search for designs|substitute glasses/.test(w) ? 'optimise' : /tolerance a design/.test(w) ? 'tolerance' : /run scripts/.test(w) ? 'script'
-    : /design report/.test(w) ? 'report' : /drawings/.test(w) ? 'drawing' : /export a design/.test(w) ? 'design' : /export (data as|several kinds|everything)/.test(w) ? 'data' : '';
-}
+const tasterOf = what => (/share a link|QR code/.test(String(what || '')) ? 'share' : '');
 /* ---------- RF: millimetre-wave and terahertz quasi-optics ----------
    Above about 30 GHz a beam through lenses, mirrors and horns is a Gaussian beam that
    diffracts strongly, which the field engine already follows. What RF adds is its sources and
@@ -30033,31 +30043,40 @@ function drawCellSpectrum(cv, el, span) {
 }
 
 /* ==========================================================================
-   The designers' work as JEKrayPro's
-   Anyone may open the Optical and RF designers, build and edit a design and look at it from every side. Doing the
-   work with it is JEKrayPro's: the optimiser (and the global search and glass substitution), tolerancing, design
-   reports, drawings and exporting a design. The RF designer's way from a specification to a lens that can be made
-   and quoted stays open to all, as does the coating designer. The tests, and a build without accounts, are not gated.
+   What is JEKrayPro's, and what a free account does
+   JEKrayPro is what lives on JEK's servers: benches saved to the cloud with their history, forks, My parts, teams.
+   Everything done in the browser is a free account's (freeWork): the designers' optimiser (and the global search and
+   glass substitution), tolerancing, design reports, drawings and exporting a design, scripts, every data format,
+   JEKfilm's file, optimiser, tolerancing and specification. Each still goes through designPro(what) / proMark, which
+   ask for the account alone when the work is free. Share links are kept on the server but a free account has a few
+   (jek-api FREE_LINKS): signed out they ask for an account; signed in the API says when they are used up (JEKray
+   counts them on the badge, io/tasters.js). The tests, and a build without accounts, are not gated.
    ========================================================================== */
+const FREE_WORK = /optimise|search for designs|substitute glasses|tolerance a|design report|drawings|export a design|run scripts|export (data as|several kinds|everything)|save a coating file|coating specification/;
+const freeWork = what => FREE_WORK.test(String(what || ''));
+const shareWork = what => /share a link|QR code/.test(String(what || ''));
 /* why the work named is not open now, from the account's own reason (cloud.js proWhy: not signed in, or no plan): '' when it is */
 function designWhyOf(why, what) {
   if (!why) return '';
   return /^Sign in/.test(why) ? 'Sign in with JEKrayPro, top right, to ' + what : 'JEKrayPro is needed to ' + what + ': subscribe from the account menu, or join a team with a plan';
 }
-const designWhy = what => (!hooks.account().on || !hooks.proWhy ? '' : designWhyOf(hooks.proWhy(), what));
-/* see the result, pay to keep it: signed in without a plan and this month's free uses of the work spent, it may still
-   run as a preview, its result shown, kept only with JEKrayPro (the designers' optimisers) */
-function previewOK(what) {
-  const why = designWhy(what);
-  return !!why && !/^Sign in/.test(why) && hooks.tasterLeft(what) === 0;
+function designWhy(what) {
+  const a = hooks.account();
+  if (!a.on) return '';
+  if (freeWork(what) || (shareWork(what) && !a.signedIn)) return acctWhy(what);
+  if (!hooks.proWhy) return '';
+  const why = designWhyOf(hooks.proWhy(), what);
+  // a free account's share links, where the app keeps no count of them: the API says when they are used up
+  return why && shareWork(what) && a.signedIn && hooks.tasterLeft(what) === null ? '' : why;
 }
 /* before the work is done: true when it may be; otherwise it says why and offers the way (sign in, or subscribe) */
 function designPro(what) {
+  if (freeWork(what) || (shareWork(what) && !hooks.account().signedIn)) return accountGate(what);
   const why = designWhy(what);
   if (!why) return true;
-  // signed in without a plan: a free use of it this month, while there are any (io/tasters.js)
+  // a free account's share links, while it has any left (io/tasters.js)
   if (!/^Sign in/.test(why) && hooks.tasterUse(what)) return true;
-  // signed out, the sign-in card says what is needed (cloud.js proFix); signed in, why, and the plans (or the tasters' card)
+  // signed out, the sign-in card says what is needed (cloud.js proFix); signed in, why, and the plans (or the card for share links all in use)
   if (!/^Sign in/.test(why) && !(hooks.tasterLeft(what) === 0)) hooks.toast(why, true);
   if (hooks.proFix) hooks.proFix(what);
   return false;
@@ -30086,9 +30105,10 @@ function accountGate(what) {
 /* ---- the badges: Pro, or Free account, on what needs it, shown only while it is needed ----
    el.dataset.need is 'pro' or 'account', el.dataset.what the work; needsShown() redoes them all as the account changes */
 function needShow(el) {
-  const pro = el.dataset.need === 'pro', why = pro ? designWhy(el.dataset.what) : acctWhy(el.dataset.what);
-  el.classList.toggle(pro ? 'rt-proneed' : 'rt-acctneed', !!why);
-  // a free account's free uses of it this month, on its badge ("4 free"; none left: Pro again)
+  // (work marked Pro that a free account does, and a share link asked for signed out, carry the Free account badge)
+  const what = el.dataset.what, pro = el.dataset.need === 'pro' && !freeWork(what) && !(shareWork(what) && !hooks.account().signedIn), why = el.dataset.need === 'pro' ? designWhy(what) : acctWhy(what);
+  el.classList.toggle('rt-proneed', pro && !!why); el.classList.toggle('rt-acctneed', !pro && !!why);
+  // a free account's share links left, on the badge ("3 free"; none left: Pro again)
   const left = pro && why && !/^Sign in/.test(why) ? hooks.tasterLeft(el.dataset.what) : null;
   if (left > 0) el.dataset.free = String(left); else delete el.dataset.free;
   // the reason in the title: the control's own, or, for a group with one badge, each button's in it
@@ -30103,7 +30123,45 @@ function needMark(el, need, what) {
   needShow(el);
   return el;
 }
-function needsShown() { for (const el of document.querySelectorAll('[data-need]')) needShow(el); }
+function needsShown() { for (const el of document.querySelectorAll('[data-need]')) needShow(el); keepSign(); if (keepSkipped && keepHere()) { keepSkipped = false; if (hooks.keepNow) hooks.keepNow(); } }
+
+/* ---- Nothing is kept without an account ----
+   Signed out, an app is there to try: the bench is not autosaved in the browser, no earlier versions or recent files
+   are kept, and leaving the page loses what was changed (with no question asked on the way out: most signed-out
+   visits only look). keepHere() says whether this browser may keep work: yes
+   with no accounts here, signed in, or when the API has not answered after the page's first seconds (as the exports'
+   gate lets through); no for someone signed out for sure, and for those first seconds while the account is looked
+   up (hooks.keepNow, the app's own autosave, is called once it is known to be allowed). Each app's autosave asks it
+   and calls workChanged(); the bench handed over to a sign-in (hooks.keepWork) is still
+   written, so it is there on the way back. The sign, beside the bar's Save, says the state and opens the sign-in. */
+function keepHere() {
+  const a = hooks.account();
+  if (!a.on || a.signedIn) return true;
+  return a.known ? false : performance.now() >= 8000;
+}
+let tryChanged = false, keepSkipped = false;
+/* an autosave that was not made (signed out): the sign is redone. It says Not saved where the app's own mark of
+   unsaved changes is showing (the dot on Save, #saveDot), or, in an app without one, once an autosave was skipped */
+function workChanged() {
+  if (keepHere()) return;
+  keepSkipped = true; tryChanged = true;
+  keepSign();
+}
+function keepSign() {
+  const a = hooks.account(), save = document.getElementById('btnSave'), out = a.on && a.known && !a.signedIn && save && save.dataset.need;
+  let el = document.getElementById('keepSign');
+  if (!out) { if (el) el.remove(); tryChanged = false; return; }
+  if (!el) {
+    el = document.createElement('button');
+    el.type = 'button'; el.id = 'keepSign'; el.className = 'rt-btn rt-keepsign';
+    el.addEventListener('click', () => hooks.exportSignIn('keep your work'));
+    save.before(el);
+  }
+  const dot = document.getElementById('saveDot'), changed = dot ? !dot.hidden : tryChanged;
+  el.classList.toggle('changed', changed);
+  el.title = 'You are signed out, so nothing here is kept: closing or reloading the page loses your changes. A free account keeps your work in this browser and saves it as a file.';
+  el.replaceChildren(Object.assign(document.createElement('b'), { textContent: changed ? 'Not saved' : 'Not kept' }), Object.assign(document.createElement('span'), { textContent: ': free account keeps your work' }));
+}
 /* a button for JEKrayPro's work, marked Pro (and saying why in its title) while it is not open */
 const proMark = (btn, what) => needMark(btn, 'pro', what);
 /* a button that exports, marked Free account while signed out */
@@ -33254,27 +33312,19 @@ function rwOptCard(asm, P) {
   card.append(h('div', { class: 'rt-lchips' }, btn));
   if (RW_OPT && RW_OPT.asm === asm) {
     const S = RW_OPT.st;
-    card.append(h('p', { class: 'rt-lnote' + (RW_OPT.running ? '' : ' good'), role: 'status' }, (RW_OPT.preview ? 'A preview: ' : '') + (RW_OPT.running ? 'Optimising… ' : RW_OPT.note + ' ') + S.iter + ' step' + (S.iter === 1 ? '' : 's') + '; mean efficiency over the band ' + rwPct(RW_OPT.mean0) + ' → ' + rwPct(S.mean) + (RW_OPT.running || RW_OPT.pending ? '' : '. Undo takes it back.')));
-    // a preview that found better: the choice, keep it (JEKrayPro) or leave the design as it is
-    if (RW_OPT.pending) card.append(h('div', { class: 'rt-lnote rt-preview', role: 'status' },
-      h('p', null, h('b', null, 'A better design: '), 'mean efficiency ' + rwPct(RW_OPT.mean0) + ' \u2192 ' + rwPct(S.mean) + '. This month\u2019s free runs are used: keep it with JEKrayPro, or leave the design as it is.'),
-      h('div', { class: 'rt-lbar' }, h('button', { class: 'rt-btn primary', type: 'button', onclick: rwOptKeep }, 'Keep this design'),
-        h('button', { class: 'rt-btn', type: 'button', onclick: () => { RW_OPT.pending = false; RW_OPT.note = 'Left as it was.'; rwRender(); } }, 'Leave it'))));
+    card.append(h('p', { class: 'rt-lnote' + (RW_OPT.running ? '' : ' good'), role: 'status' }, (RW_OPT.running ? 'Optimising… ' : RW_OPT.note + ' ') + S.iter + ' step' + (S.iter === 1 ? '' : 's') + '; mean efficiency over the band ' + rwPct(RW_OPT.mean0) + ' → ' + rwPct(S.mean) + (RW_OPT.running || RW_OPT.pending ? '' : '. Undo takes it back.')));
   }
   return card;
 }
 // while a run goes on, the RF designer redrawn a few times a second, so its Stop button stays put
 const rwLive = throttle(() => rwRender(), 200);
 function rwOptGo(asm) {
-  // signed in without a plan, this month's free runs spent: a preview, its values kept only with JEKrayPro
-  const preview = previewOK('optimise a design');
-  if (!preview && !designPro('optimise a design')) return;
+  if (!designPro('optimise a design')) return;
   track('optimise', 'rf');
   const P = designPrescription(asm), o = asm.rfOpt;
   const prob = rfOptProblem(asm, P, { keys: o.keys, flat: o.flat, edgeMin: o.edgeMin, tMax: o.tMax, ops: o.ops });
   const st = rfOptStart(prob);
-  RW_OPT = { asm, prob, st, running: true, mean0: st.mean, note: '', preview };
-  if (preview) toast('A preview: see what the optimiser finds, then keep it with JEKrayPro');
+  RW_OPT = { asm, prob, st, running: true, mean0: st.mean, note: '' };
   rwRender();
   const tick = () => {
     if (!RW_OPT || !RW_OPT.running) return;
@@ -33289,14 +33339,6 @@ function rwOptGo(asm) {
 function rwOptStop(note) {
   if (!RW_OPT || !RW_OPT.running) return;
   const R = RW_OPT; R.running = false; R.note = note;
-  if (R.preview && R.st.mean > R.mean0) { R.pending = true; if (RW) rwRender(); return; }   // shown, kept only with JEKrayPro (rwOptKeep)
-  rwOptApply(R);
-}
-/* a preview's values kept: with JEKrayPro (or, signed in without a plan, the card saying so) */
-function rwOptKeep() {
-  const R = RW_OPT;
-  if (!R || !R.pending || !designPro('optimise a design')) return;
-  R.pending = false; R.preview = false; track('taster', 'optimise.kept');
   rwOptApply(R);
 }
 /* the run's values into the design, as one change, if better */
@@ -33713,7 +33755,6 @@ function closeLensDesign() {
   if (!WS) return;
   optStop('Stopped: the workspace was closed.');
   tolStop('Stopped: the workspace was closed.');
-  previewBack();                                       // a preview not kept: the design as it was
   const asm = WS.asm;
   WS = null;
   // designed: its parts' fields on the bench are locked against a stray edit (the padlock in their panel opens them)
@@ -34614,30 +34655,9 @@ function lensTolRun(mode, sync) { if (!WS) return null; tolStart(mode, { asm: WS
 const lensOptState = () => OPT && { running: OPT.running, mode: OPT.mode, start: OPT.start, now: OPT.now, cycles: OPT.cycles, trials: OPT.trials, better: OPT.better, note: OPT.note, subs: OPT.sub ? OPT.sub.log.map(l => ({ gi: l.gi, from: l.from, to: l.to, merit: l.merit, tried: l.tried.length })) : null };
 const liveRender = throttle(() => renderWs(), 200);
 function optStop(note) { if (OPT && OPT.running) { OPT.running = false; OPT.note = note || 'Stopped.'; if (WS) renderWs(); } }
-/* see the result, pay to keep it: a preview run's design kept (with JEKrayPro), or put back as it was */
-const previewPending = () => !!(OPT && OPT.preview && !OPT.preview.done && !OPT.running);
-function previewBack() {
-  if (!OPT || !OPT.preview || OPT.preview.done) return;
-  optStop('Stopped.');
-  const S = JSON.parse(OPT.preview.was), asm = (project.assemblies || []).find(a => a.id === OPT.id);
-  for (const e of S.els) { const cur = getEl(e.id); if (cur) { for (const k of Object.keys(cur)) delete cur[k]; Object.assign(cur, e); } }
-  if (asm) { if (S.design) asm.design = S.design; else delete asm.design; }
-  OPT.preview.done = true; OPT.now = OPT.start; OPT.note = 'Put back: the design is as it was.';
-  changed(true);
-  if (WS) renderWs();
-}
-function previewKeep() {
-  if (!OPT || !OPT.preview || !designPro(OPT.preview.what)) return;
-  OPT.preview.done = true; OPT.note = 'Kept.';
-  track('taster', 'optimise.kept');
-  if (WS) renderWs();
-}
 function optStart(mode, opts) {
   if (!WS) return false;
-  // signed in without a plan, this month's free runs spent: a preview, its result shown, kept only with JEKrayPro
-  const what = mode === 'subst' ? 'substitute glasses' : mode === 'search' || mode === 'global' ? 'search for designs' : 'optimise a design', preview = previewOK(what);
-  if (!preview && !designPro(what)) return false;
-  previewBack();
+  if (!designPro(mode === 'subst' ? 'substitute glasses' : mode === 'search' || mode === 'global' ? 'search for designs' : 'optimise a design')) return false;
   const asm = WS.asm, P = designPrescription(asm), prob = optProblem(asm, P), V = optVars(prob);
   if (mode === 'subst' && !substIndices(prob).length) { toast('No glass to substitute: mark a lens\u2019s glass V in the element data first.', true); return false; }
   if (mode !== 'subst' && !V.length) { toast('Nothing to vary: mark values V in the element data first.', true); return false; }
@@ -34645,10 +34665,7 @@ function optStart(mode, opts) {
   checkpoint();
   const R = meritReport(prob);
   OPT = { id: asm.id, mode, running: true, start: R.merit, now: R.merit, cycles: 0, trials: 0, better: 0, seed: (opts && opts.seed) || 1, lambda: undefined, t0: performance.now(), note: '',
-    maxTrials: (opts && opts.trials) || 200, sync: !!(opts && opts.sync),
-    // a preview: the design as it was, to put back unless it is kept
-    preview: preview ? { what, was: JSON.stringify({ els: asmMembers(asm), design: asm.design || null }), done: false } : null };
-  if (preview) toast('A preview: see what the optimiser finds, then keep it with JEKrayPro or put the design back');
+    maxTrials: (opts && opts.trials) || 200, sync: !!(opts && opts.sync) };
   if (mode === 'subst') {
     const S = WS.subst || (WS.subst = { makers: GLASS_MAKERS.slice(), n: 12 });
     OPT.sub = { list: substIndices(prob), li: 0, pass: 0, moved: false, cands: null, ci: 0, tried: [], base: null, log: [], makers: (opts && opts.makers) || S.makers, n: (opts && opts.n) || S.n };
@@ -34816,14 +34833,7 @@ function optCard(asm, P) {
   const rows = O ? [['Merit at the start', wsFmt(O.start, 5)], ['Merit now', wsFmt(O.now, 5) + (O.start > 0 ? ' (' + (100 * (1 - O.now / O.start)).toFixed(1) + '% lower)' : '')],
     O.mode === 'subst' ? ['Glasses tried', String(O.sub.log.reduce((a, l) => a + l.tried.length, 0) + (O.sub.cands ? O.sub.tried.length : 0))] : [O.mode === 'global' ? 'Trials' : 'Cycles', O.mode === 'global' ? O.trials + ' (' + O.better + ' better)' : String(O.cycles)]] : [['Merit now', wsFmt(R.merit, 5)]];
   card.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', { class: 'mono' }, b)]))));
-  if (O && (O.note || running) && !previewPending()) card.append(h('div', { class: 'rt-lnote', role: 'status' }, (O.preview && running ? 'A preview: ' : '') + (running ? (O.mode === 'global' ? 'Searching… it carries on until you stop it.' : O.mode === 'subst' ? (O.trying || 'Substituting…') + '…' : 'Optimising…') : O.note)));
-  // a preview run ended: what it found, and the choice: keep it (JEKrayPro) or put the design back
-  if (O && previewPending()) card.append(h('div', { class: 'rt-lnote rt-preview', role: 'status' },
-    h('p', null, h('b', null, O.now < O.start ? 'The optimiser found a better design: ' : 'The optimiser found nothing better. '),
-      O.now < O.start ? 'the merit fell from ' + wsFmt(O.start, 4) + ' to ' + wsFmt(O.now, 4) + (O.start > 0 ? ' (' + (100 * (1 - O.now / O.start)).toFixed(0) + '% lower)' : '') + '. ' : '',
-      'This month\u2019s free runs are used: keep it with JEKrayPro, or put the design back as it was.'),
-    h('div', { class: 'rt-lbar' }, h('button', { class: 'rt-btn primary', type: 'button', onclick: previewKeep }, 'Keep this design'),
-      h('button', { class: 'rt-btn', type: 'button', onclick: previewBack }, 'Put it back'))));
+  if (O && (O.note || running)) card.append(h('div', { class: 'rt-lnote', role: 'status' }, (running ? (O.mode === 'global' ? 'Searching… it carries on until you stop it.' : O.mode === 'subst' ? (O.trying || 'Substituting…') + '…' : 'Optimising…') : O.note)));
   if (O && O.mode === 'subst' && O.sub.log.length) {
     const tb = h('tbody');
     for (const L of O.sub.log) tb.append(h('tr', null, h('td', null, 'After surface ' + (L.gi + 1)), h('td', null, L.from), h('td', null, L.to || 'kept'), h('td', { class: 'mono' }, wsFmt(L.merit, 5)),
@@ -48105,6 +48115,7 @@ function markUnsaved(on) {
   if (d) d.hidden = !on;
 }
 function saveFile() {
+  if (!accountGate('save the bench as a file')) return;
   const name = safeFileName(project.name) + '.jekray';
   downloadFile(name, new Blob([JSON.stringify(serialize(), null, 2)], { type: 'application/x-jekray' }));
   toast('Saved ' + name);
@@ -48596,7 +48607,7 @@ function exportScreen(el) {
    and the bench itself, as CSV (a zip of CSV files with README.txt), JSON, Excel, NumPy or MATLAB
    (core/datafiles.js writes them; engines/data-export.js gathers all but the plots, which are the panels' own).
    A free account exports one kind at a time as CSV or JSON; several kinds at once, everything in one go,
-   and Excel, NumPy and MATLAB files are JEKrayPro's. The tests, and a build without accounts, are not gated. */
+   and Excel, NumPy and MATLAB files went with JEKrayPro once; every format and any number of kinds are a free account's now. The tests, and a build without accounts, are not gated. */
 const DATA_PRO = new Set(['xlsx', 'npz', 'mat']);
 const DATA_FMT_LIST = [['csv', 'CSV (zip)'], ['json', 'JSON'], ['xlsx', 'Excel (.xlsx)'], ['npz', 'NumPy (.npz)'], ['mat', 'MATLAB (.mat)']];
 const PRO_FMT_WHAT = 'export data as Excel, NumPy or MATLAB files', PRO_MANY_WHAT = 'export several kinds of data at once', PRO_ALL_WHAT = 'export everything at once';
@@ -48685,7 +48696,7 @@ async function dataFile(kinds, fmt) {
   return { name: base + out.ext, blob: new Blob([out.bytes], { type: out.mime }), count: G.items.length };
 }
 
-/* the kinds ticked, in the format chosen: a free account's for one kind as CSV or JSON; JEKrayPro's for more */
+/* the kinds ticked, in the format chosen: a free account's */
 async function exportData(kinds, fmt) {
   if (!accountGate('export data')) return null;
   if (DATA_PRO.has(fmt)) { if (!designPro(PRO_FMT_WHAT)) return null; }
@@ -48700,7 +48711,7 @@ async function exportData(kinds, fmt) {
     return F.name;
   } catch (err) { toast('The data could not be exported: ' + err.message, true); return null; }
 }
-/* everything there is, in one file (JEKrayPro) */
+/* everything there is, in one file (a free account's) */
 async function exportEverything(fmt) {
   if (!accountGate('export data')) return null;
   if (!designPro(PRO_ALL_WHAT)) return null;
@@ -48740,7 +48751,7 @@ function wireDataExport() {
   const say = () => {
     const ks = kindsNow(), f = fmtNow(), pro = DATA_PRO.has(f) || ks.length > 1;
     go.disabled = !ks.length;
-    note.textContent = !ks.length ? 'Tick at least one kind of data.' : pro && designWhy(ks.length > 1 ? PRO_MANY_WHAT : PRO_FMT_WHAT) ? 'With a free account: one kind at a time, as CSV or JSON. Several at once, everything in one go, and Excel, NumPy and MATLAB files are part of JEKrayPro.'
+    note.textContent = !ks.length ? 'Tick at least one kind of data.' : pro && designWhy(ks.length > 1 ? PRO_MANY_WHAT : PRO_FMT_WHAT) ? 'Exporting data needs a free account: sign in, top right.'
       : 'Each file says what it holds: the bench, the JEKray version, the date, every column’s unit and the settings of the parts the numbers come from.';
     go.textContent = ks.length > 1 ? 'Export ' + ks.length + ' kinds' : 'Export';
   };
@@ -49169,13 +49180,12 @@ function wireFigure() {
   const b = document.getElementById('btnExportFigure');
   if (b) b.addEventListener('click', () => openFigure());
 }
-/* ---------- Tasters ----------
-   So that someone on a free account can try JEKrayPro's work before paying, a few uses a month of each part of it
-   that runs in their own browser (jek-api src/tasters.js keeps the count): the designers' optimiser, tolerancing,
-   scripts, design reports, drawings, design exports and the data export's Pro formats. The balance is read when the
-   account is (cloud.js cloudGates), shown on the Pro badges ("4 free"), and spent as the work starts (ui/pro.js
-   designPro, ui/scripts.js); once spent, a card says what is used and what JEKrayPro costs. Counted as 'taster'
-   <feature>.used and <feature>.out. */
+/* ---------- A free account's share links ----------
+   A free account keeps a few share links at once (jek-api src/links.js FREE_LINKS; JEKrayPro any number). How many
+   it has left is read when the account is (cloud.js cloudGates), from GET /v1/tasters, and shown on the Share
+   badges ("3 free"); with none left a card says so and what JEKrayPro adds. Counted as 'taster' share.out and
+   share.plans. (The name is from when a free account also had a month's free uses of the designers' work, which is
+   a free account's outright now.) */
 let tasterState = null;                     // { month, limits, left } for the account signed in without a plan; null otherwise
 let tasterFor = null;                       // whose it is
 /* the balance, for someone signed in without a plan (noPlan); dropped otherwise */
@@ -49186,33 +49196,21 @@ async function loadTasters(noPlan) {
   try { tasterState = await api('/v1/tasters'); } catch (err) { tasterState = null; tasterFor = null; return; }
   needsShown();
 }
-/* how many free uses of the work named are left this month: a number, or null (no taster for it, or none to count) */
+/* how many share links a free account has left: a number, or null (not share links, or none to count) */
 function tasterLeft(what) {
   const f = tasterOf(what);
   return f && tasterState && tasterState.left[f] !== undefined ? tasterState.left[f] : null;
 }
-/* one free use of the work named, if there is one left: true when it may go ahead */
-function tasterUse(what) {
-  const f = tasterOf(what), left = tasterLeft(what);
-  if (!(left > 0)) return false;
-  // a share link is counted by the link itself, once made (the same bench again makes none): read again then (tasterRefresh)
-  if (f === 'share') return true;
-  tasterState.left[f] = left - 1;
-  track('taster', f + '.used');
-  api('/v1/tasters/' + f, { method: 'POST' }).then(r => { if (tasterState && r && typeof r.left === 'number') tasterState.left[f] = r.left; needsShown(); })
-    .catch(err => { if (tasterState && err && err.code === 'taster_used') { tasterState.left[f] = 0; needsShown(); } });
-  needsShown();
-  const n = tasterState.left[f], lim = tasterState.limits[f];
-  toast('Free with your account: ' + n + ' of ' + lim + ' ' + TASTER_NAMES[f] + ' left this month');
-  return true;
-}
-/* the month's free uses spent: what was used, and what JEKrayPro costs (the founding price, and the student one);
-   false when the work named has no taster (the plans are offered as before) */
+/* may a share link be made on the free account: true while it has one left (the link itself is the count, read
+   again once it is made: tasterRefresh) */
+function tasterUse(what) { return tasterLeft(what) > 0; }
+/* a free account's share links all in use: what to do, and what JEKrayPro costs (the founding price, and the
+   student one); false when the work named is not share links (the plans are offered as before) */
 function tasterOut(what) {
   const f = tasterOf(what);
   if (!f || !tasterState) return false;
   track('taster', f + '.out');
-  const lim = tasterState.limits[f], share = f === 'share';
+  const lim = tasterState.limits[f];
   let dlg = document.getElementById('tasterOut');
   if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'tasterOut', 'aria-labelledby': 'tasterOutTitle' }); document.body.append(dlg); }
   const close = () => dlg.close();
@@ -49222,9 +49220,8 @@ function tasterOut(what) {
     const m = (q) => P && P[q] ? new Intl.NumberFormat('en-GB', { style: 'currency', currency: (P[q].currency || 'gbp').toUpperCase() }).format(P[q].amount / 100).replace(/\.00$/, '') : '';
     if (m('academic_monthly')) price.replaceChildren(h('b', null, 'Students and university staff: '), 'JEKrayPro is ' + m('academic_monthly') + ' a month' + (m('academic_yearly') ? ' or ' + m('academic_yearly') + ' a year' : '') + ' with your university email' + (m('pro_monthly') ? ' (' + m('pro_monthly') + ' a month otherwise)' : '') + '.');
   }).catch(() => { /* the line as it is */ });
-  dlg.replaceChildren(h('h2', { id: 'tasterOutTitle' }, share ? 'Your free share links are all in use' : 'This month’s free ' + TASTER_NAMES[f] + ' are used'),
-    h('p', null, share ? 'A free account keeps ' + lim + ' share links at once: delete an old one in My benches, under My links, to make another. JEKrayPro has them without a limit, with saving to the cloud and the design work.'
-      : 'Your free account has ' + lim + ' ' + TASTER_NAMES[f] + ' a month, and they are back on the 1st. JEKrayPro has them without a limit, with the rest of the design work and saving to the cloud.'),
+  dlg.replaceChildren(h('h2', { id: 'tasterOutTitle' }, 'Your free share links are all in use'),
+    h('p', null, 'A free account keeps ' + lim + ' share links at once: delete an old one in My benches, under My links, to make another. JEKrayPro has them without a limit, with saving to the cloud.'),
     price,
     h('p', null, h('b', null, 'Founding members: '), 'subscribe during the open beta and keep that price for as long as you stay subscribed.'),
     h('div', { class: 'rt-actions' },
@@ -49631,7 +49628,7 @@ async function openShortLink(id) {
   try { r = await api('/v1/links/' + encodeURIComponent(id)); }
   catch (err) { toast('Could not open that link: ' + err.message, true); return; }
   // another app's link (JEKsuite's My links gives every link on /s/): opened in that app
-  const other = { i: 'jekion', k: 'jekion', f: 'jekfilm', g: 'jekfilm' }[String(r.data || '')[0]];
+  const other = { i: 'jekion', k: 'jekion', f: 'jekfilm', g: 'jekfilm', c: 'jekcad', d: 'jekcad' }[String(r.data || '')[0]];
   if (other) { location.replace('/jek/tools/' + other + '.html#s=' + encodeURIComponent(id)); return; }
   return openShareHash(r.data);
 }
@@ -52825,7 +52822,7 @@ async function showSubscribe() {
   else licNote.append('Pay now and your account is made from the address you pay with; you are signed in when you come back. Already have an account? ',
     h('button', { type: 'button', class: 'rt-link', onclick: () => { dlg.close(); proSignIn(); } }, 'Sign in'), ' first.');
   box.replaceChildren(licNote, tabs, h('div', { class: 'rt-subcards' },
-    card('pro', 'JEKrayPro', 'For anyone: your benches in the cloud, their history, on every device; the optimiser, tolerancing, reports, scripts and share links.'),
+    card('pro', 'JEKrayPro', 'For anyone: your benches in the cloud, with their history, on every device; forks, folders, your own parts and any number of share links.'),
     card('academic', 'Academic', 'The same, at half the price, for students and staff at a university.', { node: acNode, email: ac ? null : acMail, err: acErr }),
     card('team', 'Team', 'For a lab, group or company: one workspace everyone works in, with roles, invitations by email and an activity record. A seat each for the owner, admins and editors, at least three; viewers are free. Each seat has JEKrayPro on their own benches too.', { seat: true, go: teamGo })));
 }
@@ -54433,13 +54430,13 @@ function shareSignIn(saveInstead) {
     h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'share.no'); close(); } }, 'Not now')));
   dlg.showModal();
 }
-/* an export asked for, signed out: what is needed and the ways in; the .jekray file needs no account */
+/* an export, or the .jekray file, asked for signed out: what is needed and the ways in */
 function exportSignIn(what) {
   track('prompt', 'export.shown');
   nudgeTaken();
   const dlg = promptDialog('exportSignIn'), close = () => dlg.close();
-  dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, 'Exporting needs a free account'),
-    h('p', null, 'Sign in to ' + what + '. Saving the bench as a .jekray file needs no account.'),
+  dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, /^keep/.test(what) ? 'Keeping your work needs a free account' : /^save the bench/.test(what) ? 'Saving the file needs a free account' : /^(export|save a picture|save plots|save a plot|make a part pack)/.test(what) ? 'Exporting needs a free account' : 'A free account is needed'),
+    h('p', null, 'Sign in to ' + what + '. Signed out, nothing is kept when you leave this page; the bench comes with you when you sign in.'),
     freeLead('Create a free account or sign in.', 'Your bench stays here while you sign in.'),
     uniNote(),
     h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('export', close)),
@@ -54494,9 +54491,9 @@ function returnNudge(again, arrived) {
     busy: invite || nudgeUp() || !!document.querySelector('dialog[open]'), arrived, last, now: Date.now() })) return;
   nudgeTaken();
   nudgeCard('returnNudge', 'return', 'Restored from this browser only', [
-    h('p', null, 'This bench is kept in this browser alone: clearing its data loses it, and your other devices do not have it. Save it as a file to keep it.'),
-    freeLead('Or create a free account.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
-  close => [h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'return.file'); close(); saveFile(); } }, 'Save as a file')]);
+    h('p', null, 'This bench was kept in this browser before. Signed out, changes to it are no longer kept: closing the page loses them.'),
+    freeLead('Create a free account to keep it, and to save it as a file.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
+  () => []);
 }
 /* ---------- A free account offered in a note ----------
    The first-visit welcome note (where 'welcome') offers a free account, one click each way, to anyone signed out: a
@@ -54550,7 +54547,6 @@ function workNudge() {
       h('button', { class: 'rt-btn primary', type: 'button', onclick: yes('google', () => signIn('google')) }, 'Continue with Google'),
       h('button', { class: 'rt-btn', type: 'button', onclick: yes('microsoft', () => signIn('microsoft')) }, 'Microsoft'),
       h('button', { class: 'rt-btn', type: 'button', onclick: yes('email', () => showEmailSignIn(false)) }, 'Email'),
-      h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'work.file'); close(); saveFile(); } }, 'Save as a file'),
       h('button', { class: 'rt-btn', type: 'button', onclick: no }, 'Not now')));
   track('prompt', 'work.shown');
   document.getElementById('stage').append(card);
@@ -54562,7 +54558,7 @@ function workSignedIn() {
   if (!account) return;                               // cancelled, or it failed: nothing more
   if (cloud) return;                                  // already a cloud bench, saving as it goes
   if (!proWhy()) { const ws = personalWs(); if (ws) newCloudBench(ws.id, null, true); return; }
-  setTimeout(() => toast('Signed in: exports, part packs and the experimental features are yours. Your bench is here as you left it.'), 900);
+  setTimeout(() => toast('Signed in: saving the file, exports, part packs and the experimental features are yours. Your bench is here as you left it.'), 900);
 }
 /* Save a copy, from a shared bench's bar, without a plan to save it to the cloud: signed out, an account and the
    file; signed in on the free plan, the file, and where cloud saving comes from */
@@ -54577,8 +54573,8 @@ function sharedCopyPrompt() {
       h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => { track('prompt', 'shared.pro'); close(); showSubscribe(); } }, 'JEKrayPro and licences\u2026'), no, file(true))]
     : [freeLead('Create a free account or sign in.', cloudLine), uniNote(),
       h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('shared', close)),
-      h('p', { class: 'note' }, 'Or keep it on this computer as a .jekray file.'),
-      h('div', { class: 'rt-actions' }, no, file(false))]));
+      h('p', { class: 'note' }, 'A free account also saves it on this computer as a .jekray file.'),
+      h('div', { class: 'rt-actions' }, no)]));
   dlg.showModal();
 }
 
@@ -54592,6 +54588,8 @@ function wireNudges() {
     planActive: () => { if (cloud && cloud.dirty) cloudPush({ quiet: true }); },
     accountLoadedHere: () => { if (account && cloud && cloud.dirty) cloudPush({ quiet: true }); workSignedIn(); },
     accountChanged: () => cloudMenuShown(),
+    // what was changed while the account was still being looked up, kept once it is known to be signed in
+    keepNow: () => { if (!cloud) scheduleSave(); },
     // the menu in the bar (#acctMenu), its icons drawn; signed out, a line on what JEKrayPro gives
     accountMenu: rows => { const menu = document.getElementById('acctMenu'); if (!menu) return; menu.replaceChildren(...rows); menuIcons(menu); },
     accountMenuExtra: signedIn => (signedIn ? [] : [h('span', { class: 'rt-menunote' }, 'JEKrayPro, cloud saving for JEKray (open beta): your benches saved to the cloud as you work, with their history, on any computer. Sign in, then Subscribe.')]),
@@ -54612,7 +54610,7 @@ function readSnaps() {
   try { const v = JSON.parse(localStorage.getItem(SNAP_KEY)); return Array.isArray(v) ? v : []; } catch (err) { return []; }
 }
 function keepSnapshot(why, now) {
-  if (TEST_MODE || EMBED || !project || !project.elements.length) return;
+  if (TEST_MODE || EMBED || !project || !project.elements.length || !keepHere()) return;
   const list = readSnaps(), json = JSON.stringify(serialize());
   if (list.length && list[0].json === json) return;
   if (!now && list.length && Date.now() - list[0].t < SNAP_EVERY) return;
@@ -54629,6 +54627,8 @@ function scheduleSave() {
   if (cloud) cloudChanged();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
+    // signed out, nothing is kept (ui/pro.js keepHere): the sign beside Save says so
+    if (!keepHere()) { workChanged(); setStatus('Not saved: a free account keeps your work'); return; }
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(serialize()));
       setStatus(cloud ? (cloud.dirty && cloudOn() ? 'Saving to the cloud shortly' : cloudNote || 'Linked to the cloud') : 'Autosaved in this browser');
@@ -54645,6 +54645,8 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>The design work needs only a free account now</b>: the optimiser, tolerancing, design reports, lens drawings, design export, scripts, and data as Excel, NumPy or MATLAB files, any number of kinds at once. JEKrayPro is the cloud: benches saved online with their history, forks, My parts, teams, and more than a free account’s three share links.',
+    '<b>Signed out, nothing is kept</b>: no autosave in this browser, no earlier versions, no recent files. <b>Not kept</b> beside Save says so, turns to <b>Not saved</b> once the bench is changed, and opens the sign-in; the bench comes with you. A free account keeps your work as before and saves it as a .jekray file (Save, Ctrl+S).',
     'The examples send their rays in <b>hexapolar rings</b> (3, 5 or 7 across: 7, 19 or 37 rays), so in 3D each beam fills its round aperture: the lenses, mirrors and traps, the interferometers, the RF horns and the fibre launches. A source of one guide ray, a slit, a pulse, the double slit and the SLM\u2019s vortex keep a line.',
     'The Bench panel\u2019s list of parts reads as JEKcad\u2019s feature list: one line a part, its kind small beside it, under a heading for each kind (free space, fibre, circuits, objects, drawings) with its count; the parts selected are marked, and the eye shows on hover (or while the part is hidden in 3D).',
     'In 3D the bar no longer shows the Parts / Draw switcher: Parts is the only mode there (Draw is for the 2D bench).',
@@ -55172,7 +55174,7 @@ function wireNews() {
           catch (err) { toast('Could not open that version (' + err.message + ').', true); }
         } }, 'Open'))) : [h('p', null, 'Nothing kept yet. Copies appear here once you have been working for a few minutes.')]));
     };
-    document.getElementById('btnSnaps').addEventListener('click', () => { fill(); dlg.showModal(); });
+    document.getElementById('btnSnaps').addEventListener('click', () => { if (!accountGate('see the earlier versions kept in this browser')) return; fill(); dlg.showModal(); });
     document.getElementById('snapsClose').addEventListener('click', () => dlg.close());
   }
 
@@ -55728,9 +55730,8 @@ result = R`, 'py'],
 J.elements()`, 'py'],
 ];
 
-// why scripts are not available now ('' when they are): they are JEKrayPro's; the tests and a build without accounts are not gated
-const scriptsWhy = () => (TEST_MODE || !accountsOn() ? '' : hooks.proWhy() || '');
-let tasterRun = false;                 // the run under way is one of a free account's free runs (io/tasters.js): its files come down too
+// why scripts are not available now ('' when they are): they need a free account; the tests and a build without accounts are not gated
+const scriptsWhy = () => (TEST_MODE || !accountsOn() ? '' : acctWhy('run scripts'));
 
 /* what a script is given: P is the page's window.JEKray (or, in the tests, the same calls made in Node); saves, the
    list its save() calls go into, for the page to make into files when the run ends */
@@ -55790,10 +55791,9 @@ async function scriptDataFile(s, script) {
   const out = await dfWrite({ meta, items }, s.format);
   return { name: base + out.ext, base, ext: out.ext, blob: new Blob([out.bytes], { type: out.mime }) };
 }
-/* the files a run's save() calls asked for, downloaded (a run's script is JEKrayPro's: so is this). More than five come as one zip */
+/* the files a run's save() calls asked for, downloaded (a run's script needs an account: so does this). More than five come as one zip */
 async function saveScriptFiles(saves, script) {
-  if (scriptsWhy() && !tasterRun) { toast(scriptsWhy(), true); return []; }
-  tasterRun = false;
+  if (scriptsWhy()) { toast(scriptsWhy(), true); return []; }
   if (!saves || !saves.length) return [];
   const files = [], used = new Set();
   for (const s of saves) {
@@ -56035,11 +56035,8 @@ function wireScripts() {
     if (on) { const t0 = performance.now(); const tick = () => { clock.textContent = 'Running… ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s'; }; tick(); timer = setInterval(tick, 100); }
   };
   const run = async (o = {}) => {
-    // signed in without a plan: one of the month's free runs (its files come down with it), or the card once spent
-    const why = scriptsWhy(), free = !!why && !/^Sign in/.test(why) && !scriptRunning() && hooks.tasterUse('run scripts');
-    if (scriptsWhy() && !free) { if (!/^Sign in/.test(why) && hooks.tasterLeft('run scripts') !== 0) toast(why, true); hooks.proFix('run scripts'); return; }
+    if (scriptsWhy()) { accountGate('run scripts'); return; }
     if (scriptRunning()) return;
-    tasterRun = free;
     keep();
     out.replaceChildren(logBox = h('div', { id: 'scriptLogs' }), status = h('div', { class: 'rt-script-note', id: 'scriptLoading' }));
     // Python's first run fetches it: what that is doing, below the lines logged so far
@@ -56104,10 +56101,9 @@ function wireScripts() {
     showList();
     const why = scriptsWhy();
     gate.hidden = !why;
-    const free = why && !/^Sign in/.test(why) ? hooks.tasterLeft('run scripts') : null;
-    if (why) gate.replaceChildren(h('b', null, 'Part of JEKrayPro. '), /^Sign in/.test(why) ? 'Sign in, top right, with an account that has a plan. ' : free > 0 ? 'Your free account has ' + free + ' free runs left this month; JEKrayPro has them without a limit. ' : 'Scripts need a plan: your own JEKrayPro, or a team with one. ',
-      h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => hooks.proFix('run scripts') }, /^Sign in/.test(why) ? 'Sign in' : 'Get JEKrayPro'));
-    if (!scriptRunning()) { runBtn.disabled = !!why && !(free > 0); out.replaceChildren(); }
+    if (why) gate.replaceChildren(h('b', null, 'Scripts need a free account. '), 'Sign in, top right, to run one. ',
+      h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => accountGate('run scripts') }, 'Sign in'));
+    if (!scriptRunning()) { runBtn.disabled = !!why; out.replaceChildren(); }
     if (!why || free > 0) scriptWarm(langOf());
     dlg.showModal();
     ed.focus();
@@ -56850,7 +56846,7 @@ function exShareLink() {
   const all = text + '\n' + u;
   (navigator.clipboard ? navigator.clipboard.writeText(all) : Promise.reject()).then(() => toast('Copied: the link opens this exercise for whoever you send it to'), () => toast(u));
 }
-/* the optimiser finds it (JEKrayPro, or a free account's optimiser runs): offered after the second hint */
+/* the optimiser finds it (a free account's): offered after the second hint */
 function exerciseOptimise() { if (EX && EX.ex.optimiser) exOptimise(); }
 function exOptimise() {
   if (!designPro('optimise a design')) return;
@@ -56889,7 +56885,7 @@ function exBar() {
     for (let i = 0; i < EX.hints; i++) body.push(h('p', { class: 'rt-exhint' }, h('b', null, 'Hint ' + (i + 1) + ': '), E.hints[i]));
     const acts = h('div', { class: 'rt-actions' });
     if (EX.hints < E.hints.length) acts.append(h('button', { class: 'rt-btn', type: 'button', onclick: () => { EX.hints++; track('exercise', E.id + '.hint' + EX.hints); exBar(); } }, EX.hints ? 'Another hint' : 'Hint'));
-    else if (E.optimiser) acts.append(h('button', { class: 'rt-btn', type: 'button', title: 'JEKrayPro’s optimiser searches the settings you may change for the goal (a free account has a few runs a month)', onclick: exOptimise }, 'Let the optimiser find it'));
+    else if (E.optimiser) acts.append(h('button', { class: 'rt-btn', type: 'button', title: 'The optimiser searches the settings you may change for the goal (it needs a free account)', onclick: exOptimise }, 'Let the optimiser find it'));
     acts.append(h('span', { class: 'rt-exmay' }, 'You can change ' + exAllowedText() + '.'));
     body.push(acts);
   } else {
@@ -57094,7 +57090,7 @@ function readRecent() {
   try { const v = JSON.parse(localStorage.getItem(OPENED_KEY)); return Array.isArray(v) ? v : []; } catch (err) { return []; }
 }
 function noteRecent(item) {
-  if (EMBED) return;
+  if (EMBED || !keepHere()) return;
   const same = r => r.kind === item.kind && (item.kind === 'file' ? r.label === item.label : r.id === item.id);
   const list = [Object.assign({ t: Date.now() }, item), ...readRecent().filter(r => !same(r))].slice(0, OPENED_MAX);
   // a full store: the files' kept text let go, the oldest first, then the entries themselves
@@ -57115,10 +57111,12 @@ const KIND = { file: 'file', example: 'example', cloud: 'cloud' };
 function fillRecent() {
   const menu = document.getElementById('recentMenu');
   if (!menu) return;
-  const list = readRecent();
+  // signed out, nothing is kept (ui/pro.js keepHere): what was kept before is not listed either, but the examples opened
+  const out = !keepHere(), list = readRecent().filter(r => !out || r.kind === 'example');
   menu.replaceChildren(...(list.length ? list.map(r => h('button', { type: 'button', role: 'menuitem', title: r.label, onclick: () => openRecent(r) },
-    h('span', { class: 'rt-recentname' }, r.label), h('span', { class: 'k' }, KIND[r.kind] || ''))) : [h('span', { class: 'rt-menunote' }, 'Nothing opened yet: a file, an example or a cloud bench you open is kept here.')]),
-    ...(list.length ? [h('div', { class: 'sep' }), h('button', { type: 'button', role: 'menuitem', onclick: () => { try { localStorage.removeItem(OPENED_KEY); } catch (err) { /* none */ } fillRecent(); } }, 'Clear this list')] : []));
+    h('span', { class: 'rt-recentname' }, r.label), h('span', { class: 'k' }, KIND[r.kind] || ''))) : [h('span', { class: 'rt-menunote' }, out ? 'Signed out, the files you open are not kept here: a free account keeps them.' : 'Nothing opened yet: a file, an example or a cloud bench you open is kept here.')]),
+    ...(out && list.length ? [h('span', { class: 'rt-menunote' }, 'A free account keeps the files you open here too.')] : []),
+    ...(list.length && !out ? [h('div', { class: 'sep' }), h('button', { type: 'button', role: 'menuitem', onclick: () => { try { localStorage.removeItem(OPENED_KEY); } catch (err) { /* none */ } fillRecent(); } }, 'Clear this list')] : []));
 }
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */

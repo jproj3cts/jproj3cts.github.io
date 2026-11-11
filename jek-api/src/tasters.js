@@ -1,13 +1,12 @@
-// Tasters: so that someone on a free account can try JEKrayPro's work before paying for it, a few uses a month
-// of each part of it that runs in their own browser (and so costs nothing to give): the designers' optimiser,
-// tolerancing, scripts, design reports, drawings, design exports and the data export's Pro formats. The app
-// asks how many are left (GET /v1/tasters) and spends one as the work starts (POST /v1/tasters/:feature). A
-// JEKrayPro plan needs none: the app does not ask. The count resets each calendar month (UTC).
+// A free account's share links, as the app asks after them (GET /v1/tasters: how many it may still make, as
+// 'share'). The name is from when a free account also had a month's free uses of JEKrayPro's work in the browser
+// (the optimiser, tolerancing, scripts and so on): that work is a free account's outright now, so there is nothing
+// to count (TASTERS is empty, and POST /v1/tasters/:feature finds none). The table stays for what was counted.
 
 import { ApiError } from './util.js';
 import { FREE_LINKS, linkCount } from './links.js';
 
-export const TASTERS = { optimise: 5, tolerance: 3, script: 10, report: 3, drawing: 3, design: 3, data: 5 };
+export const TASTERS = {};
 const KEEP_MONTHS = 13;
 export const thisMonth = (now = Date.now()) => new Date(now).toISOString().slice(0, 7);
 

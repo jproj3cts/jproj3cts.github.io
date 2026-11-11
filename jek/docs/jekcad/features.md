@@ -14,6 +14,10 @@ Every number takes units, expressions and `#variables`, as in a sketch's dimensi
 
 **Extrude** pushes sketch regions along their plane's normal. It starts as **Add**: the new solid joins the part it touches, and where it touches none it is a new part. A depth below 0 goes the other way, so **Opposite direction** is only offered for Through all and Up to face. It opens with the regions of the last sketch chosen and the regions box active: click a region in the view to take it out, or one that is not chosen to put it in. Where shapes cross, each piece between them is a region of its own.
 
+The model cuts a sketch's regions, for Extrude, Revolve, Sweep and Loft. A circle drawn half over the edge of a face is two regions: the part on the face and the part that hangs over it. Both start chosen, and a click takes either one out. A hole of the model inside a sketched shape is a region of its own in the same way. A part that passes through the sketch's plane cuts the regions along its outline there.
+
+Extrude also takes flat faces of the model with no sketch. Click a face while the dialog's regions field is active, or select faces first and then click **Extrude**. Each face is pushed along its own outward direction, and **Remove** cuts into the part from it. A curved face is refused.
+
 - **New** makes new parts. **Add** joins them to the parts they touch, **Remove** cuts them away, and **Intersect** keeps only what they share. For Add, Remove and Intersect you can name the parts to change; otherwise every part is.
 - **End:** Blind (a depth), Symmetric (half each way), Up to face, or Through all. Remove goes against the sketch's normal unless you choose Opposite direction, so a cut sketched on a part's face goes into the part.
 - **Second end position** extrudes the other way as well, with its own end.
@@ -28,6 +32,8 @@ Every number takes units, expressions and `#variables`, as in a sketch's dimensi
 ## Changing solids
 
 **Fillet** rounds edges and **Chamfer** bevels them. Choosing a face takes all its edges. The rounding follows on along edges that meet tangentially, so a fillet chosen on one edge of a rounded outline runs all the way round.
+
+Where the radius does not fit every edge chosen, the edges it fits are rounded and the rest are left square. The dialog and the feature's row say how many were left. Click a face to choose every edge round it, which is where this most often happens: a small hole or a thin wall cannot take a large radius. Chamfer does the same.
 
 **Shell** hollows a part. Choose the faces to remove and the wall thickness, inward unless you choose Thicken outward.
 
@@ -56,5 +62,7 @@ You can pattern or mirror extrudes, revolves, sweeps, lofts and holes as feature
 Faces carry names from the feature that made them: an extrude's sides are named after the sketch shapes they came from, and its ends are start and end. The names are carried through every later feature. A fillet's edge is remembered as the two faces it lies between, so edits lower in the list keep the right edges. If a face or edge a feature used is gone, the feature fails and says so. Edit it and choose again.
 
 ## Parts
+
+To delete a whole part, use **Delete part** in its **⋯** menu in the parts list, or select parts (the Select list set to Parts, or their rows) and press Delete. A Delete part feature goes into the feature list, so the part comes back if you undo, suppress or delete that feature, or roll the bar above it.
 
 Each solid is a part, listed under the features. Double-click a part's name to rename it. Its swatch sets its colour, and its material sets its density, from which the measure box gives its mass. A part's **⋯** exports it alone as STEP or STL.

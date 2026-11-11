@@ -1282,12 +1282,11 @@
     .rt-file { flex: 0 1 auto; min-width: 0; }
     .rt-file .rt-name { flex: 0 1 var(--name-w, 15rem); width: var(--name-w, 15rem); min-width: 0; max-width: 26rem; }
   }
-  @media (max-width: 1440px) { .rt-btn .rt-wide { display: none; } }   /* the Save button's " .jekray" */
   @media (max-width: 1140px) { #btnExamples, #btnShare { display: none; } }
   @media (max-width: 1040px) { .rt-quick [data-click], .rt-qsep { display: none; } }
   .rt-btn.rt-mbar[aria-pressed="true"] { color: #fff; background: var(--jek-cyan); border-color: var(--jek-cyan); }
   @media (max-width: 600px), (max-height: 520px) and (pointer: coarse) {
-    #btnExamples, #btnShare, .rt-btn .rt-wide { display: none; }   /* the Save button's " .jekray", not the wide dialogs */
+    #btnExamples, #btnShare { display: none; }
     /* submenus open in place, under their item */
     .rt-sub { flex-wrap: wrap; }
     .rt-sub > .rt-menu { position: static; flex-basis: 100%; box-shadow: none; border: 0; padding-left: 1.2rem; }
@@ -1931,6 +1930,22 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-btn.rt-getpro { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); font-weight: 600; }
 .rt-btn.rt-getpro:hover { filter: brightness(1.08); }
 .rt-btn.rt-getpro[hidden] { display: none; }
+
+/* signed out, nothing is kept: the sign beside the bar's Save (ui/pro.js keepSign), which opens the sign-in */
+.rt-btn.rt-keepsign { flex: none; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; font-size: 0.8125rem; color: var(--jek-ink); background: color-mix(in srgb, var(--jek-orange) 12%, transparent); border: 1px solid var(--jek-orange); }
+.rt-btn.rt-keepsign b { color: var(--jek-orange); font-weight: 700; }
+.rt-btn.rt-keepsign.changed { background: color-mix(in srgb, var(--jek-orange) 24%, transparent); }
+.rt-btn.rt-keepsign:hover { background: color-mix(in srgb, var(--jek-orange) 30%, transparent); }
+/* (the sign says what the Free account chip on Save beside it says, so that chip rests while the sign is up; the
+   sign's second half only where the bar has room for it) */
+.rt-btn.rt-keepsign + #btnSave.rt-acctneed::after { content: none; }
+@media (max-width: 1799px) { .rt-btn.rt-keepsign span { display: none; } }
+
+/* a narrow bar, signed out: the badges on the bar's own buttons (Share, Save, the camera) rest, their reason
+   staying in the tooltip, so that Sign in is not pushed off the end */
+@media (max-width: 1500px) { .rt-toolbar .rt-btn.rt-acctneed::after, .rt-toolbar .rt-btn.rt-proneed::after { content: none; } }
+/* (narrower still, Get Pro leaves the bar: the plans are in the account menu) */
+@media (max-width: 1340px) { .rt-toolbar #btnGetPro { display: none; } }
 /* JEKfilm: on top of JEKray's style.css (its tokens, buttons, menus, dialogs, and the designer's cards it grew from) */
 html, body { margin: 0; background: var(--jek-well); }
 .film-ws { z-index: 1; }
@@ -2102,6 +2117,7 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-qsw button { font: inherit; font-size: 0.8rem; padding: 0.25rem 0.75rem; background: none; border: 0; color: var(--jek-ink-soft); cursor: pointer; }
 .film-qsw button + button { border-left: 1px solid var(--jek-line-2); }
 .film-qsw button.on { background: var(--jek-line); color: var(--jek-ink); font-weight: 600; }
+.film-head .film-save, .film-head .film-share { display: inline-flex; align-items: center; gap: 0.35rem; }
 </style>
 </head>
 <body class="film-app">
@@ -2117,12 +2133,12 @@ html, body { margin: 0; background: var(--jek-well); }
         <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
           <button type="button" role="menuitem" id="btnNew" data-icon="new">New coating</button>
           <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekfilm file…</button>
-          <button type="button" role="menuitem" id="btnExamples" data-icon="book">Open an example…</button>
+          <button type="button" role="menuitem" id="btnFilmExamples" data-icon="book">Open an example…</button>
           <div class="sep"></div>
-          <button type="button" role="menuitem" id="btnSaveFile" data-icon="save" data-need="pro" data-what="save a coating file">Save as .jekfilm<span class="k">Ctrl+S</span></button>
+          <button type="button" role="menuitem" id="btnSaveFile" data-icon="save" data-need="account" data-what="save a coating file">Save as .jekfilm<span class="k">Ctrl+S</span></button>
           <div class="sep" id="cloudSep"></div>
-          <button type="button" role="menuitem" id="btnCloudSave" data-icon="upload" data-need="pro" data-what="save to the cloud" title="Keep this coating in the cloud, with its history, beside the benches that use it"><span class="lbl">Save to the cloud…</span></button>
-          <button type="button" role="menuitem" id="btnShare" data-icon="link" data-need="pro" data-what="share a link" title="A short link that opens this coating as it is now, for anyone">Copy a share link…</button>
+          <button type="button" role="menuitem" id="btnCloudSave" data-icon="upload" data-need="pro" data-what="save to the cloud" title="Keep this coating in the cloud, with its history, beside the benches that use it"><span class="lbl">Save to cloud…</span></button>
+          <button type="button" role="menuitem" id="btnShareMenu" data-icon="link" data-need="pro" data-what="share a link" title="A short link that opens this coating as it is now, for anyone">Copy a share link…</button>
           <div class="sep"></div>
           <button type="button" role="menuitem" id="btnExportCsv" data-icon="export" data-need="account" data-what="export the curves" title="The reflectance across the band and against the angle, as a CSV file">Export the curves (CSV)</button>
           <button type="button" role="menuitem" id="btnExportData" data-icon="export" title="The curves and the layers as CSV, JSON, Excel, NumPy or MATLAB files">Export data…</button>
@@ -2132,11 +2148,13 @@ html, body { margin: 0; background: var(--jek-well); }
       <button class="rt-btn quiet" id="btnRedo" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" data-icon="redo"></button>
       <span class="film-where"><span id="filmWhere">In this browser</span> <span id="filmStatus" class="rt-status" aria-live="polite"></span></span>
       <span class="rt-lgap"></span>
+      <button class="rt-btn film-save" id="btnSave" type="button" data-icon="save" data-need="account" data-what="save a coating file" title="Save the coating as a .jekfilm file (Ctrl+S)">Save</button>
       <div class="rt-more">
         <button class="rt-btn quiet" id="btnTheme" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="themeMenu" aria-label="Theme" title="Theme" data-icon="theme"></button>
         <div class="rt-menu rt-menu-right rt-imenu" id="themeMenu" role="menu" hidden></div>
       </div>
       <button class="rt-btn rt-getpro" id="btnGetPro" type="button" hidden title="JEKrayPro: plans and prices">Get Pro</button>
+      <button class="rt-btn film-share" id="btnShare" type="button" data-icon="link" data-need="pro" data-what="share a link" title="Copy a short link that opens this coating as it is now, for anyone (a free account keeps three at once; JEKrayPro any number)">Share</button>
       <div class="rt-more" id="acct" hidden>
         <button class="rt-btn rt-acct quiet" id="btnAcct" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu">Sign in</button>
         <div class="rt-menu rt-menu-right rt-imenu rt-acctmenu" id="acctMenu" role="menu" hidden></div>
@@ -2181,7 +2199,7 @@ html, body { margin: 0; background: var(--jek-well); }
 
   <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
     <h2 id="subTitle">JEKrayPro</h2>
-    <p>Keep your coatings and benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version and fork one to try an idea. In JEKfilm, save coating files and optimise the layers. The apps themselves stay free to open and use.</p>
+    <p>Keep your benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders in JEKsuite. Keep your own parts and assemblies to use on any bench, work with a team in a shared workspace, and make any number of share links. Everything done in the apps themselves needs only a free account.</p>
     <p class="rt-founding"><b>Founding member price.</b> Subscribe while JEKray is in its open beta and you keep the price you start on for as long as your subscription carries on, whatever later prices are.</p>
     <div id="subPlans"></div>
     <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>
@@ -4160,31 +4178,40 @@ function h(tag, attrs, ...kids) {
   return n;
 }
 /* ==========================================================================
-   The designers' work as JEKrayPro's
-   Anyone may open the Optical and RF designers, build and edit a design and look at it from every side. Doing the
-   work with it is JEKrayPro's: the optimiser (and the global search and glass substitution), tolerancing, design
-   reports, drawings and exporting a design. The RF designer's way from a specification to a lens that can be made
-   and quoted stays open to all, as does the coating designer. The tests, and a build without accounts, are not gated.
+   What is JEKrayPro's, and what a free account does
+   JEKrayPro is what lives on JEK's servers: benches saved to the cloud with their history, forks, My parts, teams.
+   Everything done in the browser is a free account's (freeWork): the designers' optimiser (and the global search and
+   glass substitution), tolerancing, design reports, drawings and exporting a design, scripts, every data format,
+   JEKfilm's file, optimiser, tolerancing and specification. Each still goes through designPro(what) / proMark, which
+   ask for the account alone when the work is free. Share links are kept on the server but a free account has a few
+   (jek-api FREE_LINKS): signed out they ask for an account; signed in the API says when they are used up (JEKray
+   counts them on the badge, io/tasters.js). The tests, and a build without accounts, are not gated.
    ========================================================================== */
+const FREE_WORK = /optimise|search for designs|substitute glasses|tolerance a|design report|drawings|export a design|run scripts|export (data as|several kinds|everything)|save a coating file|coating specification/;
+const freeWork = what => FREE_WORK.test(String(what || ''));
+const shareWork = what => /share a link|QR code/.test(String(what || ''));
 /* why the work named is not open now, from the account's own reason (cloud.js proWhy: not signed in, or no plan): '' when it is */
 function designWhyOf(why, what) {
   if (!why) return '';
   return /^Sign in/.test(why) ? 'Sign in with JEKrayPro, top right, to ' + what : 'JEKrayPro is needed to ' + what + ': subscribe from the account menu, or join a team with a plan';
 }
-const designWhy = what => (!hooks.account().on || !hooks.proWhy ? '' : designWhyOf(hooks.proWhy(), what));
-/* see the result, pay to keep it: signed in without a plan and this month's free uses of the work spent, it may still
-   run as a preview, its result shown, kept only with JEKrayPro (the designers' optimisers) */
-function previewOK(what) {
-  const why = designWhy(what);
-  return !!why && !/^Sign in/.test(why) && hooks.tasterLeft(what) === 0;
+function designWhy(what) {
+  const a = hooks.account();
+  if (!a.on) return '';
+  if (freeWork(what) || (shareWork(what) && !a.signedIn)) return acctWhy(what);
+  if (!hooks.proWhy) return '';
+  const why = designWhyOf(hooks.proWhy(), what);
+  // a free account's share links, where the app keeps no count of them: the API says when they are used up
+  return why && shareWork(what) && a.signedIn && hooks.tasterLeft(what) === null ? '' : why;
 }
 /* before the work is done: true when it may be; otherwise it says why and offers the way (sign in, or subscribe) */
 function designPro(what) {
+  if (freeWork(what) || (shareWork(what) && !hooks.account().signedIn)) return accountGate(what);
   const why = designWhy(what);
   if (!why) return true;
-  // signed in without a plan: a free use of it this month, while there are any (io/tasters.js)
+  // a free account's share links, while it has any left (io/tasters.js)
   if (!/^Sign in/.test(why) && hooks.tasterUse(what)) return true;
-  // signed out, the sign-in card says what is needed (cloud.js proFix); signed in, why, and the plans (or the tasters' card)
+  // signed out, the sign-in card says what is needed (cloud.js proFix); signed in, why, and the plans (or the card for share links all in use)
   if (!/^Sign in/.test(why) && !(hooks.tasterLeft(what) === 0)) hooks.toast(why, true);
   if (hooks.proFix) hooks.proFix(what);
   return false;
@@ -4213,9 +4240,10 @@ function accountGate(what) {
 /* ---- the badges: Pro, or Free account, on what needs it, shown only while it is needed ----
    el.dataset.need is 'pro' or 'account', el.dataset.what the work; needsShown() redoes them all as the account changes */
 function needShow(el) {
-  const pro = el.dataset.need === 'pro', why = pro ? designWhy(el.dataset.what) : acctWhy(el.dataset.what);
-  el.classList.toggle(pro ? 'rt-proneed' : 'rt-acctneed', !!why);
-  // a free account's free uses of it this month, on its badge ("4 free"; none left: Pro again)
+  // (work marked Pro that a free account does, and a share link asked for signed out, carry the Free account badge)
+  const what = el.dataset.what, pro = el.dataset.need === 'pro' && !freeWork(what) && !(shareWork(what) && !hooks.account().signedIn), why = el.dataset.need === 'pro' ? designWhy(what) : acctWhy(what);
+  el.classList.toggle('rt-proneed', pro && !!why); el.classList.toggle('rt-acctneed', !pro && !!why);
+  // a free account's share links left, on the badge ("3 free"; none left: Pro again)
   const left = pro && why && !/^Sign in/.test(why) ? hooks.tasterLeft(el.dataset.what) : null;
   if (left > 0) el.dataset.free = String(left); else delete el.dataset.free;
   // the reason in the title: the control's own, or, for a group with one badge, each button's in it
@@ -4230,7 +4258,45 @@ function needMark(el, need, what) {
   needShow(el);
   return el;
 }
-function needsShown() { for (const el of document.querySelectorAll('[data-need]')) needShow(el); }
+function needsShown() { for (const el of document.querySelectorAll('[data-need]')) needShow(el); keepSign(); if (keepSkipped && keepHere()) { keepSkipped = false; if (hooks.keepNow) hooks.keepNow(); } }
+
+/* ---- Nothing is kept without an account ----
+   Signed out, an app is there to try: the bench is not autosaved in the browser, no earlier versions or recent files
+   are kept, and leaving the page loses what was changed (with no question asked on the way out: most signed-out
+   visits only look). keepHere() says whether this browser may keep work: yes
+   with no accounts here, signed in, or when the API has not answered after the page's first seconds (as the exports'
+   gate lets through); no for someone signed out for sure, and for those first seconds while the account is looked
+   up (hooks.keepNow, the app's own autosave, is called once it is known to be allowed). Each app's autosave asks it
+   and calls workChanged(); the bench handed over to a sign-in (hooks.keepWork) is still
+   written, so it is there on the way back. The sign, beside the bar's Save, says the state and opens the sign-in. */
+function keepHere() {
+  const a = hooks.account();
+  if (!a.on || a.signedIn) return true;
+  return a.known ? false : performance.now() >= 8000;
+}
+let tryChanged = false, keepSkipped = false;
+/* an autosave that was not made (signed out): the sign is redone. It says Not saved where the app's own mark of
+   unsaved changes is showing (the dot on Save, #saveDot), or, in an app without one, once an autosave was skipped */
+function workChanged() {
+  if (keepHere()) return;
+  keepSkipped = true; tryChanged = true;
+  keepSign();
+}
+function keepSign() {
+  const a = hooks.account(), save = document.getElementById('btnSave'), out = a.on && a.known && !a.signedIn && save && save.dataset.need;
+  let el = document.getElementById('keepSign');
+  if (!out) { if (el) el.remove(); tryChanged = false; return; }
+  if (!el) {
+    el = document.createElement('button');
+    el.type = 'button'; el.id = 'keepSign'; el.className = 'rt-btn rt-keepsign';
+    el.addEventListener('click', () => hooks.exportSignIn('keep your work'));
+    save.before(el);
+  }
+  const dot = document.getElementById('saveDot'), changed = dot ? !dot.hidden : tryChanged;
+  el.classList.toggle('changed', changed);
+  el.title = 'You are signed out, so nothing here is kept: closing or reloading the page loses your changes. A free account keeps your work in this browser and saves it as a file.';
+  el.replaceChildren(Object.assign(document.createElement('b'), { textContent: changed ? 'Not saved' : 'Not kept' }), Object.assign(document.createElement('span'), { textContent: ': free account keeps your work' }));
+}
 /* a button for JEKrayPro's work, marked Pro (and saying why in its title) while it is not open */
 const proMark = (btn, what) => needMark(btn, 'pro', what);
 /* a button that exports, marked Free account while signed out */
@@ -4360,7 +4426,7 @@ async function showSubscribe() {
   else licNote.append('Pay now and your account is made from the address you pay with; you are signed in when you come back. Already have an account? ',
     h('button', { type: 'button', class: 'rt-link', onclick: () => { dlg.close(); proSignIn(); } }, 'Sign in'), ' first.');
   box.replaceChildren(licNote, tabs, h('div', { class: 'rt-subcards' },
-    card('pro', 'JEKrayPro', 'For anyone: your benches in the cloud, their history, on every device; the optimiser, tolerancing, reports, scripts and share links.'),
+    card('pro', 'JEKrayPro', 'For anyone: your benches in the cloud, with their history, on every device; forks, folders, your own parts and any number of share links.'),
     card('academic', 'Academic', 'The same, at half the price, for students and staff at a university.', { node: acNode, email: ac ? null : acMail, err: acErr }),
     card('team', 'Team', 'For a lab, group or company: one workspace everyone works in, with roles, invitations by email and an activity record. A seat each for the owner, admins and editors, at least three; viewers are free. Each seat has JEKrayPro on their own benches too.', { seat: true, go: teamGo })));
 }
@@ -5570,8 +5636,10 @@ function filmAutosave() {
   clearTimeout(filmSaveTimer);
   filmSaveTimer = setTimeout(filmKeepNow, 350);
 }
-function filmKeepNow() {
+function filmKeepNow(handed) {
   if (TEST_MODE || EMBED) return;
+  // signed out, nothing is kept (the sign beside Save says so), but for the coating handed over to a sign-in
+  if (handed !== true && !keepHere()) { workChanged(); setStatus('not saved: a free account keeps your work'); return; }
   try { localStorage.setItem(FILM_STORE_KEY, filmText(film)); }
   catch (err) { setStatus('not kept: this browser blocks it'); }
 }
@@ -5663,11 +5731,12 @@ function examplesDialog() {
   dlg.showModal();
 }
 function wireFiles() {
-  document.getElementById('btnExamples').addEventListener('click', examplesDialog);
+  document.getElementById('btnFilmExamples').addEventListener('click', examplesDialog);
   const fi = document.getElementById('fileFilm');
   document.getElementById('btnOpen').addEventListener('click', () => fi.click());
   fi.addEventListener('change', () => { if (fi.files[0]) openFilmFile(fi.files[0]); fi.value = ''; });
   document.getElementById('btnSaveFile').addEventListener('click', saveFilmFile);
+  document.getElementById('btnSave').addEventListener('click', saveFilmFile);
   document.getElementById('btnNew').addEventListener('click', newFilmHere);
   document.getElementById('btnExportCsv').addEventListener('click', exportCurves);
   // a file dropped on the page
@@ -5695,8 +5764,8 @@ function filmSignIn(kind, what) {
   let dlg = document.getElementById('filmSignIn');
   if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'filmSignIn', 'aria-labelledby': 'filmSignInTitle' }); document.body.append(dlg); }
   const close = () => dlg.close(), pro = kind === 'pro' && account;
-  dlg.replaceChildren(h('h2', { id: 'filmSignInTitle' }, kind === 'export' ? 'Exporting needs a free account' : pro ? 'JEKrayPro is needed' : 'Sign in first'),
-    h('p', null, kind === 'export' ? 'Sign in to ' + what + '.' : pro ? 'To ' + what + ', JEKrayPro is needed, or a place in a team with a plan.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan.'),
+  dlg.replaceChildren(h('h2', { id: 'filmSignInTitle' }, kind === 'export' ? (/^keep/.test(what) ? 'Keeping your work needs a free account' : /^(export|save a picture|save plots|save a plot|make a part pack)/.test(what) ? 'Exporting needs a free account' : 'A free account is needed') : pro ? 'JEKrayPro is needed' : 'Sign in first'),
+    h('p', null, kind === 'export' ? 'Sign in to ' + what + '.' + (/^keep/.test(what) ? ' Signed out, nothing is kept when you leave this page; the coating comes with you when you sign in.' : '') : pro ? 'To ' + what + ', JEKrayPro is needed, or a place in a team with a plan.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan.'),
     h('p', null, h('b', null, 'One account for every JEK app.'), ' Your coating stays in this browser while you sign in.'),
     pro ? null : h('div', { class: 'rt-actions rt-signrow' }, ...signInRow(kind, close)),
     h('div', { class: 'rt-actions' }, pro ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { track('prompt', kind + '.pro'); close(); showSubscribe(); } }, 'See the plans') : null,
@@ -5710,7 +5779,8 @@ function wireFilmAccount() {
     proWhy: () => (accountsOn() ? filmProWhy() : ''),
     proFix: what => filmSignIn('pro', what),
     tasterLeft: () => null, tasterUse: () => false,
-    keepWork: filmKeepNow,
+    keepWork: () => filmKeepNow(true),
+    keepNow: () => filmKeepNow(),
     accountMenu: rows => { const menu = document.getElementById('acctMenu'); if (!menu) return; menu.replaceChildren(...rows); filmIcons(menu); },
     accountMenuExtra: signedIn => (signedIn ? [] : [h('button', { type: 'button', role: 'menuitem', 'data-icon': 'star', onclick: () => showSubscribe() }, 'JEKrayPro: plans and prices…')]),
     accountMenuDone: closeBarMenu,
@@ -5742,7 +5812,7 @@ function forShown() {
   const bar = document.getElementById('filmFor');
   if (!bar) return;
   bar.hidden = !filmFor;
-  if (filmFor) bar.replaceChildren(h('b', null, 'For JEKray: ' + filmFor.label + '. '), 'Save to the cloud (File › Save to the cloud…) and it goes onto that face, linked to this coating.',
+  if (filmFor) bar.replaceChildren(h('b', null, 'For JEKray: ' + filmFor.label + '. '), 'Save it to the cloud (File › Save to cloud…) and it goes onto that face, linked to this coating.',
     h('button', { class: 'rt-link', type: 'button', onclick: () => setFilmFor(null) }, 'Not for that face'));
 }
 let filmCloudTimer = null, filmCloudBusy = false;
@@ -5833,7 +5903,7 @@ function cloudShown() {
   const where = document.getElementById('filmWhere');
   if (where) where.textContent = filmLink ? 'In the cloud' + (filmLease.editing && !filmLease.held ? ', ' + filmLease.editing.name + ' is editing' : filmLink.dirty ? ', not saved yet' : '') : 'In this browser';
   const b = document.getElementById('btnCloudSave');
-  if (b) b.querySelector('.lbl').textContent = filmLink ? 'Save to the cloud' : 'Save to the cloud…';
+  if (b) b.querySelector('.lbl').textContent = filmLink ? 'Save to cloud' : 'Save to cloud…';
 }
 /* ---------- saving ---------- */
 function filmCloudChanged() {
@@ -5913,7 +5983,7 @@ async function saveToCloud() {
   where.addEventListener('change', fillFolders); fillFolders();
   const go = h('button', { class: 'rt-btn primary', type: 'button', id: 'filmCloudMake' }, 'Save');
   dlg = h('dialog', { class: 'rt-dialog', id: 'filmCloudNew', 'aria-labelledby': 'filmCloudNewTitle' },
-    h('h2', { id: 'filmCloudNewTitle' }, 'Save to the cloud'),
+    h('h2', { id: 'filmCloudNewTitle' }, 'Save to cloud'),
     h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudName' }, 'Name'), name), h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudWhere' }, 'In'), where),
       h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudFolder' }, 'Folder'), folder)),
     h('p', { class: 'rt-subsmall' }, filmFor ? 'The bench’s own folder is chosen, so its faces’ Coating lists offer it. It saves as you work, with its history on JEKsuite.' : 'Keep it in the folder of the benches it is for. It saves as you work, with its history on JEKsuite.'),
@@ -6037,10 +6107,10 @@ async function filmShareHash(f) {
   if (typeof CompressionStream !== 'undefined') { try { return 'f' + fb64u(await fstream(json, new CompressionStream('deflate-raw'))); } catch (err) { /* plain below */ } }
   return 'g' + fb64u(json);
 }
-const OTHER_LINKS = { z: 'jekray', j: 'jekray', q: 'jekray', i: 'jekion', k: 'jekion' };
+const OTHER_LINKS = { z: 'jekray', j: 'jekray', q: 'jekray', i: 'jekion', k: 'jekion', c: 'jekcad', d: 'jekcad' };
 async function readFilmHash(hash) {
   const kind = hash[0], body = hash.slice(1);
-  if (OTHER_LINKS[kind]) throw new Error('that is a ' + (OTHER_LINKS[kind] === 'jekion' ? 'JEKion' : 'JEKray') + ' bench: open the link in ' + (OTHER_LINKS[kind] === 'jekion' ? 'JEKion' : 'JEKray'));
+  if (OTHER_LINKS[kind]) { const nm = { jekion: 'JEKion', jekray: 'JEKray', jekcad: 'JEKcad' }[OTHER_LINKS[kind]]; throw new Error('that is a ' + nm + (nm === 'JEKcad' ? ' Part Studio' : ' bench') + ': open the link in ' + nm); }
   if (kind !== 'f' && kind !== 'g') throw new Error('the link is not one of JEKfilm’s');
   let bytes;
   try { bytes = funb64u(body); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
@@ -6062,10 +6132,10 @@ async function filmShortLink() {
   FILM_MADE.set(text, r.id);
   return r.id;
 }
-/* File › Copy a share link: a short link with an account (JEKrayPro's), the coating in the link itself without accounts */
+/* File › Copy a share link: a short link with an account (a free one keeps a few, JEKrayPro any number), the coating in the link itself without accounts */
 async function shareFilm() {
   const short = accountsOn();
-  if (short && !account) { filmSignIn('pro', 'share a link'); return null; }
+  if (short && !account) { filmSignIn('export', 'share a link'); return null; }
   if (short && !designPro('share a link')) return null;
   const url = short ? filmShortUrl(await filmShortLink()) : location.origin + location.pathname + '#p=' + await filmShareHash();
   let dlg = document.getElementById('filmShare');
@@ -6100,8 +6170,12 @@ async function openFilmShort(id) {
   return openFilmHash(r.data);
 }
 function wireShare() {
-  document.getElementById('btnShare').addEventListener('click', () => { shareFilm().catch(err => toast('Could not make a link: ' + err.message, true)); });
-  if (TEST_MODE) document.getElementById('btnShare').dataset.test = '1';
+  // the bar's Share (top right, as in the other apps; hidden on a narrow screen) and File › Copy a share link…
+  for (const id of ['btnShare', 'btnShareMenu']) {
+    const b = document.getElementById(id);
+    b.addEventListener('click', () => { shareFilm().catch(err => toast('Could not make a link: ' + err.message, true)); });
+    if (TEST_MODE) b.dataset.test = '1';
+  }
 }
 /* ==========================================================================
    File › Export data…: the coating's numbers (the reflectance across the band, against the angle, and the layers) as

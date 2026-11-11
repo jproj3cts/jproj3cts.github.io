@@ -1,8 +1,10 @@
 import { app, emit, redo, toast, undo } from './app.js';
 import { V, fit, normalTo, orbit, pan, pickAt, pickBox, viewFrom, zoomAt } from './view3d.js';
+import { AS, asmDragEnd, asmDragMove, asmDragStart, deleteInstance, matePick, triadAt } from './assembly.js';
 import { modelDimAt, modelDimEdit, modelDimHover, overlayPick, setBoxSel, sketchDbl, sketchDown, sketchKey, sketchMove, sketchRight, sketchUp } from './sketcher.js';
 import { closeDialog, editFeature, fieldPick, fieldWants, okDialog, openFeature } from './dialog.js';
 import { kernelAsk } from '../page/kernel.js';
+import { deletePart } from './panel.js';
 
 /* ==========================================================================
    The pointer and the keys on the view. Right-drag orbits (in a sketch too: N looks straight at it again), middle-drag (or Shift with the right button) pans, the
@@ -16,6 +18,8 @@ const MODEL_KINDS = { edges: 'any', faces: 'face', face: 'face', edge: 'edge', p
 /* what is under the pointer, for what is wanted now */
 export function pickHere(sx, sy) {
   const want = fieldWants();
+  // (an extrude takes a sketch's region or, where there is none under the pointer, a face of the model)
+  if (want === 'regions' && app.editing && app.editing.f.type === 'extrude') return overlayPick(sx, sy, 'regions') || pickAt(sx, sy, 'face');
   if (want === 'regions' || want === 'sections') return overlayPick(sx, sy, 'regions');
   if (want === 'sketchLine') return overlayPick(sx, sy, 'sketchLine');
   if (want === 'sketch') return overlayPick(sx, sy, 'sketch') || overlayPick(sx, sy, 'regions');
@@ -52,6 +56,8 @@ export function wirePointer() {
     over.setPointerCapture(e.pointerId);
     if (e.button === 2 || e.button === 1) { drag = { mode: e.button === 1 || e.shiftKey ? 'pan' : 'orbit', x: sx, y: sy, moved: false, travel: 0, button: e.button }; return; }
     if (app.sketch && sketchDown(e, sx, sy)) { drag = { mode: 'sketch' }; return; }
+    // in an assembly a part is dragged about by its own faces (Ctrl: turned about the line of sight)
+    if (app.asm && !AS.mate && !e.shiftKey) { const p0 = pickAt(sx, sy, 'face'); if ((p0 || triadAt(sx, sy)) && asmDragStart(p0, sx, sy, e.ctrlKey || e.metaKey)) { drag = { mode: 'asm', x: sx, y: sy, add: false }; return; } }
     drag = { mode: 'pick', x: sx, y: sy, moved: false, add: e.ctrlKey || e.shiftKey || e.metaKey };
   });
   over.addEventListener('pointermove', e => {
@@ -64,6 +70,7 @@ export function wirePointer() {
       return;
     }
     if (drag && drag.mode === 'sketch') { sketchMove(e, sx, sy); return; }
+    if (drag && drag.mode === 'asm') { asmDragMove(sx, sy); return; }
     if (drag && drag.mode === 'pick') {
       if (!drag.moved && Math.hypot(sx - drag.x, sy - drag.y) > 4 && !fieldWants()) drag.moved = true;
       if (drag.moved) setBoxSel({ x0: drag.x, y0: drag.y, x1: sx, y1: sy });
@@ -78,7 +85,7 @@ export function wirePointer() {
     if (!d) return;
     if (d.mode === 'sketch') { sketchUp(e, sx, sy); return; }
     // the right button let go where it went down: in a sketch, what is being drawn ends
-    if (d.mode !== 'pick') { if (d.button === 2 && d.travel < 4 && app.sketch) sketchRight(); return; }
+    if (d.mode !== 'pick' && d.mode !== 'asm') { if (d.button === 2 && d.travel < 4 && app.sketch) sketchRight(); return; }
     if (d.moved) {
       setBoxSel(null);
       const got = pickBox(d.x, d.y, sx, sy, app.filter === 'any' ? 'edge' : app.filter);
@@ -86,11 +93,16 @@ export function wirePointer() {
       for (const p of got) if (!app.sel.some(s => sameSel(s, p))) app.sel.push(p);
       emit('sel'); return;
     }
+    // an assembly: a drag that moved a part is done; a click picks (a face into a mate being made)
+    if (d.mode === 'asm') { if (asmDragEnd()) return; }
     let p = pickHere(sx, sy);
+    if (app.asm && AS.mate) { matePick(p); return; }
     if (fieldWants()) { if (p) await fieldPick(p); return; }
     // a plane lies behind most of the view: with other things chosen, a click that lands only on a plane is a click on
     // nothing, and empties the selection (a plane joins a selection from its row in the list)
     if (p && p.kind === 'plane' && app.sel.some(x => x.kind !== 'plane')) p = null;
+    // (a click on nothing also lets go of the feature picked in the list, unless it is on one of its dimensions)
+    if (!p && !d.add && app.picked && !modelDimAt(sx, sy)) { app.picked = null; emit('picked'); }
     selectPick(p, d.add);
   });
   over.addEventListener('pointerleave', () => { if (app.hover) { app.hover = null; emit('hover'); emit('sel'); } });
@@ -99,8 +111,12 @@ export function wirePointer() {
     const [sx, sy] = xy(e);
     if (app.sketch) { sketchDbl(sx, sy); return; }
     if (app.editing) return;
+    if (app.asm) { fit(); return; }
     const md = modelDimAt(sx, sy);
     if (md) { app.sel = []; emit('sel'); modelDimEdit(md); return; }
+    // a sketch (a shape of it, or one of its regions): opened to edit
+    const se = overlayPick(sx, sy, 'sketch') || (!pickAt(sx, sy, 'face') ? overlayPick(sx, sy, 'regions') : null);
+    if (se && se.sketch) { const i = app.doc.features.findIndex(f => f.id === se.sketch); if (i >= 0) { app.sel = []; emit('sel'); editFeature(i); return; } }
     // a plane (by its border, or anywhere in it once it is the one selected): a sketch started on it
     const sel0 = app.sel.length === 1 && app.sel[0].kind === 'plane' ? app.sel[0] : null, pl = overlayPick(sx, sy, 'any'), inPl = sel0 && overlayPick(sx, sy, 'plane');
     const plane = pl && pl.kind === 'plane' ? pl : inPl && inPl.kind === 'plane' && (inPl.std ? inPl.std === sel0.std : inPl.feature === sel0.feature) && !pickAt(sx, sy, 'face') ? inPl : null;
@@ -125,6 +141,9 @@ export function wirePointer() {
     if (ctrl) return;
     if (k === 'escape') { if (app.editing) closeDialog(); else if (app.sel.length || app.picked) { app.sel = []; app.picked = null; emit('sel'); emit('picked'); } return; }
     if (k === 'enter' && app.editing && !app.editing.sketchPlane) { okDialog(); return; }
+    // Delete, with whole parts selected (the Parts filter, or their rows): they are deleted
+    if ((k === 'delete' || k === 'backspace') && app.asm) { for (const id of new Set(app.sel.map(s => s.part).filter(Boolean))) deleteInstance(id); return; }
+    if ((k === 'delete' || k === 'backspace') && !app.editing && app.sel.length && app.sel.every(s => s.kind === 'part')) { for (const s of app.sel.slice()) deletePart(s.part); return; }
     if (k === 'f') { fit(); return; }
     if (k === 'n') { normalToSel(); return; }
     const views = { 1: 'front', 2: 'back', 3: 'left', 4: 'right', 5: 'top', 6: 'bottom', 7: 'iso' };

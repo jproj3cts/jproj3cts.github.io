@@ -1,6 +1,6 @@
 import { EMBED, TEST_MODE } from '../../../jekray/src/core/constants.js';
 import { hooks } from '../../../jekray/src/core/hooks.js';
-import { accountGate, designPro } from '../../../jekray/src/ui/pro.js';
+import { accountGate, designPro, keepHere, workChanged } from '../../../jekray/src/ui/pro.js';
 import { goal, track } from '../../../jekray/src/io/usage.js';
 import { FILM_FORMAT, FILM_STORE_KEY, filmText, newFilm, normFilm } from '../core/film.js';
 import { film, filmCurves, setFilm } from '../ui/designer.js';
@@ -18,8 +18,10 @@ export function filmAutosave() {
   clearTimeout(filmSaveTimer);
   filmSaveTimer = setTimeout(filmKeepNow, 350);
 }
-export function filmKeepNow() {
+export function filmKeepNow(handed) {
   if (TEST_MODE || EMBED) return;
+  // signed out, nothing is kept (the sign beside Save says so), but for the coating handed over to a sign-in
+  if (handed !== true && !keepHere()) { workChanged(); setStatus('not saved: a free account keeps your work'); return; }
   try { localStorage.setItem(FILM_STORE_KEY, filmText(film)); }
   catch (err) { setStatus('not kept: this browser blocks it'); }
 }
@@ -111,11 +113,12 @@ function examplesDialog() {
   dlg.showModal();
 }
 export function wireFiles() {
-  document.getElementById('btnExamples').addEventListener('click', examplesDialog);
+  document.getElementById('btnFilmExamples').addEventListener('click', examplesDialog);
   const fi = document.getElementById('fileFilm');
   document.getElementById('btnOpen').addEventListener('click', () => fi.click());
   fi.addEventListener('change', () => { if (fi.files[0]) openFilmFile(fi.files[0]); fi.value = ''; });
   document.getElementById('btnSaveFile').addEventListener('click', saveFilmFile);
+  document.getElementById('btnSave').addEventListener('click', saveFilmFile);
   document.getElementById('btnNew').addEventListener('click', newFilmHere);
   document.getElementById('btnExportCsv').addEventListener('click', exportCurves);
   // a file dropped on the page

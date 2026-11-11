@@ -3,6 +3,7 @@ import { project } from '../state/project.js';
 import { serialize } from '../state/elements.js';
 import { setStatus } from '../ui/actions.js';
 import { cloudChanged, cloudNote, cloudOn } from './cloud.js';
+import { keepHere, workChanged } from '../ui/pro.js';
 
 /* ==========================================================================
    Autosave in this browser, and the earlier versions kept alongside it.
@@ -14,7 +15,7 @@ export function readSnaps() {
   try { const v = JSON.parse(localStorage.getItem(SNAP_KEY)); return Array.isArray(v) ? v : []; } catch (err) { return []; }
 }
 export function keepSnapshot(why, now) {
-  if (TEST_MODE || EMBED || !project || !project.elements.length) return;
+  if (TEST_MODE || EMBED || !project || !project.elements.length || !keepHere()) return;
   const list = readSnaps(), json = JSON.stringify(serialize());
   if (list.length && list[0].json === json) return;
   if (!now && list.length && Date.now() - list[0].t < SNAP_EVERY) return;
@@ -31,6 +32,8 @@ export function scheduleSave() {
   if (cloud) cloudChanged();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
+    // signed out, nothing is kept (ui/pro.js keepHere): the sign beside Save says so
+    if (!keepHere()) { workChanged(); setStatus('Not saved: a free account keeps your work'); return; }
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(serialize()));
       setStatus(cloud ? (cloud.dirty && cloudOn() ? 'Saving to the cloud shortly' : cloudNote || 'Linked to the cloud') : 'Autosaved in this browser');

@@ -22,4 +22,4 @@ Every file carries the bench's name, JEKion's version, the date, the units and t
 
 ## Who may
 
-One kind as CSV or JSON needs a free account; Excel, NumPy and MATLAB, several kinds at once, or **Export everything**, are JEKrayPro's. A script's `J.save` writes the same files ([scripting](/jek/docs/jekion/scripting/)).
+Every format, several kinds at once and **Export everything** need a free account. A script's `J.save` writes the same files ([scripting](/jek/docs/jekion/scripting/)).

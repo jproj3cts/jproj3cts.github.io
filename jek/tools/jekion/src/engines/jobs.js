@@ -60,7 +60,7 @@ export async function runJob(St, kind, data, args, ctx) {
   const info = St.solveInfo;
   if (kind === 'solve') return { out: { nodes: info.nodes, cycles: info.cycles, painted: info.painted, g: Object.assign({}, St.A.g) }, transfer: [] };
   if (kind === 'slice') { const S = sliceOf(St, P, args || {}); return { out: S, transfer: [S.pot.buffer, S.mask.buffer].concat(S.emag ? [S.emag.buffer] : []) }; }
-  if (kind === 'trap') { const p = args && args.point ? args.point : [0, 0, 0]; return { out: trapAnalysis(St.F, P, p, args && args.species ? args.species : P.species), transfer: [] }; }
+  if (kind === 'trap') { const p = args && args.point ? args.point : [0, 0, 0]; return { out: trapAnalysis(St.F, P, p, args && args.species ? args.species : P.species, { axes: args && args.axes }), transfer: [] }; }
   if (kind === 'line') return { out: potentialAlong(St.F.G, St.F.g, args.a, args.b, args.n || 200, args.t || 0), transfer: [] };
   if (kind === 'probes') { const t = args.t || 0, ts = args.ts || null, v = []; args.pts.forEach((p, i) => v.push(potentialAt(St.F.G, St.F.g, p[0], p[1], p[2], ts ? ts[i] : t))); return { out: { v }, transfer: [] }; }
   if (kind === 'probe') { const E = [0, 0, 0], ok = eFieldAt(St.F.G, St.F.g, args.p[0], args.p[1], args.p[2], args.t || 0, E); return { out: { V: potentialAt(St.F.G, St.F.g, args.p[0], args.p[1], args.p[2], args.t || 0), E: ok ? E : null, el: St.F.mask[gNode(St.F.g, args.p[0], args.p[1], args.p[2])] }, transfer: [] }; }

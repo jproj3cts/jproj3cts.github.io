@@ -15,11 +15,11 @@ Choose **File › Export data…**. The window lists each kind of data with how 
 |---|---|---|
 | CSV | a `.zip` of CSV files, one for each table, with `README.txt` and `meta.json` | a free account |
 | JSON | one `.json` file | a free account |
-| Excel | one `.xlsx` workbook, a sheet for each table | JEKrayPro |
-| NumPy | one `.npz` file | JEKrayPro |
-| MATLAB | one `.mat` file (Level 5) | JEKrayPro |
+| Excel | one `.xlsx` workbook, a sheet for each table | a free account |
+| NumPy | one `.npz` file | a free account |
+| MATLAB | one `.mat` file (Level 5) | a free account |
 
-With a free account you export one kind at a time, as CSV or JSON. Several kinds at once, **Export everything**, and the Excel, NumPy and MATLAB files are part of JEKrayPro; they carry a **Pro** badge until you have it. Signed out, **Export** asks you to sign in first. Saving the bench as a `.jekray` file needs no account at all.
+A free account exports any kinds, several at once or everything, in any of the formats. Signed out, **Export** asks you to sign in first.
 
 The numbers are the ones the panels show, worked out for the bench as it is when you export: a screen's diffracted field is worked out to the end first if it has not been yet, so a big field can take a few seconds.
 

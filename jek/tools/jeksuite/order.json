@@ -7,6 +7,7 @@
   "../../jekray/src/ui/dom.js",
   "ui/dom.js",
   "../../jekray/src/io/account.js",
+  "core/files.js",
   "ui/home.js",
   "ui/boot.js"
 ]

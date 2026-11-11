@@ -156,7 +156,7 @@ function benchPanel() {
   const F = project.fly;
   box.append(section('Flying', 'bench.fly', [rows(param('Time limit (µs)', F, 'tMax', { min: 1e-6 }), param('Step (grid cells)', F, 'quality', { min: 0.05, max: 2 }), param('Points kept a path', F, 'maxPts', { min: 200, max: 20000, fmt: v => String(Math.round(v)) }), param('Random seed', F, 'seed', { min: 1, fmt: v => String(Math.round(v)) }),
     checkField('Space charge (Coulomb repulsion)', () => F.spaceCharge, v => { F.spaceCharge = v; }, { wide: true }), checkField('Fly after every change', () => F.auto, v => { F.auto = v; }, { wide: true, rebuild: false })),
-    h('div', { class: 'rt-actions', style: 'margin-top:0.5rem' }, h('button', { type: 'button', class: 'rt-btn primary', onclick: () => flyNow() }, 'Fly the ions')),
+    h('div', { class: 'rt-actions', style: 'margin-top:0.5rem' }, h('button', { type: 'button', class: 'rt-btn primary', onclick: () => flyNow(true) }, 'Fly the ions')),
     helpLine('An adaptive Runge–Kutta step, never longer than the chosen fraction of a grid cell, nor a fortieth of an RF period.', 'The step is Dormand–Prince 5(4); its error estimate shortens the step where the field changes quickly. With space charge on, every particle flies on one clock and feels the Coulomb field of the others, each standing for its group’s weight in real charges; softened within half a cell.')]));
   // the species and analysis point
   const sp = project.species;
@@ -258,7 +258,11 @@ export function trapBlock() {
     tbl.append(h('tr', null, h('th', null, 'Axis'), h('th', null, '∂²φ/∂x² (V/mm²)'), h('th', null, 'Harmonic'), h('th', null, '')));
     for (const a of T.axes) tbl.append(h('tr', null, h('td', null, a.axis), h('td', { class: 'n' }, nf(a.dc, 4)), h('td', { class: 'n' }, a.harmMHz === null ? 'anti-trapping' : fmtMHz(a.harmMHz)), h('td', null, stab(a.stable))));
   }
-  const out = h('div', { class: 'ion-res' }, h('p', { class: 'note' }, 'At ' + T.point.map(v => nf(v, 4)).join(', ') + ' mm for ' + (project.species.name || 'm = ' + nf(T.species.mass) + ' u') + ': |E| = ' + nf(T.Emag, 3) + ' V/mm' + (T.rf.length ? ', RF at ' + T.rf.map(fmtMHz).join(', ') : '') + '.'), tbl);
+  const axesSel = h('select', { 'aria-label': 'The axes the analysis is along' }, h('option', { value: 'principal' }, 'the trap\u2019s principal axes'), h('option', { value: 'xyz' }, 'x, y and z'));
+  axesSel.value = project.trapAxes || 'principal';
+  axesSel.addEventListener('change', async () => { checkpoint(); project.trapAxes = axesSel.value; hooks.ionChanged(false); await trapNow(); const b = document.getElementById('trapBody'), dlg = document.getElementById('trapDialog'); if (dlg && dlg.open && b) b.replaceChildren(trapBlock()); });
+  const axesRow = h('div', { class: 'ion-plotrow', style: 'margin:0 0 0.4rem' }, h('span', { class: 'ion-plotlbl' }, 'Along'), axesSel);
+  const out = h('div', { class: 'ion-res' }, axesRow, h('p', { class: 'note' }, 'At ' + T.point.map(v => nf(v, 4)).join(', ') + ' mm for ' + (project.species.name || 'm = ' + nf(T.species.mass) + ' u') + ': |E| = ' + nf(T.Emag, 3) + ' V/mm' + (T.rf.length ? ', RF at ' + T.rf.map(fmtMHz).join(', ') : '') + '.'), tbl);
   if (T.penning) out.append(readout([['Cyclotron', fmtMHz(T.penning.cyclMHz)], ['Axial', T.penning.axialMHz === null ? 'not confining' : fmtMHz(T.penning.axialMHz)], ['Modified cyclotron', T.penning.plusMHz === null ? '—' : fmtMHz(T.penning.plusMHz)], ['Magnetron', T.penning.minusMHz === null ? '—' : fmtMHz(T.penning.minusMHz)], ['Penning trap', T.penning.stable ? 'stable (ωc² > 2ωz²)' : 'unstable']]));
   out.append(helpLine(T.rf.length ? 'Mathieu parameters from the field’s curvature: a from the static potential, q from the RF amplitude.' : 'The static potential’s curvature along each axis; a magnetic field adds the Penning frequencies.',
     'a_i = 4(q/m)∂²φ_dc/∂x_i² / Ω² and q_i = −2(q/m)∂²φ_rf/∂x_i² / Ω², the second derivatives by a five-point difference at the node nearest the point. β ≈ √(a + q²/2) and the secular frequency βΩ/2, good while a and q are small; stable in the first region while 0 < β < 1 and |q| < 0.908. In an ideal Paul trap the two transverse q are equal and the axial one twice as large with the opposite sign.'));

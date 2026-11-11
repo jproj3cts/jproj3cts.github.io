@@ -1,17 +1,19 @@
 import { EMBED, TEST_MODE } from '../../../jekray/src/core/constants.js';
-import { installHooks } from '../../../jekray/src/core/hooks.js';
+import { hooks, installHooks } from '../../../jekray/src/core/hooks.js';
 import { needsShown } from '../../../jekray/src/ui/pro.js';
 import { usageDrawn, usageStart, wireUsage } from '../../../jekray/src/io/usage.js';
 import { accountLoaded } from '../../../jekray/src/io/account.js';
+import { AS, addInstance, addTab, checkClash, deleteTab, mateApply, mateEdit, mateOpen, matePick, poseInstance, renameTab, switchTab, triadPoints, wireAssembly } from './assembly.js';
 import { STD_PLANES, normDoc } from '../core/doc.js';
-import { app, cadIcons, cadTheme, changed, checkpoint, closeMenus, emit, on, redo, regenDone, regenNow, setCadTheme, themeNow, toast, undo, wireMenus } from './app.js';
-import { V, fit, flyStart, flyStop, flyTurn, initView, pickAt, project, setMode, setSection, viewFrom, viewPng, wireCube, wireFly } from './view3d.js';
+import { app, cadIcons, cadTheme, changed, checkpoint, closeMenus, emit, fileText, on, redo, regenDone, regenNow, setCadTheme, setFile, themeNow, toast, undo, wireMenus } from './app.js';
+import { V, cubePart, fit, flyStart, flyStop, flyTurn, turnStep, initView, pickAt, project, setMode, setSection, viewFrom, viewPng, wireCube, wireFly } from './view3d.js';
 import { SK, addConstraint, cancelSketch, dimsShown, drawOverlay, finishSketch, modelDimEdit, modelGeom, overlayPick, setDimsShown, setTool, sketchBar, sketchRight, sketchUndo, startSketch, toScreen, wireSketcher } from './sketcher.js';
 import { closeDialog, editFeature, fieldPick, okDialog, openFeature, showVariables, wireDialog } from './dialog.js';
-import { deleteFeature, moveFeature, renderPanel, setRollback, toggleFeatureShown, wirePanel } from './panel.js';
+import { deleteFeature, deletePart, moveFeature, renderPanel, setRollback, toggleFeatureShown, wirePanel } from './panel.js';
 import { normalToSel, pickHere, selectPick, wirePointer } from './pointer.js';
 import { exportParts, importStep, newDocument, openDocData, openFile, restoreSaved, saveFile, wireFiles } from '../io/files.js';
 import { wireCadAccount } from '../io/cad-account.js';
+import { cadOpenShare, cadOpenShort, cadReadShare, cadShare, cadShareHash, wireShare } from '../io/share.js';
 import { cloudPush, openCloudBench, openCloudList, wireCloud } from '../io/cloud.js';
 import { kernelAsk } from '../page/kernel.js';
 import { APP_VERSION, wireNews } from './news.js';
@@ -25,9 +27,10 @@ if (!TEST_MODE && !EMBED && !window.name) window.name = 'jekcad';
 themeNow();
 if (typeof matchMedia === 'function') matchMedia('(prefers-color-scheme: dark)').addEventListener('change', themeNow);
 const saved = restoreSaved();
-if (saved) app.doc = saved;
+setFile(saved || {});
 on('icons', el => cadIcons(el));
-wireMenus(); wireSketcher(); wireDialog(); wirePanel(); wirePointer(); wireFiles(); wireCube(); wireFly(); wireNews(); wireCadAccount(); wireCloud(); wireUsage();
+hooks.cadCloseDialog = () => closeDialog();
+wireMenus(); wireSketcher(); wireDialog(); wirePanel(); wireAssembly(); wirePointer(); wireFiles(); wireCube(); wireFly(); wireNews(); wireCadAccount(); wireShare(); wireCloud(); wireUsage();
 /* the bar's buttons and menus */
 const click = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
 for (const b of document.querySelectorAll('[data-feature]')) b.addEventListener('click', () => { closeMenus(); openFeature(b.dataset.feature); });
@@ -68,7 +71,7 @@ on('history', () => { document.getElementById('btnUndo').disabled = !app.history
 on('sketchUndo', () => { sketchUndo(); });
 on('busy', () => { const b = document.getElementById('busy'); if (b) b.hidden = !app.busy; });
 on('saved', () => { const d = document.getElementById('saveDot'); if (d) d.hidden = !app.unsaved; });
-on('doc', () => { const d = document.getElementById('saveDot'); if (d) d.hidden = !app.unsaved; const nm = document.getElementById('docName'); if (nm && document.activeElement !== nm) nm.value = app.doc.name; });
+on('doc', () => { const d = document.getElementById('saveDot'); if (d) d.hidden = !app.unsaved; const nm = document.getElementById('docName'); if (nm && document.activeElement !== nm) nm.value = app.file.name; });
 /* the section view: a plane and where along it */
 function sectionToggle() {
   const ctl = document.getElementById('sectionCtl'), on2 = ctl.hidden;
@@ -90,7 +93,9 @@ on('model', out => { // the section's slider spans the parts
 });
 // the hint line: what the mouse does
 const hint = document.getElementById('hint');
-on('sketch', () => { hint.textContent = app.sketch ? 'Click to draw, and type a size as you go (Enter) · Shift: nothing inferred · Right-click or Esc ends a chain · D: dimension · Double-click a dimension to change it' : 'Right-drag: orbit · Middle-drag: pan · Wheel: zoom · Click: select · Double-click a dimension or a face to change it · F: fit'; sketchBar(); renderPanel(); });
+const ASM_HINT = 'Drag a part to move it · Ctrl-drag: turn it · Right-drag: orbit · Middle-drag: pan · Wheel: zoom · Insert puts parts in; a mate joins two faces';
+on('tab', () => { if (!app.sketch) hint.textContent = app.asm ? ASM_HINT : 'Right-drag: orbit · Middle-drag: pan · Wheel: zoom · Click: select · Double-click a dimension or a face to change it · F: fit'; });
+on('sketch', () => { hint.textContent = app.sketch ? 'Click to draw, and type a size as you go (Enter) · Shift: nothing inferred · Right-click or Esc ends a chain · D: dimension · Double-click a dimension to change it' : (app.asm ? ASM_HINT : 'Right-drag: orbit · Middle-drag: pan · Wheel: zoom · Click: select · Double-click a dimension or a face to change it · F: fit'); sketchBar(); renderPanel(); });
 emit('sketch');
 bootModes(); themeMenu();
 cadIcons(document);
@@ -104,14 +109,22 @@ const cloudHash = async cl => { window.history.replaceState(null, '', location.p
 if (cloudAt) cloudHash(cloudAt);
 if (!TEST_MODE && !EMBED && location.hash === '#benches') { window.history.replaceState(null, '', location.pathname); openCloudList(); }
 if (!TEST_MODE && !EMBED && location.hash === '#new') { window.history.replaceState(null, '', location.pathname); openDocData(normDoc({}), null, { fresh: true }); }
-if (!TEST_MODE && !EMBED) window.addEventListener('hashchange', () => { const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/); if (cl) cloudHash(cl); else if (location.hash === '#new') { window.history.replaceState(null, '', location.pathname); openDocData(normDoc({}), null, { fresh: true }); } });
+// #p=<the Part Studio itself>: a shared link
+const sharedAt = location.hash.match(/^#p=([cd][A-Za-z0-9_-]+)$/);
+if (sharedAt) { window.history.replaceState(null, '', location.pathname + location.search); cadOpenShare(sharedAt[1]); }
+// #s=<id>: a short link (/c/<id> on the site)
+const shortAt = location.hash.match(/^#s=([A-Za-z2-7]{10})$/);
+if (shortAt) { window.history.replaceState(null, '', location.pathname + location.search); cadOpenShort(shortAt[1].toUpperCase()); }
+if (!TEST_MODE && !EMBED) window.addEventListener('hashchange', () => { const sh = location.hash.match(/^#p=([cd][A-Za-z0-9_-]+)$/); if (sh) { window.history.replaceState(null, '', location.pathname); cadOpenShare(sh[1]); return; } const ss = location.hash.match(/^#s=([A-Za-z2-7]{10})$/); if (ss) { window.history.replaceState(null, '', location.pathname); cadOpenShort(ss[1].toUpperCase()); return; } const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/); if (cl) cloudHash(cl); else if (location.hash === '#new') { window.history.replaceState(null, '', location.pathname); openDocData(normDoc({}), null, { fresh: true }); } });
 // the tests' and the console's handle on the app
 window.JEKcad = {
   version: APP_VERSION, app, sk: SK, view: V,
-  doc: () => app.doc, load: d => openDocData(d, null, { fresh: true }), text: () => JSON.stringify(app.doc),
+  doc: () => app.doc, load: d => openDocData(d, null, { fresh: true }), text: () => fileText(), file: () => app.file,
   regen: regenNow, regenDone, changed, checkpoint, undo, redo,
   openFeature, editFeature, okDialog, closeDialog, fieldPick, startSketch, finishSketch, cancelSketch, setTool, addConstraint,
   deleteFeature, moveFeature, setRollback, exportParts, importStep, saveFile, kernel: kernelAsk, cloudPush,
   pickAt, pickHere, overlayPick, selectPick, project, toScreen, fit, viewFrom, setMode, png: viewPng, sketchOn: () => !!app.sketch,
-  flyStart, flyStop, flyTurn, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
+  share: cadShare, shareHash: cadShareHash, readShare: cadReadShare, openShare: cadOpenShare,
+  as: AS, addTab, switchTab, renameTab, deleteTab, addInstance, poseInstance, mateOpen, matePick, mateApply, mateEdit, checkClash, triadPoints,
+  flyStart, flyStop, flyTurn, cubePart, turnStep, deletePart, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
 };

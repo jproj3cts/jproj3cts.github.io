@@ -6,6 +6,7 @@ import { project, V } from '../state/project.js';
 import { serialize } from '../state/elements.js';
 import { geometryKey, voltageKey } from '../engines/session.js';
 import { IW, iwRequest } from '../page/workers.js';
+import { accountGate } from '../../../jekray/src/ui/pro.js';
 
 /* ==========================================================================
    The simulation's controller: when the bench changes, the fields are solved (if the geometry changed) and the
@@ -71,10 +72,27 @@ function progress(p) {
   if (p.phase === 'solve') say('Solving the fields: electrode ' + Math.min(p.k + 1, p.n) + ' of ' + p.n + (p.cycle ? ', cycle ' + p.cycle : '') + '…', true);
   else if (p.phase === 'fly') say('Flying: ' + p.done + ' of ' + p.n + ' ions' + (p.t ? ', t = ' + nf(p.t, 3) + ' µs' : '') + '…', true);
 }
-/* solve and fly now */
-export async function flyNow() {
+/* Flying needs a free account. 'no': signed out for sure; 'wait': accounts are on here and the account is still being
+   looked up (a moment after the page opens); '': it may fly (signed in, no accounts here, or the API not answering) */
+function flyBar() {
+  if (TEST_MODE) return '';
+  const a = hooks.account ? hooks.account() : null;
+  if (!a || !a.on || a.signedIn) return '';
+  return a.known ? 'no' : performance.now() < 8000 ? 'wait' : '';
+}
+/* solve and fly now (asked: the person pressed Fly, so signed out they are told what it needs) */
+export async function flyNow(asked) {
   clearTimeout(timer);
   if (!project) return;
+  const held = flyBar();
+  if (held === 'wait') { timer = setTimeout(() => flyNow(asked), 250); return; }
+  if (held) {
+    SIM.result = null; SIM.stale = true;
+    say('Flying the ions needs a free account: sign in, top right. The fields are solved and drawn without one.', false);
+    hooks.requestRender(); hooks.ionResults();
+    if (asked) accountGate('fly the ions');
+    return;
+  }
   const gk = geometryKey(project), vk = voltageKey(project), t0 = performance.now();
   if (!project.ions.some(g => g.on !== false)) { SIM.result = null; SIM.stale = false; say(project.electrodes.length ? 'No ion group to fly: Insert › Ion group' : '', false); hooks.requestRender(); hooks.ionResults(); return; }
   say(gk !== SIM.gkey ? 'Solving the fields…' : 'Flying…', true);
@@ -95,7 +113,7 @@ export async function trapNow() {
   if (!project) return null;
   const G = project.grid, p = project.point || [(G.x0 + G.x1) / 2, G.sym === 'cyl' ? 0 : (G.y0 + G.y1) / 2, G.sym === '3d' ? (G.z0 + G.z1) / 2 : 0];
   try {
-    const T = await iwRequest('trap', projData(), { point: p, species: project.species }, 'trap');
+    const T = await iwRequest('trap', projData(), { point: p, species: project.species, axes: project.trapAxes }, 'trap');
     if (T) { SIM.trap = T; hooks.ionResults(); }
     return T;
   } catch (err) { console.warn('JEKion trap:', err); return null; }
@@ -116,6 +134,7 @@ export function stopFly() {
 export function wireSim() {
   document.getElementById('simStop').addEventListener('click', stopFly);
   document.getElementById('btnStop').addEventListener('click', stopFly);
-  document.getElementById('btnFly').addEventListener('click', () => flyNow());
+  document.getElementById('btnFly').addEventListener('click', () => flyNow(true));
+  hooks.ionFlyAllowed = () => { if (project && SIM.stale !== false && (project.fly.auto || !SIM.result)) flyNow(); };
   if (TEST_MODE) say('', false);
 }

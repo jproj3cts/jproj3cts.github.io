@@ -30,11 +30,18 @@ describe('share links', () => {
     expect((await make(s, { name: 'bad', data: 'x' + z.slice(1) })).status).toBe(400);
     const ion = { format: 'jekion', version: 1, name: 'Trap' };
     expect((await make(s, { name: 'Trap', data: 'i' + (await linkData(ion)).slice(1) })).status).toBe(201);
+    // a JEKcad Part Studio: c deflated, d plain
+    const cad = { format: 'jekcad', version: 1, name: 'Bracket', features: [] };
+    const rc = await make(s, { name: 'Bracket', data: 'c' + (await linkData(cad)).slice(1) });
+    expect(rc.status).toBe(201);
+    expect((await make(s, { name: 'Bracket plain', data: 'd' + b64u(new TextEncoder().encode(JSON.stringify(cad))) })).status).toBe(201);
     const zip = new Uint8Array(await (await call('/v1/me/export', { token: s.token })).arrayBuffer());
     const names = new TextDecoder('latin1').decode(zip);
     expect(names).toMatch(/Share links\/V-coat \([A-Z2-7]{10}\)\.jekfilm/);
     expect(names).toMatch(/Share links\/plain \([A-Z2-7]{10}\)\.jekfilm/);
     expect(names).toMatch(/Share links\/Trap \([A-Z2-7]{10}\)\.jekion/);
+    expect(names).toMatch(/Share links\/Bracket \([A-Z2-7]{10}\)\.jekcad/);
+    expect(names).toMatch(/Share links\/Bracket plain \([A-Z2-7]{10}\)\.jekcad/);
   });
 
   it('a plan makes a short link; anyone opens it without signing in, and it counts its opens', async () => {

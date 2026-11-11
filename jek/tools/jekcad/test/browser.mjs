@@ -3,6 +3,8 @@
    sketch edited and the model following; the rollback bar; saving and opening the .jekcad; STEP and STL out; the
    view cube, the display modes and the section view. check(pw, base, shots) returns [{ name, ok, why }]. */
 import { readFileSync } from 'node:fs';
+import { newDoc, newFeature } from '../src/core/doc.js';
+import { rectSketch } from './node/helpers.mjs';
 
 const near = (a, b, t) => Math.abs(a - b) <= t;
 export async function check(pw, base, shots) {
@@ -149,10 +151,33 @@ export async function check(pw, base, shots) {
     const meas = await p.textContent('#measure');
     ok('Click the top face: it is selected and measured', /Face \(plane\)/.test(meas) && /1499\.14\d* mm²/.test(meas.replace(/,/g, '')), meas);
     // the view cube's Front face, the display modes, the section view
-    { const cb = await p.locator('#viewCube canvas').boundingBox(); await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300); await p.mouse.click(cb.x + 30, cb.y + 50); }
+    const cubeClick = async (k, su, sv) => { const cb = await p.locator('#viewCube canvas').boundingBox(); const at = await p.evaluate(([k2, su2, sv2]) => { let sx = 0, sy = 0, n = 0; for (let x = 1; x < 76; x += 1) for (let y = 1; y < 76; y += 1) { const h = window.JEKcad.cubePart(x, y); if (h && h.k === k2 && h.su === su2 && h.sv === sv2) { sx += x; sy += y; n++; } } return n ? [sx / n, sy / n, n] : null; }, [k, su, sv]); if (at) { await p.mouse.move(cb.x + at[0] * cb.width / 76, cb.y + at[1] * cb.height / 76); await p.mouse.click(cb.x + at[0] * cb.width / 76, cb.y + at[1] * cb.height / 76); } await p.waitForTimeout(400); return at; };
+    const zOut = () => p.evaluate(() => { const v = window.JEKcad.view, z = [2 * (v.q[0] * v.q[2] + v.q[3] * v.q[1]), 2 * (v.q[1] * v.q[2] - v.q[3] * v.q[0]), 1 - 2 * (v.q[0] ** 2 + v.q[1] ** 2)]; return z.map(x => +x.toFixed(3)); });
+    await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300);
+    await cubeClick('front', 0, 0);
     await p.waitForTimeout(400);
     const front = await p.evaluate(() => { const v = window.JEKcad.view, z = [2 * (v.q[0] * v.q[2] + v.q[3] * v.q[1]), 2 * (v.q[1] * v.q[2] - v.q[3] * v.q[0]), 1 - 2 * (v.q[0] ** 2 + v.q[1] ** 2)]; return z.map(x => +x.toFixed(3)); });
     ok('The view cube: Front looks along +y', near(front[1], -1, 1e-3), JSON.stringify(front));
+    // an edge and a corner of the cube look from between its faces; the arrows turn the view 15° at a time
+    await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300);
+    const edgeAt = await cubeClick('top', 0, -1) || await cubeClick('top', -1, 0) || await cubeClick('top', 1, 0) || await cubeClick('top', 0, 1);
+    const zEdge = await zOut();
+    await p.evaluate(() => window.JEKcad.viewFrom('front')); await p.waitForTimeout(300);
+    await p.click('.cad-turn.right'); await p.waitForTimeout(100);
+    const zTurn = await zOut();
+    await p.click('.cad-turn.up'); await p.waitForTimeout(100);
+    const zUp = await zOut();
+    // the curved arrows roll the view about the line of sight: the part turns the way the arrow points
+    await p.evaluate(() => window.JEKcad.viewFrom('front')); await p.waitForTimeout(300);
+    const rollAng = () => p.evaluate(() => { const o = window.JEKcad.project([0, 0, 0]), x = window.JEKcad.project([10, 0, 0]); return Math.atan2(x[1] - o[1], x[0] - o[0]) * 180 / Math.PI; });
+    const roll0 = await rollAng(), zr0 = await zOut();
+    await p.click('.cad-turn.cw'); await p.waitForTimeout(100);
+    const roll1 = await rollAng(), zr1 = await zOut();
+    await p.click('.cad-turn.ccw'); await p.click('.cad-turn.ccw'); await p.waitForTimeout(100);
+    const roll2 = await rollAng();
+    ok('The view cube: the curved arrows roll the view 15° clockwise and anticlockwise, the line of sight kept', near(roll1 - roll0, 15, 0.05) && near(roll2 - roll0, -15, 0.05) && zr0.every((v, i) => near(v, zr1[i], 1e-6)), JSON.stringify([roll0, roll1, roll2, zr0, zr1]));
+    await p.evaluate(() => window.JEKcad.viewFrom('front')); await p.waitForTimeout(300);
+    ok('The view cube: a strip along an edge looks from between two faces; the arrows turn the view 15° across and up', !!edgeAt && near(Math.abs(zEdge[2]), Math.SQRT1_2, 2e-3) && zEdge.filter(v => Math.abs(v) < 1e-3).length === 1 && near(Math.abs(zTurn[0]), Math.sin(15 * Math.PI / 180), 2e-3) && near(zTurn[2], 0, 2e-3) && near(Math.abs(zUp[2]), Math.sin(15 * Math.PI / 180), 2e-3), JSON.stringify([edgeAt, zEdge, zTurn, zUp]));
     await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300);
     await p.click('#btnViewMenu'); await p.click('[data-mode="hidden"]');
     await shot(p, 'jekcad-hidden-edges');
@@ -172,11 +197,11 @@ export async function check(pw, base, shots) {
     await p.evaluate(() => { document.querySelector('[data-theme="dark"]').click(); });
     // ---- a new Part Studio, for what 0.2 added ----
     await p.evaluate(() => window.JEKcad.load({ format: 'jekcad', features: [] })); await regen();
-    const lay = await p.evaluate(() => { const st = document.getElementById('stage').getBoundingClientRect(), sd = document.getElementById('side').getBoundingClientRect(); return { bottom: Math.round(innerHeight - st.bottom), right: Math.round(innerWidth - st.right), gap: Math.round(st.left - sd.right) }; });
+    const lay = await p.evaluate(() => { const st = document.getElementById('stage').getBoundingClientRect(), sd = document.getElementById('side').getBoundingClientRect(); return { bottom: Math.round(innerHeight - st.bottom), tabs: Math.round(document.getElementById('tabBar').getBoundingClientRect().height), right: Math.round(innerWidth - st.right), gap: Math.round(st.left - sd.right) }; });
     await p.click('#sideTab');
     const wide = await p.evaluate(() => ({ left: Math.round(document.getElementById('stage').getBoundingClientRect().left), off: document.getElementById('cadMain').classList.contains('side-off'), exp: document.getElementById('sideTab').getAttribute('aria-expanded') }));
     await p.click('#sideTab');
-    ok('The view fills the window to its edges; the tab on the feature list closes it (the view takes its room) and opens it again', lay.bottom === 0 && lay.right === 0 && lay.gap === 0 && wide.left === 0 && wide.off && wide.exp === 'false' && await p.evaluate(() => !document.getElementById('cadMain').classList.contains('side-off')), JSON.stringify([lay, wide]));
+    ok('The view fills the window to its edges, the tabs at its foot; the tab on the feature list closes it (the view takes its room) and opens it again', lay.bottom === 0 && lay.tabs > 20 && lay.tabs < 40 && lay.right === 0 && lay.gap === 0 && wide.left === 0 && wide.off && wide.exp === 'false' && await p.evaluate(() => !document.getElementById('cadMain').classList.contains('side-off')), JSON.stringify([lay, wide]));
     // a centre rectangle, sized by typing straight after it is drawn
     await p.click('[data-feature="sketch"]'); await p.click('.cad-frow-p[data-plane="top"]');
     await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 15000 }).catch(() => {});
@@ -185,7 +210,7 @@ export async function check(pw, base, shots) {
     const rmenu = await p.evaluate(() => ({ shown: !document.getElementById('skMenu-rect').hidden, items: [...document.querySelectorAll('#skMenu-rect [data-skpick]')].map(b => b.dataset.skpick).join() }));
     await p.click('[data-skpick="crect"]');
     const rbtn = await p.evaluate(() => ({ tool: window.JEKcad.sk.tool, on: !!document.querySelector('.cad-toolgroup [data-sktool="crect"].on'), hidden: document.getElementById('skMenu-rect').hidden }));
-    ok('The rectangle button’s arrow lists the corner and the centre rectangle; the one chosen becomes the button', rmenu.shown && rmenu.items === 'rect,crect' && rbtn.tool === 'crect' && rbtn.on && rbtn.hidden, JSON.stringify([rmenu, rbtn]));
+    ok('The rectangle button’s arrow lists the corner, the centre and the aligned rectangle and the slot; the one chosen becomes the button', rmenu.shown && rmenu.items === 'rect,crect,arect,slot' && rbtn.tool === 'crect' && rbtn.on && rbtn.hidden, JSON.stringify([rmenu, rbtn]));
     const clickUV = async (uv, o) => { const q = await uvXY(uv); await p.mouse.move(q[0], q[1], { steps: 3 }); await p.mouse.click(q[0], q[1], o); };
     await clickUV([0, 0]); await clickUV([27, 17]);
     await p.keyboard.type('60'); await p.keyboard.press('Enter'); await p.keyboard.type('40'); await p.keyboard.press('Enter');
@@ -240,10 +265,12 @@ export async function check(pw, base, shots) {
     v = await vol();
     ok('The feature picked in the list shows its sketch’s dimensions on the model; the 60 double-clicked and typed as 80, the part follows', ml.length === 2 && near(v, 80 * 40 * 10, 1e-3), JSON.stringify(ml) + ' volume ' + v);
     // a part made far bigger from the model: the view fits it again, every dimension still inside the view
+    await p.waitForFunction(() => { const J = window.JEKcad; return !J.app.busy && (J.sk.mlabels || []).length === 2; }, null, { timeout: 8000 }).catch(() => {});
+    const bigDbg = await p.evaluate(() => { const J = window.JEKcad; return { picked: J.app.picked, n: (J.sk.mlabels || []).length, feats: J.app.doc.features.map(f => f.id).join(), asm: !!J.app.asm }; });
     const big = await p.evaluate(() => { const J = window.JEKcad, f = J.app.doc.features[0], b = J.sk.mlabels.find(x => f.dims.find(d => d.id === x.dim).x === '80'); return b && [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2]; });
-    if (big) { await p.mouse.dblclick(ob.x + big[0], ob.y + big[1]); await p.waitForSelector('#dimInput', { timeout: 3000 }).catch(() => {}); if (await p.$('#dimInput')) { await p.fill('#dimInput', '400'); await p.keyboard.press('Enter'); await regen(); await p.waitForTimeout(300); } }
+    if (big) { await p.mouse.dblclick(ob.x + big[0], ob.y + big[1]); await p.waitForSelector('#dimInput', { timeout: 3000 }).catch(() => {}); if (await p.$('#dimInput')) { await p.fill('#dimInput', '400'); await p.keyboard.press('Enter'); await p.waitForFunction(() => { const J = window.JEKcad; return !J.app.busy && J.app.result && Math.abs(J.app.result.parts.reduce((t, x) => t + x.volume, 0) - 160000) < 1; }, null, { timeout: 15000 }).catch(() => {}); await p.waitForTimeout(400); } }
     const inView = await p.evaluate(() => { const J = window.JEKcad; return { n: J.sk.mlabels.length, in: J.sk.mlabels.every(b => b.x0 > 0 && b.x1 < J.view.w && b.y0 > 0 && b.y1 < J.view.h) }; });
-    ok('A dimension typed on the model that grows the part past the view’s edge: the view fits it again', inView.n === 2 && inView.in && near(await vol(), 400 * 40 * 10, 1e-3), JSON.stringify(inView));
+    { const vBig = await vol(); ok('A dimension typed on the model that grows the part past the view’s edge: the view fits it again', inView.n === 2 && inView.in && near(vBig, 400 * 40 * 10, 1e-3), JSON.stringify(inView) + ' volume ' + vBig + ' ' + JSON.stringify(bigDbg)); }
     await p.keyboard.press('Control+z'); await regen();
     // the eyes: a plane, the origin, and the parts a feature made
     await p.hover('.cad-frow-p[data-plane="top"]'); await p.click('.cad-frow-p[data-plane="top"] .cad-eye');
@@ -338,6 +365,138 @@ export async function check(pw, base, shots) {
     v = await vol();
     ok('Extrude starts with every region of the sketch and its regions ready to click: the middle one clicked is left out', r0.n === 3 && r0.field === 'regions' && r1 === 2 && near(v, (2 * Math.PI * 225 - 2 * lensA) * 10, 2), JSON.stringify([r0, r1]) + ' volume ' + v);
 
+    // ---- a plate with a hole; a sketch on it round the hole; mirror by its panel; the hole kept; the rest ----
+    await p.evaluate(() => window.JEKcad.load({ format: 'jekcad', features: [] })); await regen();
+    await p.dblclick('.cad-frow-p[data-plane="top"] .nm');
+    await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 8000 }).catch(() => {});
+    await p.waitForTimeout(200);
+    await p.click('[data-skgroup="rect"]'); await p.click('[data-skpick="crect"]');
+    await clickUV([0, 0]); await moveUV([20, 12]); await p.keyboard.type('80'); await p.keyboard.press('Tab'); await p.keyboard.type('50'); await p.keyboard.press('Enter');
+    await p.keyboard.press('c'); await clickUV([20, 0]); await moveUV([23, 2]); await p.keyboard.type('6'); await p.keyboard.press('Enter');
+    await p.click('#sketchOk'); await regen();
+    await p.click('[data-feature="extrude"]'); await p.waitForSelector('#fd-depth'); await p.fill('#fd-depth', '5'); await p.waitForTimeout(300); await p.click('#featureOk'); await regen();
+    // the material list stays open when clicked (the row is not redrawn under it), and the part is not selected by it
+    await p.click('.cad-part select'); await p.waitForTimeout(150);
+    const matOpen = await p.evaluate(() => ({ focus: document.activeElement && document.activeElement.tagName, sel: window.JEKcad.app.sel.length }));
+    await p.keyboard.press('Escape');
+    ok('The material list in a part’s row stays open when clicked', matOpen.focus === 'SELECT' && matOpen.sel === 0, JSON.stringify(matOpen));
+    // orbit: about the part's upright axis, its middle staying where it is on the screen, though the view was panned
+    await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300);
+    const ob3 = await p.locator('#over').boundingBox(), cx = ob3.x + ob3.width / 2, cy = ob3.y + ob3.height / 2;
+    await p.mouse.move(cx, cy); await p.mouse.down({ button: 'middle' }); await p.mouse.move(cx + 180, cy - 120, { steps: 4 }); await p.mouse.up({ button: 'middle' });
+    const eye = () => p.evaluate(() => { const J = window.JEKcad, q = J.view.q, mid = J.project([0, 0, 2.5]); return { up: +(1 - 2 * (q[0] * q[0] + q[1] * q[1])).toFixed(3), mid: mid.slice(0, 2).map(Math.round) }; });
+    const ey0 = await eye();
+    await p.mouse.move(cx, cy + 150); await p.mouse.down({ button: 'right' }); await p.mouse.move(cx - 160, cy + 90, { steps: 8 }); await p.mouse.up({ button: 'right' });
+    const ey1 = await eye();
+    await p.mouse.move(cx, cy + 100); await p.mouse.down({ button: 'right' }); await p.mouse.move(cx, cy + 900, { steps: 10 }); await p.mouse.up({ button: 'right' });
+    const ey2 = await eye();
+    ok('Right-drag turns the part about the screen’s own axes through its middle: the middle stays put on the screen (the view panned first), dragging up lowers the eye, and dragging on carries the view round', Math.hypot(ey1.mid[0] - ey0.mid[0], ey1.mid[1] - ey0.mid[1]) <= 2 && ey1.up < ey0.up && ey2.up !== ey1.up && Math.hypot(ey2.mid[0] - ey0.mid[0], ey2.mid[1] - ey0.mid[1]) <= 2, JSON.stringify([ey0, ey1, ey2]));
+    // a sketch on the top face: a slot drawn round the hole; a loose line from it, its length then its angle typed
+    await p.evaluate(() => window.JEKcad.viewFrom('iso')); await p.waitForTimeout(300);
+    const tf2 = await xy([-20, -15, 5]); await p.mouse.click(tf2[0], tf2[1]); await p.waitForTimeout(100);
+    await p.click('[data-feature="sketch"]');
+    await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 8000 }).catch(() => {});
+    await p.waitForTimeout(300);
+    const rcl = async () => { const b = await p.locator('#over').boundingBox(); await p.mouse.click(b.x + 50, b.y + b.height - 50, { button: 'right' }); };
+    await p.click('[data-skgroup="rect"]'); await p.click('[data-skpick="slot"]'); await clickUV([8, 0.2]); await clickUV([30, 0.2]); await clickUV([30, 8]);
+    await p.keyboard.press('l'); await p.keyboard.down('Shift'); await clickUV([-10, -20]); await clickUV([-25, -5]); await p.keyboard.up('Shift'); await rcl();
+    await p.keyboard.press('l'); await clickUV([-10, -20]); await p.keyboard.down('Shift'); await clickUV([5, -12]); await p.keyboard.up('Shift'); await rcl();
+    const pos = () => p.evaluate(() => { const f = window.JEKcad.app.sketch.f, ls = f.ents.filter(e => e.t === 'line' && !e.k && !e.ref); return { first: [...ls[ls.length - 2].a, ...ls[ls.length - 2].b], second: [...ls[ls.length - 1].a, ...ls[ls.length - 1].b] }; });
+    const q0 = await pos();
+    await p.keyboard.press('d'); await clickUV([-17.5, -12.5]); await clickUV([-2.5, -16]);
+    const angShown = await p.evaluate(() => { const i = document.getElementById('dimInput'); return i ? parseFloat(i.value) : null; });
+    if (await p.$('#dimInput')) { await p.fill('#dimInput', '60'); await p.keyboard.press('Enter'); }
+    const q1 = await pos();
+    const angNow = await p.evaluate(() => { const J = window.JEKcad, f = J.app.sketch.f, d = f.dims.find(x => x.t === 'ang'), b = J.sk.labels.find(x => x.item.t === 'dim' && x.item.id === d.id); return { v: d.v, label: !!b }; });
+    ok('An angle between two lines that meet is the one inside their corner (about 107° as drawn), and typing 60 turns the line picked second while the first stays', angShown > 105 && angShown < 109 && angNow.v === 60 && angNow.label && q1.first.every((v, i) => Math.abs(v - q0.first[i]) < 1e-6) && Math.hypot(q1.second[2] - q0.second[2], q1.second[3] - q0.second[3]) > 1, JSON.stringify([angShown, angNow, q0, q1]));
+    await shot(p, 'jekcad-angle');
+    // Mirror: the tool, then the shapes, then the line, then Mirror
+    await p.click('[data-skgroup="line"]'); await p.click('[data-skpick="cline"]'); await p.keyboard.down('Shift'); await clickUV([-35, 10]); await clickUV([-35, -22]); await p.keyboard.up('Shift'); await rcl();
+    await p.keyboard.press('s'); await p.keyboard.press('Escape');
+    await p.click('[data-sktool="mirror"]'); await p.waitForSelector('#skPanel', { timeout: 3000 }).catch(() => {});
+    const mp0 = await p.evaluate(() => ({ ok: document.getElementById('mirrorOk').disabled, field: window.JEKcad.sk.mirror.field }));
+    { const mids = await p.evaluate(() => { const f = window.JEKcad.app.sketch.f, ls = f.ents.filter(e => e.t === 'line' && !e.k && !e.ref).slice(-2); return ls.map(l => [(l.a[0] + l.b[0]) / 2, (l.a[1] + l.b[1]) / 2]); }); for (const q of mids) await clickUV(q); }
+    await p.click('[data-mirror="line"]'); await clickUV([-35, 0]);
+    const mp1 = await p.evaluate(() => ({ text: document.getElementById('skPanel').textContent, ok: document.getElementById('mirrorOk').disabled, n: window.JEKcad.app.sketch.f.ents.length }));
+    await p.click('#mirrorOk'); await p.waitForTimeout(150);
+    const mp2 = await p.evaluate(() => ({ n: window.JEKcad.app.sketch.f.ents.length, panel: !!document.getElementById('skPanel'), tool: window.JEKcad.sk.tool, sym: window.JEKcad.app.sketch.f.cons.filter(c => c.t === 'symmetric').length }));
+    ok('Mirror opens a panel: the shapes clicked into it, then the mirror line, and nothing made until Mirror is pressed', mp0.ok && mp0.field === 'shapes' && /2 shapes/.test(mp1.text) && !mp1.ok && mp2.n === mp1.n + 2 && !mp2.panel && mp2.tool === 'select' && mp2.sym >= 2, JSON.stringify([mp0, mp1, mp2]));
+    // finishing: the face's hole inside the slot is brought in, so the extrude of the slot leaves it open
+    await p.click('#sketchOk'); await regen();
+    const holeIn = await p.evaluate(() => { const f = window.JEKcad.app.doc.features[2]; return f.ents.filter(e => e.t === 'circle' && e.ref && !e.k).map(e => [...e.c, e.r].map(v => +v.toFixed(3)).join()); });
+    await p.click('[data-feature="extrude"]'); await p.waitForSelector('#fd-depth'); await p.fill('#fd-depth', '4'); await p.waitForTimeout(400);
+    const exr = await p.evaluate(() => window.JEKcad.app.editing.f.regions.length);
+    await p.click('#featureOk'); await regen();
+    v = await vol();
+    const slotA = 22 * 16 + Math.PI * 64 - Math.PI * 9;
+    ok('A hole of the face inside what is drawn on it is brought into the sketch, and the extrude leaves it open', holeIn.join() === '20,0,3' && exr === 1 && near(v, 80 * 50 * 5 - Math.PI * 9 * 5 + slotA * 4, 2), JSON.stringify([holeIn, exr]) + ' volume ' + v);
+    // a sketch double-clicked in the view opens to edit
+    await p.hover('.cad-frow-f[data-i="2"]'); await p.click('.cad-frow-f[data-i="2"] .cad-eye'); await regen();
+    await p.evaluate(() => window.JEKcad.viewFrom('top')); await p.waitForTimeout(300);
+    const sl = await xy([-35, 0, 5]); await p.mouse.dblclick(sl[0], sl[1]);
+    await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 8000 }).catch(() => {});
+    ok('A double-click on a sketch in the view opens it to edit', await p.evaluate(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.f.name === 'Sketch 2'), 'not editing');
+    await p.click('#sketchCancel').catch(() => {}); await regen();
+    // a double-click on any row of the list edits it: two real clicks on the same row (the first picks it, and must not
+    // replace the row under the pointer), a sketch and then an extrude
+    const rowEl = await p.$('.cad-frow-f[data-i="2"]'), rb2 = await rowEl.boundingBox();
+    await p.mouse.move(rb2.x + 60, rb2.y + rb2.height / 2); await p.mouse.down(); await p.mouse.up(); await p.waitForTimeout(60);
+    const sameRow = await p.evaluate(el => el.isConnected && el.classList.contains('picked'), rowEl);
+    await p.mouse.down({ clickCount: 2 }); await p.mouse.up({ clickCount: 2 });
+    await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 8000 }).catch(() => {});
+    const rowSk = await p.evaluate(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.f.name);
+    await p.click('#sketchCancel').catch(() => {}); await regen();
+    await p.dblclick('.cad-frow-f[data-i="3"] .nm'); await p.waitForSelector('#featureOk', { timeout: 5000 }).catch(() => {});
+    const rowEx = await p.evaluate(() => window.JEKcad.app.editing && window.JEKcad.app.editing.f.name), rowField = await p.evaluate(() => window.JEKcad.app.editing && window.JEKcad.app.editing.field && window.JEKcad.app.editing.field.key);
+    if (await p.$('#featureCancel')) await p.click('#featureCancel');
+    await regen();
+    ok('A double-click on a row of the feature list edits it (the first click marks the row without remaking it): a sketch, an extrude, its regions ready to click', sameRow && rowSk === 'Sketch 2' && rowEx === 'Extrude 2' && rowField === 'regions', JSON.stringify([sameRow, rowSk, rowEx, rowField]));
+    // ---- the further sketch tools: an ellipse, a spline closed on its start, a pattern by its panel; extruded ----
+    await p.evaluate(() => window.JEKcad.load({ format: 'jekcad', features: [] })); await regen();
+    await p.dblclick('.cad-frow-p[data-plane="top"] .nm');
+    await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 8000 }).catch(() => {});
+    await p.waitForTimeout(200);
+    const pickTool = async (g, t) => { await p.click('[data-skgroup="' + g + '"]'); await p.click('[data-skpick="' + t + '"]'); };
+    const groups = await p.evaluate(() => [...document.querySelectorAll('.cad-toolgroup .cad-caret')].map(b => b.dataset.skgroup).join());
+    await pickTool('circle', 'ellipse'); await clickUV([-30, 25]); await clickUV([-18, 25.2]); await clickUV([-28, 31]);
+    await pickTool('spline', 'spline'); for (const q of [[10, 20], [22, 30], [30, 18], [10.3, 20.2]]) await clickUV(q);
+    await p.keyboard.press('c'); await clickUV([-30, -20]); await moveUV([-27, -19]); await p.keyboard.type('6'); await p.keyboard.press('Enter');
+    await p.keyboard.press('s'); await p.keyboard.press('Escape');
+    await pickTool('mirror', 'lpat'); await p.waitForSelector('#skPanel', { timeout: 3000 }).catch(() => {});
+    await clickUV([-27, -20]); await p.fill('#sk-dx', '12'); await p.fill('#sk-dy', '0'); await p.fill('#sk-count', '4'); await p.click('#mirrorOk'); await p.waitForTimeout(150);
+    sk = await p.evaluate(() => { const f = window.JEKcad.app.sketch.f; return { kinds: f.ents.map(e => e.t + (e.closed ? '!' : '')).join(), xs: f.ents.filter(e => e.t === 'circle').map(e => +e.c[0].toFixed(3)).join(), el: Math.abs(f.ents[0].rx - 12) < 0.01 && Math.abs(f.ents[0].rot) < 2, dias: f.dims.filter(d => d.t === 'dia').length }; });
+    await p.click('#sketchOk'); await regen();
+    await p.click('[data-feature="extrude"]'); await p.waitForSelector('#fd-depth'); await p.fill('#fd-depth', '2'); await p.waitForTimeout(400); await p.click('#featureOk'); await regen();
+    const made = await p.evaluate(() => window.JEKcad.app.result.parts.map(x => +x.volume.toFixed(1)).sort((x, y) => x - y));
+    ok('More sketch tools, from the arrows by their groups: an ellipse, a spline closed on its first point, a circle patterned four in a row by its panel; all extruded', /line,rect,circle,arc3,polygon,spline,point,use,trim,fillet,mirror/.test(groups) && sk.kinds === 'ellipse,spline!,circle,circle,circle,circle' && sk.xs === '-30,-18,-6,6' && sk.el && sk.dias === 4 && made.length === 6 && made.slice(0, 4).every(x => near(x, Math.PI * 9 * 2, 0.2)) && made.some(x => near(x, Math.PI * 12 * 5.97 * 2, 2)), JSON.stringify([groups, sk, made]));
+    // a feature's dialog does not bring hidden sketches back into the view: only the one it uses shows
+    await p.evaluate(() => window.JEKcad.load({ format: 'jekcad', features: [] })); await regen();
+    for (const d of ['10', '20']) { await p.dblclick('.cad-frow-p[data-plane="top"] .nm'); await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 8000 }).catch(() => {}); await p.waitForTimeout(150); await p.keyboard.press('c'); await clickUV([0, 0]); await moveUV([3, 1]); await p.keyboard.type(d); await p.keyboard.press('Enter'); await p.click('#sketchOk'); await regen(); await p.click('[data-feature="extrude"]'); await p.waitForSelector('#fd-depth'); await p.waitForTimeout(300); await p.click('#featureOk'); await regen(); }
+    await p.click('[data-feature="extrude"]'); await p.waitForSelector('#fd-depth'); await p.waitForTimeout(300);
+    const fresh3 = await p.evaluate(() => ({ sketch: window.JEKcad.app.editing.f.sketch, n: window.JEKcad.app.editing.f.regions.length }));
+    const shownNow = await p.evaluate(() => { const J = window.JEKcad, pts = [[2, 0, 0], [7, 0, 0]]; return pts.map(w => { const q = J.project(w); const k = J.overlayPick(q[0], q[1], 'regions'); return k ? k.sketch : null; }); });
+    const sketchIds = await p.evaluate(() => window.JEKcad.app.doc.features.filter(f => f.type === 'sketch').map(f => f.id + ':' + !!f.hide));
+    await p.click('#featureCancel'); await regen();
+    ok('A new Extrude does not take up the sketch and regions of the one before (both sketches here are used), and its dialog brings no hidden sketch back into the view', sketchIds.every(x => /:true$/.test(x)) && new Set(shownNow.filter(Boolean)).size <= 1 && fresh3.sketch === null && fresh3.n === 0, JSON.stringify([shownNow, sketchIds, fresh3]));
+    // a part deleted from its row's menu: a Delete part feature, and Undo brings the part back
+    { const n0 = await p.evaluate(() => [window.JEKcad.app.result.parts.length, window.JEKcad.app.doc.features.length]);
+      await p.click('.cad-part .cad-more[aria-label^="More for"]'); await p.click('.cad-rowmenu button:has-text("Delete part")'); await regen();
+      const n1 = await p.evaluate(() => [window.JEKcad.app.result.parts.length, window.JEKcad.app.doc.features.length, window.JEKcad.app.doc.features.slice(-1)[0].type]);
+      await p.keyboard.press('Escape'); await p.keyboard.press('Control+z'); await regen();
+      const n2 = await p.evaluate(() => [window.JEKcad.app.result.parts.length, window.JEKcad.app.doc.features.length]);
+      ok('Delete part, in a part’s menu: the part goes, a Delete part feature is in the list, and Undo brings it back', n1[0] === n0[0] - 1 && n1[1] === n0[1] + 1 && n1[2] === 'delete' && n2[0] === n0[0] && n2[1] === n0[1], JSON.stringify([n0, n1, n2])); }
+    // a share link: the Part Studio written into the link, and read back from it by a fresh page
+    const shBefore = await p.evaluate(async () => JSON.stringify(await window.JEKcad.readShare(await window.JEKcad.shareHash())));
+    await p.click('#btnFile'); await p.click('#btnShare');
+    await p.waitForFunction(() => document.getElementById('shareDialog').open, null, { timeout: 5000 }).catch(() => {});
+    const link = await p.evaluate(() => document.getElementById('shareUrl').value);
+    await p.click('#shareClose');
+    const q2 = await b.newPage({ viewport: { width: 1200, height: 800 } });
+    await q2.goto(link.replace('#p=', '?test#p='));
+    await q2.waitForFunction(n => window.JEKcad && window.JEKcad.app.doc.features.length === n && window.JEKcad.app.regenCount > 0, JSON.parse(shBefore).features.length, { timeout: 60000 }).catch(() => {});
+    const shAfter = await q2.evaluate(() => ({ text: window.JEKcad.text(), hash: location.hash }));
+    await q2.close();
+    ok('Share a link: the Part Studio travels in the link, and a fresh page opened at it has the same Part Studio', /#p=c[A-Za-z0-9_-]+$/.test(link) && shAfter.text === shBefore && !shAfter.hash, link.slice(0, 60) + ' … ' + link.length + ' chars; ' + (() => { let k = 0; while (k < shBefore.length && shBefore[k] === shAfter.text[k]) k++; return 'differs at ' + k + ': …' + shBefore.slice(Math.max(0, k - 60), k + 60) + '… / …' + shAfter.text.slice(Math.max(0, k - 60), k + 60) + '…'; })());
     ok('No page errors', !errs.length, errs.slice(0, 5).join(' | '));
     await p.close();
     // a part studio from the cloud that the API marked JEKray's (as one from before JEKcad was), opened by its link in
@@ -356,11 +515,360 @@ export async function check(pw, base, shots) {
         return r.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify(body) });
       });
       await q.goto(base + '/jek/tools/' + app + '.html#cloud=bcad');
-      await q.waitForFunction(a => a === 'jekcad' ? window.JEKcad && window.JEKcad.app.doc && window.JEKcad.app.doc.name === 'Routed studio' : window.__opened.length > 0, app, { timeout: 30000 }).catch(() => {});
-      const res = await q.evaluate(a => ({ opened: window.__opened, name: a === 'jekcad' && window.JEKcad ? window.JEKcad.app.doc.name : null }), app);
+      await q.waitForFunction(a => a === 'jekcad' ? window.JEKcad && window.JEKcad.app.doc && window.JEKcad.app.file.name === 'Routed studio' : window.__opened.length > 0, app, { timeout: 30000 }).catch(() => {});
+      const res = await q.evaluate(a => ({ opened: window.__opened, name: a === 'jekcad' && window.JEKcad ? window.JEKcad.app.file.name : null }), app);
       await q.close();
       return res;
     };
+    // Extrude straight from a face of the model: a face clicked with the dialog open, and a face chosen beforehand
+    {
+      const q = await b.newPage({ viewport: { width: 1200, height: 800 } });
+      await q.goto(base + '/jek/tools/jekcad.html?test');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      const d = newDoc(), sk = rectSketch(d, 40, 20);
+      d.features.push(sk, newFeature(d, 'extrude', { sketch: sk.id, regions: [[1, 1]], depth: '10' }));
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d));
+      const done = () => q.evaluate(() => Promise.race([window.JEKcad.regenDone(), new Promise(r => setTimeout(() => r('timeout'), 20000))]));
+      const volq = () => q.evaluate(() => window.JEKcad.app.result.parts.reduce((s2, x) => s2 + x.volume, 0));
+      const at = async w => { const r = await q.evaluate(w2 => window.JEKcad.project(w2), w); const box = await q.locator('#over').boundingBox(); return [box.x + r[0], box.y + r[1]]; };
+      await done(); await q.evaluate(() => { window.JEKcad.viewFrom('iso'); window.JEKcad.fit(); }); await q.waitForTimeout(400);
+      await q.click('[data-feature="extrude"]'); await q.waitForSelector('#fd-depth');
+      const empty = await q.evaluate(() => { const f = window.JEKcad.app.editing.f; return !f.sketch && !f.faces.length; });
+      const t1 = await at([20, 10, 10]); await q.mouse.move(t1[0], t1[1], { steps: 3 }); await q.mouse.click(t1[0], t1[1]); await q.waitForTimeout(300);
+      const picked = await q.evaluate(() => { const f = window.JEKcad.app.editing.f; return { n: f.faces.length, sketch: f.sketch, text: document.querySelector('.cad-dialog, #featureDialog, body').textContent.includes('1 face of the model') }; });
+      await q.fill('#fd-depth', '5'); await q.waitForTimeout(300); await q.click('#featureOk'); await done();
+      await q.waitForFunction(() => Math.abs(window.JEKcad.app.result.parts.reduce((s2, x) => s2 + x.volume, 0) - 12000) < 1e-3, null, { timeout: 8000 }).catch(() => {});
+      const v1 = await volq(), n1 = await q.evaluate(() => window.JEKcad.app.result.parts.length);
+      // the side at x = 40 chosen first, then Extrude: it starts with that face
+      const t2 = await at([40, 10, 7]); await q.mouse.move(t2[0], t2[1], { steps: 3 }); await q.mouse.click(t2[0], t2[1]); await q.waitForTimeout(200);
+      await q.click('[data-feature="extrude"]'); await q.waitForSelector('#fd-depth');
+      await q.waitForFunction(() => window.JEKcad.app.editing && window.JEKcad.app.editing.f.faces.length === 1, null, { timeout: 5000 }).catch(() => {});
+      await q.fill('#fd-depth', '4'); await q.waitForTimeout(300); await q.click('#featureOk'); await done();
+      await q.waitForFunction(() => Math.abs(window.JEKcad.app.result.parts.reduce((s2, x) => s2 + x.volume, 0) - 13200) < 1e-3, null, { timeout: 8000 }).catch(() => {});
+      const v2 = await volq();
+      // a feature clicked in the list tints the faces it made (the second extrude: the end at x = 44 and its four sides)
+      const tinted = () => q.evaluate(() => { const o = [...window.JEKcad.view.parts.values()][0], c = o.userData.mesh.geometry.getAttribute('color').array, p0 = o.userData.p, b0 = o.userData.base; let n = 0; for (let i = 0; i < p0.faceGroups.length / 2; i++) { const v = p0.idx[p0.faceGroups[2 * i]] * 3; if (Math.abs(c[v] - b0.r) + Math.abs(c[v + 1] - b0.g) + Math.abs(c[v + 2] - b0.b) > 0.02) n++; } return n; });
+      const t0 = await tinted();
+      await q.locator('.cad-frow-f').nth(2).click(); await q.waitForTimeout(200);
+      const tA = await tinted();
+      await q.keyboard.press('Escape'); await q.waitForTimeout(150);
+      const tB = await tinted();
+      // the measure readout at the foot of the view: two opposite faces chosen (the ends at x = 0 and x = 44), it leads
+      // with how far apart they are; its tab folds the rest away and opens it again; one face alone leads with its area
+      const ends = await q.evaluate(async () => {
+        const J = window.JEKcad, p0 = J.app.result.parts[0], out = {};
+        for (let i = 0; i < p0.faceGroups.length / 2; i++) { const m = await J.kernel('measure', { picks: [{ part: p0.id, kind: 'face', index: i }], doc: J.app.doc }); const it = m.items[0]; if (it.type === 'plane' && Math.abs(Math.abs(it.normal[0]) - 1) < 1e-6) out[it.normal[0] < 0 ? 'lo' : 'hi'] = i; }
+        J.app.sel = [{ part: p0.id, kind: 'face', index: out.lo }, { part: p0.id, kind: 'face', index: out.hi }]; J.selectPick(null, true);
+        return out;
+      });
+      await q.waitForFunction(() => { const t = document.getElementById('measureTab'); return t && /Parallel/.test(t.textContent); }, null, { timeout: 8000 }).catch(() => {});
+      const read1 = await q.evaluate(() => ({ tab: (document.getElementById('measureTab') || {}).textContent, open: !document.getElementById('measureRows').hidden, rows: document.getElementById('measureRows').textContent }));
+      await q.click('#measureTab'); await q.waitForTimeout(300);
+      const shut = await q.evaluate(() => ({ hidden: document.getElementById('measureRows').hidden, tab: document.getElementById('measureTab').textContent }));
+      await q.click('#measureTab'); await q.waitForTimeout(300);
+      const open2 = await q.evaluate(() => !document.getElementById('measureRows').hidden);
+      await q.evaluate(lo => { const J = window.JEKcad, p0 = J.app.result.parts[0]; J.app.sel = [{ part: p0.id, kind: 'face', index: lo }]; J.selectPick(null, true); }, ends.lo);
+      await q.waitForFunction(() => { const t = document.getElementById('measureTab'); return t && /Area/.test(t.textContent); }, null, { timeout: 8000 }).catch(() => {});
+      const read2 = await q.evaluate(() => (document.getElementById('measureTab') || {}).textContent);
+      ok('The measure readout: two opposite faces lead with their parallel distance (44 mm), with the least distance, dX and the total area in the list; its tab folds the list and opens it; one face leads with its area', /Parallel distance/.test(read1.tab || '') && /44 mm/.test(read1.tab || '') && read1.open && /Minimum distance/.test(read1.rows) && /dX/.test(read1.rows) && /Total area/.test(read1.rows) && shut.hidden && /44 mm/.test(shut.tab) && open2 && /Area/.test(read2 || '') && /300 mm²/.test(read2 || ''), JSON.stringify([ends, read1, shut, open2, read2]));
+      await q.close();
+      ok('Extrude from a face of the model: the top clicked in the dialog goes up 5; a side chosen first goes out 4', empty && picked.n === 1 && !picked.sketch && picked.text && near(v1, 12000, 1e-3) && n1 === 1 && near(v2, 13200, 1e-3), JSON.stringify([empty, picked, v1, n1, v2]));
+      ok('A feature clicked in the list tints the faces it made in the view; Esc clears it', t0 === 0 && tA >= 1 && tA <= 5 && tB === 0, JSON.stringify([t0, tA, tB]));
+    }
+    // Text, a conic and its rho, a spline's end made tangent to a line; then a silhouette and a pierce point from a cylinder
+    {
+      const q = await b.newPage({ viewport: { width: 1400, height: 880 } }), qe = [];
+      q.on('pageerror', e => qe.push(e.message));
+      await q.goto(base + '/jek/tools/jekcad.html?test');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      const done = () => q.evaluate(() => Promise.race([window.JEKcad.regenDone(), new Promise(r => setTimeout(() => r('timeout'), 20000))]));
+      const uvq = async uv => { const r = await q.evaluate(u => window.JEKcad.toScreen(u), uv); const box = await q.locator('#over').boundingBox(); return [box.x + r[0], box.y + r[1]]; };
+      const cl = async (uv, o) => { const a2 = await uvq(uv); await q.mouse.move(a2[0], a2[1], { steps: 3 }); await q.waitForTimeout(40); await q.mouse.click(a2[0], a2[1], o); };
+      const grp = async (g, t) => { await q.click('[data-skgroup="' + g + '"]'); await q.click('[data-skpick="' + t + '"]'); };
+      await q.click('[data-feature="sketch"]'); await q.click('.cad-frow-p[data-plane="top"]');
+      await q.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 15000 }).catch(() => {});
+      await q.waitForTimeout(200);
+      await grp('point', 'text'); await cl([-30, 10]);
+      await q.waitForSelector('#skEdit', { timeout: 4000 }).catch(() => {});
+      await q.fill('#ske-s', 'JEK 8'); await q.fill('#ske-h', '8'); await q.click('#skEditOk'); await q.waitForTimeout(200);
+      const txt = await q.evaluate(() => window.JEKcad.app.sketch.f.ents.filter(e => e.t === 'text').map(e => e.s + '/' + e.h).join());
+      await grp('spline', 'conic'); await cl([-30, -20]); await cl([10, -20]); await cl([-10, -2]);
+      await q.click('[data-sktool="line"]').catch(() => grp('line', 'line')); await cl([-30, -20]); await cl([10, -20]); await q.mouse.click(1300, 800, { button: 'right' });
+      // the conic double-clicked: its rho typed as 0.7
+      await q.keyboard.press('s');
+      const onC = await q.evaluate(() => { const e = window.JEKcad.app.sketch.f.ents.find(x => x.cn); return e && [0.25 * e.pts[0][0] + 0.5 * e.pts[1][0] + 0.25 * e.pts[2][0], 0.25 * e.pts[0][1] + 0.5 * e.pts[1][1] + 0.25 * e.pts[2][1]]; });
+      const cs = await uvq(onC); await q.mouse.dblclick(cs[0], cs[1]);
+      await q.waitForSelector('#ske-cn', { timeout: 4000 }).catch(() => {});
+      if (await q.$('#ske-cn')) { await q.fill('#ske-cn', '0.7'); await q.keyboard.press('Enter'); }
+      await q.waitForTimeout(200);
+      const rho = await q.evaluate(() => (window.JEKcad.app.sketch.f.ents.find(x => x.cn) || {}).cn);
+      await q.click('#sketchOk'); await done();
+      await q.click('[data-feature="extrude"]'); await q.waitForSelector('#fd-depth'); await q.fill('#fd-depth', '3'); await q.waitForTimeout(300); await q.click('#featureOk'); await done();
+      await q.waitForFunction(() => window.JEKcad.app.result.parts.length === 5, null, { timeout: 8000 }).catch(() => {});
+      const made = await q.evaluate(() => ({ parts: window.JEKcad.app.result.parts.length, err: window.JEKcad.app.result.features.filter(f => f.ok === false).map(f => f.error) }));
+      ok('Sketch text typed in its panel, and a conic with its rho set by a double-click: extruded, each letter and the conic a solid', txt === 'JEK 8/8' && rho === 0.7 && made.parts === 5 && !made.err.length && !qe.length, JSON.stringify([txt, rho, made, qe]));
+      // a cylinder, and a sketch on Front: the round face's silhouette is two lines; its top edge pierces the plane twice
+      const d = newDoc(), ck = newFeature(d, 'sketch', { plane: { std: 'top' }, ents: [{ id: 'c1', t: 'circle', c: [0, 0], r: 10 }], cons: [], dims: [] });
+      d.features.push(ck, newFeature(d, 'extrude', { sketch: ck.id, regions: [[0, 0]], depth: '20' }));
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d)); await done();
+      await q.click('[data-feature="sketch"]'); await q.click('.cad-frow-p[data-plane="front"]');
+      await q.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 15000 }).catch(() => {});
+      await q.waitForTimeout(400);
+      await grp('use', 'silh'); await cl([3, 10]); await q.waitForTimeout(300);
+      const sil = await q.evaluate(() => window.JEKcad.app.sketch.f.ents.filter(e => e.ref && e.t === 'line').map(e => [+e.a[0].toFixed(2), +Math.abs(e.a[1] - e.b[1]).toFixed(2)]));
+      // (the view turned a little, so the top edge is seen as a curve to click, not end on)
+      await q.evaluate(() => { window.JEKcad.turnStep('up'); window.JEKcad.turnStep('up'); }); await q.waitForTimeout(300);
+      await grp('use', 'pierce');
+      const ep = await q.evaluate(() => { const r = window.JEKcad.project([0, -10, 20]); return r; }); const ob = await q.locator('#over').boundingBox();
+      await q.mouse.move(ob.x + ep[0], ob.y + ep[1], { steps: 3 }); await q.waitForTimeout(80); await q.mouse.click(ob.x + ep[0], ob.y + ep[1]); await q.waitForTimeout(500);
+      const pr = await q.evaluate(() => window.JEKcad.app.sketch.f.ents.filter(e => e.ref && e.t === 'point').map(e => [+e.c[0].toFixed(3), +e.c[1].toFixed(3), !!e.src]));
+      await q.close();
+      ok('Silhouette: a cylinder’s side seen from the front comes in as two lines at its radius, 20 tall; Pierce: its top edge goes through the plane at (±10, 20), points that keep the edge', sil.length === 2 && sil.every(l => near(Math.abs(l[0]), 10, 0.01) && near(l[1], 20, 0.01)) && pr.length === 2 && pr.every(x => near(Math.abs(x[0]), 10, 1e-3) && near(x[1], 20, 1e-3) && x[2]) && !qe.length, JSON.stringify([sil, pr, qe]));
+    }
+    // a picture to trace over, a Bézier curve made to run into a line (Curvature), a text in another font mirrored,
+    // and a line made tangent to a spline part-way along it
+    {
+      const q = await b.newPage({ viewport: { width: 1400, height: 880 } }), qe = [];
+      q.on('pageerror', e => qe.push(e.message));
+      await q.goto(base + '/jek/tools/jekcad.html?test');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      const uvq = async uv => { const r = await q.evaluate(u => window.JEKcad.toScreen(u), uv); const box = await q.locator('#over').boundingBox(); return [box.x + r[0], box.y + r[1]]; };
+      const cl = async (uv, o) => { const a2 = await uvq(uv); await q.mouse.move(a2[0], a2[1], { steps: 3 }); await q.waitForTimeout(40); await q.mouse.click(a2[0], a2[1], o); };
+      const grp = async (g, t) => { await q.click('[data-skgroup="' + g + '"]'); await q.click('[data-skpick="' + t + '"]'); };
+      const rc = () => q.mouse.click(1300, 800, { button: 'right' });
+      const sel = ids => q.evaluate(i => { window.JEKcad.sk.sel = i.map(id => ({ t: 'ent', id })); }, ids);
+      const entsOf = () => q.evaluate(() => window.JEKcad.app.sketch.f.ents.map(e => ({ id: e.id, t: e.t, cv: !!e.cv, font: e.font, my: !!e.my, w: e.w, k: !!e.k, n: e.pts ? e.pts.length : 0, pts: e.pts, a: e.a, b: e.b })));
+      await q.click('[data-feature="sketch"]'); await q.click('.cad-frow-p[data-plane="top"]');
+      await q.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 15000 }).catch(() => {});
+      await q.waitForTimeout(200);
+      // a 2 × 1 PNG, made here
+      const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAEklEQVR4nGP8z8Dwn4GBgYEJADEFAgHrdT0oAAAAAElFTkSuQmCC', 'base64');
+      const [fc] = await Promise.all([q.waitForEvent('filechooser'), grp('use', 'image')]);
+      await fc.setFiles({ name: 'plan.png', mimeType: 'image/png', buffer: png });
+      await q.waitForSelector('#ske-w', { timeout: 5000 }).catch(() => {});
+      if (await q.$('#ske-w')) { await q.fill('#ske-w', '60'); await q.click('#skEditOk'); }
+      await q.waitForTimeout(200);
+      const pic = (await entsOf()).filter(e => e.t === 'image');
+      await grp('spline', 'bezier'); for (const u of [[-40, -10], [-30, -25], [-15, -28], [0, -20]]) await cl(u); await rc();
+      await q.click('[data-sktool="line"]').catch(() => grp('line', 'line')); await cl([0, -20]); await cl([25, -20]); await rc();
+      await q.keyboard.press('s');
+      let E = await entsOf();
+      await sel(E.filter(e => e.cv || e.t === 'line').map(e => e.id));
+      await q.click('[data-con="curvature"]'); await q.waitForTimeout(300);
+      const cons1 = await q.evaluate(() => window.JEKcad.app.sketch.f.cons.map(c => c.t));
+      E = await entsOf(); const bz = E.find(e => e.cv), ln = E.find(e => e.t === 'line');
+      const flat = bz && ln && bz.pts.slice(1).every(pt => Math.abs(pt[1] - ln.a[1]) < 1e-5);
+      // a text in the serif font, mirrored in a construction line
+      await grp('point', 'text'); await cl([10, 20]);
+      await q.waitForSelector('#ske-font', { timeout: 4000 }).catch(() => {});
+      await q.fill('#ske-s', 'R4'); await q.selectOption('#ske-font', 'serif'); await q.fill('#ske-h', '6'); await q.click('#skEditOk'); await q.waitForTimeout(200);
+      await grp('line', 'cline'); await cl([40, 10]); await cl([40, 40]); await rc();
+      await q.keyboard.press('s');
+      E = await entsOf(); const tx = E.find(e => e.t === 'text'), ml = E.filter(e => e.t === 'line' && e.k).pop();
+      await sel([tx.id]);
+      await grp('mirror', 'mirror').catch(() => q.click('[data-sktool="mirror"]'));
+      await q.click('[data-mirror="line"]'); const mm = await uvq([40, 25]); await q.mouse.click(mm[0], mm[1]); await q.waitForTimeout(100);
+      await q.click('#mirrorOk'); await q.waitForTimeout(200);
+      const texts = (await entsOf()).filter(e => e.t === 'text');
+      ok('A picture put in to trace over (60 wide, construction); Curvature on a Bézier curve and a line it runs into flattens the curve’s end onto the line; a serif text mirrored is a second text, flipped', pic.length === 1 && pic[0].w === 60 && pic[0].k && cons1.includes('curvature') && cons1.includes('tangent') && flat && texts.length === 2 && texts[0].font === 'serif' && texts.some(t2 => t2.my) && !!ml && !qe.length, JSON.stringify([pic.map(x => [x.w, x.k]), cons1, flat, texts.map(t2 => [t2.font, t2.my]), qe]));
+    }
+    // a short link: with an account, the API keeps the Part Studio and the link is /c/ and ten capitals; opened at #s=
+    {
+      const q = await b.newPage({ viewport: { width: 1200, height: 800 } }), posts = [];
+      let kept = null;
+      await q.route('http://localhost:8787/**', async r => {
+        const req = r.request(), path = new URL(req.url()).pathname, cors = { 'Access-Control-Allow-Origin': req.headers().origin || '*', 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'Content-Type, If-Match', 'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE' };
+        if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors });
+        let body = {};
+        if (path === '/v1/me') body = me;
+        else if (path === '/v1/links' && req.method() === 'POST') { kept = JSON.parse(req.postData()); posts.push(kept.name); body = { id: 'ABCDE23456', name: kept.name }; }
+        else if (path === '/v1/links/ABCDE23456') body = { id: 'ABCDE23456', name: kept.name, data: kept.data };
+        return r.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify(body) });
+      });
+      await q.goto(base + '/jek/tools/jekcad.html');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      await q.waitForTimeout(1500);
+      const d = newDoc(); d.name = 'Short one'; const sk = rectSketch(d, 30, 20); d.features.push(sk, newFeature(d, 'extrude', { sketch: sk.id, regions: [[1, 1]], depth: '5' }));
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d));
+      await q.evaluate(() => window.JEKcad.share()); await q.waitForTimeout(500);
+      const url = await q.evaluate(() => document.getElementById('shareUrl').value);
+      await q.evaluate(() => document.getElementById('shareDialog').close());
+      await q.evaluate(() => { window.JEKcad.load({ name: 'Other' }); });
+      await q.evaluate(() => { location.hash = '#s=ABCDE23456'; });
+      await q.waitForFunction(() => window.JEKcad.app.file.name === 'Short one', null, { timeout: 10000 }).catch(() => {});
+      const back = await q.evaluate(() => ({ name: window.JEKcad.app.file.name, n: window.JEKcad.app.doc.features.length, hash: location.hash }));
+      await q.close();
+      ok('Share with an account: a short link, /c/ and ten capitals, kept by the API; opened at #s= it brings the Part Studio back', /\/c\/ABCDE23456$/.test(url) && posts.join() === 'Short one' && /^c[A-Za-z0-9_-]+$/.test(kept.data) && back.name === 'Short one' && back.n === 2 && !back.hash, JSON.stringify([url, posts, back]));
+    }
+    // tabs and an assembly: a second tab made from the + at the bottom; two parts inserted; one dragged; a Fastened mate
+    // sets it on the other; the Part Studio changed, the mate follows; the file keeps its tabs and reads back
+    {
+      const q = await b.newPage({ viewport: { width: 1400, height: 880 } }), qe = [];
+      q.on('pageerror', e => qe.push(e.message));
+      await q.goto(base + '/jek/tools/jekcad.html?test');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      const settle = async () => { await q.waitForTimeout(250); await q.waitForFunction(() => !window.JEKcad.app.busy, null, { timeout: 20000 }).catch(() => {}); await q.waitForTimeout(150); };
+      const at = async w => { const r = await q.evaluate(w2 => window.JEKcad.project(w2), w); const box = await q.locator('#over').boundingBox(); return [box.x + r[0], box.y + r[1]]; };
+      const boxes = () => q.evaluate(() => window.JEKcad.app.result.parts.map(x => x.bbox.map(v => v.map(z => +z.toFixed(3)))));
+      const d = newDoc(); d.name = 'Stack'; const s1 = rectSketch(d, 40, 20), s2 = rectSketch(d, 10, 10, null, [60, 0]);
+      d.features.push(s1, newFeature(d, 'extrude', { sketch: s1.id, regions: [[1, 1]], depth: '10', op: 'new' }), s2, newFeature(d, 'extrude', { sketch: s2.id, regions: [[61, 1]], depth: '15', op: 'new' }));
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d)); await settle();
+      const oneTab = await q.evaluate(() => ({ tabs: document.querySelectorAll('#tabBar [data-tab]').length, file: JSON.parse(window.JEKcad.text()).tabs === undefined }));
+      await q.click('#tabAdd'); await q.click('.cad-tabmenu button:nth-child(2)'); await settle();
+      const inAsm = await q.evaluate(() => ({ kinds: window.JEKcad.app.file.tabs.map(t => t.kind).join(), bar: !document.getElementById('asmBar').hidden && document.getElementById('featureBar').hidden, side: !document.getElementById('asmSide').hidden && document.getElementById('studioSide').hidden }));
+      await q.click('[data-asm="insert"]'); await q.waitForSelector('.cad-insrow', { timeout: 15000 }).catch(() => {});
+      const rows = await q.$$('.cad-insrow');
+      if (rows.length === 2) { await rows[0].click(); await settle(); await rows[1].click(); await settle(); }
+      await q.click('#asmInsertClose'); await settle();
+      await q.evaluate(() => { window.JEKcad.viewFrom('iso'); window.JEKcad.fit(); }); await q.waitForTimeout(400);
+      const b0 = await boxes(), inst0 = await q.evaluate(() => window.JEKcad.app.asm.instances.map(I => !!I.fixed));
+      // the second part dragged by its top face: it moves, the first (fixed) does not
+      const g = await at([(b0[1][0][0] + b0[1][1][0]) / 2, (b0[1][0][1] + b0[1][1][1]) / 2, b0[1][1][2]]);
+      await q.mouse.move(g[0], g[1]); await q.mouse.down(); await q.mouse.move(g[0] + 60, g[1] - 20, { steps: 6 }); await q.mouse.up(); await settle();
+      const b1 = await boxes();
+      const dragged = Math.hypot(b1[1][0][0] - b0[1][0][0], b1[1][0][1] - b0[1][0][1], b1[1][0][2] - b0[1][0][2]) > 1 && JSON.stringify(b1[0]) === JSON.stringify(b0[0]);
+      // Fastened: the small part's top face onto the big part's top (it turns over and sits on it)
+      await q.click('[data-asm="fastened"]'); await q.waitForSelector('#matePanel');
+      const c1 = await at([(b1[1][0][0] + b1[1][1][0]) / 2, (b1[1][0][1] + b1[1][1][1]) / 2, b1[1][1][2]]); await q.mouse.click(c1[0], c1[1]); await q.waitForTimeout(150);
+      const c2 = await at([8, 14, 10]); await q.mouse.click(c2[0], c2[1]); await q.waitForTimeout(150);
+      await q.click('#mateOk'); await settle();
+      const b2 = await boxes(), mates = await q.evaluate(() => window.JEKcad.app.asm.mates.map(m => m.t).join());
+      const sat = near(b2[1][0][2], 10, 1e-3) && near(b2[1][1][2], 25, 1e-3) && near((b2[1][0][0] + b2[1][1][0]) / 2, 20, 1e-3) && near((b2[1][0][1] + b2[1][1][1]) / 2, 10, 1e-3);
+      // back in the Part Studio the plate is made 14 thick; in the assembly the small part sits on its new top
+      await q.locator('#tabBar [data-kind="studio"]').first().click(); await settle();
+      const inStudio = await q.evaluate(() => ({ parts: window.JEKcad.app.result.parts.length, bar: !document.getElementById('featureBar').hidden && document.getElementById('asmBar').hidden }));
+      await q.evaluate(() => { const A = window.JEKcad; A.checkpoint(); A.app.doc.features[1].depth = '14'; A.changed(); }); await settle();
+      await q.locator('#tabBar [data-kind="assembly"]').first().click(); await settle();
+      const b3 = await boxes();
+      const followed = near(b3[0][1][2], 14, 1e-3) && near(b3[1][0][2], 14, 1e-3) && near(b3[1][1][2], 29, 1e-3);
+      // the file: version 2 with its tabs; read back, the assembly is as it was
+      const text = await q.evaluate(() => window.JEKcad.text()), file = JSON.parse(text);
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), text); await settle();
+      const back = await q.evaluate(() => ({ name: window.JEKcad.app.file.name, tabs: window.JEKcad.app.file.tabs.map(t => t.kind).join(), asm: !!window.JEKcad.app.asm, n: window.JEKcad.app.result.parts.length }));
+      const b4 = await boxes();
+      await q.close();
+      ok('One Part Studio is one tab and a file as before; + adds an Assembly, which has its own bar and list', oneTab.tabs === 1 && oneTab.file && inAsm.kinds === 'studio,assembly' && inAsm.bar && inAsm.side && !qe.length, JSON.stringify([oneTab, inAsm, qe]));
+      ok('Insert puts two parts in (the first fixed); the other is dragged in the view; a Fastened mate sets it on the first', rows.length === 2 && inst0.join() === 'true,false' && dragged && mates === 'fastened' && sat, JSON.stringify([rows.length, inst0, dragged, mates, b0, b1, b2]));
+      ok('The Part Studio changed (the plate 14 thick): its tab shows its features again, and back in the assembly the mate has followed; the file keeps its tabs and opens the same', inStudio.parts === 2 && inStudio.bar && followed && file.version === 2 && file.tabs.length === 2 && back.name === 'Stack' && back.tabs === 'studio,assembly' && back.asm && back.n === 2 && JSON.stringify(b4) === JSON.stringify(b3) && !qe.length, JSON.stringify([inStudio, followed, b3, file.version, back, qe]));
+    }
+    // an extrude's regions are cut by the model's edges: a circle half over a block's end is two pieces, both chosen to
+    // begin with; the piece beyond the edge clicked is taken out, and the half on the face alone is extruded
+    {
+      const q = await b.newPage({ viewport: { width: 1200, height: 800 } }), qe = [];
+      q.on('pageerror', e => qe.push(e.message));
+      await q.goto(base + '/jek/tools/jekcad.html?test');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      const settle = async () => { await q.waitForTimeout(250); await q.waitForFunction(() => !window.JEKcad.app.busy, null, { timeout: 20000 }).catch(() => {}); await q.waitForTimeout(150); };
+      const d = newDoc(), sk = rectSketch(d, 40, 20);
+      const ck = newFeature(d, 'sketch', { plane: { std: 'top' }, ents: [{ id: 'c1', t: 'circle', c: [40, 10], r: 5 }], cons: [], dims: [] });
+      d.features.push(sk, newFeature(d, 'extrude', { sketch: sk.id, regions: [[1, 1]], depth: '10', op: 'new' }), ck);
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d)); await settle();
+      await q.evaluate(() => { window.JEKcad.viewFrom('top'); window.JEKcad.fit(); }); await q.waitForTimeout(400);
+      await q.click('[data-feature="extrude"]'); await q.waitForSelector('#fd-depth'); await settle();
+      const start = await q.evaluate(() => { const f = window.JEKcad.app.editing.f; return { split: f.split, n: f.regions.length, sketch: !!f.sketch }; });
+      const r = await q.evaluate(() => window.JEKcad.project([43, 10, 0])), ob = await q.locator('#over').boundingBox();
+      await q.mouse.move(ob.x + r[0], ob.y + r[1], { steps: 3 }); await q.waitForTimeout(80); await q.mouse.click(ob.x + r[0], ob.y + r[1]); await q.waitForTimeout(300);
+      const after = await q.evaluate(() => { const f = window.JEKcad.app.editing.f; return { n: f.regions.length, x: f.regions.map(p => +p[0].toFixed(1)) }; });
+      await q.click('[data-key="op"][data-val="new"]'); await q.fill('#fd-depth', '5'); await q.waitForTimeout(300); await q.click('#featureOk'); await settle();
+      await q.waitForFunction(() => window.JEKcad.app.result.parts.length === 2, null, { timeout: 8000 }).catch(() => {});
+      const made = await q.evaluate(() => { const P = window.JEKcad.app.result.parts; return { n: P.length, v: P[P.length - 1].volume, hi: P[P.length - 1].bbox[1][0], err: window.JEKcad.app.result.features.filter(f => f.ok === false).map(f => f.error) }; });
+      // an extrude made before regions were cut (it takes the whole circle): opened again, it has its two pieces, the
+      // same solid until one is clicked out
+      const d2 = JSON.parse(JSON.stringify(d)); d2.features.push(newFeature(d2, 'extrude', { sketch: ck.id, regions: [[38, 10]], op: 'new', depth: '5' }));
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d2)); await settle();
+      const whole = await q.evaluate(() => { const P = window.JEKcad.app.result.parts; return P[P.length - 1].volume; });
+      await q.evaluate(() => { window.JEKcad.viewFrom('top'); window.JEKcad.fit(); }); await q.waitForTimeout(300);
+      await q.evaluate(() => window.JEKcad.editFeature(3)); await q.waitForSelector('#fd-depth'); await settle();
+      const opened = await q.evaluate(() => { const f = window.JEKcad.app.editing.f; return { split: f.split, n: f.regions.length, saved: !!window.JEKcad.app.doc.features[3].split }; });
+      const r2 = await q.evaluate(() => window.JEKcad.project([43, 10, 0])), ob2 = await q.locator('#over').boundingBox();
+      await q.mouse.move(ob2.x + r2[0], ob2.y + r2[1], { steps: 3 }); await q.waitForTimeout(80); await q.mouse.click(ob2.x + r2[0], ob2.y + r2[1]); await q.waitForTimeout(300);
+      await q.click('#featureOk'); await settle();
+      await q.waitForFunction(v => { const P = window.JEKcad.app.result.parts; return Math.abs(P[P.length - 1].volume - v) > 1; }, whole, { timeout: 8000 }).catch(() => {});
+      const halfNow = await q.evaluate(() => { const P = window.JEKcad.app.result.parts; return P[P.length - 1].volume; });
+      ok('An extrude made before regions were cut takes the whole circle; opened again it has its two pieces (unsaved until OK), and one clicked out leaves the half', near(whole, Math.PI * 25 * 5, 0.5) && opened.split === true && opened.n === 2 && !opened.saved && near(halfNow, Math.PI * 25 / 2 * 5, 0.3), JSON.stringify([whole, opened, halfNow]));
+      await q.close();
+      ok('A circle half over a block’s end is two regions for Extrude, both chosen to begin with; the piece beyond the edge clicked is taken out, and the half on the face is extruded alone', start.split === true && start.n === 2 && start.sketch && after.n === 1 && after.x[0] < 40 && made.n === 2 && near(made.v, Math.PI * 25 / 2 * 5, 0.3) && near(made.hi, 40, 1e-6) && !made.err.length && !qe.length, JSON.stringify([start, after, made, qe]));
+    }
+    // more of an assembly: the handle on a part (an arrow slides it, an arc turns it); a mate with an offset, changed
+    // from its row; a connector on an edge; measuring two parts where they are placed; parts found running into each
+    // other; the assembly exported as one STEP file
+    {
+      const q = await b.newPage({ viewport: { width: 1400, height: 880 }, acceptDownloads: true }), qe = [];
+      q.on('pageerror', e => qe.push(e.message));
+      await q.goto(base + '/jek/tools/jekcad.html?test');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      const settle = async () => { await q.waitForTimeout(250); await q.waitForFunction(() => !window.JEKcad.app.busy, null, { timeout: 20000 }).catch(() => {}); await q.waitForTimeout(150); };
+      const at = async w => { const r = await q.evaluate(w2 => window.JEKcad.project(w2), w); const box = await q.locator('#over').boundingBox(); return [box.x + r[0], box.y + r[1]]; };
+      const boxes = () => q.evaluate(() => window.JEKcad.app.result.parts.map(x => x.bbox.map(v => v.map(z => +z.toFixed(3)))));
+      const inst = () => q.evaluate(() => window.JEKcad.app.asm.instances.map(I => ({ p: I.p.map(v => +v.toFixed(4)), q: I.q.map(v => +v.toFixed(5)) })));
+      const d = newDoc(); d.name = 'Stack'; const s1 = rectSketch(d, 40, 20), s2 = rectSketch(d, 10, 10, null, [60, 0]);
+      d.features.push(s1, newFeature(d, 'extrude', { sketch: s1.id, regions: [[1, 1]], depth: '10', op: 'new' }), s2, newFeature(d, 'extrude', { sketch: s2.id, regions: [[61, 1]], depth: '15', op: 'new' }));
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d)); await settle();
+      await q.click('#tabAdd'); await q.click('.cad-tabmenu button:nth-child(2)'); await settle();
+      await q.click('[data-asm="insert"]'); await q.waitForSelector('.cad-insrow', { timeout: 15000 }).catch(() => {});
+      const rows = await q.$$('.cad-insrow');
+      if (rows.length === 2) { await rows[0].click(); await settle(); await rows[1].click(); await settle(); }
+      await q.click('#asmInsertClose'); await settle();
+      await q.evaluate(() => { window.JEKcad.viewFrom('iso'); window.JEKcad.fit(); }); await q.waitForTimeout(400);
+      // the second part picked in the list: its handle shows; its x arrow dragged slides it along x alone
+      await q.locator('#instList .cad-irow').nth(1).click(); await q.waitForTimeout(200);
+      const ob = await q.locator('#over').boundingBox(), i0 = await inst();
+      const tp = await q.evaluate(() => window.JEKcad.triadPoints());
+      if (tp) { const t = tp.tips[0], ux = t[0] - tp.o[0], uy = t[1] - tp.o[1], n = Math.hypot(ux, uy) || 1; await q.mouse.move(ob.x + t[0], ob.y + t[1]); await q.mouse.down(); await q.mouse.move(ob.x + t[0] + ux / n * 50, ob.y + t[1] + uy / n * 50, { steps: 6 }); await q.mouse.up(); await settle(); }
+      const i1 = await inst();
+      const slid = !!tp && i1[1].p[0] - i0[1].p[0] > 3 && near(i1[1].p[1], i0[1].p[1], 1e-3) && near(i1[1].p[2], i0[1].p[2], 1e-3) && JSON.stringify(i1[1].q) === JSON.stringify(i0[1].q);
+      // its z arc dragged round turns it about z: still upright, its middle where it was
+      const b1 = await boxes(), tp2 = await q.evaluate(() => window.JEKcad.triadPoints());
+      if (tp2) { const m = tp2.arcs[2], rx = m[0] - tp2.o[0], ry = m[1] - tp2.o[1]; await q.mouse.move(ob.x + m[0], ob.y + m[1]); await q.mouse.down(); await q.mouse.move(ob.x + tp2.o[0] + rx * 0.8 - ry * 0.6, ob.y + tp2.o[1] + ry * 0.8 + rx * 0.6, { steps: 8 }); await q.mouse.up(); await settle(); }
+      const i2 = await inst(), b2 = await boxes();
+      const turnedZ = !!tp2 && Math.abs(i2[1].q[2]) > 0.05 && near(i2[1].q[0], 0, 1e-4) && near(i2[1].q[1], 0, 1e-4) && near((b2[1][0][0] + b2[1][1][0]) / 2, (b1[1][0][0] + b1[1][1][0]) / 2, 0.01) && near(b2[1][0][2], b1[1][0][2], 1e-3);
+      // Fastened with an offset of 3: the small part's top onto the big part's top, 3 clear of it
+      await q.click('[data-asm="fastened"]'); await q.waitForSelector('#matePanel');
+      const c1 = await at([(b2[1][0][0] + b2[1][1][0]) / 2, (b2[1][0][1] + b2[1][1][1]) / 2, b2[1][1][2]]); await q.mouse.click(c1[0], c1[1]); await q.waitForTimeout(150);
+      const c2 = await at([8, 14, 10]); await q.mouse.click(c2[0], c2[1]); await q.waitForTimeout(150);
+      await q.fill('#mate-off', '3'); await q.click('#mateOk'); await settle();
+      const b3 = await boxes();
+      // the mate's row double-clicked: its offset made 0
+      await q.locator('#mateList .cad-irow').first().dblclick(); await q.waitForSelector('#mate-off', { timeout: 4000 }).catch(() => {});
+      const editing = await q.evaluate(() => ({ off: (document.getElementById('mate-off') || {}).value, btn: (document.getElementById('mateOk') || {}).textContent }));
+      if (await q.$('#mate-off')) { await q.fill('#mate-off', '0'); await q.click('#mateOk'); await settle(); }
+      const b4 = await boxes(), nm = await q.evaluate(() => window.JEKcad.app.asm.mates.length);
+      ok('The handle on a part: its x arrow slides it along x alone, its z arc turns it about z where it stands', slid && turnedZ && !qe.length, JSON.stringify([tp && tp.tips[0], i0[1], i1[1], i2[1], qe]));
+      ok('A Fastened mate with an offset of 3 holds the part 3 clear; its row double-clicked opens it again, and the offset made 0 sets the part down', near(b3[1][0][2], 13, 1e-3) && near(b3[1][1][2], 28, 1e-3) && editing.off === '3' && /Change/.test(editing.btn || '') && nm === 1 && near(b4[1][0][2], 10, 1e-3), JSON.stringify([b3[1], editing, nm, b4[1]]));
+      // a mate's connector on an edge: the big part's top front edge clicked
+      await q.click('[data-asm="revolute"]'); await q.waitForSelector('#matePanel');
+      const e1 = await at([20, 0, 10]); await q.mouse.move(e1[0], e1[1], { steps: 3 }); await q.waitForTimeout(80); await q.mouse.click(e1[0], e1[1]); await q.waitForTimeout(150);
+      const onEdge = await q.evaluate(() => { const m = window.JEKcad.as.mate; return m && m.a && { on: m.a.on, o: m.a.o.map(v => +v.toFixed(3)), z: m.a.z.map(v => +Math.abs(v).toFixed(3)) }; });
+      await q.click('#mateCancel'); await q.waitForTimeout(100);
+      // the two parts selected: measured where the assembly has them (the small one sits on the big one: 0 apart)
+      await q.evaluate(() => { const J = window.JEKcad, A = J.app.asm; J.app.sel = A.instances.map(I => ({ part: I.id, kind: 'part' })); J.selectPick && 0; });
+      await q.locator('#instList .cad-irow').nth(0).click(); await q.waitForTimeout(100);
+      await q.evaluate(() => { const J = window.JEKcad, A = J.app.asm; J.app.sel = A.instances.map(I => ({ part: I.id, kind: 'part' })); J.overlayPick && 0; });
+      await q.evaluate(() => window.JEKcad.selectPick(null, true)); await q.waitForTimeout(600);
+      const meas = await q.evaluate(() => { const m = document.getElementById('measure'); return m.hidden ? '' : m.textContent; });
+      // the mate taken off and the small part pushed into the big one: Interference finds the pair
+      await q.evaluate(() => { const J = window.JEKcad, A = J.app.asm; J.checkpoint(); A.mates = []; J.poseInstance(A.instances[1].id, [-50, 5, 5], [0, 0, 0, 1]); }); await settle();
+      await q.click('[data-asm="clash"]'); await q.waitForSelector('#clashList', { timeout: 15000 }).catch(() => {});
+      const clash = await q.evaluate(() => ({ rows: document.querySelectorAll('#clashList .cad-irow').length, text: (document.querySelector('#clashList .cad-irow') || {}).textContent, n: (window.JEKcad.as.clash || []).length, v: window.JEKcad.as.clash && window.JEKcad.as.clash[0] && window.JEKcad.as.clash[0].volume }));
+      // the assembly as one STEP file
+      const [dl] = await Promise.all([q.waitForEvent('download', { timeout: 20000 }).catch(() => null), q.evaluate(() => window.JEKcad.exportParts('step'))]);
+      const stepText = dl ? readFileSync(await dl.path(), 'utf8') : '';
+      await q.close();
+      ok('A mate’s connector on an edge is the edge’s middle, along it; two parts are measured where the assembly has them', !!onEdge && onEdge.on === 'edge' && near(onEdge.o[0], 20, 1e-2) && near(onEdge.z[0], 1, 1e-3) && /Minimum distance/.test(meas) && /Volume/.test(meas), JSON.stringify([onEdge, meas]));
+      ok('Interference lists the pair of parts that run into each other with the volume they share; the assembly exports as one STEP file', clash.rows === 1 && clash.n === 1 && near(clash.v, 10 * 10 * 5, 1e-3) && /^ISO-10303-21/.test(stepText) && /Stack|Assembly/.test(dl ? dl.suggestedFilename() : '') && !qe.length, JSON.stringify([clash, stepText.slice(0, 20), dl && dl.suggestedFilename(), qe]));
+    }
+    // signed out for sure: looking is free, changing is not (Sketch asks for an account and nothing is started)
+    {
+      const q = await b.newPage({ viewport: { width: 1200, height: 800 } });
+      await q.route('http://localhost:8787/**', r => { const req = r.request(), cors = { 'Access-Control-Allow-Origin': req.headers().origin || '*', 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'Content-Type, If-Match' }; if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors }); return r.fulfill({ status: new URL(req.url()).pathname === '/v1/me' ? 401 : 200, contentType: 'application/json', headers: cors, body: JSON.stringify(new URL(req.url()).pathname === '/v1/me' ? { error: { code: 'signed_out', message: 'Sign in' } } : {}) }); });
+      await q.goto(base + '/jek/tools/jekcad.html');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      await q.waitForTimeout(1500);
+      await q.click('[data-feature="sketch"]'); await q.waitForTimeout(300);
+      const gate = await q.evaluate(() => ({ dlg: !!(document.getElementById('cadSignIn') && document.getElementById('cadSignIn').open), title: (document.querySelector('#cadSignIn h2') || {}).textContent, editing: !!window.JEKcad.app.editing, sketch: window.JEKcad.sketchOn() }));
+      await q.close();
+      ok('Signed out: Sketch asks for a free account and starts nothing', gate.dlg && /needs a free account/.test(gate.title || '') && !gate.editing && !gate.sketch, JSON.stringify(gate));
+    }
     const here = await routed('jekcad');
     ok('A part studio the API marked JEKray’s opens in JEKcad, by its content, and goes nowhere else', here.name === 'Routed studio' && !here.opened.length, JSON.stringify(here));
     for (const app of ['jekray', 'jekion', 'jekfilm']) {

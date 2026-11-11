@@ -10,7 +10,7 @@ description: "JEKcad's sketcher: the drawing tools, constraints inferred and add
 
 ## Where a sketch goes
 
-Click **Sketch**, then a plane or a flat face of a part. If a plane or flat face is already selected, the sketch goes on it straight away. Double-clicking a plane, in the view or in the feature list, starts a sketch on it too. On a face, the sketch's plane follows the face when the model changes.
+Click **Sketch**, then a plane or a flat face of a part. If a plane or flat face is already selected, the sketch goes on it straight away. Double-clicking a plane, in the view or in the feature list, starts a sketch on it too. On a face, the sketch's plane follows the face when the model changes. Round holes of that face that lie wholly inside what you draw are brought into the sketch when you finish it, so an extrude of the shape leaves them open; delete one from the sketch to cover it.
 
 To sketch at a distance from a plane, first make a **Plane** feature offset from it.
 
@@ -24,13 +24,21 @@ Line, rectangle, circle and arc each have several kinds. The button shows the ki
 | | Centre line | A line drawn as construction: an axis to revolve about or to mirror in. |
 | | Midpoint line | Its middle, then one end. The middle is held where you clicked. |
 | R | Corner rectangle | Two opposite corners. |
+| | Aligned rectangle | One side (two clicks), then how far across. For a rectangle on a slope. |
 | | Centre rectangle | The centre, then a corner. |
 | C | Circle | The centre, then a point on it. |
 | | 3-point circle | Three points on it. |
+| | Ellipse | Its centre, the end of one half-width (which turns it), then a point for the other. Size it with dimensions from its centre to its two end points. |
 | A | 3-point arc | Its two ends, then a point on it. |
 | T | Tangent arc | Start at the end of a line or arc, then click where it ends. |
+| | Centre-point arc | Its centre, where it starts, where it ends. It goes the short way round. |
 | | Slot | The two centres, then its width. |
 | G | Polygon | The centre, then a corner. The number of sides is in the bar. |
+| | Polygon by a side | The centre, then the middle of a side. |
+| | Spline | Click the points it goes through. Right-click, Enter or a double-click ends it; clicking its first point closes it. |
+| | Bézier curve | Click its start, the points that steer it, and its end; right-click or Enter ends it. |
+| | Conic | Click its two ends, then the point that steers it. Double-click it to set rho: 0.5 is a parabola, less is part of an ellipse, more a hyperbola. |
+| | Text | Click where the text starts, then type the words, pick a font, and set the height of a capital and an angle in the panel. Each letter is a region to extrude. Double-click the text to change it. The fonts are Source Sans 3 (semibold, regular, bold and italic), Liberation Serif and IBM Plex Mono. |
 | P | Point | A click. Points mark holes. |
 | Q | Construction | Turns the selected shapes into construction shapes, or back. With nothing selected, the next shapes drawn are construction. Construction shapes are dashed and make no regions. |
 
@@ -53,12 +61,16 @@ Select shapes or points, then click a constraint in the sketch bar:
 | Coincident | Two points, or a point and a curve |
 | Horizontal, Vertical | Lines, or two points |
 | Parallel, Perpendicular | Two lines |
-| Tangent | A line or curve and a circle or arc |
+| Tangent | A line or curve and a circle or arc; an ellipse and a line, circle or arc; a spline and another shape. Where the spline's end meets the other shape it leaves along it. Otherwise a line, circle or arc touches the spline part-way along. |
+| Curvature | A spline and the line, arc or spline its end meets: the spline's end leaves the same way and bends as much |
 | Equal | Lines (their lengths) or circles and arcs (their radii) |
 | Midpoint | A point and a line |
 | Concentric | Two circles or arcs |
 | Symmetric | Two points and the line between them |
+| Normal | A line and a circle or arc: the line points at its centre |
 | Fix | Points or shapes, held where they are |
+
+A point can be held on an ellipse or a spline with Coincident, as on a line or a circle. Click a point and the curve, then Coincident.
 
 Each constraint shows as a glyph beside what it holds. Click a glyph to select it and press Delete to remove it. A constraint that cannot hold with the others is refused and taken back.
 
@@ -80,6 +92,8 @@ The origin counts as a point. So do the corners of the model, and its straight a
 
 Type the value in the box that appears and press Enter. Esc takes back a dimension you have just made. Double-click a dimension to change it. With the select tool, drag a dimension's value to move it clear of the drawing.
 
+A new value moves the shape the dimension measures and leaves the rest of the sketch where it is, as far as its constraints allow. Between two shapes it moves the one held by less; if they are held alike, the one clicked second.
+
 A value can be a number (millimetres, or degrees for an angle), a number with a unit (`0.5 in`, `2 cm`, `30 deg`, `1 rad`), an expression (`25.4 / 2 + 1`, `sqrt(2) * 10`), or use the **Variables** table (`#width * 5 / 8`). When the value names a variable, the dimension shows both the value and what you typed.
 
 ## Fully defined
@@ -92,10 +106,21 @@ Select a free point or shape and drag it: the sketch is solved as it moves, keep
 
 | Key | Tool | How |
 |---|---|---|
-| M | Trim | Click a piece of a shape between the places other shapes cross it, and the piece goes. |
+| M | Trim | Click a piece of a shape between the places other shapes cross it, and the piece goes. A trimmed ellipse or spline is still that ellipse or spline, shown over the stretch that is left, so its points, constraints and dimensions stay. |
+| | Extend | Click a line near an end: the end carries on to the first shape in its way. |
+| | Split | Click a line or an arc where to cut it in two. The halves stay joined. |
+| | Sketch chamfer | Click a corner where two lines meet. The distance back from the corner is in the bar. |
 | | Sketch fillet | Click a corner where two lines meet. The radius is in the bar. Anything that held or measured the corner now holds a construction point left where it was. |
-| O | Offset | Select shapes, set the distance in the bar (negative for the other side), then click Offset. Copies of lines that met are joined. |
-| | Mirror | Select shapes, click Mirror, then click the line to mirror them in. Each copy's points are held symmetric to the original. |
+| O | Offset | Select shapes, set the distance in the bar (negative for the other side), then click Offset. Copies of lines that met are joined. An ellipse's or a spline's copy is a spline set that far off it, which follows the curve when it changes. Double-click it to change the distance. |
+| | Mirror | Click Mirror: a small panel opens. Click the shapes to mirror (or drag a box round them), click the Mirror line box and then the line, and press Mirror. Each copy's points are held symmetric to the original. A text or a picture is mirrored too, and reads backwards as a reflection does. |
+| | Linear pattern | Click the shapes into the panel, type the step across and up and how many in all, then Pattern. Copies keep the constraints and dimensions among the shapes copied. |
+| | Circular pattern | The same, about a point (x, y) and over an angle. |
+| | Transform | Click the shapes into the panel, then move them across and up, turn them and scale them (about their middle). What would hold them where they were is let go. |
+| | Intersection | Click a part: where it cuts the sketch's plane comes in as fixed shapes. |
+| | Silhouette | Click a curved face of the model: its outline, seen square on to the sketch, comes in as lines, circles and splines held where they are. They follow the face when the model changes. |
+| | Pierce | Click an edge of the model that goes through the sketch's plane: a point comes in where it does, and follows the edge when the model changes. |
+| | Insert DXF | A DXF file's lines, circles, arcs, ellipses, splines, polylines and text come in where the file puts them, selected, ready to drag or Transform. Blocks are put in where the drawing places them, and a hatch comes in as its outlines. A drawing in inches, feet, centimetres or metres is turned into millimetres. Dimensions and pictures in the file are not read. |
+| | Insert a picture | A PNG, JPEG, WebP or GIF under 2 MB is drawn on the sketch's plane to trace over. Set its width and angle in its panel (double-click it to open the panel again) and drag it by its corner point. It makes no regions and is saved in the file. |
 | U | Use | Click edges of the model to project them into the sketch, fixed where they are. A straight or round edge follows the model when it changes. |
 
 Ctrl+C and Ctrl+V copy and paste shapes, with the constraints between them. Ctrl+Z and Ctrl+Shift+Z undo and redo inside the sketch.

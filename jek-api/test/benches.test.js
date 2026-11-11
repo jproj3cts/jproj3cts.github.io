@@ -17,6 +17,14 @@ async function make(s, name = 'Bench', extra = {}) {
   expect(r.status).toBe(201);
   return r.body;
 }
+// a team workspace with a plan, owned by `s`
+async function teamOf(s) {
+  const id = 'w_team_' + Math.random().toString(36).slice(2, 10);
+  await env.DB.prepare("INSERT INTO workspaces (id, kind, name, owner_id, created_at) VALUES (?, 'team', 'Lab', ?, ?)").bind(id, s.user.id, Date.now()).run();
+  await env.DB.prepare("INSERT INTO members VALUES (?, ?, 'owner', 0, 0)").bind(id, s.user.id).run();
+  await withPlan(id);
+  return id;
+}
 const put = (s, id, version, content, extra = {}) =>
   send(`/v1/benches/${id}`, 'PUT', s.token, { content, ...extra }, { 'If-Match': `"${version}"` });
 const versionsOf = async (s, id) => (await json(await call(`/v1/benches/${id}/versions`, { token: s.token }))).body.versions;
@@ -190,6 +198,69 @@ describe('other people’s benches', () => {
     const mine = await make(a);
     const r = await send(`/v1/benches/${mine.id}`, 'PATCH', a.token, { folder_id: f.id });
     expect(r.status).toBe(400);
+  });
+
+  it('moves a bench to another workspace the mover can save to, history and all, into a folder there or the top', async () => {
+    const me = await pro();
+    const lab = await teamOf(me);
+    const f = (await json(await send(`/v1/workspaces/${lab}/folders`, 'POST', me.token, { name: 'Shared' }))).body;
+    const b = await make(me);
+    await put(me, b.id, 1, bench('two'), { checkpoint: true });
+    const before = (await versionsOf(me, b.id)).length;
+    const r = await json(await send(`/v1/benches/${b.id}`, 'PATCH', me.token, { workspace_id: lab, folder_id: f.id }));
+    expect(r.status).toBe(200);
+    expect(r.body.workspace_id).toBe(lab);
+    expect(r.body.folder_id).toBe(f.id);
+    expect((await versionsOf(me, b.id)).length).toBe(before);
+    expect((await json(await call(`/v1/benches/${b.id}`, { token: me.token }))).body.content).toBe(bench('two'));
+    const mine = (await json(await call(`/v1/workspaces/${me.workspaceId}/benches`, { token: me.token }))).body.benches;
+    expect(mine.some((x) => x.id === b.id)).toBe(false);
+    // back again, to the top: a folder of the workspace it left is not carried over
+    const back = await json(await send(`/v1/benches/${b.id}`, 'PATCH', me.token, { workspace_id: me.workspaceId }));
+    expect(back.body.workspace_id).toBe(me.workspaceId);
+    expect(back.body.folder_id).toBe(null);
+    const acts = (await env.DB.prepare("SELECT action FROM audit WHERE target = ? AND action LIKE 'bench.move%' ORDER BY at").bind(b.id).all()).results.map((x) => x.action);
+    expect(acts.sort()).toEqual(['bench.move_in', 'bench.move_in', 'bench.move_out', 'bench.move_out']);
+  });
+
+  it('only a team’s owner and admins move a bench out of it; anyone who can save there moves one in', async () => {
+    const owner = await pro();
+    const lab = await teamOf(owner);
+    const editor = await pro();
+    await env.DB.prepare("INSERT INTO members VALUES (?, ?, 'editor', 0, 0)").bind(lab, editor.user.id).run();
+    const shared = (await json(await send(`/v1/workspaces/${lab}/benches`, 'POST', owner.token, { name: 'Shared', content: bench('Shared') }))).body;
+    expect((await send(`/v1/benches/${shared.id}`, 'PATCH', editor.token, { workspace_id: editor.workspaceId })).status).toBe(403);
+    expect((await json(await call(`/v1/benches/${shared.id}`, { token: owner.token }))).body.workspace_id).toBe(lab);
+    const own = await make(editor);
+    expect((await send(`/v1/benches/${own.id}`, 'PATCH', editor.token, { workspace_id: lab })).status).toBe(200);
+    await env.DB.prepare("UPDATE members SET role = 'admin' WHERE workspace_id = ? AND user_id = ?").bind(lab, editor.user.id).run();
+    expect((await send(`/v1/benches/${shared.id}`, 'PATCH', editor.token, { workspace_id: editor.workspaceId })).status).toBe(200);
+  });
+
+  it('does not move a bench to a workspace the mover is not in, cannot save to, or that has no plan or room', async () => {
+    const me = await pro();
+    const other = await pro();
+    const b = await make(me);
+    expect((await send(`/v1/benches/${b.id}`, 'PATCH', me.token, { workspace_id: other.workspaceId })).status).toBe(404);
+    const lab = await teamOf(other);
+    await env.DB.prepare("INSERT INTO members VALUES (?, ?, 'viewer', 0, 0)").bind(lab, me.user.id).run();
+    expect((await send(`/v1/benches/${b.id}`, 'PATCH', me.token, { workspace_id: lab })).status).toBe(403);
+    await env.DB.prepare("UPDATE members SET role = 'editor' WHERE workspace_id = ? AND user_id = ?").bind(lab, me.user.id).run();
+    const theirs = (await json(await send(`/v1/workspaces/${other.workspaceId}/folders`, 'POST', other.token, { name: 'Theirs' }))).body;
+    expect((await send(`/v1/benches/${b.id}`, 'PATCH', me.token, { workspace_id: lab, folder_id: theirs.id })).status).toBe(400);
+    await env.DB.prepare('DELETE FROM subscriptions WHERE workspace_id = ?').bind(lab).run();
+    expect((await send(`/v1/benches/${b.id}`, 'PATCH', me.token, { workspace_id: lab })).status).toBe(402);
+    expect((await json(await call(`/v1/benches/${b.id}`, { token: me.token }))).body.workspace_id).toBe(me.workspaceId);
+  });
+
+  it('does not move a bench someone else has open to edit', async () => {
+    const owner = await pro();
+    const lab = await teamOf(owner);
+    const editor = await pro();
+    await env.DB.prepare("INSERT INTO members VALUES (?, ?, 'editor', 0, 0)").bind(lab, editor.user.id).run();
+    const shared = (await json(await send(`/v1/workspaces/${lab}/benches`, 'POST', owner.token, { name: 'Shared', content: bench('Shared') }))).body;
+    await env.DB.prepare('INSERT OR REPLACE INTO bench_leases (bench_id, user_id, since, until) VALUES (?, ?, ?, ?)').bind(shared.id, editor.user.id, Date.now(), Date.now() + 60000).run();
+    expect((await send(`/v1/benches/${shared.id}`, 'PATCH', owner.token, { workspace_id: owner.workspaceId })).status).toBe(423);
   });
 
   it('viewers can read but not change a team’s benches', async () => {

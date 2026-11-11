@@ -88,6 +88,7 @@ export async function initView() {
   new ResizeObserver(resize).observe(cv.parentElement);
   on('model', out => { setParts(out); });
   on('sel', () => { highlight(); });
+  on('picked', () => { highlight(); });
   on('theme', () => { V.dirty = true; highlight(); });
   loop();
 }
@@ -205,6 +206,8 @@ export function setSection(s) {
   V.dirty = true;
 }
 /* the colours of faces and edges: the part's own, the selection and the hover over it */
+/* the feature that made a face, from the face's name (a pattern's or a mirror's copy of it: the pattern or the mirror) */
+export const featureOfFace = nm => String(nm || '').split('~').pop().split('.')[0].replace(/'+$/, '');
 const faceRange = (p, i) => [p.faceGroups[2 * i], p.faceGroups[2 * i + 1]];
 export function highlight() {
   if (!V.ready) return;
@@ -216,6 +219,8 @@ export function highlight() {
     const b = whole ? new T.Color(C.sel) : hovWhole ? base.clone().lerp(new T.Color(C.hov), 0.5) : base;
     for (let v = 0; v < arr.length; v += 3) { arr[v] = b.r; arr[v + 1] = b.g; arr[v + 2] = b.b; }
     const sc = new T.Color(C.sel), hc = base.clone().lerp(new T.Color(C.hov), 0.55);
+    // the feature picked in the list: the faces it made (their names begin with its id), tinted
+    if (app.picked && p.faceNames) { const pc = base.clone().lerp(new T.Color(C.sel), 0.6); p.faceNames.forEach((nm, i) => { if (featureOfFace(nm) === app.picked) paint(pc, ...faceRange(p, i)); }); }
     if (app.hover && app.hover.part === id && app.hover.kind === 'face') paint(hc, ...faceRange(p, app.hover.index));
     for (const s of app.sel) if (s.part === id && s.kind === 'face') paint(sc, ...faceRange(p, s.index));
     col.needsUpdate = true;
@@ -324,10 +329,18 @@ export function fit(now, q) {
 export function viewFrom(name) { const v = VIEWS[name]; if (!v) return; fit(false, qView(v[0], v[1])); }
 /* look straight at a plane frame (a sketch's, a face's): its x across, its y up */
 export function normalTo(F, keepZoom) { const q = qBasis(F.x, F.y, F.n); if (keepZoom) animateTo(q); else fit(false, q); }
+/* orbit: the model turned as the pointer drags it, about the screen's own axes through the middle of the parts
+   (across: about the line up the screen; up and down: about the line across it), as Onshape turns a part. The
+   middle of the model stays where it is on the screen, wherever the view was panned to. */
 export function orbit(dx, dy) {
-  const a = camAxes();
-  V.q = qnorm(qmul(qaxis([0, 0, 1], -dx * 0.008), V.q));
-  V.q = qnorm(qmul(qaxis(a.x, -dy * 0.008), V.q));
+  // (the middle of the parts, where there are any: a sketch or a plane beside them does not shift the pivot)
+  let pivot = sceneBounds().c;
+  if (V.parts.size) { const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity]; for (const o of V.parts.values()) { const b = o.userData.p.bbox; for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], b[0][i]); hi[i] = Math.max(hi[i], b[1][i]); } } pivot = lo.map((v, i) => (v + hi[i]) / 2); }
+  const s0 = project(pivot);
+  V.q = qnorm(qmul(qaxis(camAxes().y, -dx * 0.008), V.q));
+  V.q = qnorm(qmul(qaxis(camAxes().x, -dy * 0.008), V.q));
+  const s1 = project(pivot);
+  pan(s0[0] - s1[0], s0[1] - s1[1]);
   V.dirty = true;
 }
 export function pan(dx, dy) { const a = camAxes(), s = 2 * V.hh / V.h; V.target = V.target.map((v, i) => v - a.x[i] * dx * s + a.y[i] * dy * s); V.dirty = true; }
@@ -339,28 +352,62 @@ export function zoomAt(sx, sy, f) {
 }
 /* ---------- the view cube: drawn with the camera; a face clicked turns the view to it ---------- */
 const CUBE_FACES = [['top', 'Top', [0, 0, 1]], ['bottom', 'Bottom', [0, 0, -1]], ['front', 'Front', [0, -1, 0]], ['back', 'Back', [0, 1, 0]], ['right', 'Right', [1, 0, 0]], ['left', 'Left', [-1, 0, 0]]];
-let cubeHover = null;
+let cubeHover = null;                                   // { k, su, sv }: a face, and which of its nine parts
+/* the cube's faces as they show: each a face's four corners on the cube's canvas, with the two directions across it */
 function cubeFaces() {
   const { x, y, z } = camAxes(), S = 22, out = [];
   for (const [k, label, n] of CUBE_FACES) {
     const vis = n[0] * z[0] + n[1] * z[1] + n[2] * z[2];
     if (vis < 0.02) continue;
     const a = Math.abs(n[2]) > 0.5 ? [1, 0, 0] : [0, 0, 1], b = cross(n, a);
-    const pts = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => { const w = [n[0] + a[0] * u + b[0] * v, n[1] + a[1] * u + b[1] * v, n[2] + a[2] * u + b[2] * v]; return [38 + S * (w[0] * x[0] + w[1] * x[1] + w[2] * x[2]), 38 - S * (w[0] * y[0] + w[1] * y[1] + w[2] * y[2])]; });
-    out.push({ k, label, pts, vis });
+    const at = (u, v) => { const w = [n[0] + a[0] * u + b[0] * v, n[1] + a[1] * u + b[1] * v, n[2] + a[2] * u + b[2] * v]; return [38 + S * (w[0] * x[0] + w[1] * x[1] + w[2] * x[2]), 38 - S * (w[0] * y[0] + w[1] * y[1] + w[2] * y[2])]; };
+    out.push({ k, label, n, a, b, at, pts: [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => at(u, v)), vis });
   }
   return out.sort((p, q) => p.vis - q.vis);
+}
+/* a face is nine parts, as Onshape's cube is: its middle looks straight at the face, a strip along a side looks
+   along the edge there (between the two faces), a corner looks from the corner (between the three) */
+const CUBE_RIM = 0.56;
+function cubeAt(q) {
+  let hit = null;
+  for (const f of cubeFaces()) {
+    // the point in the face's own two directions (the face is drawn as a parallelogram)
+    const c = f.at(0, 0), A = f.at(1, 0), B = f.at(0, 1), ax = A[0] - c[0], ay = A[1] - c[1], bx = B[0] - c[0], by = B[1] - c[1], det = ax * by - ay * bx;
+    if (Math.abs(det) < 1e-6) continue;
+    const u = ((q[0] - c[0]) * by - (q[1] - c[1]) * bx) / det, v = (ax * (q[1] - c[1]) - ay * (q[0] - c[0])) / det;
+    if (Math.abs(u) <= 1 && Math.abs(v) <= 1) hit = { k: f.k, su: Math.abs(u) > CUBE_RIM ? Math.sign(u) : 0, sv: Math.abs(v) > CUBE_RIM ? Math.sign(v) : 0, f };
+  }
+  return hit;
+}
+/* look from a part of the cube: a face (its named view), an edge or a corner */
+function cubeLook(hh) {
+  if (!hh.su && !hh.sv) { viewFrom(hh.k); return; }
+  const f = hh.f, d = [0, 1, 2].map(i => f.n[i] + f.a[i] * hh.su + f.b[i] * hh.sv);
+  fit(false, qView(d, Math.abs(d[2]) > 0.999 * Math.hypot(...d) ? [0, 1, 0] : [0, 0, 1]));
+}
+/* the view turned a step (15°) about the screen's axes, by the arrows round the cube */
+export function turnStep(dir) {
+  const k = (15 * Math.PI / 180) / 0.008;
+  if (dir === 'ccw' || dir === 'cw') {
+    // the curved arrows: the view rolled about the line of sight, the middle of the screen staying put
+    const a = camAxes(), z = [a.x[1] * a.y[2] - a.x[2] * a.y[1], a.x[2] * a.y[0] - a.x[0] * a.y[2], a.x[0] * a.y[1] - a.x[1] * a.y[0]];
+    V.q = qnorm(qmul(qaxis(z, (dir === 'ccw' ? -1 : 1) * 15 * Math.PI / 180), V.q)); V.dirty = true;
+  } else orbit(dir === 'left' ? k : dir === 'right' ? -k : 0, dir === 'up' ? k : dir === 'down' ? -k : 0);
+  emit('view');
 }
 export function wireCube() {
   const box = document.getElementById('viewCube');
   if (!box) return;
-  const cv = document.createElement('canvas'); cv.className = 'cad-cubecv'; cv.width = 152; cv.height = 152; cv.setAttribute('aria-label', 'View cube: click a face to look at it');
+  const cv = document.createElement('canvas'); cv.className = 'cad-cubecv'; cv.width = 152; cv.height = 152; cv.setAttribute('aria-label', 'View cube: click a face to look at it, an edge or a corner to look from there');
   box.prepend(cv);
-  const at = e => { const r = cv.getBoundingClientRect(), q = [(e.clientX - r.left) * 76 / r.width, (e.clientY - r.top) * 76 / r.height]; let hit = null; for (const f of cubeFaces()) { let c = false; const P = f.pts; for (let i = 0, j = 3; i < 4; j = i++) if ((P[i][1] > q[1]) !== (P[j][1] > q[1]) && q[0] < (P[j][0] - P[i][0]) * (q[1] - P[i][1]) / (P[j][1] - P[i][1]) + P[i][0]) c = !c; if (c) hit = f.k; } return hit; };
-  cv.addEventListener('pointermove', e => { const k = at(e); if (k !== cubeHover) { cubeHover = k; cubeShown(); } cv.style.cursor = k ? 'pointer' : 'default'; });
+  const at = e => { const r = cv.getBoundingClientRect(); return cubeAt([(e.clientX - r.left) * 76 / r.width, (e.clientY - r.top) * 76 / r.height]); };
+  const same = (p, q) => (!p && !q) || (p && q && p.k === q.k && p.su === q.su && p.sv === q.sv);
+  cv.addEventListener('pointermove', e => { const hh = at(e); if (!same(hh, cubeHover)) { cubeHover = hh; cubeShown(); } cv.style.cursor = hh ? 'pointer' : 'default'; });
   cv.addEventListener('pointerleave', () => { cubeHover = null; cubeShown(); });
-  cv.addEventListener('click', e => { const k = at(e); if (k) viewFrom(k); });
+  cv.addEventListener('click', e => { const hh = at(e); if (hh) cubeLook(hh); });
+  for (const b of box.querySelectorAll('[data-turn]')) b.addEventListener('click', () => turnStep(b.dataset.turn));
 }
+export const cubePart = (x, y) => { const hh = cubeAt([x, y]); return hh && { k: hh.k, su: hh.su, sv: hh.sv }; };
 function cubeShown() {
   const cv = document.querySelector('#viewCube .cad-cubecv');
   if (!cv) return;
@@ -370,9 +417,16 @@ function cubeShown() {
   for (const f of cubeFaces()) {
     c.beginPath(); f.pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.closePath();
     const sh = 0.6 + 0.4 * f.vis;
-    c.fillStyle = f.k === cubeHover ? '#e0892e' : dark ? 'rgb(' + [62, 68, 77].map(v => Math.round(v * sh)).join(',') + ')' : 'rgb(' + [240, 234, 222].map(v => Math.round(v * sh + 90 * (1 - sh))).join(',') + ')';
+    c.fillStyle = dark ? 'rgb(' + [62, 68, 77].map(v => Math.round(v * sh)).join(',') + ')' : 'rgb(' + [240, 234, 222].map(v => Math.round(v * sh + 90 * (1 - sh))).join(',') + ')';
     c.fill(); c.strokeStyle = dark ? '#8a93a0' : '#7c8591'; c.lineWidth = 0.8; c.stroke();
-    if (f.vis > 0.25) { const m = f.pts.reduce((s2, p) => [s2[0] + p[0] / 4, s2[1] + p[1] / 4], [0, 0]); c.fillStyle = f.k === cubeHover ? '#fff' : dark ? '#e9e6df' : '#1f232a'; c.fillText(f.label, m[0], m[1]); }
+    // the part under the pointer: the face's middle, a strip along a side, or a corner
+    const hv = cubeHover && cubeHover.k === f.k ? cubeHover : null;
+    if (hv) {
+      const R = CUBE_RIM, span = s2 => (s2 > 0 ? [R, 1] : s2 < 0 ? [-1, -R] : [-R, R]), [u0, u1] = span(hv.su), [v0, v1] = span(hv.sv);
+      c.beginPath(); [[u0, v0], [u1, v0], [u1, v1], [u0, v1]].forEach(([u, v], i) => { const p = f.at(u, v); if (i) c.lineTo(p[0], p[1]); else c.moveTo(p[0], p[1]); }); c.closePath();
+      c.fillStyle = '#e0892e'; c.fill();
+    }
+    if (f.vis > 0.25) { const m = f.at(0, 0); c.fillStyle = hv && !hv.su && !hv.sv ? '#fff' : dark ? '#e9e6df' : '#1f232a'; c.fillText(f.label, m[0], m[1]); }
   }
 }
 /* ---------- fly: the model full screen, flown through, as JEKray's 3D view is ----------

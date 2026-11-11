@@ -28,7 +28,7 @@ function forShown() {
   const bar = document.getElementById('filmFor');
   if (!bar) return;
   bar.hidden = !filmFor;
-  if (filmFor) bar.replaceChildren(h('b', null, 'For JEKray: ' + filmFor.label + '. '), 'Save to the cloud (File › Save to the cloud…) and it goes onto that face, linked to this coating.',
+  if (filmFor) bar.replaceChildren(h('b', null, 'For JEKray: ' + filmFor.label + '. '), 'Save it to the cloud (File › Save to cloud…) and it goes onto that face, linked to this coating.',
     h('button', { class: 'rt-link', type: 'button', onclick: () => setFilmFor(null) }, 'Not for that face'));
 }
 let filmCloudTimer = null, filmCloudBusy = false;
@@ -119,7 +119,7 @@ export function cloudShown() {
   const where = document.getElementById('filmWhere');
   if (where) where.textContent = filmLink ? 'In the cloud' + (filmLease.editing && !filmLease.held ? ', ' + filmLease.editing.name + ' is editing' : filmLink.dirty ? ', not saved yet' : '') : 'In this browser';
   const b = document.getElementById('btnCloudSave');
-  if (b) b.querySelector('.lbl').textContent = filmLink ? 'Save to the cloud' : 'Save to the cloud…';
+  if (b) b.querySelector('.lbl').textContent = filmLink ? 'Save to cloud' : 'Save to cloud…';
 }
 /* ---------- saving ---------- */
 export function filmCloudChanged() {
@@ -199,7 +199,7 @@ export async function saveToCloud() {
   where.addEventListener('change', fillFolders); fillFolders();
   const go = h('button', { class: 'rt-btn primary', type: 'button', id: 'filmCloudMake' }, 'Save');
   dlg = h('dialog', { class: 'rt-dialog', id: 'filmCloudNew', 'aria-labelledby': 'filmCloudNewTitle' },
-    h('h2', { id: 'filmCloudNewTitle' }, 'Save to the cloud'),
+    h('h2', { id: 'filmCloudNewTitle' }, 'Save to cloud'),
     h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudName' }, 'Name'), name), h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudWhere' }, 'In'), where),
       h('div', { class: 'rt-f wide' }, h('label', { for: 'filmCloudFolder' }, 'Folder'), folder)),
     h('p', { class: 'rt-subsmall' }, filmFor ? 'The bench’s own folder is chosen, so its faces’ Coating lists offer it. It saves as you work, with its history on JEKsuite.' : 'Keep it in the folder of the benches it is for. It saves as you work, with its history on JEKsuite.'),

@@ -2,6 +2,7 @@ import { KIND_WORD, diffProject, merge3, resolve, showValue } from '../../../jek
 import { track } from '../../../jekray/src/io/usage.js';
 import { APPS, appOf, thingOf, closeMenu, helpLine, iconNode, menuIcons, menuOpenFor, openApp, openMenu, setSpaceTheme, spaceTheme, toast } from './dom.js';
 import { h } from '../../../jekray/src/ui/dom.js';
+import { SORTS, countOf, folderCounts, folderFits, folderKids, runOf, sortBenches } from '../core/files.js';
 import { API_BASE, account, accountMenuRows, api, avatarNode, fillAccount, setAccount, showSubscribe } from '../../../jekray/src/io/account.js';
 
 /* ==========================================================================
@@ -13,9 +14,39 @@ import { API_BASE, account, accountMenuRows, api, avatarNode, fillAccount, setAc
    app, in the cloud when the workspace can save there. Taken from what was JEKray's My benches page (io/cloud.js),
    which this page replaces.
    ========================================================================== */
-export const cloudPlace = { ws: null, folder: null, q: '', view: 'folder', history: null, flash: null, cmp: null, app: null, sel: null };
+export const cloudPlace = { ws: null, folder: null, q: '', view: 'folder', history: null, flash: null, cmp: null, app: null, sel: null, only: null };
 const HOME_KEY = 'jek-home-view';
-const homeView = { sort: 'changed', rows: false };
+const homeView = { sort: 'changed', flip: false, rows: false, open: [] };
+/* the benches picked (Ctrl-click, Shift-click, a card's tick): kept while the place shown stays the same */
+const picked = new Set(), pickedF = new Set();   // benches, and folders
+let pickedAt = '', pickAnchor = null;
+/* what is being dragged ({ benches, folders }), every bench of the workspace as last read (for what each folder
+   holds), and what the keys do in the list shown (Ctrl+A, Delete, F2, Escape) */
+let dragItems = null, allSeen = null, homeKeys = null;
+/* a name asked for in a small dialog (a fork's, a copy's): the name given, or null when it is cancelled */
+function askName(title, label, value, okLabel) {
+  return new Promise(res => {
+    let dlg = document.getElementById('spaceNameDialog'), out = null;
+    if (dlg) dlg.remove();
+    const inp = h('input', { type: 'text', id: 'spaceNameInput', value, spellcheck: 'false', maxlength: '120' });
+    dlg = h('dialog', { class: 'rt-dialog', id: 'spaceNameDialog', 'aria-labelledby': 'spaceNameTitle' }, h('h2', { id: 'spaceNameTitle' }, title),
+      h('form', { method: 'dialog', onsubmit: e => { e.preventDefault(); out = inp.value.trim(); dlg.close(); } },
+        h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: 'spaceNameInput' }, label), inp)),
+        h('div', { class: 'rt-actions' }, h('button', { class: 'rt-btn', type: 'button', onclick: () => dlg.close() }, 'Cancel'), h('button', { class: 'rt-btn primary', type: 'submit', id: 'spaceNameOk' }, okLabel))));
+    dlg.addEventListener('close', () => { dlg.remove(); res(out); });
+    document.body.append(dlg); dlg.showModal(); inp.select();
+  });
+}
+/* a name typed in place: Enter or leaving it keeps it, Escape puts things back */
+function nameInput(value, label, save, cancel) {
+  const inp = h('input', { type: 'text', class: 'rt-hrename', value, maxlength: '120', spellcheck: 'false', 'aria-label': label, placeholder: label });
+  let done = false;
+  const end = keep => { if (done) return; done = true; const v = inp.value.trim(); if (keep && v && v !== value) save(v); else cancel(); };
+  inp.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); end(true); } else if (e.key === 'Escape') { e.preventDefault(); end(false); } });
+  inp.addEventListener('blur', () => end(true));
+  for (const ev of ['click', 'dblclick', 'pointerdown', 'dragstart']) inp.addEventListener(ev, e => e.stopPropagation());
+  return inp;
+}
 export const kb = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(n < 10240 ? 1 : 0) + ' KB' : n < 1073741824 ? (n / 1048576).toFixed(1) + ' MB' : (n / 1073741824).toFixed(2) + ' GB';
 const whenAgo = t => {
   const d = new Date(t), s = (Date.now() - t) / 1000;
@@ -54,12 +85,35 @@ const homeSay = (fn, ok) => async () => {
 /* a cloud bench opened in its app, in that app's tab: a version as a copy (#cloud=<id>@<version>) */
 async function homeOpenBench(id, version, b) {
   let tool = b && b.tool;
-  if (!tool) { try { tool = (await api('/v1/benches/' + id)).tool; } catch (err) { tool = 'jekray'; } }
+  if (!tool) { try { const full = await api('/v1/benches/' + id); tool = full.tool; try { tool = TOOL_OF_FORMAT[JSON.parse(full.content).format] || tool; } catch (err) { /* as marked */ } } catch (err) { tool = 'jekray'; } }
+  else if (tool === 'jekray' && TOOL_OF_FORMAT[toolMap()[id]]) tool = toolMap()[id];
   track('cloud', 'open.' + (tool || 'jekray'));
   openApp(tool || 'jekray', 'cloud=' + id + (version ? '@' + version : ''));
 }
 // the workspaces (but one) the person can save a bench to: a copy goes to one of them
 export const copyPlaces = (notWs) => (account ? account.workspaces : []).filter(w => w.id !== notWs && w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner'));
+/* A bench's app, where the API's mark is behind what it holds: an API from before an app was made marks that app's
+   benches JEKray's. Each bench marked JEKray's is looked at once (its content says its format), what was found is
+   kept by its id for the next visit, and the list is drawn again if any turned out to be another app's. */
+const TOOL_KEY = 'jeksuite-tools', TOOL_OF_FORMAT = { jekcad: 'jekcad', jekfilm: 'jekfilm', jekion: 'jekion' };
+/* (what was found is kept by the bench's id: 'jekcad' and the like for good, since a bench never changes its app;
+   'jekray' with the version it was seen at, as v<n>, so a bench the look failed on, or one saved over since, is
+   looked at again. The store is read each time: JEKcad writes to it too, for each part studio it saves or opens.) */
+const toolMap = () => { try { return JSON.parse(localStorage.getItem(TOOL_KEY)) || {}; } catch (err) { return {}; } };
+let toolBusy = false;
+function trueTools(list, again) {
+  const M = toolMap(), ask = [];
+  for (const b of list || []) { if (!b || (b.tool || 'jekray') !== 'jekray') continue; const k = M[b.id]; if (k && k !== 'jekray' && !/^v\d+$/.test(k)) b.tool = k; else if (k !== 'v' + b.version) ask.push(b); }
+  if (!ask.length || toolBusy) return;
+  toolBusy = true;
+  (async () => {
+    let found = false;
+    // a few at a time, every one of them (a long list is not left half looked at)
+    for (let i = 0; i < ask.length; i += 6) await Promise.all(ask.slice(i, i + 6).map(b => api('/v1/benches/' + b.id).then(full => { let fmt = null; try { fmt = JSON.parse(full.content).format; } catch (err) { /* not JSON: JEKray's */ } const t = TOOL_OF_FORMAT[fmt]; const now = toolMap(); now[b.id] = t || 'v' + (full.version || b.version); try { localStorage.setItem(TOOL_KEY, JSON.stringify(now)); } catch (err) { /* this visit */ } if (t) found = true; }, () => {})));
+    toolBusy = false;
+    if (found && again) again();
+  })();
+}
 const placeName = w => w.kind === 'personal' ? 'My benches' : w.name;
 // a copy of a bench, as it is now, into another workspace: a fork there, so it remembers where it came from
 function homeCopy(b, btn) {
@@ -69,25 +123,27 @@ function homeCopy(b, btn) {
     const w = places.find(x => x.id === sel.value);
     if (!w) return;
     closeHomeMenu();
-    const name = prompt('Name of the copy in ' + placeName(w), b.name);
-    if (name === null) return;
-    homeSay(async () => {
-      const f = await api('/v1/benches/' + b.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ name: name.trim() || undefined, workspace_id: w.id })));
-      Object.assign(cloudPlace, { ws: w.id, folder: null, view: 'folder', q: '', history: null, flash: f.id });
-      return f;
-    }, f => 'Copied to ' + placeName(w) + ' as “' + f.name + '”')();
+    askName('Copy “' + b.name + '” to ' + placeName(w), 'Name of the copy', b.name, 'Copy').then(name => {
+      if (name === null) return;
+      homeSay(async () => {
+        const f = await api('/v1/benches/' + b.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ name: name || undefined, workspace_id: w.id })));
+        Object.assign(cloudPlace, { ws: w.id, folder: null, view: 'folder', q: '', history: null, flash: f.id });
+        return f;
+      }, f => 'Copied to ' + placeName(w) + ' as “' + f.name + '”')();
+    });
   });
   openHomeMenu(btn, [h('div', { class: 'rt-menunote' }, 'Copy “' + b.name + '” to'), sel]);
 }
 // a fork: of the bench as it is now, or of one of its versions; named first
 function homeFork(b, version, after) {
-  const name = prompt('Name of the fork', b.name + (version ? ' (v' + version + ')' : ' (fork)'));
-  if (name === null) return;
-  homeSay(async () => {
-    const f = await api('/v1/benches/' + b.id + '/fork', Object.assign({ method: 'POST' }, jsonBody(Object.assign({ name: name.trim() || undefined }, version ? { version } : {}))));
-    if (after) after(f); else cloudPlace.flash = f.id;
-    return f;
-  }, f => 'Forked as “' + f.name + '”')();
+  askName('Fork “' + b.name + '”' + (version ? ' from version ' + version : ''), 'Name of the fork', b.name + (version ? ' (v' + version + ')' : ' (fork)'), 'Fork').then(name => {
+    if (name === null) return;
+    homeSay(async () => {
+      const f = await api('/v1/benches/' + b.id + '/fork', Object.assign({ method: 'POST' }, jsonBody(Object.assign({ name: name || undefined }, version ? { version } : {}))));
+      if (after) after(f); else cloudPlace.flash = f.id;
+      return f;
+    }, f => 'Forked as “' + f.name + '”')();
+  });
 }
 /* ---------- compare and merge ----------
    Compare: two versions of a bench, item by item (src/io/merge.js). Merge: a fork back into
@@ -198,6 +254,7 @@ export async function fillHome() {
     return;
   }
   if (seq !== homeSeq) return;
+  if (data && Array.isArray(data.benches)) trueTools(data.benches, () => { if (seq === homeSeq) fillHome(); });
   box.removeAttribute('aria-busy');
   const byId = new Map(folders.map(f => [f.id, f]));
   const appPage = P.app && P.view === 'folder' ? appOf(P.app) : null;
@@ -206,60 +263,170 @@ export async function fillHome() {
   if (P.view === 'links' && wsInfo && wsInfo.kind !== 'personal') { P.view = 'folder'; fillHome(); return; }
   const go = (view, folder = null) => () => { closeHomeMenu(); Object.assign(P, { view, folder, q: '', history: null }); document.getElementById('homeSearch').value = ''; fillHome(); document.getElementById('homeMain').scrollTop = 0; };
   const pathOf = id => { const out = []; for (let f = byId.get(id); f; f = byId.get(f.parent_id)) out.unshift(f); return out; };
+  const pathText = id => pathOf(id).map(f => f.name).join(' › ');
+  const writer = data.role ? ['owner', 'admin', 'editor'].includes(data.role) : wsInfo ? ['owner', 'admin', 'editor'].includes(wsInfo.role || 'owner') : true;
+  const active = data.active !== undefined ? data.active : !!(wsInfo && wsInfo.active);
+  const can = writer && active;
+  const keepView = () => { try { localStorage.setItem(HOME_KEY, JSON.stringify(homeView)); } catch (err) { /* this visit only */ } };
+  const placeKey = [ws, P.view, P.folder, P.q, P.app].join('|');
+  if (placeKey !== pickedAt) { picked.clear(); pickedF.clear(); pickAnchor = null; pickedAt = placeKey; }
+  homeKeys = null;
+  // what is dragged goes where it is dropped: benches and folders into a folder (or the top), benches onto the bin
+  const sayItems = (bs, fs) => [bs.length === 1 && !fs.length ? '“' + bs[0].name + '”' : bs.length ? countOf(bs.length, 'bench') : null,
+    fs.length === 1 && !bs.length ? 'the folder “' + fs[0].name + '”' : fs.length ? countOf(fs.length, 'folder') : null].filter(Boolean).join(' and ');
+  const goesInto = (items, into) => ({ benches: items.benches.filter(b => (b.folder_id || null) !== into),
+    folders: items.folders.filter(f => f.id !== into && (f.parent_id || null) !== into && folderFits(folders, f.id, into)) });
+  const moveItems = (items, into) => {
+    const { benches: bs, folders: fs } = goesInto(items, into);
+    if (!bs.length && !fs.length) return;
+    homeSay(async () => {
+      for (const b of bs) await api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, jsonBody({ folder_id: into })));
+      for (const f of fs) await api('/v1/workspaces/' + ws + '/folders/' + f.id, Object.assign({ method: 'PATCH' }, jsonBody({ parent_id: into })));
+      picked.clear(); pickedF.clear();
+    }, 'Moved ' + sayItems(bs, fs) + ' to ' + (into && byId.get(into) ? '“' + byId.get(into).name + '”' : top))();
+  };
+  // benches go to the bin, with an Undo beside the note that says so; a folder goes only when it is empty
+  const binItems = async (bs, fs = []) => {
+    let kept = 0;
+    try {
+      for (const b of bs) await api('/v1/benches/' + b.id, { method: 'DELETE' });
+      for (const f of fs) { try { await api('/v1/workspaces/' + ws + '/folders/' + f.id, { method: 'DELETE' }); } catch (err) { if (err.status === 409) kept++; else throw err; } }
+    } catch (err) { toast(err.status === 402 ? 'That needs JEKrayPro.' : err.message, true); fillHome(); return; }
+    picked.clear(); pickedF.clear();
+    toast([bs.length ? sayItems(bs, []) + ' moved to the bin for 30 days' : null, fs.length - kept ? (fs.length - kept === 1 ? 'Folder' : countOf(fs.length - kept, 'folder')) + ' deleted' : null,
+      kept ? countOf(kept, 'folder') + ' kept: empty ' + (kept === 1 ? 'it' : 'them') + ' first' : null].filter(Boolean).join('. '), !bs.length && kept === fs.length,
+    bs.length ? { label: 'Undo', fn: homeSay(async () => { for (const b of bs) await api('/v1/benches/' + b.id + '/undelete', { method: 'POST' }); }, 'Restored ' + sayItems(bs, [])) } : null);
+    fillHome();
+  };
+  // a place chosen from a list in a pop-up (where to move or copy to)
+  const choose = (x, note, options, done) => {
+    const sel = h('select', { 'aria-label': note }, h('option', { value: '?' }, 'Choose…'), ...options.map(([v, t]) => h('option', { value: v }, t)));
+    sel.addEventListener('change', () => { if (sel.value === '?') return; closeHomeMenu(); done(sel.value); });
+    openHomeMenu(x, [h('div', { class: 'rt-menunote' }, note), sel]);
+  };
+  const placesFor = fs => [['', top], ...folders.filter(x => fs.every(f => f.id !== x.id && folderFits(folders, f.id, x.id))).map(x => [x.id, pathText(x.id)]).sort((a, b) => a[1].localeCompare(b[1]))];
+  // to another workspace: benches only, to one the person can save to; out of a team, its owner and admins alone
+  const myRole = data.role || (wsInfo && wsInfo.role) || 'owner';
+  const moveOut = can && wsInfo && (wsInfo.kind === 'personal' || myRole === 'owner' || myRole === 'admin') ? copyPlaces(ws) : [];
+  const moveToWs = (bs, w) => homeSay(async () => {
+    try { for (const b of bs) await api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, jsonBody({ workspace_id: w.id }))); }
+    catch (err) { if (err.status === 400) throw new Error('Moving a bench to another workspace is not available yet.'); throw err; }
+    picked.clear(); pickedF.clear();
+  }, 'Moved ' + sayItems(bs, []) + ' to ' + placeName(w))();
+  const wsChoices = fs => (fs.length ? [] : moveOut.map(w => ['ws:' + w.id, placeName(w) + ' (workspace)']));
+  const moveChosen = (bs, fs) => v => { const w = v.startsWith('ws:') ? moveOut.find(x => 'ws:' + x.id === v) : null; if (w) moveToWs(bs, w); else moveItems({ benches: bs, folders: fs }, v || null); };
+  const takes = target => { if (!dragItems || !can) return false; if (target.ws) return moveOut.includes(target.ws) && dragItems.benches.length > 0 && !dragItems.folders.length; if (target.bin) return dragItems.benches.length > 0 && !dragItems.folders.length; const g = goesInto(dragItems, target.folder); return g.benches.length + g.folders.length > 0; };
+  const dropOn = (el, target) => {
+    el.addEventListener('dragover', e => { if (!takes(target)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drop'); });
+    el.addEventListener('dragleave', () => el.classList.remove('drop'));
+    el.addEventListener('drop', e => { el.classList.remove('drop'); if (!takes(target)) return; e.preventDefault(); const items = dragItems; dragItems = null; if (target.ws) moveToWs(items.benches, target.ws); else if (target.bin) binItems(items.benches); else moveItems(items, target.folder); });
+    return el;
+  };
+  const dragFrom = (el, items) => {
+    el.addEventListener('dragstart', e => { dragItems = items(); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', sayItems(dragItems.benches, dragItems.folders)); el.classList.add('dragging'); document.getElementById('home').classList.add('dragging'); });
+    el.addEventListener('dragend', () => { dragItems = null; el.classList.remove('dragging'); document.getElementById('home').classList.remove('dragging'); for (const d of document.querySelectorAll('.drop')) d.classList.remove('drop'); });
+    return el;
+  };
+  // what each folder holds, on its card and in the rail's tree: from every bench of the workspace, read once it is drawn
+  const decorate = () => {
+    const all = allSeen && allSeen.ws === ws ? allSeen.benches : null;
+    if (!all) return;
+    const every = folderCounts(folders, all), shown = appPage ? folderCounts(folders, all, appPage.id) : every, thing = appPage ? thingOf(appPage.id) : 'bench';
+    for (const n of rail.querySelectorAll('.rt-htnode[data-tree]')) { const c = n.querySelector('.rt-hcount'), k = every.get(n.dataset.tree); if (c) c.textContent = k ? String(k.n) : ''; }
+    for (const c of box.querySelectorAll('.rt-hcard.folder[data-folder]')) {
+      const k = shown.get(c.dataset.folder) || { n: 0, apps: {} }, cnt = c.querySelector('.rt-hcount'), dots = c.querySelector('.rt-hdots');
+      if (cnt) cnt.textContent = countOf(k.n, thing);
+      if (dots) dots.replaceChildren(...(appPage ? [] : APPS.filter(a => k.apps[a.id]).map(a => h('i', { class: a.id, title: countOf(k.apps[a.id], a.name + ' ' + thingOf(a.id)) }))));
+      // on an app's page, a folder with none of the app's benches in it (or in the folders inside it) is not shown
+      c.hidden = !!appPage && !k.n;
+    }
+    if (appPage) {
+      const shownF = box.querySelectorAll('.rt-hcard.folder:not([hidden])').length, grid = box.querySelector('.rt-hgrid.folders'), none = box.querySelector('.rt-hnone');
+      if (grid) { grid.hidden = !shownF; if (grid.previousElementSibling && grid.previousElementSibling.tagName === 'H3') grid.previousElementSibling.hidden = !shownF; }
+      const benchHead = [...box.querySelectorAll('.rt-hexplore > h3')].find(x => x.textContent === 'Benches');
+      if (benchHead) benchHead.hidden = !shownF;
+      const tblEl = box.querySelector('.rt-htable');
+      if (tblEl) tblEl.hidden = !shownF && !box.querySelector('.rt-hcard[data-bench]');
+      if (none) none.hidden = shownF > 0;
+    }
+  };
   // the rail: workspaces, then this one's places and folders
   const here = (view, folder) => !P.q && P.view === view && (view !== 'folder' || P.folder === folder);
   // (a place in the rail leaves an app's launch page)
   const leave = fn => () => { if (P.app) showApp(null); fn(); };
-  const railBtn = (label, icon, on, fn, depth = 0) => h('button', { type: 'button', 'aria-current': on ? 'true' : 'false', onclick: fn, title: label, style: depth ? 'padding-left:' + (0.6 + depth * 0.9) + 'rem' : null }, homeIcon(icon), h('span', null, label));
-  // (the folders are in the page, under Folders and in the breadcrumbs: not in the rail, where they read as one place's)
+  const railBtn = (label, icon, on, fn, cls) => h('button', { type: 'button', class: cls || null, 'aria-current': on ? 'true' : 'false', onclick: fn, title: label }, homeIcon(icon), h('span', null, label));
+  // the workspace's folders as a tree under it: a folder with folders in it opens and closes (kept), the way to the
+  // folder shown is always open; each is somewhere to drop what is dragged
+  const kids = folderKids(folders), wayHere = new Set(pathOf(P.folder).slice(0, -1).map(f => f.id)), openSet = new Set([...(homeView.open || []), ...wayHere]);
+  const treeNodes = (parent, depth) => (kids.get(parent) || []).flatMap(f => {
+    const has = (kids.get(f.id) || []).length > 0, isOpen = has && openSet.has(f.id);
+    const twist = has ? h('button', { type: 'button', class: 'rt-htwist', 'aria-expanded': String(isOpen), 'aria-label': (isOpen ? 'Close ' : 'Open ') + f.name, title: isOpen ? 'Close' : 'Open',
+      onclick: () => { const s = new Set(homeView.open || []); if (isOpen && !wayHere.has(f.id)) s.delete(f.id); else s.add(f.id); homeView.open = [...s].filter(id => byId.has(id)); keepView(); fillHome(); } }, isOpen ? '▾' : '▸') : h('span', { class: 'rt-htwist' });
+    const btn = dropOn(h('button', { type: 'button', class: 'rt-htgo', 'aria-current': !P.app && here('folder', f.id) ? 'true' : 'false', title: pathText(f.id), onclick: leave(go('folder', f.id)) },
+      homeIcon('folder'), h('span', null, f.name), h('small', { class: 'rt-hcount' })), { folder: f.id });
+    return [h('div', { class: 'rt-htnode', 'data-tree': f.id, style: 'padding-left:' + (0.55 + depth * 0.85) + 'rem' }, twist, btn), ...(isOpen ? treeNodes(f.id, depth + 1) : [])];
+  });
   const used = data.usage || (P.lastUsage && P.lastUsage.ws === ws ? P.lastUsage : null);
   if (data.usage) P.lastUsage = Object.assign({ ws }, data.usage);
   rail.replaceChildren(...[
-    h('h2', null, 'Apps'), ...APPS.map(a => railBtn(a.name, 'apps', P.app === a.id, () => { track('cloud', 'app.' + a.id); showApp(a.id); })),
-    places.length > 1 ? h('h2', null, 'Workspaces') : null,
-    ...(places.length > 1 ? places.map(w => railBtn(w.kind === 'personal' ? 'My benches' : w.name, w.kind === 'personal' ? 'bench' : 'folder', w.id === ws && !P.app, leave(() => { Object.assign(P, { ws: w.id, folder: null, view: 'folder', q: '', history: null }); fillHome(); }))) : []),
-    h('h2', null, places.length > 1 ? top : 'Benches'),
-    railBtn(places.length > 1 ? 'All benches' : 'My benches', 'bench', !P.app && here('folder', null), leave(go('folder', null))),
+    h('h2', null, 'Apps'), ...APPS.map(a => railBtn(a.name, a.icon, P.app === a.id, () => { track('cloud', 'app.' + a.id); showApp(a.id); }, 'rt-happbtn ' + a.id)),
+    h('h2', null, 'Benches'),
+    ...places.flatMap(w => w.id === ws
+      ? [dropOn(railBtn(placeName(w), w.kind === 'personal' ? 'home' : 'users', !P.app && here('folder', null), leave(go('folder', null))), { folder: null }), ...treeNodes(null, 1)]
+      : [dropOn(railBtn(placeName(w), w.kind === 'personal' ? 'home' : 'users', false, leave(() => { Object.assign(P, { ws: w.id, folder: null, view: 'folder', q: '', history: null }); fillHome(); })), { ws: w })]),
+    h('h2', null, 'In ' + top),
     railBtn('Recent', 'recent', !P.app && here('recent'), leave(go('recent'))),
     railBtn(wsInfo && wsInfo.kind !== 'personal' ? 'Team parts' : 'My parts', 'star', P.view === 'parts', leave(go('parts'))),
     wsInfo && wsInfo.kind === 'personal' ? railBtn('My links', 'link', P.view === 'links', leave(go('links'))) : null,
-    railBtn('Bin', 'trash', here('bin'), leave(go('bin'))),
+    dropOn(railBtn('Bin', 'trash', here('bin'), leave(go('bin'))), { bin: true }),
     h('div', { class: 'rt-hfoot' },
       used ? h('span', null, kb(used.bytes) + ' of ' + kb(used.quota) + ' used') : null,
       used ? h('div', { class: 'rt-hmeter', role: 'progressbar', 'aria-label': 'Cloud storage used', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(Math.round(100 * used.bytes / used.quota)) },
         h('span', { style: 'width:' + Math.min(100, Math.max(1, 100 * used.bytes / used.quota)).toFixed(1) + '%' })) : null,
       h('a', { href: API_BASE + '/v1/me/export', class: 'rt-link' }, 'Download everything (.zip)'),
       h('span', null, 'Signed in as ' + (account.user.name || account.user.email || 'you')))].filter(Boolean));
+  decorate();
+  (P.view === 'recent' && !P.q && Array.isArray(data.benches) ? Promise.resolve(data) : api('/v1/workspaces/' + ws + '/benches')).then(all => {
+    if (seq !== homeSeq) return;
+    trueTools(all.benches, () => { if (seq === homeSeq) fillHome(); });
+    allSeen = { ws, benches: all.benches || [] };
+    decorate();
+  }, () => { if (seq === homeSeq) for (const c of box.querySelectorAll('.rt-hcard.folder[hidden]')) c.hidden = false; });
   // where we are
   const link = (label, fn) => h('button', { type: 'button', class: 'rt-link', onclick: fn }, label);
   const sep = ' › ';
+  const cr = f => dropOn(link(f ? f.name : top, go('folder', f ? f.id : null)), { folder: f ? f.id : null });
   if (P.view === 'history') {
     const b = data.bench;
-    crumbs.replaceChildren(link(top, go('folder', null)), ...pathOf(b.folder_id).flatMap(f => [sep, link(f.name, go('folder', f.id))]), sep, b.name);
-  } else crumbs.replaceChildren(...(P.q ? [link(top, go('folder', null)), sep, 'Search: “' + P.q + '”']
-    : P.view === 'bin' ? [link(top, go('folder', null)), sep, 'Bin'] : P.view === 'recent' ? [link(top, go('folder', null)), sep, 'Recent']
-    : pathOf(P.folder).length ? [link(top, go('folder', null)), ...pathOf(P.folder).flatMap((f, i, a) => [sep, i === a.length - 1 ? f.name : link(f.name, go('folder', f.id))])] : [top]));
-  if (appPage) crumbs.replaceChildren(link(appPage.name, go('folder', null)), sep, ...(P.q ? ['Search: “' + P.q + '”'] : pathOf(P.folder).length ? [link(top, go('folder', null)), ...pathOf(P.folder).flatMap((f, i, a) => [sep, i === a.length - 1 ? f.name : link(f.name, go('folder', f.id))])] : [top]));
+    crumbs.replaceChildren(cr(null), ...pathOf(b.folder_id).flatMap(f => [sep, cr(f)]), sep, b.name);
+  } else crumbs.replaceChildren(...(P.q ? [cr(null), sep, 'Search: “' + P.q + '”']
+    : P.view === 'bin' ? [cr(null), sep, 'Bin'] : P.view === 'recent' ? [cr(null), sep, 'Recent']
+    : pathOf(P.folder).length ? [cr(null), ...pathOf(P.folder).flatMap((f, i, a) => [sep, i === a.length - 1 ? f.name : cr(f)])] : [top]));
+  if (appPage) crumbs.replaceChildren(link(appPage.name, go('folder', null)), sep, ...(P.q ? ['Search: “' + P.q + '”'] : pathOf(P.folder).length ? [cr(null), ...pathOf(P.folder).flatMap((f, i, a) => [sep, i === a.length - 1 ? f.name : cr(f)])] : [top]));
   document.getElementById('homeWhere').textContent = appPage ? appPage.name : top;
-  const writer = data.role ? ['owner', 'admin', 'editor'].includes(data.role) : wsInfo ? ['owner', 'admin', 'editor'].includes(wsInfo.role || 'owner') : true;
-  const active = data.active !== undefined ? data.active : !!(wsInfo && wsInfo.active);
-  const can = writer && active;
   note.hidden = active || P.view === 'history';
   note.replaceChildren('Saving, forking and organising need JEKrayPro. Benches here can still be opened and downloaded. ', link('Subscribe', () => showSubscribe()));
   // the tools: sort, grid or rows, a new folder
-  const keepView = () => { try { localStorage.setItem(HOME_KEY, JSON.stringify(homeView)); } catch (err) { /* this visit only */ } };
   const listing = P.view !== 'history' && P.view !== 'bin';
-  const sortSel = listing ? h('select', { 'aria-label': 'Sort by', onchange: e => { homeView.sort = e.target.value; keepView(); fillHome(); } },
-    ...[['changed', 'Last changed'], ['name', 'Name'], ['size', 'Size']].map(([v, t]) => { const o = h('option', { value: v }, t); o.selected = homeView.sort === v; return o; })) : null;
+  // (the benches as a table: its headings sort it, so the list of orders is for the cards)
+  const tbl = homeView.rows && !['history', 'parts', 'links'].includes(P.view);
+  const showWhere = !!(P.q || P.view === 'recent' || P.view === 'bin');
+  const sortSel = listing && !tbl ? h('select', { 'aria-label': 'Sort by', onchange: e => { homeView.sort = e.target.value; homeView.flip = false; keepView(); fillHome(); } },
+    ...Object.entries(SORTS).filter(([v]) => v !== 'folder' || showWhere).map(([v, t]) => { const o = h('option', { value: v }, t); o.selected = homeView.sort === v; return o; })) : null;
+  const newFolder = () => {
+    if (box.querySelector('.rt-hnewfolder')) { box.querySelector('.rt-hnewfolder input').focus(); return; }
+    const row = h('div', { class: 'rt-hnewfolder' }, homeIcon('folder'));
+    const inp = nameInput('', 'Name of the new folder', name => homeSay(() => api('/v1/workspaces/' + ws + '/folders', Object.assign({ method: 'POST' }, jsonBody({ name, parent_id: P.folder }))))(), () => row.remove());
+    row.append(inp); box.prepend(row); inp.focus();
+  };
   tools.replaceChildren(...[sortSel,
     P.view !== 'history' ? h('button', { type: 'button', class: 'rt-btn', title: homeView.rows ? 'Show as cards' : 'Show as a list', 'aria-label': homeView.rows ? 'Show as cards' : 'Show as a list',
       onclick: () => { homeView.rows = !homeView.rows; keepView(); fillHome(); } }, homeIcon(homeView.rows ? 'grid' : 'list')) : null,
-    P.view === 'folder' && !P.q && can ? h('button', { type: 'button', class: 'rt-btn', onclick: () => {
-      const name = (prompt('Name of the new folder') || '').trim();
-      if (name) homeSay(() => api('/v1/workspaces/' + ws + '/folders', Object.assign({ method: 'POST' }, jsonBody({ name, parent_id: P.folder }))))();
-    } }, homeIcon('folder'), ' New folder') : null].filter(Boolean));
+    P.view === 'folder' && !P.q && can ? h('button', { type: 'button', class: 'rt-btn', id: 'homeNewFolder', onclick: newFolder }, homeIcon('folder'), ' New folder') : null].filter(Boolean));
   for (const b of tools.querySelectorAll('.rt-btn')) b.style.cssText = 'display:inline-flex;align-items:center;gap:0.3rem';
-  box.classList.toggle('rows', homeView.rows && P.view !== 'history');
+  box.classList.toggle('rows', homeView.rows && (P.view === 'parts' || P.view === 'links'));
+  box.classList.toggle('tbl', tbl);
+  box.classList.remove('picking');
   // the history of one bench, as a graph down the side: its versions on one line, newest at
   // the top; each fork branching off from the version it was made from, at the time it was
   // made; and the bench it was itself forked from, at the foot
@@ -420,16 +587,20 @@ export async function fillHome() {
     const cards = list.map(p => {
       const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + p.name, title: 'More' }, '⋯');
       const add = () => toast('On a JEKray bench: + Add part › ★ My parts › “' + p.name + '”');
+      const pname = h('b', { class: 'rt-hname', title: p.name }, p.name);
       more.addEventListener('click', () => openHomeMenu(more, [
         ['How to add it', 'open', add],
         'sep',
-        can ? ['Rename…', 'rename', () => { const name = (prompt('Rename the part', p.name) || '').trim(); if (name && name !== p.name) homeSay(() => api('/v1/parts/' + p.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))), 'Renamed')(); }] : null,
+        can ? ['Rename', 'rename', () => setTimeout(() => {
+          const old = [...pname.childNodes], inp = nameInput(p.name, 'Name of the part', name => homeSay(() => api('/v1/parts/' + p.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))), 'Renamed')(), () => pname.replaceChildren(...old));
+          pname.replaceChildren(inp); inp.focus(); inp.select();
+        })] : null,
         writer ? ['Delete…', 'trash', () => { if (confirm('Delete “' + p.name + '” from ' + partsName + '? Benches it was added to keep their copies.')) homeSay(() => api('/v1/parts/' + p.id, { method: 'DELETE' }), 'Deleted “' + p.name + '”')(); }, 'danger'] : null]));
       return h('div', { class: 'rt-hcard rt-hpart', 'data-part': p.id },
         h('button', { type: 'button', class: 'rt-hopen', title: '“' + p.name + '”: added on a JEKray bench, from + Add part › ★ My parts', onclick: add },
           p.icon ? h('img', { class: 'thumb icon', src: p.icon, alt: '' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture')),
         h('div', { class: 'rt-hinfo' },
-          h('b', { title: p.name }, p.name),
+          pname,
           h('small', null, [p.summary, PALETTE_NAMES[p.palette], kb(p.size_bytes)].join(' · ')),
           h('small', null, 'Kept ' + whenAgo(p.created_at))),
         more);
@@ -440,77 +611,176 @@ export async function fillHome() {
       helpLine('Your parts, on every bench and on any computer.', ['Parts you keep are on every bench, on any computer: under + Add part › ★ My parts, in its search, and behind the ★ on the bench’s parts rail. Deleting a part here leaves the benches it was added to as they are.'], 'rt-subsmall'));
     return;
   }
-  // folders, then benches, as cards
+  // folders, then benches: as cards, or as the rows of a table
   const bin = P.view === 'bin';
-  const folderCards = P.view === 'folder' && !P.q ? folders.filter(f => (f.parent_id || null) === P.folder).sort((a, b) => a.name.localeCompare(b.name)).map(f => {
+  const folderCards = P.view === 'folder' && !P.q ? (kids.get(P.folder) || []).map(f => {
     const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + f.name, title: 'More' }, '⋯');
+    const tick = can ? h('input', { type: 'checkbox', class: 'rt-hpick', 'aria-label': 'Pick the folder “' + f.name + '”', title: 'Pick it' }) : h('span');
+    const pickF = () => { if (pickedF.has(f.id)) pickedF.delete(f.id); else pickedF.add(f.id); paintPicked(); };
+    if (can) tick.addEventListener('click', e => { e.stopPropagation(); pickF(); });
+    const open = h('button', { type: 'button', class: 'rt-hopen', title: 'Open the folder “' + f.name + '”', onclick: e => { if (can && (e.ctrlKey || e.metaKey || e.shiftKey)) { e.preventDefault(); pickF(); } else go('folder', f.id)(); } }, homeIcon('folder'), h('span', null, f.name),
+      tbl ? null : h('small', { class: 'rt-hdots' }), tbl ? null : h('small', { class: 'rt-hcount' }));
+    const card = h('div', { class: 'rt-hcard folder' + (tbl ? ' rt-hrow' : ''), 'data-folder': f.id, draggable: can ? 'true' : null, hidden: !!appPage },
+      ...(tbl ? [tick, open, h('span', { class: 'rt-hc app rt-hdots' }), showWhere ? h('span', { class: 'rt-hc where' }) : null, h('span', { class: 'rt-hc when' }), h('span', { class: 'rt-hc size rt-hcount' })] : [can ? tick : null, open]),
+      writer ? more : null);
+    const rename = () => {
+      if (!can) return false;
+      const edit = h('div', { class: 'rt-hopen editing' }, homeIcon('folder'));
+      const inp = nameInput(f.name, 'Name of the folder', name => homeSay(() => api('/v1/workspaces/' + ws + '/folders/' + f.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))))(), () => { edit.replaceWith(open); card.draggable = can; });
+      edit.append(inp); card.draggable = false; open.replaceWith(edit); inp.focus(); inp.select();
+      return true;
+    };
+    card.renameHere = rename;
     more.addEventListener('click', () => openHomeMenu(more, [
       ['Open', 'open', go('folder', f.id)],
-      can ? ['Rename', 'rename', () => { const name = (prompt('Rename the folder', f.name) || '').trim(); if (name && name !== f.name) homeSay(() => api('/v1/workspaces/' + ws + '/folders/' + f.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))))(); }] : null,
+      can ? ['Rename', 'rename', () => setTimeout(rename)] : null,
+      can && placesFor([f]).length > 1 ? ['Move to…', 'move', () => setTimeout(() => choose(more, 'Move the folder “' + f.name + '” to', placesFor([f]).filter(([v]) => v !== (f.parent_id || '')), v => moveItems({ benches: [], folders: [f] }, v || null)))] : null,
       writer ? 'sep' : null,
-      writer ? ['Delete', 'trash', homeSay(() => api('/v1/workspaces/' + ws + '/folders/' + f.id, { method: 'DELETE' }), 'Folder deleted'), 'danger'] : null]));
-    return h('div', { class: 'rt-hcard folder', 'data-folder': f.id }, h('button', { type: 'button', class: 'rt-hopen', onclick: go('folder', f.id) }, homeIcon('folder'), h('span', null, f.name)), writer ? more : null);
+      writer ? ['Delete', 'trash', () => binItems([], [f]), 'danger'] : null]));
+    if (can) dragFrom(card, () => (pickedF.has(f.id) ? pickedNow() : { benches: [], folders: [f] }));
+    return dropOn(card, { folder: f.id });
   }) : [];
   let benches = data.benches.slice();
-  if (!bin) {
-    const by = { changed: (a, b) => b.updated_at - a.updated_at, name: (a, b) => a.name.localeCompare(b.name), size: (a, b) => b.size_bytes - a.size_bytes }[homeView.sort] || ((a, b) => b.updated_at - a.updated_at);
-    benches.sort(P.view === 'recent' ? (a, b) => b.updated_at - a.updated_at : by);
-    if (P.view === 'recent') benches = benches.slice(0, 24);
-  }
-  // an app's launch page: its benches alone
+  const whereText = b => (b.folder_id && byId.get(b.folder_id) ? pathText(b.folder_id) : '');
+  const sortKey = SORTS[homeView.sort] && (homeView.sort !== 'folder' || showWhere) ? homeView.sort : 'changed';
+  if (P.view === 'recent') benches = sortBenches(benches, 'changed').slice(0, 24);
+  if (!bin && (P.view !== 'recent' || tbl)) benches = sortBenches(benches, sortKey, !!homeView.flip, whereText);
+  // an app's launch page: its benches alone; anywhere else, one app's when its chip is pressed
   if (appPage) benches = benches.filter(b => (b.tool || 'jekray') === appPage.id);
+  const appsHere = {};
+  for (const b of benches) appsHere[b.tool || 'jekray'] = (appsHere[b.tool || 'jekray'] || 0) + 1;
+  const total = benches.length;
+  if (homeView.only && !APPS.some(a => a.id === homeView.only)) homeView.only = null;
+  const chip = (id, label, n) => h('button', { type: 'button', class: 'rt-hchip' + (id ? ' ' + id : ''), 'aria-pressed': String((homeView.only || null) === id), title: id ? 'Only the ' + label + ' ' + thingOf(id) + 's here' : 'Every app’s benches here',
+    onclick: () => { homeView.only = homeView.only === id ? null : id; keepView(); fillHome(); } }, id ? h('i', { class: id }) : null, label, h('small', null, String(n)));
+  const chips = !appPage && (Object.keys(appsHere).length > 1 || homeView.only) ? h('div', { class: 'rt-hchips', id: 'homeChips', role: 'group', 'aria-label': 'The benches of one app' },
+    chip(null, 'All', total), ...APPS.filter(a => appsHere[a.id] || homeView.only === a.id).map(a => chip(a.id, a.name, appsHere[a.id] || 0))) : null;
+  if (!appPage && homeView.only) benches = benches.filter(b => (b.tool || 'jekray') === homeView.only);
   const team = wsInfo && wsInfo.kind !== 'personal';
   const menuOf = new Map();
+  // the benches picked: a tick on each, Ctrl-click one more, Shift-click a run; what can be done with them in a bar
+  const order = benches.map(b => b.id), benchOf = new Map(benches.map(b => [b.id, b]));
+  for (const id of [...picked]) if (!benchOf.has(id)) picked.delete(id);
+  const foldersHere = P.view === 'folder' && !P.q ? (kids.get(P.folder) || []) : [];
+  for (const id of [...pickedF]) if (!foldersHere.some(f => f.id === id)) pickedF.delete(id);
+  const pickedNow = () => ({ benches: order.filter(id => picked.has(id)).map(id => benchOf.get(id)), folders: foldersHere.filter(f => pickedF.has(f.id)) });
+  const bar = h('div', { class: 'rt-hpickbar', id: 'homePicked', role: 'toolbar', 'aria-label': 'The benches picked', hidden: true });
+  const paintPicked = () => {
+    for (const c of box.querySelectorAll('.rt-hcard[data-bench], .rt-hcard[data-folder]')) { const on = c.dataset.bench ? picked.has(c.dataset.bench) : pickedF.has(c.dataset.folder); c.classList.toggle('picked', on); const k = c.querySelector('input.rt-hpick'); if (k) k.checked = on; }
+    const n = picked.size + pickedF.size, of = order.length + (can ? foldersHere.length : 0);
+    box.classList.toggle('picking', n > 0);
+    const all = box.querySelector('.rt-hpickall');
+    if (all) { all.checked = n > 0 && n === of; all.indeterminate = n > 0 && n < of; }
+    bar.hidden = !n;
+    if (!n) { bar.replaceChildren(); return; }
+    const { benches: bs, folders: fs } = pickedNow();
+    const act = (label, icon, fn, cls) => { const x = h('button', { type: 'button', class: 'rt-btn' + (cls ? ' ' + cls : '') }, homeIcon(icon), ' ' + label); x.addEventListener('click', () => fn(x)); return x; };
+    bar.replaceChildren(...[h('b', null, [bs.length ? countOf(bs.length, 'bench') : null, fs.length ? countOf(fs.length, 'folder') : null].filter(Boolean).join(' and ') + ' picked'),
+      !bin && can ? act('Move to…', 'move', x => choose(x, 'Move ' + sayItems(bs, fs) + ' to', [...placesFor(fs), ...wsChoices(fs)], moveChosen(bs, fs))) : null,
+      !bin && bs.length && !fs.length && copyPlaces(ws).length ? act('Copy to…', 'copy', x => choose(x, 'Copy ' + sayItems(bs, []) + ' to', copyPlaces(ws).map(w => [w.id, placeName(w)]), v => homeSay(async () => {
+        for (const b of bs) await api('/v1/benches/' + b.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ workspace_id: v })));
+        picked.clear();
+      }, 'Copied ' + sayItems(bs, []) + ' to ' + placeName(copyPlaces(ws).find(w => w.id === v)))())) : null,
+      !bin && writer ? act('Delete', 'trash', () => binItems(bs, fs), 'danger') : null,
+      bin && writer ? act('Restore', 'restore', () => homeSay(async () => { for (const b of bs) await api('/v1/benches/' + b.id + '/undelete', { method: 'POST' }); picked.clear(); }, 'Restored ' + sayItems(bs, []))()) : null,
+      h('button', { type: 'button', class: 'rt-link', title: 'Escape', onclick: () => { picked.clear(); pickedF.clear(); paintPicked(); } }, 'Clear')].filter(Boolean));
+  };
+  const pick = (id, e) => {
+    if (e && e.shiftKey && pickAnchor && pickAnchor !== id) for (const x of runOf(order, pickAnchor, id)) picked.add(x);
+    else { if (picked.has(id)) picked.delete(id); else picked.add(id); pickAnchor = id; }
+    paintPicked();
+  };
   const benchCards = benches.map(b => {
-    const mine = false;
+    const app = appOf(b.tool), drag = can && !bin;
     const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + b.name, title: 'More' }, '⋯');
-    const moveTo = () => {
-      const sel = h('select', { 'aria-label': 'Move to folder' }, h('option', { value: '' }, top),
-        ...folders.map(f => { const o = h('option', { value: f.id }, pathOf(f.id).map(x => x.name).join(' › ')); o.selected = f.id === b.folder_id; return o; }));
-      sel.addEventListener('change', () => { closeHomeMenu(); homeSay(() => api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, jsonBody({ folder_id: sel.value || null }))), 'Moved')(); });
-      openHomeMenu(more, [h('div', { class: 'rt-menunote' }, 'Move “' + b.name + '” to'), sel]);
+    const moveTo = () => choose(more, 'Move “' + b.name + '” to', [...placesFor([]).filter(([v]) => v !== (b.folder_id || '')), ...wsChoices([])], moveChosen([b], []));
+    const name = h('b', { class: 'rt-hname', title: b.name }, tbl ? null : h('span', { class: 'rt-htool ' + app.id, title: 'A ' + app.name + ' ' + thingOf(b.tool) + ': it opens in ' + app.name }, app.name), b.name);
+    const rename = () => {
+      if (!can || bin) return false;
+      const old = [...name.childNodes];
+      const inp = nameInput(b.name, 'Name of the ' + thingOf(b.tool), nm => homeSay(() => api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, jsonBody({ name: nm }))))(), () => { name.replaceChildren(...old); card.draggable = drag; });
+      card.draggable = false; name.replaceChildren(inp); inp.focus(); inp.select();
+      return true;
     };
     const items = () => bin ? [
       writer ? ['Restore', 'restore', homeSay(() => api('/v1/benches/' + b.id + '/undelete', { method: 'POST' }), 'Restored “' + b.name + '”')] : null,
       ['History', 'history', () => { Object.assign(P, { view: 'history', history: { id: b.id, name: b.name } }); fillHome(); }]] : [
-      ['Open in ' + appOf(b.tool).name, 'open', () => homeOpenBench(b.id, null, b)],
+      ['Open in ' + app.name, 'open', () => homeOpenBench(b.id, null, b)],
       ['History', 'history', () => { Object.assign(P, { view: 'history', history: { id: b.id, name: b.name } }); fillHome(); }],
       can ? ['Fork…', 'fork', () => homeFork(b)] : null,
       copyPlaces(ws).length ? ['Copy to…', 'copy', () => setTimeout(() => homeCopy(b, more))] : null,
       'sep',
-      can ? ['Rename…', 'rename', () => { const name = (prompt('Rename the bench', b.name) || '').trim(); if (name && name !== b.name) homeSay(() => api('/v1/benches/' + b.id, Object.assign({ method: 'PATCH' }, jsonBody({ name }))))(); }] : null,
-      can && folders.length ? ['Move to…', 'move', () => setTimeout(moveTo)] : null,
-      writer ? ['Delete', 'trash', homeSay(() => api('/v1/benches/' + b.id, { method: 'DELETE' }), '“' + b.name + '” moved to the bin for 30 days'), 'danger'] : null];
+      can ? ['Rename', 'rename', () => setTimeout(rename)] : null,
+      can && (folders.length || moveOut.length) ? ['Move to…', 'move', () => setTimeout(moveTo)] : null,
+      writer ? ['Delete', 'trash', () => binItems([b]), 'danger'] : null];
     more.addEventListener('click', () => openHomeMenu(more, items()));
     menuOf.set(b.id, items);
-    const where = (P.q || P.view === 'recent') && b.folder_id && byId.get(b.folder_id) ? 'in ' + byId.get(b.folder_id).name : null;
-    return h('div', { class: 'rt-hcard' + (mine ? ' here' : '') + (P.flash === b.id ? ' flash' : ''), 'data-bench': b.id },
-      appPage ? h('button', { type: 'button', class: 'rt-hopen', title: '“' + b.name + '”: Enter or double-click to open it in ' + appPage.name, 'aria-pressed': String(P.sel === b.id),
-        onclick: () => { P.sel = b.id; fillPreview(); }, ondblclick: () => homeOpenBench(b.id, null, b),
-        onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); homeOpenBench(b.id, null, b); } } },
-        b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture yet')) :
-      h('button', { type: 'button', class: 'rt-hopen', title: bin ? b.name : 'Open “' + b.name + '” in ' + appOf(b.tool).name, onclick: bin ? () => more.click() : () => homeOpenBench(b.id, null, b) },
-        b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture yet')),
-      h('div', { class: 'rt-hinfo' },
-        h('b', { title: b.name }, h('span', { class: 'rt-htool ' + appOf(b.tool).id, title: 'A ' + appOf(b.tool).name + ' ' + thingOf(b.tool) + ': it opens in ' + appOf(b.tool).name }, appOf(b.tool).name), b.name),
-        h('small', null, [bin ? 'Deleted ' + whenAgo(b.deleted_at) : 'Changed ' + whenAgo(b.updated_at) + (team && b.updated_by ? ' by ' + b.updated_by.name : ''), kb(b.size_bytes), where].filter(Boolean).join(' · ')),
-        b.forked_from ? h('small', { class: 'rt-hfork', title: 'Forked from “' + b.forked_from.name + '”, version ' + b.forked_from.version }, homeIcon('fork'), 'from “' + b.forked_from.name + '”') : null,
-        b.editing && account && b.editing.id !== account.user.id ? h('small', { class: 'rt-hwho', title: b.editing.name + ' has this bench open to edit' }, avatarNode(b.editing, 'small'), b.editing.name + ' is editing') : null),
+    // no picture yet: the app's own mark, on its colour
+    const pic = b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: '', loading: 'lazy', decoding: 'async', draggable: 'false' })
+      : h('span', { class: 'thumb rt-nopic rt-happpic ' + app.id, title: 'No picture yet: it is drawn the next time this is saved in ' + app.name }, homeIcon(app.icon || 'bench'));
+    // a click opens it in its app (Ctrl or Shift picks it instead); on an app's page, the bench under the pointer
+    // or the keyboard is the one shown beside the list
+    const show = () => { if (appPage && P.sel !== b.id) { P.sel = b.id; fillPreview(); } };
+    const open = h('button', { type: 'button', class: 'rt-hopen', title: bin ? b.name : 'Open “' + b.name + '” in ' + app.name,
+      onclick: e => { if (e.ctrlKey || e.metaKey || e.shiftKey) { e.preventDefault(); pick(b.id, e); } else if (bin) more.click(); else homeOpenBench(b.id, null, b); },
+      onfocus: show }, pic);
+    const tick = h('input', { type: 'checkbox', class: 'rt-hpick', 'aria-label': 'Pick “' + b.name + '”', title: 'Pick it (Ctrl-click picks one more, Shift-click a run)' });
+    tick.addEventListener('click', e => { e.stopPropagation(); pick(b.id, e); });
+    const whereLink = b.folder_id && byId.get(b.folder_id) ? link(pathText(b.folder_id), go('folder', b.folder_id)) : null;
+    const when = (bin ? 'Deleted ' + whenAgo(b.deleted_at) : (tbl ? '' : 'Changed ') + whenAgo(b.updated_at)) + (team && b.updated_by ? ' by ' + b.updated_by.name : '');
+    const fork = b.forked_from ? h('small', { class: 'rt-hfork', title: 'Forked from “' + b.forked_from.name + '”, version ' + b.forked_from.version }, homeIcon('fork'), 'from “' + b.forked_from.name + '”') : null;
+    const who = b.editing && account && b.editing.id !== account.user.id ? h('small', { class: 'rt-hwho', title: b.editing.name + ' has this bench open to edit' }, avatarNode(b.editing, 'small'), b.editing.name + ' is editing') : null;
+    const card = h('div', { class: 'rt-hcard' + (tbl ? ' rt-hrow' : '') + (P.flash === b.id ? ' flash' : ''), 'data-bench': b.id, draggable: drag ? 'true' : null, onpointerenter: show },
+      tick, open,
+      ...(tbl ? [h('div', { class: 'rt-hinfo' }, name, fork, who),
+        h('span', { class: 'rt-hc app' }, h('span', { class: 'rt-htool ' + app.id, title: 'A ' + app.name + ' ' + thingOf(b.tool) + ': it opens in ' + app.name }, app.name)),
+        showWhere ? h('span', { class: 'rt-hc where' }, whereLink || top) : null,
+        h('span', { class: 'rt-hc when' }, when), h('span', { class: 'rt-hc size' }, kb(b.size_bytes))]
+      : [h('div', { class: 'rt-hinfo' }, name,
+        h('small', null, [when, kb(b.size_bytes)].join(' · ')),
+        showWhere && whereLink ? h('small', { class: 'rt-hwhere' }, 'in ', whereLink) : null, fork, who)]),
       more);
+    card.renameHere = rename;
+    if (drag) dragFrom(card, () => (picked.has(b.id) ? pickedNow() : { benches: [b], folders: [] }));
+    return card;
   });
   P.flash = null;
-  const out = [];
-  if (folderCards.length) out.push(benchCards.length ? h('h3', null, 'Folders') : null, h('div', { class: 'rt-hgrid folders' }, ...folderCards));
-  if (benchCards.length) out.push(folderCards.length ? h('h3', null, 'Benches') : null, h('div', { class: 'rt-hgrid' }, ...benchCards));
-  if (!out.length) out.push(h('p', { class: 'rt-hempty' }, bin ? 'The bin is empty. Deleted benches stay here for 30 days.'
+  const out = [chips, bar];
+  if (tbl && (folderCards.length || benchCards.length)) {
+    const th = (key, label) => {
+      const on = sortKey === key, down = (key === 'changed' || key === 'size') !== !!homeView.flip;
+      return h('button', { type: 'button', class: 'rt-hsort', 'aria-pressed': String(on), title: on ? 'Turn the order round' : 'Sort by this',
+        onclick: () => { if (on) homeView.flip = !homeView.flip; else { homeView.sort = key; homeView.flip = false; } keepView(); fillHome(); } }, label || SORTS[key], on ? h('span', { 'aria-hidden': 'true' }, down ? ' ▾' : ' ▴') : null);
+    };
+    const all = h('input', { type: 'checkbox', class: 'rt-hpickall', 'aria-label': 'Pick every bench here', title: 'Pick every bench here' });
+    all.addEventListener('click', () => { if (picked.size + pickedF.size) { picked.clear(); pickedF.clear(); paintPicked(); } else homeKeys.all(); });
+    out.push(h('div', { class: 'rt-htable' + (showWhere ? ' where' : ''), role: 'table' },
+      h('div', { class: 'rt-hrow rt-hth' }, order.length || (can && foldersHere.length) ? all : h('span'), h('span'), th('name'), th('app'), showWhere ? th('folder') : null, th('changed', bin ? 'Deleted' : 'Changed'), th('size'), h('span')),
+      ...folderCards, ...benchCards));
+  } else {
+    if (folderCards.length) out.push(benchCards.length ? h('h3', null, 'Folders') : null, h('div', { class: 'rt-hgrid folders' }, ...folderCards));
+    if (benchCards.length) out.push(folderCards.length ? h('h3', null, 'Benches') : null, h('div', { class: 'rt-hgrid' }, ...benchCards));
+  }
+  // (an app's page with folders but no benches here: said once the folders with none of its benches are put away)
+  if (appPage && folderCards.length && !benchCards.length) out.push(h('p', { class: 'rt-hempty rt-hnone', hidden: true }, P.folder ? 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's in this folder.' : 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's here yet.'));
+  if (!folderCards.length && !benchCards.length) out.push(h('p', { class: 'rt-hempty' }, bin ? 'The bin is empty. Deleted benches stay here for 30 days.'
+    : !appPage && homeView.only ? 'No ' + appOf(homeView.only).name + ' ' + thingOf(homeView.only) + 's here.'
     : P.q ? 'No bench matches “' + P.q + '”.' : P.view === 'recent' ? 'Nothing yet.' : P.folder ? 'This folder is empty.'
-    : appPage ? 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's here yet.' : 'No benches yet. Start one with New, top right, or use Save to cloud in an app\u2019s File menu.'));
-  if (!appPage) { box.replaceChildren(...out.filter(Boolean)); return; }
-  // the launch page: the app, then its benches beside the one picked (the last changed until one is clicked)
+    : appPage ? 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's here yet.' : 'No benches yet. Start one with New, top right, or use Save to cloud in an app’s File menu.'));
+  homeKeys = {
+    clear: () => { picked.clear(); pickedF.clear(); paintPicked(); },
+    all: () => { if (!order.length && !foldersHere.length) return false; for (const id of order) picked.add(id); if (can) for (const f of foldersHere) pickedF.add(f.id); paintPicked(); return true; },
+    del: () => { const g = pickedNow(); if (!bin && writer && g.benches.length + g.folders.length) binItems(g.benches, g.folders); },
+    rename: card => { const c = card || (picked.size + pickedF.size === 1 ? box.querySelector('.rt-hcard.picked') : null); return !!(c && c.renameHere && c.renameHere()); },
+  };
+  let fillPreview = () => {};
+  if (!appPage) { box.replaceChildren(...out.filter(Boolean)); paintPicked(); decorate(); return; }
+  // the launch page: the app, then its benches beside the one shown (the last changed, until the pointer or the
+  // keyboard is on another)
   if (!benches.some(b => b.id === P.sel)) P.sel = benches.length ? benches.reduce((x, y) => (y.updated_at > x.updated_at ? y : x)).id : null;
-  const prev = h('aside', { class: 'rt-hprev', id: 'appPreview', 'aria-label': 'The bench picked', 'aria-live': 'polite' });
-  const fillPreview = () => {
-    for (const c of box.querySelectorAll('.rt-hcard[data-bench]')) { const on = c.dataset.bench === P.sel; c.classList.toggle('sel', on); const o = c.querySelector('.rt-hopen'); if (o) o.setAttribute('aria-pressed', String(on)); }
+  const prev = h('aside', { class: 'rt-hprev', id: 'appPreview', 'aria-label': 'The bench shown', 'aria-live': 'polite' });
+  fillPreview = () => {
+    for (const c of box.querySelectorAll('.rt-hcard[data-bench]')) c.classList.toggle('sel', c.dataset.bench === P.sel);
     const b = benches.find(x => x.id === P.sel);
     if (!b) {
       prev.replaceChildren(h('span', { class: 'thumb rt-nopic' }, 'No bench picked'), h('h3', null, 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's' + (P.folder || P.q ? ' here' : ' yet')),
@@ -520,10 +790,10 @@ export async function fillHome() {
     }
     const pmore = h('button', { type: 'button', class: 'rt-btn rt-hprevmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + b.name, title: 'More' }, '⋯');
     pmore.addEventListener('click', () => openHomeMenu(pmore, (menuOf.get(b.id) || (() => []))()));
-    const folderName = b.folder_id && byId.get(b.folder_id) ? pathOf(b.folder_id).map(f => f.name).join(' › ') : null;
+    const folderName = b.folder_id && byId.get(b.folder_id) ? pathText(b.folder_id) : null;
     const ver = b.version || b.head_version;
     prev.replaceChildren(
-      b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: 'The bench “' + b.name + '”' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture yet: it is drawn the next time the ' + thingOf(appPage.id) + ' is saved in ' + appPage.name),
+      b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: 'The bench “' + b.name + '”' }) : h('span', { class: 'thumb rt-nopic rt-happpic ' + appPage.id }, homeIcon(appPage.icon || 'bench'), h('small', null, 'No picture yet: it is drawn the next time the ' + thingOf(appPage.id) + ' is saved in ' + appPage.name)),
       h('h3', null, h('span', { class: 'rt-htool ' + appPage.id }, appPage.name), b.name),
       h('dl', null,
         h('dt', null, 'In'), h('dd', null, folderName ? top + ' › ' + folderName : top),
@@ -536,15 +806,7 @@ export async function fillHome() {
         pmore));
   };
   box.replaceChildren(appHead(appPage), h('div', { class: 'rt-hlaunch' }, h('div', { class: 'rt-hexplore' }, ...out.filter(Boolean)), prev));
-  fillPreview();
-  // each folder: how many of the app's benches are in it, its folders inside it included (a folder whose benches are all
-  // further down is not empty)
-  api('/v1/workspaces/' + ws + '/benches').then(all => {
-    if (seq !== homeSeq) return;
-    const n = new Map();
-    for (const b of all.benches || []) if ((b.tool || 'jekray') === appPage.id && b.folder_id) for (const f of pathOf(b.folder_id)) n.set(f.id, (n.get(f.id) || 0) + 1);
-    for (const c of box.querySelectorAll('.rt-hcard.folder[data-folder]')) { const k = n.get(c.dataset.folder) || 0, s = c.querySelector('.rt-hopen'); if (s) s.append(h('small', { class: 'rt-hcount' }, k + ' ' + thingOf(appPage.id) + (k === 1 ? '' : thingOf(appPage.id) === 'bench' ? 'es' : 's'))); }
-  }, () => {});
+  fillPreview(); paintPicked(); decorate();
 }
 /* an app's head on its launch page: what it does, and the ways to start in it */
 function appHead(a) {
@@ -562,7 +824,7 @@ function appHead(a) {
 /* ---------- the apps ----------
    Opened from New (its Open group) and the rail, each in its own tab; signed out, under the sign-in panel. */
 export function appLinks() {
-  return h('div', { class: 'rt-happlinks', 'aria-label': 'Apps' }, h('span', null, 'The apps need no account to use:'),
+  return h('div', { class: 'rt-happlinks', 'aria-label': 'Apps' }, h('span', null, 'The apps open without an account:'),
     ...APPS.map(a => h('button', { type: 'button', class: 'rt-btn', title: a.line, onclick: () => { track('cloud', 'app.' + a.id); openApp(a.id); } }, 'Open ' + a.name)),
     ...APPS.filter(a => a.about).map(a => h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + a.name)));
 }
@@ -635,13 +897,14 @@ export function signedOutView() {
   document.getElementById('homeNote').hidden = true;
   document.getElementById('homeWhere').textContent = 'Your apps and benches';
   const P = cloudPlace, appPage = P.app ? appOf(P.app) : null;
-  rail.replaceChildren(h('h2', null, 'Apps'), ...APPS.map(a => h('button', { type: 'button', onclick: () => showApp(a.id), title: a.name + ': what it does, and its benches', 'aria-current': String(P.app === a.id) }, homeIcon('apps'), h('span', null, a.name))));
-  box.classList.remove('rows');
+  rail.replaceChildren(h('h2', null, 'Apps'), ...APPS.map(a => h('button', { type: 'button', onclick: () => showApp(a.id), title: a.name + ': what it does, and its benches', class: 'rt-happbtn ' + a.id, 'aria-current': String(P.app === a.id) }, homeIcon(a.icon), h('span', null, a.name))));
+  homeKeys = null; picked.clear(); pickedF.clear();
+  box.classList.remove('rows', 'tbl', 'picking');
   if (appPage) {
     document.getElementById('homeCrumbs').replaceChildren(appPage.name);
     document.getElementById('homeWhere').textContent = appPage.name;
     box.replaceChildren(appHead(appPage), h('div', { class: 'rt-hsignin rt-hsigninline' },
-      h('p', null, 'Sign in to see your ' + appPage.name + ' benches here. ' + appPage.name + ' itself needs no account to use.'),
+      h('p', null, 'Sign in to see your ' + appPage.name + ' benches here. ' + appPage.name + ' itself opens without an account.'),
       h('div', { class: 'rt-actions', style: 'justify-content:flex-start' }, h('button', { type: 'button', class: 'rt-btn primary', id: 'homeSignIn', onclick: openAccountMenu }, 'Sign in or create an account'))));
     return;
   }
@@ -654,18 +917,45 @@ export function signedOutView() {
     appLinks());
 }
 
+/* where an arrow key goes from one card: left and right to the one before and after, up and down to the nearest in
+   the row above or below, Home and End to the first and last; from nowhere, to the first */
+function arrowTo(list, from, key) {
+  if (!list.length) return null;
+  const i = list.indexOf(from);
+  if (i < 0) return list[0];
+  if (key === 'Home') return list[0];
+  if (key === 'End') return list[list.length - 1];
+  if (key === 'ArrowLeft') return list[i - 1] || null;
+  if (key === 'ArrowRight') return list[i + 1] || null;
+  const mid = el => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+  const [x, y] = mid(from), down = key === 'ArrowDown';
+  let best = null, score = Infinity;
+  for (const el of list) {
+    const [ex, ey] = mid(el), dy = down ? ey - y : y - ey;
+    if (dy < 4) continue;
+    const sc = dy * 4 + Math.abs(ex - x);
+    if (sc < score) { score = sc; best = el; }
+  }
+  return best;
+}
+
 /* ---------- the page's wiring for this module: done once, from boot.js ---------- */
 export function wireHome() {
   try { Object.assign(homeView, JSON.parse(localStorage.getItem(HOME_KEY)) || {}); } catch (err) { /* defaults */ }
   // #parts (JEKray's Manage My parts): opened at My parts
   if (location.hash === '#parts') { cloudPlace.view = 'parts'; window.history.replaceState(null, '', location.pathname + location.search); }
-  delete homeView.app;                         // (the old filter by app: the launch pages are the filter now)
+  delete homeView.app;                         // (an older filter by app, kept in the view: the chips over a list are for this visit)
+  if (!Array.isArray(homeView.open)) homeView.open = [];
   // #app=<id>: that app's launch page; the back button goes with it
   cloudPlace.app = appHash();
   window.addEventListener('hashchange', () => { const a = appHash(); if (a !== cloudPlace.app) { Object.assign(cloudPlace, { app: a, view: 'folder', folder: null, q: '', history: null, sel: null }); document.getElementById('homeSearch').value = ''; fillHome(); } });
   document.addEventListener('pointerdown', e => { const m = document.querySelector('.rt-hmenu'); if (m && !m.contains(e.target) && !e.target.closest('[aria-expanded="true"]')) closeMenu(); }, true);
   document.getElementById('diffClose').addEventListener('click', () => document.getElementById('diffDialog').close());
   document.getElementById('mergeCancel').addEventListener('click', () => document.getElementById('mergeDialog').close());
+  // dark or light, from the bar (System is with them in the account menu)
+  const themeBtn = document.getElementById('homeTheme');
+  themeBtn.append(iconNode('theme'));
+  themeBtn.addEventListener('click', () => setSpaceTheme(document.documentElement.dataset.rtTheme === 'dark' ? 'light' : 'dark'));
   // New: an app to open, or a bench to start in one (in the workspace and folder shown)
   const newBtn = document.getElementById('homeNew');
   newBtn.addEventListener('click', () => openMenu(newBtn, newMenuItems()));
@@ -676,6 +966,24 @@ export function wireHome() {
     searchT = setTimeout(() => { Object.assign(cloudPlace, { q: search.value.trim(), history: null }); if (cloudPlace.view === 'history' || cloudPlace.view === 'bin') cloudPlace.view = 'folder'; fillHome(); }, 250);
   });
   window.addEventListener('keydown', e => { if (e.key === 'Escape' && document.querySelector('.rt-hmenu') && !document.querySelector('dialog[open]')) closeMenu(); });
+  // the list's keys: Escape lets go of what is picked, Ctrl+A picks every bench shown, Delete bins the picked, F2
+  // renames the bench or folder the keyboard is on (or the one bench picked)
+  window.addEventListener('keydown', e => {
+    if (!homeKeys || document.querySelector('dialog[open]') || document.querySelector('.rt-hmenu')) return;
+    const t = e.target, typing = t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '') && t.type !== 'checkbox';
+    if (typing) return;
+    if (e.key === 'Escape' && picked.size + pickedF.size) homeKeys.clear();
+    else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') { if (homeKeys.all()) e.preventDefault(); }
+    else if (e.key === 'Delete' && picked.size + pickedF.size) homeKeys.del();
+    else if (/^(Arrow(Up|Down|Left|Right)|Home|End)$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // the arrows go from card to card (row to row in the table), from a card or from nowhere in particular
+      const at = document.activeElement, cur = at && at.closest ? at.closest('#homeList .rt-hcard') : null;
+      if (!cur && at && at !== document.body) return;
+      const to = arrowTo([...document.querySelectorAll('#homeList .rt-hcard > button.rt-hopen')].filter(x => x.offsetParent), cur ? cur.querySelector('button.rt-hopen') : null, e.key);
+      if (to) { e.preventDefault(); to.focus(); to.scrollIntoView({ block: 'nearest' }); }
+    }
+    else if (e.key === 'F2') { const c = document.activeElement && document.activeElement.closest ? document.activeElement.closest('.rt-hcard') : null; if (homeKeys.rename(c)) e.preventDefault(); }
+  });
   document.getElementById('home').addEventListener('scroll', closeMenu, true);
   window.addEventListener('resize', closeMenu);
   // back in the hub from an app: what changed there shows

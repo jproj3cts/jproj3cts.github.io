@@ -7,5 +7,6 @@ import './../../jekray/src/io/usage.js';
 import './../../jekray/src/ui/dom.js';
 import './ui/dom.js';
 import './../../jekray/src/io/account.js';
+import './core/files.js';
 import './ui/home.js';
 import './ui/boot.js';

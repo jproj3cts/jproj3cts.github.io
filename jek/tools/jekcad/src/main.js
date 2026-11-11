@@ -4,6 +4,7 @@ import './../../jekray/src/core/hooks.js';
 import './../../jekray/src/core/src-tag.js';
 import './core/units.js';
 import './core/sketch.js';
+import './core/font-data.js';
 import './core/sketch-tools.js';
 import './core/doc.js';
 import './engines/kernel.js';

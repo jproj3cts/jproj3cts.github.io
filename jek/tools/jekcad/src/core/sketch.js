@@ -16,9 +16,9 @@
    ========================================================================== */
 const deg = Math.PI / 180;
 const num = (v, d) => { const x = typeof v === 'number' ? v : parseFloat(v); return Number.isFinite(x) ? x : d; };
-export const CON_KINDS = ['coincident', 'oncurve', 'horizontal', 'vertical', 'parallel', 'perpendicular', 'equal', 'tangent', 'midpoint', 'concentric', 'fix', 'symmetric', 'normal'];
+export const CON_KINDS = ['coincident', 'oncurve', 'horizontal', 'vertical', 'parallel', 'perpendicular', 'equal', 'tangent', 'midpoint', 'concentric', 'fix', 'symmetric', 'normal', 'curvature'];
 export const DIM_KINDS = ['dist', 'len', 'pl', 'rad', 'dia', 'ang'];
-export const ENT_KINDS = ['line', 'arc', 'circle', 'point', 'ellipse', 'spline'];
+export const ENT_KINDS = ['line', 'arc', 'circle', 'point', 'ellipse', 'spline', 'text', 'image'];
 const sfin = (v, d) => { const x = num(v, d); return Number.isFinite(x) ? x : d; };
 const okRef = r => r && typeof r === 'object' && typeof r.e === 'string' && r.e.length < 30 && (r.k === undefined || /^(a|b|m|c|p0|p1|p2|p3|pa|pb|q\d{1,3})$/.test(r.k));
 const cleanRef = r => (r.k ? { e: r.e, k: r.k } : { e: r.e });
@@ -42,7 +42,7 @@ export function normDims(dims, ents) {
 /* ---------- a shape's numbers, and its points from them ---------- */
 const PARAMS = {
   line: [['a', 0], ['a', 1], ['b', 0], ['b', 1]], arc: [['c', 0], ['c', 1], ['r'], ['a0'], ['a1']], circle: [['c', 0], ['c', 1], ['r']], hole: [['c', 0], ['c', 1], ['d']],
-  slot: [['a', 0], ['a', 1], ['b', 0], ['b', 1], ['r']], poly: [['c', 0], ['c', 1], ['r'], ['rot']], rect: [['c', 0], ['c', 1], ['w'], ['h'], ['rot']], point: [['c', 0], ['c', 1]], ellipse: [['c', 0], ['c', 1], ['rx'], ['ry'], ['rot']],
+  slot: [['a', 0], ['a', 1], ['b', 0], ['b', 1], ['r']], poly: [['c', 0], ['c', 1], ['r'], ['rot']], rect: [['c', 0], ['c', 1], ['w'], ['h'], ['rot']], point: [['c', 0], ['c', 1]], text: [['c', 0], ['c', 1]], image: [['c', 0], ['c', 1]], ellipse: [['c', 0], ['c', 1], ['rx'], ['ry'], ['rot']],
 };
 /* an ellipse: its centre c, half-widths rx (along its own x, turned rot degrees) and ry; its points are c, pa (the
    end of rx) and pb (the end of ry), which is how it is sized and turned: by dimensions and constraints on them.
@@ -83,6 +83,72 @@ export function entKeys(e) {
 }
 export const lineDir = e => [e.b[0] - e.a[0], e.b[1] - e.a[1]];
 const radiusOf = e => (e.t === 'hole' ? e.d / 2 : e.r);
+/* an ellipse or a spline as points along it (an ellipse all the way round, its first point not said again; a
+   spline from its first point to its last, or round to its first again when it is closed). A spline goes through
+   its points, each stretch a cubic that leaves a point the way the points either side of it lie (Catmull and
+   Rom's); with cv its points are one Bézier curve's control points; with cn (rho, three points) it is a conic. step, degrees, sets how fine. */
+export function curvePts(e, step) {
+  const fine = Math.max(1, Math.min(8, Math.round(6 / (step || 6) * 2)));
+  if (e.t === 'ellipse') {
+    const n = 48 * fine, a = e.rot * deg, ca = Math.cos(a), sa = Math.sin(a), out = [];
+    for (let i = 0; i < n; i++) { const t = 2 * Math.PI * i / n, x = e.rx * Math.cos(t), y = e.ry * Math.sin(t); out.push([e.c[0] + x * ca - y * sa, e.c[1] + x * sa + y * ca]); }
+    return out;
+  }
+  const P = e.pts, out = [];
+  if (e.cn && P.length === 3) {
+    // a conic: from its first point to its last, steered by the middle one, rho saying how near that it comes
+    const w = e.cn / (1 - e.cn), n = 32 * fine;
+    for (let i = 0; i <= n; i++) { const t = i / n, b0 = (1 - t) * (1 - t), b1 = 2 * t * (1 - t) * w, b2 = t * t, d = b0 + b1 + b2; out.push([0, 1].map(k => (b0 * P[0][k] + b1 * P[1][k] + b2 * P[2][k]) / d)); }
+    return out;
+  }
+  if (e.cv) {
+    // de Casteljau's steps down the control points
+    const n = 16 * fine * Math.max(1, P.length - 1);
+    for (let i = 0; i <= n; i++) { const t = i / n; let Q = P.map(q => q.slice()); while (Q.length > 1) Q = Q.slice(1).map((q, j) => [Q[j][0] + (q[0] - Q[j][0]) * t, Q[j][1] + (q[1] - Q[j][1]) * t]); out.push(Q[0]); }
+    return out;
+  }
+  const m = P.length, cl = !!e.closed && m > 2, at = i => (cl ? P[((i % m) + m) % m] : P[Math.max(0, Math.min(m - 1, i))]), per = 8 * fine, spans = cl ? m : m - 1;
+  for (let s = 0; s < spans; s++) {
+    const p0 = at(s - 1), p1 = at(s), p2 = at(s + 1), p3 = at(s + 2);
+    for (let i = 0; i < per; i++) { const t = i / per, t2 = t * t, t3 = t2 * t; out.push([0, 1].map(k => 0.5 * (2 * p1[k] + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3))); }
+  }
+  if (!cl) out.push(P[m - 1].slice());
+  return out;
+}
+/* where a spline ends: the point, the way the curve travels there (a unit vector), and how it bends there (its
+   curvature, to the left positive). first: its first point; else its last. A closed spline has no end. */
+export function splineEnd(e, first) {
+  const P = e.pts, m = P.length, cr = (a, b) => a[0] * b[1] - a[1] * b[0], sub = (a, b) => [a[0] - b[0], a[1] - b[1]];
+  if (e.t !== 'spline' || m < 2 || (e.closed && !e.cv && !e.cn)) return null;
+  let d1, d2;
+  if ((e.cn && m === 3) || e.cv) {
+    // a Bézier curve's (and a conic's) ends leave along the first and last sides of the control points
+    const n = m - 1, a = first ? sub(P[1], P[0]) : sub(P[m - 1], P[m - 2]), b = m > 2 ? (first ? sub(P[2], P[1]) : sub(P[m - 2], P[m - 3])) : [0, 0];
+    const L = Math.hypot(a[0], a[1]) || 1e-12, w = e.cn && m === 3 ? e.cn / (1 - e.cn) : 1;
+    const k = m > 2 ? (n - 1) / n / (w * w) * (first ? cr(a, b) : cr(b, a)) / (L * L * L) : 0;
+    return { p: first ? P[0] : P[m - 1], t: [a[0] / L, a[1] / L], k };
+  }
+  const at = i => P[Math.max(0, Math.min(m - 1, i))], s = first ? 0 : m - 2, p0 = at(s - 1), p1 = at(s), p2 = at(s + 1), p3 = at(s + 2), t = first ? 0 : 1;
+  d1 = [0, 1].map(k => 0.5 * ((-p0[k] + p2[k]) + 2 * (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t + 3 * (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t * t));
+  d2 = [0, 1].map(k => 0.5 * (2 * (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) + 6 * (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t));
+  const L = Math.hypot(d1[0], d1[1]) || 1e-12;
+  return { p: first ? P[0] : P[m - 1], t: [d1[0] / L, d1[1] / L], k: cr(d1, d2) / (L * L * L) };
+}
+/* a point's distance from an ellipse or a spline, signed (one side of the curve positive), 0 on it */
+function sdCurve(p, e) {
+  if (e.t === 'ellipse') { const a = e.rot * deg, ca = Math.cos(a), sa = Math.sin(a), dx = p[0] - e.c[0], dy = p[1] - e.c[1], x = dx * ca + dy * sa, y = -dx * sa + dy * ca; return (Math.hypot(x / e.rx, y / e.ry) - 1) * Math.min(e.rx, e.ry); }
+  const Q = curvePts(e, 3), n = Q.length, last = e.closed ? n : n - 1;
+  let bd = Infinity, sg = 1;
+  for (let i = 0; i < last; i++) {
+    const a = Q[i], b = Q[(i + 1) % n], ux = b[0] - a[0], uy = b[1] - a[1], L2 = ux * ux + uy * uy || 1e-24, t = Math.max(0, Math.min(1, ((p[0] - a[0]) * ux + (p[1] - a[1]) * uy) / L2));
+    const qx = a[0] + ux * t - p[0], qy = a[1] + uy * t - p[1], d = Math.hypot(qx, qy);
+    if (d < bd) { bd = d; sg = ux * (p[1] - a[1]) - uy * (p[0] - a[0]) < 0 ? -1 : 1; }
+  }
+  return sg * bd;
+}
+const isFreeCurve = e => !!e && (e.t === 'ellipse' || e.t === 'spline');
+/* the end of a spline a constraint means: the one its reference names (q0, or its last point) */
+const endOfRef = (e, r) => splineEnd(e, !(r.k && r.k !== 'q0'));
 const curveC = e => e.c;
 // a point's signed distance from a line (left of it, positive)
 const sdLine = (p, e) => { const d = lineDir(e), L = Math.hypot(d[0], d[1]) || 1e-12; return ((p[0] - e.a[0]) * d[1] - (p[1] - e.a[1]) * d[0]) / -L; };
@@ -94,7 +160,7 @@ function conResiduals(E, c, out) {
     case 'coincident': { const a = P(c.r[0]), b = P(c.r[1]); out.push(a[0] - b[0], a[1] - b[1]); return; }
     // normal: a line square to a circle or an arc where it meets it, which is a line through its centre
     case 'normal': { const A = en(c.r[0]), B = en(c.r[1]), L = A && A.t === 'line' ? A : B, C = L === A ? B : A; if (L && L.t === 'line' && C && C.c && C.r !== undefined) out.push(sdLine(C.c, L)); return; }
-    case 'oncurve': { const p = P(c.r[0]), e = en(c.r[1]); if (!e) return; if (e.t === 'line') out.push(sdLine(p, e)); else out.push(Math.hypot(p[0] - curveC(e)[0], p[1] - curveC(e)[1]) - radiusOf(e)); return; }
+    case 'oncurve': { const p = P(c.r[0]), e = en(c.r[1]); if (!e) return; if (isFreeCurve(e)) out.push(sdCurve(p, e)); else if (e.t === 'line') out.push(sdLine(p, e)); else out.push(Math.hypot(p[0] - curveC(e)[0], p[1] - curveC(e)[1]) - radiusOf(e)); return; }
     case 'horizontal': case 'vertical': {
       const k = c.t === 'horizontal' ? 1 : 0;
       if (c.r.length === 1) { const e = en(c.r[0]); if (e && e.t === 'line') out.push(e.a[k] - e.b[k]); return; }
@@ -114,6 +180,22 @@ function conResiduals(E, c, out) {
     }
     case 'tangent': {
       const e1 = en(c.r[0]), e2 = en(c.r[1]); if (!e1 || !e2) return;
+      if (e1.t === 'spline' || e2.t === 'spline') {
+        // a spline's end leaving the way the other shape goes there: along a line, square to an arc's radius, the way
+        // another spline's end goes, square to an ellipse's way out
+        const si = e1.t === 'spline' ? 0 : 1, sp = si ? e2 : e1, o = si ? e1 : e2, A = endOfRef(sp, c.r[si]); if (!A) return;
+        if (o.t === 'line') { const d = lineDir(o), n = Math.hypot(...d) || 1e-12; out.push((A.t[0] * d[1] - A.t[1] * d[0]) / n * 50); }
+        else if (o.t === 'arc' || o.t === 'circle') out.push((A.t[0] * (A.p[0] - o.c[0]) + A.t[1] * (A.p[1] - o.c[1])) / (Math.hypot(A.p[0] - o.c[0], A.p[1] - o.c[1]) || 1e-12) * 50);
+        else if (o.t === 'spline') { const B = endOfRef(o, c.r[1 - si]); if (B) out.push((A.t[0] * B.t[1] - A.t[1] * B.t[0]) * 50); }
+        else if (o.t === 'ellipse') { const a = o.rot * deg, ca = Math.cos(a), sa = Math.sin(a), dx = A.p[0] - o.c[0], dy = A.p[1] - o.c[1], x = (dx * ca + dy * sa) / (o.rx * o.rx), y = (-dx * sa + dy * ca) / (o.ry * o.ry), g = [x * ca - y * sa, x * sa + y * ca]; out.push((A.t[0] * g[0] + A.t[1] * g[1]) / (Math.hypot(g[0], g[1]) || 1e-12) * 50); }
+        return;
+      }
+      if (e1.t === 'ellipse' || e2.t === 'ellipse') {
+        // a line touching an ellipse: as far from its centre as the ellipse reaches that way
+        const el = e1.t === 'ellipse' ? e1 : e2, L = el === e1 ? e2 : e1; if (L.t !== 'line') return;
+        const d = lineDir(L), n = Math.hypot(...d) || 1e-12, nx = d[1] / n, ny = -d[0] / n, a = el.rot * deg, u = nx * Math.cos(a) + ny * Math.sin(a), v = -nx * Math.sin(a) + ny * Math.cos(a);
+        out.push(Math.abs(sdLine(el.c, L)) - Math.hypot(el.rx * u, el.ry * v)); return;
+      }
       if (e1.t === 'line' || e2.t === 'line') {
         const L = e1.t === 'line' ? e1 : e2, C = L === e1 ? e2 : e1;
         // at an arc's end on the line (a fillet, a tangent arc): the radius there square to the line (as the distance form
@@ -124,6 +206,17 @@ function conResiduals(E, c, out) {
       const d = Math.hypot(e1.c[0] - e2.c[0], e1.c[1] - e2.c[1]), s = c.s || 1;
       out.push(s > 0 ? d - (radiusOf(e1) + radiusOf(e2)) : d - Math.abs(radiusOf(e1) - radiusOf(e2)));
       return;
+    }
+    // curvature: a spline's end bending as much as the shape it runs into there (a line: not at all)
+    case 'curvature': {
+      const e1 = en(c.r[0]), e2 = en(c.r[1]); if (!e1 || !e2) return;
+      const si = e1.t === 'spline' ? 0 : 1, sp = si ? e2 : e1, o = si ? e1 : e2; if (sp.t !== 'spline') return;
+      const A = endOfRef(sp, c.r[si]); if (!A) return;
+      let ko = 0;
+      if (o.t === 'arc' || o.t === 'circle') ko = (A.t[0] * (o.c[1] - A.p[1]) - A.t[1] * (o.c[0] - A.p[0]) < 0 ? -1 : 1) / (o.r || 1e-12);
+      else if (o.t === 'spline') { const B = endOfRef(o, c.r[1 - si]); if (!B) return; const same = c.r[si].k === 'q0' ? c.r[1 - si].k === 'q0' : c.r[1 - si].k !== 'q0'; ko = same ? -B.k : B.k; }
+      else if (o.t !== 'line') return;
+      out.push((A.k - ko) * 400); return;
     }
     case 'midpoint': { const p = P(c.r[0]), e = en(c.r[1]); if (!e) return; const m = hpt(E, { e: c.r[1].e, k: 'm' }); out.push(p[0] - m[0], p[1] - m[1]); return; }
     case 'concentric': { const e1 = en(c.r[0]), e2 = en(c.r[1]); if (!e1 || !e2) return; const a = hpt(E, { e: e1.id, k: 'c' }), b = hpt(E, { e: e2.id, k: 'c' }); out.push(a[0] - b[0], a[1] - b[1]); return; }
@@ -214,6 +307,8 @@ export function solveSketch(ents, cons, dims, extra, opts) {
   if (!S.eqs.length || !S.vars.length) return { ok: true, err: 0, it: 0 };
   let { F, rows } = evalAll(S), err = maxAbs(F), lam = 1e-9, it = 0;
   const tol = opts.tol || 1e-9, n = S.vars.length;
+  // (a curvature bends sharply with its points: its steps may need holding back further before one helps)
+  const deep = (cons || []).some(c => c.t === 'curvature') ? 16 : 8;
   for (; it < (opts.iters || 60) && err > tol; it++) {
     const J = jacobian(S, F, rows), m = F.length;
     // the smallest step: dx = -J^T y, (J J^T + lam) y = F
@@ -222,7 +317,7 @@ export function solveSketch(ents, cons, dims, extra, opts) {
     const tr = A.reduce((s, row, i) => s + row[i], 0) / Math.max(1, m);
     const keep = S.vars.map(([e, p]) => getP(e, p));
     let improved = false;
-    for (let tries = 0; tries < 8; tries++) {
+    for (let tries = 0; tries < deep; tries++) {
       const y = solveSym(A, F, lam * Math.max(tr, 1e-12));
       for (let j = 0; j < n; j++) { let s = 0; for (let i = 0; i < m; i++) s -= J[i][j] * y[i]; const [e, p] = S.vars[j]; setP(e, p, keep[j] + s); }
       const r = evalAll(S), e2 = maxAbs(r.F);

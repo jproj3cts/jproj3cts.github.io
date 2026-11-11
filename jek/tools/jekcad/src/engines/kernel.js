@@ -1,6 +1,6 @@
 import { STD_PLANES, TOOL_FEATURES, appliedCount, fieldValue, normDoc, partLook, prepareDoc } from '../core/doc.js';
-import { WELD, arcSweep, carryPt, curvePts, distToEnt, entCross, regionAt, regionsOf, weldEnts } from '../core/sketch-tools.js';
-import { entKeys, hpt, inside, solveSketch } from '../core/sketch.js';
+import { WELD, arcSweep, carryPt, distToEnt, entCross, regionAt, regionsOf, weldEnts } from '../core/sketch-tools.js';
+import { curvePts, entKeys, hpt, inside, solveSketch } from '../core/sketch.js';
 
 /* ==========================================================================
    The kernel: the feature list regenerated with OpenCascade (the vendored replicad-opencascadejs build), in the
@@ -252,7 +252,7 @@ export function makeKernel(oc) {
   function entEdges(F, ents) {
     const out = [];
     for (const e of ents) {
-      if (e.k || e.t === 'point') continue;
+      if (e.k || e.t === 'point' || e.t === 'text' || e.t === 'image') continue;
       if (e.t === 'ellipse' || e.t === 'spline') { const P = curvePts(e, 1.5); if (e.t === 'ellipse' || e.closed) P.push(P[0]); try { for (const edge of curveEdges(F, P)) out.push({ e, edge }); } catch (err) { /* left out */ } continue; }
       let edge;
       if (e.t === 'line') { if (Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]) < 1e-9) continue; edge = T(new oc.BRepBuilderAPI_MakeEdge(pnt(toWorld(F, e.a)), pnt(toWorld(F, e.b)))).Edge(); }
@@ -503,6 +503,21 @@ export function makeKernel(oc) {
   /* a sketch's shapes that came from edges of the model (src: the edge's ref) follow those edges: each is found
      again in the model as it is now and flattened onto the sketch's plane; if any has moved, the sketch is solved
      again, so what was drawn on it or dimensioned from it moves with it. True if the sketch changed. */
+  /* where an edge goes through a plane: points of the plane (an edge that lies in it, or misses it: none) */
+  function pierceOf(edge, F) {
+    const c = T(new oc.BRepAdaptor_Curve(edge)), t0 = c.FirstParameter(), t1 = c.LastParameter(), N = 96, out = [];
+    const at = t => xyz(T(c.Value(t))), hOf = t => v3.dot(v3.sub(at(t), F.o), F.n);
+    let tp = t0, hp = hOf(t0);
+    for (let i = 1; i <= N; i++) {
+      const t = t0 + (t1 - t0) * i / N, hh = hOf(t);
+      if (Math.abs(hp) < 1e-9 && i === 1) out.push(toPlane(F, at(tp)));
+      else if (Math.abs(hh) < 1e-9) { if (Math.abs(hp) >= 1e-9) out.push(toPlane(F, at(t))); }
+      else if (hp * hh < 0) { let a = tp, b = t, ha = hp; for (let k = 0; k < 60; k++) { const m = (a + b) / 2, hm = hOf(m); if (ha * hm <= 0) b = m; else { a = m; ha = hm; } } out.push(toPlane(F, at((a + b) / 2))); }
+      tp = t; hp = hh;
+    }
+    // (a closed edge that starts on the plane ends there too, and a sample may land on a crossing: each place once)
+    return out.filter((q, i) => !out.slice(0, i).some(o => Math.hypot(o[0] - q[0], o[1] - q[1]) < 1e-6));
+  }
   function followRefs(S, f, F) {
     let moved = false;
     const far = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-7;
@@ -511,6 +526,16 @@ export function makeKernel(oc) {
       if (e.src.kind === 'vertex') {
         if (e.t !== 'point') continue;
         let q; try { q = toPlane(F, findVertex(S, e.src)); } catch (err) { continue; }
+        if (!far(q, e.c)) continue;
+        e.c = q;
+        for (const c of f.cons) if (c.t === 'fix' && c.r[0].e === e.id) c.at = q.slice();
+        moved = true; continue;
+      }
+      if (e.t === 'point') {
+        // a pierce point: where its edge goes through the sketch's plane now (the crossing nearest where it was)
+        let qs; try { const hit = findEdge(S, e.src, true); qs = pierceOf(edgesOf(hit.b)[hit.j], F); } catch (err) { continue; }
+        if (!qs.length) continue;
+        const q = qs.reduce((a, b) => (Math.hypot(a[0] - e.c[0], a[1] - e.c[1]) <= Math.hypot(b[0] - e.c[0], b[1] - e.c[1]) ? a : b));
         if (!far(q, e.c)) continue;
         e.c = q;
         for (const c of f.cons) if (c.t === 'fix' && c.r[0].e === e.id) c.at = q.slice();
@@ -1082,5 +1107,18 @@ export function makeKernel(oc) {
     } finally { flush(); }
     return out;
   }
-  return { regen, refs, measure, exportStep, exportStl, project: projectEdges, section: sectionEdges, state: () => last.S };
+  /* where edges of the model go through a sketch's plane: points, each with its edge's ref so it can follow */
+  function piercePoints(picks, F) {
+    const out = [];
+    try {
+      for (const p of picks) {
+        const b = last.S.parts.find(x => x.id === p.part);
+        if (!b || p.kind !== 'edge') continue;
+        const r = refOf(last.S, { part: b.id, kind: 'edge', index: p.index });
+        for (const c of pierceOf(edgesOf(b)[p.index], F)) out.push({ t: 'point', c, src: { kind: 'edge', part: r.part, faces: r.faces, pt: r.pt } });
+      }
+    } finally { flush(); }
+    return out;
+  }
+  return { regen, refs, measure, exportStep, exportStl, project: projectEdges, section: sectionEdges, pierce: piercePoints, state: () => last.S };
 }

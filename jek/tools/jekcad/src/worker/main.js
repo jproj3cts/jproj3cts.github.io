@@ -24,6 +24,7 @@ export function cadRun(K, kind, a) {
   if (kind === 'stl') return K.exportStl(a.parts, a.fine);
   if (kind === 'project') return K.project(a.picks, a.frame);
   if (kind === 'section') return K.section(a.picks, a.frame);
+  if (kind === 'pierce') return K.pierce(a.picks, a.frame);
   if (kind === 'ping') return true;
   throw new Error('no such request: ' + kind);
 }

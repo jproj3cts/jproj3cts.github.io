@@ -38,16 +38,16 @@ test('glass: N-BK7 at the d line, by its Sellmeier terms', () => {
 test('michelson: traced as the page traces it', () => {
   const T = trace('michelson');
   assert.equal(T.beams.length, 19);
-  assert.equal(T.rays.length, 21);
-  near(metricRaw(byName('Output port'), 'rms'), 0.8164965809277259, 1e-9, 'rms spot at the output port');
+  assert.equal(T.rays.length, 49);                     // hexapolar, 3 across: 7 rays a pass
+  near(metricRaw(byName('Output port'), 'rms'), Math.sqrt(3 / 7), 1e-9, 'rms spot at the output port (7 rays, a ring of 6 about the middle: across, sqrt(3/7) mm)');
   near(metricRaw(byName('Output port'), 'power'), 50, 1e-9, 'power at the output port, %');
 });
 test('other demo benches trace to the same counts as in the browser', () => {
   assert.equal(trace('plano-convex').beams.length, 6);
-  assert.equal(trace('plano-convex').rays.length, 246);
+  assert.equal(trace('plano-convex').rays.length, 222);
   assert.equal(trace('fabry-perot').beams.length, 78);
   const T = trace('lens-aberrations');
-  assert.equal(T.beams.length, 4); assert.equal(T.rays.length, 63);
+  assert.equal(T.beams.length, 4); assert.equal(T.rays.length, 111);
 });
 test('a project survives serialize and loadProject', () => {
   loadProject(demo('michelson'));

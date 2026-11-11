@@ -52,6 +52,7 @@
       "polAngle": 45,
       "lines": [],
       "rays": 5,
+      "pattern": "hex",
       "power": 100,
       "coh": 0,
       "splitFrom": null,

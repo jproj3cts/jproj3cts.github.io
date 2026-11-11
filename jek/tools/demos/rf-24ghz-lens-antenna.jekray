@@ -63,6 +63,7 @@
    "polAngle": 45,
    "lines": [],
    "rays": 3,
+   "pattern": "hex",
    "power": 0.9990740007854202,
    "coh": 0,
    "splitFrom": null,

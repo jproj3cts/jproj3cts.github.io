@@ -18,7 +18,8 @@
    "x": 0,
    "y": 0,
    "angle": 0,
-   "rays": 7,
+   "rays": 5,
+   "pattern": "hex",
    "mmw": {
     "kind": "corrugated",
     "ghz": 150,

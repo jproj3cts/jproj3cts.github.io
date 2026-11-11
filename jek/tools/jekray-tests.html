@@ -7410,7 +7410,7 @@ const TESTS = [
     run: J => {
       J.load(JSON.parse(getDemo('split-laser')));
       const tips = J.project().elements.filter(e => e.type === 'fibre');
-      for (const t of tips) t.emitRays = 7;
+      for (const t of tips) { t.emitRays = 7; delete t.emitPattern; }      // a line first (the example's launches are hexapolar)
       J.trace(); const n0 = J.traceInfo().rays;
       for (const t of tips) t.emitPattern = 'hex';
       J.trace(); const n1 = J.traceInfo().rays;

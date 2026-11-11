@@ -1097,7 +1097,7 @@ A laser, a 50/50 cube, two arms and two screens. Note the cube at angle 0 sends 
   "maxBounces": 40,
   "minPower": 0.001,
   "elements": [
-    {"type":"source","id":"laser","name":"Laser","x":-60,"y":0,"angle":0,"width":2,"gauss":true,"w0":1,"z0":60,"popN":128,"pol":"s","rays":3},
+    {"type":"source","id":"laser","name":"Laser","x":-60,"y":0,"angle":0,"width":2,"pattern":"hex","gauss":true,"w0":1,"z0":60,"popN":128,"pol":"s","rays":3},
     {"type":"cube","id":"50-50-cube","name":"50/50 cube","x":0,"y":0,"angle":0,"coat":{"mode":"custom","R":0}},
     {"type":"mirror","id":"moving-mirror","name":"Moving mirror","x":50,"y":0,"angle":180},
     {"type":"mirror","id":"fixed-mirror","name":"Fixed mirror","x":0,"y":50,"angle":-90},
@@ -1165,9 +1165,9 @@ A fibre network on the bench: a fibre laser, a coupler and two fibre tips, each 
   "elements": [
     {"type":"fcomp","kind":"laser","id":"laser","name":"Laser","x":-190,"y":125,"angle":0,"coh":3000,"cmode":"line"},
     {"type":"fcomp","kind":"coupler","id":"splitter","name":"Splitter","x":-140,"y":125,"angle":0},
-    {"type":"fibre","id":"launch-a","name":"Launch A","x":-110.6,"y":0,"angle":0,"core":9,"na":0.14},
+    {"type":"fibre","id":"launch-a","name":"Launch A","x":-110.6,"y":0,"angle":0,"core":9,"na":0.14,"emitPattern":"hex"},
     {"type":"lens","id":"collimator-a","name":"Collimator A","x":-60,"y":0,"angle":0,"surfaces":[{"R":51.5,"hole":0},{"R":-51.5,"hole":0}],"gaps":[3.6],"materials":[{"glass":"N-BK7"}]},
-    {"type":"fibre","id":"launch-b","name":"Launch B","x":0,"y":110.6,"angle":-90,"core":9,"na":0.14},
+    {"type":"fibre","id":"launch-b","name":"Launch B","x":0,"y":110.6,"angle":-90,"core":9,"na":0.14,"emitPattern":"hex"},
     {"type":"lens","id":"collimator-b","name":"Collimator B","x":0,"y":60,"angle":-90,"surfaces":[{"R":51.5,"hole":0},{"R":-51.5,"hole":0}],"gaps":[3.6],"materials":[{"glass":"N-BK7"}]},
     {"type":"cube","id":"50-50-cube","name":"50/50 cube","x":0,"y":0,"angle":0,"coat":{"mode":"custom","R":0}},
     {"type":"detector","id":"photodiode","name":"Photodiode","x":0,"y":-50,"angle":90,"length":10,"material":"custom","resp":1,"gain":1000},

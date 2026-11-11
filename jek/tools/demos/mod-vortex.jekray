@@ -25,6 +25,7 @@
    "z0": 0,
    "width": 1.2,
    "rays": 3,
+   "pattern": "hex",
    "wavelength": 633,
    "power": 1,
    "popN": 512

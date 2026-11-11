@@ -36,7 +36,8 @@
       "pol": "s",
       "polAngle": 45,
       "lines": [],
-      "rays": 21,
+      "rays": 7,
+      "pattern": "hex",
       "sweeps": {}
     },
     {

@@ -4,6 +4,7 @@ import { toast } from '../ui/actions.js';
 import { openDemo } from '../ui/tours.js';
 import { openProjectData } from './open.js';
 import { openCloudBench } from './cloud.js';
+import { keepHere } from '../ui/pro.js';
 
 /* ---------- Open recent (File › Open recent) ----------
    The last few things opened, newest first: a .jekray file (its text kept here, as a page cannot open a file
@@ -14,7 +15,7 @@ export function readRecent() {
   try { const v = JSON.parse(localStorage.getItem(OPENED_KEY)); return Array.isArray(v) ? v : []; } catch (err) { return []; }
 }
 export function noteRecent(item) {
-  if (EMBED) return;
+  if (EMBED || !keepHere()) return;
   const same = r => r.kind === item.kind && (item.kind === 'file' ? r.label === item.label : r.id === item.id);
   const list = [Object.assign({ t: Date.now() }, item), ...readRecent().filter(r => !same(r))].slice(0, OPENED_MAX);
   // a full store: the files' kept text let go, the oldest first, then the entries themselves

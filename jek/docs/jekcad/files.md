@@ -20,7 +20,7 @@ A .jekcad file is JSON. Fields a newer JEKcad adds are given defaults when an ol
 
 ## Autosave
 
-The part studio you are working on is kept in this browser as you work. When you come back, it is where you left it. Undo goes back through every change since the page opened.
+Signed in, the part studio you are working on is kept in this browser as you work. When you come back, it is where you left it. Undo goes back through every change since the page opened.
 
 ## The cloud and JEKsuite
 

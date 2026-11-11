@@ -71,7 +71,45 @@ export function needMark(el, need, what) {
   needShow(el);
   return el;
 }
-export function needsShown() { for (const el of document.querySelectorAll('[data-need]')) needShow(el); }
+export function needsShown() { for (const el of document.querySelectorAll('[data-need]')) needShow(el); keepSign(); if (keepSkipped && keepHere()) { keepSkipped = false; if (hooks.keepNow) hooks.keepNow(); } }
+
+/* ---- Nothing is kept without an account ----
+   Signed out, an app is there to try: the bench is not autosaved in the browser, no earlier versions or recent files
+   are kept, and leaving the page loses what was changed (with no question asked on the way out: most signed-out
+   visits only look). keepHere() says whether this browser may keep work: yes
+   with no accounts here, signed in, or when the API has not answered after the page's first seconds (as the exports'
+   gate lets through); no for someone signed out for sure, and for those first seconds while the account is looked
+   up (hooks.keepNow, the app's own autosave, is called once it is known to be allowed). Each app's autosave asks it
+   and calls workChanged(); the bench handed over to a sign-in (hooks.keepWork) is still
+   written, so it is there on the way back. The sign, beside the bar's Save, says the state and opens the sign-in. */
+export function keepHere() {
+  const a = hooks.account();
+  if (!a.on || a.signedIn) return true;
+  return a.known ? false : performance.now() >= 8000;
+}
+let tryChanged = false, keepSkipped = false;
+/* an autosave that was not made (signed out): the sign is redone. It says Not saved where the app's own mark of
+   unsaved changes is showing (the dot on Save, #saveDot), or, in an app without one, once an autosave was skipped */
+export function workChanged() {
+  if (keepHere()) return;
+  keepSkipped = true; tryChanged = true;
+  keepSign();
+}
+export function keepSign() {
+  const a = hooks.account(), save = document.getElementById('btnSave'), out = a.on && a.known && !a.signedIn && save && save.dataset.need;
+  let el = document.getElementById('keepSign');
+  if (!out) { if (el) el.remove(); tryChanged = false; return; }
+  if (!el) {
+    el = document.createElement('button');
+    el.type = 'button'; el.id = 'keepSign'; el.className = 'rt-btn rt-keepsign';
+    el.addEventListener('click', () => hooks.exportSignIn('keep your work'));
+    save.before(el);
+  }
+  const dot = document.getElementById('saveDot'), changed = dot ? !dot.hidden : tryChanged;
+  el.classList.toggle('changed', changed);
+  el.title = 'You are signed out, so nothing here is kept: closing or reloading the page loses your changes. A free account keeps your work in this browser and saves it as a file.';
+  el.replaceChildren(Object.assign(document.createElement('b'), { textContent: changed ? 'Not saved' : 'Not kept' }), Object.assign(document.createElement('span'), { textContent: ': free account keeps your work' }));
+}
 /* a button for JEKrayPro's work, marked Pro (and saying why in its title) while it is not open */
 export const proMark = (btn, what) => needMark(btn, 'pro', what);
 /* a button that exports, marked Free account while signed out */

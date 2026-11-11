@@ -1930,6 +1930,16 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-btn.rt-getpro { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); font-weight: 600; }
 .rt-btn.rt-getpro:hover { filter: brightness(1.08); }
 .rt-btn.rt-getpro[hidden] { display: none; }
+
+/* signed out, nothing is kept: the sign beside the bar's Save (ui/pro.js keepSign), which opens the sign-in */
+.rt-btn.rt-keepsign { flex: none; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; font-size: 0.8125rem; color: var(--jek-ink); background: color-mix(in srgb, var(--jek-orange) 12%, transparent); border: 1px solid var(--jek-orange); }
+.rt-btn.rt-keepsign b { color: var(--jek-orange); font-weight: 700; }
+.rt-btn.rt-keepsign.changed { background: color-mix(in srgb, var(--jek-orange) 24%, transparent); }
+.rt-btn.rt-keepsign:hover { background: color-mix(in srgb, var(--jek-orange) 30%, transparent); }
+/* (the sign says what the Free account chip on Save beside it says, so that chip rests while the sign is up; the
+   sign's second half only where the bar has room for it) */
+.rt-btn.rt-keepsign + #btnSave.rt-acctneed::after { content: none; }
+@media (max-width: 1799px) { .rt-btn.rt-keepsign span { display: none; } }
   /* JEKcad: what it adds to JEKray's style (which it shares, loaded before this) */
   .cad-app .rt-wrap { max-width: none; }
   .cad-space { display: inline-flex; align-items: center; gap: 0.4rem; flex: none; margin: 0 0.8rem 0 0.1rem; padding: 0.2rem 0.45rem 0.2rem 0.3rem; border-radius: 4px; font-size: 0.95rem; font-weight: 700; letter-spacing: -0.01em; color: var(--jek-ink); text-decoration: none; }
@@ -5274,7 +5284,45 @@ function needMark(el, need, what) {
   needShow(el);
   return el;
 }
-function needsShown() { for (const el of document.querySelectorAll('[data-need]')) needShow(el); }
+function needsShown() { for (const el of document.querySelectorAll('[data-need]')) needShow(el); keepSign(); if (keepSkipped && keepHere()) { keepSkipped = false; if (hooks.keepNow) hooks.keepNow(); } }
+
+/* ---- Nothing is kept without an account ----
+   Signed out, an app is there to try: the bench is not autosaved in the browser, no earlier versions or recent files
+   are kept, and leaving the page loses what was changed (with no question asked on the way out: most signed-out
+   visits only look). keepHere() says whether this browser may keep work: yes
+   with no accounts here, signed in, or when the API has not answered after the page's first seconds (as the exports'
+   gate lets through); no for someone signed out for sure, and for those first seconds while the account is looked
+   up (hooks.keepNow, the app's own autosave, is called once it is known to be allowed). Each app's autosave asks it
+   and calls workChanged(); the bench handed over to a sign-in (hooks.keepWork) is still
+   written, so it is there on the way back. The sign, beside the bar's Save, says the state and opens the sign-in. */
+function keepHere() {
+  const a = hooks.account();
+  if (!a.on || a.signedIn) return true;
+  return a.known ? false : performance.now() >= 8000;
+}
+let tryChanged = false, keepSkipped = false;
+/* an autosave that was not made (signed out): the sign is redone. It says Not saved where the app's own mark of
+   unsaved changes is showing (the dot on Save, #saveDot), or, in an app without one, once an autosave was skipped */
+function workChanged() {
+  if (keepHere()) return;
+  keepSkipped = true; tryChanged = true;
+  keepSign();
+}
+function keepSign() {
+  const a = hooks.account(), save = document.getElementById('btnSave'), out = a.on && a.known && !a.signedIn && save && save.dataset.need;
+  let el = document.getElementById('keepSign');
+  if (!out) { if (el) el.remove(); tryChanged = false; return; }
+  if (!el) {
+    el = document.createElement('button');
+    el.type = 'button'; el.id = 'keepSign'; el.className = 'rt-btn rt-keepsign';
+    el.addEventListener('click', () => hooks.exportSignIn('keep your work'));
+    save.before(el);
+  }
+  const dot = document.getElementById('saveDot'), changed = dot ? !dot.hidden : tryChanged;
+  el.classList.toggle('changed', changed);
+  el.title = 'You are signed out, so nothing here is kept: closing or reloading the page loses your changes. A free account keeps your work in this browser and saves it as a file.';
+  el.replaceChildren(Object.assign(document.createElement('b'), { textContent: changed ? 'Not saved' : 'Not kept' }), Object.assign(document.createElement('span'), { textContent: ': free account keeps your work' }));
+}
 /* a button for JEKrayPro's work, marked Pro (and saying why in its title) while it is not open */
 const proMark = (btn, what) => needMark(btn, 'pro', what);
 /* a button that exports, marked Free account while signed out */
@@ -8357,7 +8405,8 @@ let saveTimer = null;
 function scheduleSave() {
   if (TEST_MODE || EMBED) return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => { try { localStorage.setItem(CAD_STORE_KEY, JSON.stringify(app.doc)); setStatus(hooks.cadCloudLinked && hooks.cadCloudLinked() ? '' : 'Autosaved in this browser'); } catch (err) { setStatus('Not autosaved: this browser’s storage is full'); } }, SAVE_EVERY);
+  // (signed out, nothing is kept: a Part Studio cannot be changed then either)
+  saveTimer = setTimeout(() => { if (!keepHere()) return; try { localStorage.setItem(CAD_STORE_KEY, JSON.stringify(app.doc)); setStatus(hooks.cadCloudLinked && hooks.cadCloudLinked() ? '' : 'Autosaved in this browser'); } catch (err) { setStatus('Not autosaved: this browser’s storage is full'); } }, SAVE_EVERY);
 }
 function restoreSaved() {
   if (TEST_MODE || EMBED) return null;

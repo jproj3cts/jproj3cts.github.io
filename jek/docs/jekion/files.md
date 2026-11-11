@@ -8,7 +8,7 @@ description: "The .jekion file, autosave, the examples, pictures, the cloud, and
 
 <p class="dx-lead">A bench is a `.jekion` file: JSON, readable, with the electrodes, ion groups, detectors and every setting in it.</p>
 
-**Save** (Ctrl+S) writes the file; **File › Open** or a drop on the bench reads one back. A file from any version loads: every field is checked and given its default, so a hand-written or program-written file works too (an unknown shape becomes a box, a bad number its default). The bench is autosaved in this browser as you work and comes back on the next visit.
+**Save** (Ctrl+S) writes the file; **File › Open** or a drop on the bench reads one back. A file from any version loads: every field is checked and given its default, so a hand-written or program-written file works too (an unknown shape becomes a box, a bad number its default). Signed in, the bench is autosaved in this browser as you work and comes back on the next visit; signed out, nothing is kept.
 
 **Examples** (the gallery button, or File › Open an example) hold a working bench for each kind of instrument: an einzel lens, a quadrupole deflector, a linear time-of-flight, a reflectron, a quadrupole mass filter, a Paul trap and a Penning trap, each described in the gallery. A link `jekion.html?demo=paul-trap` opens one.
 

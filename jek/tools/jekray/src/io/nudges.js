@@ -5,7 +5,7 @@ import { h } from '../ui/dom.js';
 import { saveFile, toast } from '../ui/actions.js';
 import { cloudLink, cloudMenuShown, cloudPush, newCloudBench, personalWs, proWhy } from './cloud.js';
 import { menuIcons } from './packs.js';
-import { saveTimer } from './autosave.js';
+import { saveTimer, scheduleSave } from './autosave.js';
 import { goal, track } from './usage.js';
 import { WORK_EDITS, WORK_MS, nudgeCapOk, returnDue, workDue } from '../core/nudge.js';
 import { project } from '../state/project.js';
@@ -53,8 +53,8 @@ export function exportSignIn(what) {
   track('prompt', 'export.shown');
   nudgeTaken();
   const dlg = promptDialog('exportSignIn'), close = () => dlg.close();
-  dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, /^save the bench/.test(what) ? 'Saving the file needs a free account' : 'Exporting needs a free account'),
-    h('p', null, 'Sign in to ' + what + '. The bench is kept in this browser meanwhile.'),
+  dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, /^keep/.test(what) ? 'Keeping your work needs a free account' : /^save the bench/.test(what) ? 'Saving the file needs a free account' : 'Exporting needs a free account'),
+    h('p', null, 'Sign in to ' + what + '. Signed out, nothing is kept when you leave this page; the bench comes with you when you sign in.'),
     freeLead('Create a free account or sign in.', 'Your bench stays here while you sign in.'),
     uniNote(),
     h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('export', close)),
@@ -109,8 +109,8 @@ export function returnNudge(again, arrived) {
     busy: invite || nudgeUp() || !!document.querySelector('dialog[open]'), arrived, last, now: Date.now() })) return;
   nudgeTaken();
   nudgeCard('returnNudge', 'return', 'Restored from this browser only', [
-    h('p', null, 'This bench is kept in this browser alone: clearing its data loses it, and your other devices do not have it.'),
-    freeLead('Create a free account to save it as a file.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
+    h('p', null, 'This bench was kept in this browser before. Signed out, changes to it are no longer kept: closing the page loses them.'),
+    freeLead('Create a free account to keep it, and to save it as a file.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
   () => []);
 }
 /* ---------- A free account offered in a note ----------
@@ -206,6 +206,8 @@ export function wireNudges() {
     planActive: () => { if (cloud && cloud.dirty) cloudPush({ quiet: true }); },
     accountLoadedHere: () => { if (account && cloud && cloud.dirty) cloudPush({ quiet: true }); workSignedIn(); },
     accountChanged: () => cloudMenuShown(),
+    // what was changed while the account was still being looked up, kept once it is known to be signed in
+    keepNow: () => { if (!cloud) scheduleSave(); },
     // the menu in the bar (#acctMenu), its icons drawn; signed out, a line on what JEKrayPro gives
     accountMenu: rows => { const menu = document.getElementById('acctMenu'); if (!menu) return; menu.replaceChildren(...rows); menuIcons(menu); },
     accountMenuExtra: signedIn => (signedIn ? [] : [h('span', { class: 'rt-menunote' }, 'JEKrayPro, cloud saving for JEKray (open beta): your benches saved to the cloud as you work, with their history, on any computer. Sign in, then Subscribe.')]),

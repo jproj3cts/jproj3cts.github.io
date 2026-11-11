@@ -1961,6 +1961,16 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-btn.rt-getpro { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); font-weight: 600; }
 .rt-btn.rt-getpro:hover { filter: brightness(1.08); }
 .rt-btn.rt-getpro[hidden] { display: none; }
+
+/* signed out, nothing is kept: the sign beside the bar's Save (ui/pro.js keepSign), which opens the sign-in */
+.rt-btn.rt-keepsign { flex: none; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; font-size: 0.8125rem; color: var(--jek-ink); background: color-mix(in srgb, var(--jek-orange) 12%, transparent); border: 1px solid var(--jek-orange); }
+.rt-btn.rt-keepsign b { color: var(--jek-orange); font-weight: 700; }
+.rt-btn.rt-keepsign.changed { background: color-mix(in srgb, var(--jek-orange) 24%, transparent); }
+.rt-btn.rt-keepsign:hover { background: color-mix(in srgb, var(--jek-orange) 30%, transparent); }
+/* (the sign says what the Free account chip on Save beside it says, so that chip rests while the sign is up; the
+   sign's second half only where the bar has room for it) */
+.rt-btn.rt-keepsign + #btnSave.rt-acctneed::after { content: none; }
+@media (max-width: 1799px) { .rt-btn.rt-keepsign span { display: none; } }
 </style>
 </head>
 <body>
@@ -30102,7 +30112,45 @@ function needMark(el, need, what) {
   needShow(el);
   return el;
 }
-function needsShown() { for (const el of document.querySelectorAll('[data-need]')) needShow(el); }
+function needsShown() { for (const el of document.querySelectorAll('[data-need]')) needShow(el); keepSign(); if (keepSkipped && keepHere()) { keepSkipped = false; if (hooks.keepNow) hooks.keepNow(); } }
+
+/* ---- Nothing is kept without an account ----
+   Signed out, an app is there to try: the bench is not autosaved in the browser, no earlier versions or recent files
+   are kept, and leaving the page loses what was changed (with no question asked on the way out: most signed-out
+   visits only look). keepHere() says whether this browser may keep work: yes
+   with no accounts here, signed in, or when the API has not answered after the page's first seconds (as the exports'
+   gate lets through); no for someone signed out for sure, and for those first seconds while the account is looked
+   up (hooks.keepNow, the app's own autosave, is called once it is known to be allowed). Each app's autosave asks it
+   and calls workChanged(); the bench handed over to a sign-in (hooks.keepWork) is still
+   written, so it is there on the way back. The sign, beside the bar's Save, says the state and opens the sign-in. */
+function keepHere() {
+  const a = hooks.account();
+  if (!a.on || a.signedIn) return true;
+  return a.known ? false : performance.now() >= 8000;
+}
+let tryChanged = false, keepSkipped = false;
+/* an autosave that was not made (signed out): the sign is redone. It says Not saved where the app's own mark of
+   unsaved changes is showing (the dot on Save, #saveDot), or, in an app without one, once an autosave was skipped */
+function workChanged() {
+  if (keepHere()) return;
+  keepSkipped = true; tryChanged = true;
+  keepSign();
+}
+function keepSign() {
+  const a = hooks.account(), save = document.getElementById('btnSave'), out = a.on && a.known && !a.signedIn && save && save.dataset.need;
+  let el = document.getElementById('keepSign');
+  if (!out) { if (el) el.remove(); tryChanged = false; return; }
+  if (!el) {
+    el = document.createElement('button');
+    el.type = 'button'; el.id = 'keepSign'; el.className = 'rt-btn rt-keepsign';
+    el.addEventListener('click', () => hooks.exportSignIn('keep your work'));
+    save.before(el);
+  }
+  const dot = document.getElementById('saveDot'), changed = dot ? !dot.hidden : tryChanged;
+  el.classList.toggle('changed', changed);
+  el.title = 'You are signed out, so nothing here is kept: closing or reloading the page loses your changes. A free account keeps your work in this browser and saves it as a file.';
+  el.replaceChildren(Object.assign(document.createElement('b'), { textContent: changed ? 'Not saved' : 'Not kept' }), Object.assign(document.createElement('span'), { textContent: ': free account keeps your work' }));
+}
 /* a button for JEKrayPro's work, marked Pro (and saying why in its title) while it is not open */
 const proMark = (btn, what) => needMark(btn, 'pro', what);
 /* a button that exports, marked Free account while signed out */
@@ -54438,8 +54486,8 @@ function exportSignIn(what) {
   track('prompt', 'export.shown');
   nudgeTaken();
   const dlg = promptDialog('exportSignIn'), close = () => dlg.close();
-  dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, /^save the bench/.test(what) ? 'Saving the file needs a free account' : 'Exporting needs a free account'),
-    h('p', null, 'Sign in to ' + what + '. The bench is kept in this browser meanwhile.'),
+  dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, /^keep/.test(what) ? 'Keeping your work needs a free account' : /^save the bench/.test(what) ? 'Saving the file needs a free account' : 'Exporting needs a free account'),
+    h('p', null, 'Sign in to ' + what + '. Signed out, nothing is kept when you leave this page; the bench comes with you when you sign in.'),
     freeLead('Create a free account or sign in.', 'Your bench stays here while you sign in.'),
     uniNote(),
     h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('export', close)),
@@ -54494,8 +54542,8 @@ function returnNudge(again, arrived) {
     busy: invite || nudgeUp() || !!document.querySelector('dialog[open]'), arrived, last, now: Date.now() })) return;
   nudgeTaken();
   nudgeCard('returnNudge', 'return', 'Restored from this browser only', [
-    h('p', null, 'This bench is kept in this browser alone: clearing its data loses it, and your other devices do not have it.'),
-    freeLead('Create a free account to save it as a file.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
+    h('p', null, 'This bench was kept in this browser before. Signed out, changes to it are no longer kept: closing the page loses them.'),
+    freeLead('Create a free account to keep it, and to save it as a file.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
   () => []);
 }
 /* ---------- A free account offered in a note ----------
@@ -54591,6 +54639,8 @@ function wireNudges() {
     planActive: () => { if (cloud && cloud.dirty) cloudPush({ quiet: true }); },
     accountLoadedHere: () => { if (account && cloud && cloud.dirty) cloudPush({ quiet: true }); workSignedIn(); },
     accountChanged: () => cloudMenuShown(),
+    // what was changed while the account was still being looked up, kept once it is known to be signed in
+    keepNow: () => { if (!cloud) scheduleSave(); },
     // the menu in the bar (#acctMenu), its icons drawn; signed out, a line on what JEKrayPro gives
     accountMenu: rows => { const menu = document.getElementById('acctMenu'); if (!menu) return; menu.replaceChildren(...rows); menuIcons(menu); },
     accountMenuExtra: signedIn => (signedIn ? [] : [h('span', { class: 'rt-menunote' }, 'JEKrayPro, cloud saving for JEKray (open beta): your benches saved to the cloud as you work, with their history, on any computer. Sign in, then Subscribe.')]),
@@ -54611,7 +54661,7 @@ function readSnaps() {
   try { const v = JSON.parse(localStorage.getItem(SNAP_KEY)); return Array.isArray(v) ? v : []; } catch (err) { return []; }
 }
 function keepSnapshot(why, now) {
-  if (TEST_MODE || EMBED || !project || !project.elements.length) return;
+  if (TEST_MODE || EMBED || !project || !project.elements.length || !keepHere()) return;
   const list = readSnaps(), json = JSON.stringify(serialize());
   if (list.length && list[0].json === json) return;
   if (!now && list.length && Date.now() - list[0].t < SNAP_EVERY) return;
@@ -54628,6 +54678,8 @@ function scheduleSave() {
   if (cloud) cloudChanged();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
+    // signed out, nothing is kept (ui/pro.js keepHere): the sign beside Save says so
+    if (!keepHere()) { workChanged(); setStatus('Not saved: a free account keeps your work'); return; }
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(serialize()));
       setStatus(cloud ? (cloud.dirty && cloudOn() ? 'Saving to the cloud shortly' : cloudNote || 'Linked to the cloud') : 'Autosaved in this browser');
@@ -54644,7 +54696,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>Saving a bench as a .jekray file needs a free account</b> (Save, Ctrl+S). Without one a bench is still kept in this browser as you work.',
+    '<b>Signed out, nothing is kept</b>: no autosave in this browser, no earlier versions, no recent files. <b>Not kept</b> beside Save says so, turns to <b>Not saved</b> once the bench is changed, and opens the sign-in; the bench comes with you. A free account keeps your work as before and saves it as a .jekray file (Save, Ctrl+S).',
     'The Bench panel\u2019s list of parts reads as JEKcad\u2019s feature list: one line a part, its kind small beside it, under a heading for each kind (free space, fibre, circuits, objects, drawings) with its count; the parts selected are marked, and the eye shows on hover (or while the part is hidden in 3D).',
     'In 3D the bar no longer shows the Parts / Draw switcher: Parts is the only mode there (Draw is for the 2D bench).',
     '<b>Mates, and parts moved together, in 3D</b>: <b>Mate</b> on the 3D view\u2019s bar holds two parts together. Click a face of the part that stays (a flat face, a round one such as a hole, a shaft or a lens\u2019s rim, or close to a straight edge), then one of the part to move, and choose how they meet: <b>Coincident</b> (flush, facing each other), <b>Concentric</b> (on one axis), <b>Parallel</b>, a <b>Distance</b> apart or at an <b>Angle</b>, with Flip. The second part, with its group, moves to meet the first, and from then on the two move and turn together until the mate is deleted; each part\u2019s panel lists its mates, to change a distance, an angle or Flip, or delete one. Undo takes any of it back, and mates are saved with the bench. In 3D, <b>drag across empty space</b> to select a boxful (Shift-click adds a part); the arrows and rings of several selected move them as one and turn them about their middle, and their panel moves and turns them by numbers typed. <b>Group</b> and <b>Ungroup</b> are on the bar too.',
@@ -57093,7 +57145,7 @@ function readRecent() {
   try { const v = JSON.parse(localStorage.getItem(OPENED_KEY)); return Array.isArray(v) ? v : []; } catch (err) { return []; }
 }
 function noteRecent(item) {
-  if (EMBED) return;
+  if (EMBED || !keepHere()) return;
   const same = r => r.kind === item.kind && (item.kind === 'file' ? r.label === item.label : r.id === item.id);
   const list = [Object.assign({ t: Date.now() }, item), ...readRecent().filter(r => !same(r))].slice(0, OPENED_MAX);
   // a full store: the files' kept text let go, the oldest first, then the entries themselves

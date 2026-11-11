@@ -1930,6 +1930,16 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-btn.rt-getpro { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); font-weight: 600; }
 .rt-btn.rt-getpro:hover { filter: brightness(1.08); }
 .rt-btn.rt-getpro[hidden] { display: none; }
+
+/* signed out, nothing is kept: the sign beside the bar's Save (ui/pro.js keepSign), which opens the sign-in */
+.rt-btn.rt-keepsign { flex: none; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; font-size: 0.8125rem; color: var(--jek-ink); background: color-mix(in srgb, var(--jek-orange) 12%, transparent); border: 1px solid var(--jek-orange); }
+.rt-btn.rt-keepsign b { color: var(--jek-orange); font-weight: 700; }
+.rt-btn.rt-keepsign.changed { background: color-mix(in srgb, var(--jek-orange) 24%, transparent); }
+.rt-btn.rt-keepsign:hover { background: color-mix(in srgb, var(--jek-orange) 30%, transparent); }
+/* (the sign says what the Free account chip on Save beside it says, so that chip rests while the sign is up; the
+   sign's second half only where the bar has room for it) */
+.rt-btn.rt-keepsign + #btnSave.rt-acctneed::after { content: none; }
+@media (max-width: 1799px) { .rt-btn.rt-keepsign span { display: none; } }
   /* JEKion: what it adds to JEKray's style (which it shares, loaded before this) */
   .ion-simbar { position: absolute; left: 50%; bottom: 2.6rem; transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: 0.6rem; max-width: calc(100% - 2rem);
     padding: 0.35rem 0.8rem; font-size: 0.8125rem; color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-radius: 2px; pointer-events: none; white-space: nowrap; }
@@ -4946,7 +4956,45 @@ function needMark(el, need, what) {
   needShow(el);
   return el;
 }
-function needsShown() { for (const el of document.querySelectorAll('[data-need]')) needShow(el); }
+function needsShown() { for (const el of document.querySelectorAll('[data-need]')) needShow(el); keepSign(); if (keepSkipped && keepHere()) { keepSkipped = false; if (hooks.keepNow) hooks.keepNow(); } }
+
+/* ---- Nothing is kept without an account ----
+   Signed out, an app is there to try: the bench is not autosaved in the browser, no earlier versions or recent files
+   are kept, and leaving the page loses what was changed (with no question asked on the way out: most signed-out
+   visits only look). keepHere() says whether this browser may keep work: yes
+   with no accounts here, signed in, or when the API has not answered after the page's first seconds (as the exports'
+   gate lets through); no for someone signed out for sure, and for those first seconds while the account is looked
+   up (hooks.keepNow, the app's own autosave, is called once it is known to be allowed). Each app's autosave asks it
+   and calls workChanged(); the bench handed over to a sign-in (hooks.keepWork) is still
+   written, so it is there on the way back. The sign, beside the bar's Save, says the state and opens the sign-in. */
+function keepHere() {
+  const a = hooks.account();
+  if (!a.on || a.signedIn) return true;
+  return a.known ? false : performance.now() >= 8000;
+}
+let tryChanged = false, keepSkipped = false;
+/* an autosave that was not made (signed out): the sign is redone. It says Not saved where the app's own mark of
+   unsaved changes is showing (the dot on Save, #saveDot), or, in an app without one, once an autosave was skipped */
+function workChanged() {
+  if (keepHere()) return;
+  keepSkipped = true; tryChanged = true;
+  keepSign();
+}
+function keepSign() {
+  const a = hooks.account(), save = document.getElementById('btnSave'), out = a.on && a.known && !a.signedIn && save && save.dataset.need;
+  let el = document.getElementById('keepSign');
+  if (!out) { if (el) el.remove(); tryChanged = false; return; }
+  if (!el) {
+    el = document.createElement('button');
+    el.type = 'button'; el.id = 'keepSign'; el.className = 'rt-btn rt-keepsign';
+    el.addEventListener('click', () => hooks.exportSignIn('keep your work'));
+    save.before(el);
+  }
+  const dot = document.getElementById('saveDot'), changed = dot ? !dot.hidden : tryChanged;
+  el.classList.toggle('changed', changed);
+  el.title = 'You are signed out, so nothing here is kept: closing or reloading the page loses your changes. A free account keeps your work in this browser and saves it as a file.';
+  el.replaceChildren(Object.assign(document.createElement('b'), { textContent: changed ? 'Not saved' : 'Not kept' }), Object.assign(document.createElement('span'), { textContent: ': free account keeps your work' }));
+}
 /* a button for JEKrayPro's work, marked Pro (and saying why in its title) while it is not open */
 const proMark = (btn, what) => needMark(btn, 'pro', what);
 /* a button that exports, marked Free account while signed out */
@@ -6649,6 +6697,7 @@ function scheduleSave() {
   if (TEST_MODE || EMBED || !project) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
+    if (!keepHere()) { workChanged(); setStatus('Not saved: a free account keeps your work'); return; }
     try { localStorage.setItem(ION_STORE_KEY, JSON.stringify(serialize())); if (!cloud) setStatus('Autosaved in this browser'); }    // a cloud bench's status is the cloud's
     catch (err) { setStatus('This browser is blocking autosave. Use Save .jekion to keep your work.'); }
   }, 350);
@@ -6720,7 +6769,8 @@ function wireOpen() {
   document.getElementById('newCancel').addEventListener('click', () => dlg.close());
   document.getElementById('newConfirm').addEventListener('click', () => { dlg.close(); newProject(); toast('A new bench. Undo brings the old one back.'); });
   document.getElementById('importClose').addEventListener('click', () => document.getElementById('importDialog').close());
-  window.addEventListener('beforeunload', () => { if (!TEST_MODE && !EMBED && project) try { localStorage.setItem(ION_STORE_KEY, JSON.stringify(serialize())); } catch (err) { /* the last autosave stands */ } });
+  hooks.keepNow = () => { if (!cloud) scheduleSave(); };
+  window.addEventListener('beforeunload', () => { if (!TEST_MODE && !EMBED && project && keepHere()) try { localStorage.setItem(ION_STORE_KEY, JSON.stringify(serialize())); } catch (err) { /* the last autosave stands */ } });
 }
 /* ==========================================================================
    CAD into electrodes: each body of a STEP file (read by OpenCascade in JEKray's shared reader, tessellated) becomes
@@ -6775,6 +6825,7 @@ const APP_VERSION = '1.0', APP_DATE = '12 November 2026';
 const NEWS = [
   ['1.0', APP_DATE, [
     '<b>Flying the ions and saving the .jekion file need a free account</b>. Drawing electrodes and seeing their fields need none. A <b>Free account</b> badge marks each until you are signed in.',
+    '<b>Signed out, nothing is kept</b>: the bench is not autosaved in this browser. <b>Not kept</b> beside Save says so and opens the sign-in; the bench comes with you.',
     '<b>JEKsuite</b>, the JEK hub: File \u203a My benches on JEKsuite opens <a href="/jek/tools/jeksuite.html" target="_blank">JEKsuite</a> in its own tab, with every cloud bench of every JEK app, JEKion\u2019s among them, labelled and filtered by app; a JEKion bench chosen there opens here. New there starts a JEKion bench, in the cloud when you can save there. Your account, plan and teams are there too.',
     '<b>JEKion 1.0, released</b>: a charged-particle trap simulator in the browser, alongside JEKray. Electrodes from the bodies of a STEP or STL file, the potential solved by multigrid in planar, cylindrical or three-dimensional symmetry, ions and electrons flown relativistically through it and a uniform magnetic field, with RF voltages, a background gas and space charge; detectors, splats, time-of-flight and energy spectra; a trap analysis giving Mathieu a and q, secular and Penning frequencies.',
     'Examples: an einzel lens, a quadrupole deflector, a linear time-of-flight, a reflectron, a quadrupole mass filter, a Paul trap and a Penning trap.',
@@ -7926,8 +7977,8 @@ function showSignIn(kind, what) {
   track('prompt', (kind === 'export' ? 'export' : kind === 'cloud' ? 'cloud' : 'pro') + '.shown');
   const dlg = ionPrompt('ionSignIn'), close = () => dlg.close();
   const pro = kind === 'pro' && account;
-  dlg.replaceChildren(h('h2', { id: 'ionSignInTitle' }, kind === 'export' ? (/^fly/.test(what) ? 'Flying the ions needs a free account' : /^save the bench/.test(what) ? 'Saving the file needs a free account' : 'Exporting needs a free account') : kind === 'cloud' ? 'The cloud needs an account' : pro ? 'JEKrayPro is needed' : 'Sign in first'),
-    h('p', null, kind === 'export' ? 'Sign in to ' + what + '. Drawing electrodes and seeing their fields need no account.' : kind === 'cloud' ? 'Sign in to ' + what + '. A free account opens your cloud benches and saves the .jekion file on your computer; saving to the cloud needs JEKrayPro.' : pro ? 'To ' + what + ', JEKrayPro is needed, or a place in a team with a plan.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan.'),
+  dlg.replaceChildren(h('h2', { id: 'ionSignInTitle' }, kind === 'export' ? (/^keep/.test(what) ? 'Keeping your work needs a free account' : /^fly/.test(what) ? 'Flying the ions needs a free account' : /^save the bench/.test(what) ? 'Saving the file needs a free account' : 'Exporting needs a free account') : kind === 'cloud' ? 'The cloud needs an account' : pro ? 'JEKrayPro is needed' : 'Sign in first'),
+    h('p', null, kind === 'export' ? 'Sign in to ' + what + '. ' + (/^keep/.test(what) ? 'Signed out, nothing is kept when you leave this page; the bench comes with you when you sign in.' : 'Drawing electrodes and seeing their fields need no account.') : kind === 'cloud' ? 'Sign in to ' + what + '. A free account opens your cloud benches and saves the .jekion file on your computer; saving to the cloud needs JEKrayPro.' : pro ? 'To ' + what + ', JEKrayPro is needed, or a place in a team with a plan.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan.'),
     h('p', null, h('b', null, 'One account for every JEK app.'), ' Your bench stays here while you sign in.'),
     pro ? null : h('div', { class: 'rt-actions rt-signrow' }, ...signInRow(kind, close)),
     h('div', { class: 'rt-actions' }, pro ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { track('prompt', kind + '.pro'); close(); showSubscribe(); } }, 'See the plans') : null,

@@ -12,6 +12,7 @@ export const APP_VERSION = '1.0', APP_DATE = '12 November 2026';
 export const NEWS = [
   ['1.0', APP_DATE, [
     '<b>Flying the ions and saving the .jekion file need a free account</b>. Drawing electrodes and seeing their fields need none. A <b>Free account</b> badge marks each until you are signed in.',
+    '<b>Signed out, nothing is kept</b>: the bench is not autosaved in this browser. <b>Not kept</b> beside Save says so and opens the sign-in; the bench comes with you.',
     '<b>JEKsuite</b>, the JEK hub: File \u203a My benches on JEKsuite opens <a href="/jek/tools/jeksuite.html" target="_blank">JEKsuite</a> in its own tab, with every cloud bench of every JEK app, JEKion\u2019s among them, labelled and filtered by app; a JEKion bench chosen there opens here. New there starts a JEKion bench, in the cloud when you can save there. Your account, plan and teams are there too.',
     '<b>JEKion 1.0, released</b>: a charged-particle trap simulator in the browser, alongside JEKray. Electrodes from the bodies of a STEP or STL file, the potential solved by multigrid in planar, cylindrical or three-dimensional symmetry, ions and electrons flown relativistically through it and a uniform magnetic field, with RF voltages, a background gas and space charge; detectors, splats, time-of-flight and energy spectra; a trap analysis giving Mathieu a and q, secular and Penning frequencies.',
     'Examples: an einzel lens, a quadrupole deflector, a linear time-of-flight, a reflectron, a quadrupole mass filter, a Paul trap and a Penning trap.',

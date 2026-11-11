@@ -1930,6 +1930,16 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
 .rt-btn.rt-getpro { color: #fff; background: var(--jek-orange); border-color: var(--jek-orange); font-weight: 600; }
 .rt-btn.rt-getpro:hover { filter: brightness(1.08); }
 .rt-btn.rt-getpro[hidden] { display: none; }
+
+/* signed out, nothing is kept: the sign beside the bar's Save (ui/pro.js keepSign), which opens the sign-in */
+.rt-btn.rt-keepsign { flex: none; display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; font-size: 0.8125rem; color: var(--jek-ink); background: color-mix(in srgb, var(--jek-orange) 12%, transparent); border: 1px solid var(--jek-orange); }
+.rt-btn.rt-keepsign b { color: var(--jek-orange); font-weight: 700; }
+.rt-btn.rt-keepsign.changed { background: color-mix(in srgb, var(--jek-orange) 24%, transparent); }
+.rt-btn.rt-keepsign:hover { background: color-mix(in srgb, var(--jek-orange) 30%, transparent); }
+/* (the sign says what the Free account chip on Save beside it says, so that chip rests while the sign is up; the
+   sign's second half only where the bar has room for it) */
+.rt-btn.rt-keepsign + #btnSave.rt-acctneed::after { content: none; }
+@media (max-width: 1799px) { .rt-btn.rt-keepsign span { display: none; } }
 /* JEKsuite: on top of JEKray's style.css (its tokens, buttons, dialogs and the My benches page it grew from) */
 html, body { margin: 0; background: var(--jek-well); }
 .space-home { position: fixed; inset: 0; }
@@ -2176,7 +2186,7 @@ html, body { margin: 0; background: var(--jek-well); }
 
   <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
     <h2 id="subTitle">JEKrayPro</h2>
-    <p>Keep your benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders here. Do the full design work in JEKray’s Optical and RF designers, and share any bench as a short link. The apps themselves stay free.</p>
+    <p>Keep your benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders here. Keep your own parts and assemblies to use on any bench, work with a team in a shared workspace, and make any number of share links. Everything done in the apps themselves needs only a free account.</p>
     <p class="rt-founding"><b>Founding member price.</b> Subscribe while JEKray is in its open beta and you keep the price you start on for as long as your subscription carries on, whatever later prices are.</p>
     <div id="subPlans"></div>
     <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>
@@ -2935,7 +2945,7 @@ async function showSubscribe() {
   else licNote.append('Pay now and your account is made from the address you pay with; you are signed in when you come back. Already have an account? ',
     h('button', { type: 'button', class: 'rt-link', onclick: () => { dlg.close(); proSignIn(); } }, 'Sign in'), ' first.');
   box.replaceChildren(licNote, tabs, h('div', { class: 'rt-subcards' },
-    card('pro', 'JEKrayPro', 'For anyone: your benches in the cloud, their history, on every device; the optimiser, tolerancing, reports, scripts and share links.'),
+    card('pro', 'JEKrayPro', 'For anyone: your benches in the cloud, with their history, on every device; forks, folders, your own parts and any number of share links.'),
     card('academic', 'Academic', 'The same, at half the price, for students and staff at a university.', { node: acNode, email: ac ? null : acMail, err: acErr }),
     card('team', 'Team', 'For a lab, group or company: one workspace everyone works in, with roles, invitations by email and an activity record. A seat each for the owner, admins and editors, at least three; viewers are free. Each seat has JEKrayPro on their own benches too.', { seat: true, go: teamGo })));
 }

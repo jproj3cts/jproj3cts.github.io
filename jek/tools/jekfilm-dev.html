@@ -29,7 +29,7 @@
           <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekfilm file…</button>
           <button type="button" role="menuitem" id="btnFilmExamples" data-icon="book">Open an example…</button>
           <div class="sep"></div>
-          <button type="button" role="menuitem" id="btnSaveFile" data-icon="save" data-need="pro" data-what="save a coating file">Save as .jekfilm<span class="k">Ctrl+S</span></button>
+          <button type="button" role="menuitem" id="btnSaveFile" data-icon="save" data-need="account" data-what="save a coating file">Save as .jekfilm<span class="k">Ctrl+S</span></button>
           <div class="sep" id="cloudSep"></div>
           <button type="button" role="menuitem" id="btnCloudSave" data-icon="upload" data-need="pro" data-what="save to the cloud" title="Keep this coating in the cloud, with its history, beside the benches that use it"><span class="lbl">Save to cloud…</span></button>
           <button type="button" role="menuitem" id="btnShareMenu" data-icon="link" data-need="pro" data-what="share a link" title="A short link that opens this coating as it is now, for anyone">Copy a share link…</button>
@@ -42,13 +42,13 @@
       <button class="rt-btn quiet" id="btnRedo" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" data-icon="redo"></button>
       <span class="film-where"><span id="filmWhere">In this browser</span> <span id="filmStatus" class="rt-status" aria-live="polite"></span></span>
       <span class="rt-lgap"></span>
-      <button class="rt-btn film-save" id="btnSave" type="button" data-icon="save" data-need="pro" data-what="save a coating file" title="Save the coating as a .jekfilm file (Ctrl+S)">Save</button>
+      <button class="rt-btn film-save" id="btnSave" type="button" data-icon="save" data-need="account" data-what="save a coating file" title="Save the coating as a .jekfilm file (Ctrl+S)">Save</button>
       <div class="rt-more">
         <button class="rt-btn quiet" id="btnTheme" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="themeMenu" aria-label="Theme" title="Theme" data-icon="theme"></button>
         <div class="rt-menu rt-menu-right rt-imenu" id="themeMenu" role="menu" hidden></div>
       </div>
       <button class="rt-btn rt-getpro" id="btnGetPro" type="button" hidden title="JEKrayPro: plans and prices">Get Pro</button>
-      <button class="rt-btn film-share" id="btnShare" type="button" data-icon="link" data-need="pro" data-what="share a link" title="Copy a short link that opens this coating as it is now, for anyone (JEKrayPro)">Share</button>
+      <button class="rt-btn film-share" id="btnShare" type="button" data-icon="link" data-need="pro" data-what="share a link" title="Copy a short link that opens this coating as it is now, for anyone (a free account keeps three at once; JEKrayPro any number)">Share</button>
       <div class="rt-more" id="acct" hidden>
         <button class="rt-btn rt-acct quiet" id="btnAcct" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu">Sign in</button>
         <div class="rt-menu rt-menu-right rt-imenu rt-acctmenu" id="acctMenu" role="menu" hidden></div>
@@ -93,7 +93,7 @@
 
   <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
     <h2 id="subTitle">JEKrayPro</h2>
-    <p>Keep your coatings and benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version and fork one to try an idea. In JEKfilm, save coating files and optimise the layers. The apps themselves stay free to open and use.</p>
+    <p>Keep your benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders in JEKsuite. Keep your own parts and assemblies to use on any bench, work with a team in a shared workspace, and make any number of share links. Everything done in the apps themselves needs only a free account.</p>
     <p class="rt-founding"><b>Founding member price.</b> Subscribe while JEKray is in its open beta and you keep the price you start on for as long as your subscription carries on, whatever later prices are.</p>
     <div id="subPlans"></div>
     <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>

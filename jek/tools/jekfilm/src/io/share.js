@@ -51,10 +51,10 @@ async function filmShortLink() {
   FILM_MADE.set(text, r.id);
   return r.id;
 }
-/* File › Copy a share link: a short link with an account (JEKrayPro's), the coating in the link itself without accounts */
+/* File › Copy a share link: a short link with an account (a free one keeps a few, JEKrayPro any number), the coating in the link itself without accounts */
 export async function shareFilm() {
   const short = accountsOn();
-  if (short && !account) { filmSignIn('pro', 'share a link'); return null; }
+  if (short && !account) { filmSignIn('export', 'share a link'); return null; }
   if (short && !designPro('share a link')) return null;
   const url = short ? filmShortUrl(await filmShortLink()) : location.origin + location.pathname + '#p=' + await filmShareHash();
   let dlg = document.getElementById('filmShare');

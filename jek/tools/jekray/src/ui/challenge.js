@@ -165,7 +165,7 @@ function exShareLink() {
   const all = text + '\n' + u;
   (navigator.clipboard ? navigator.clipboard.writeText(all) : Promise.reject()).then(() => toast('Copied: the link opens this exercise for whoever you send it to'), () => toast(u));
 }
-/* the optimiser finds it (JEKrayPro, or a free account's optimiser runs): offered after the second hint */
+/* the optimiser finds it (a free account's): offered after the second hint */
 export function exerciseOptimise() { if (EX && EX.ex.optimiser) exOptimise(); }
 function exOptimise() {
   if (!designPro('optimise a design')) return;
@@ -204,7 +204,7 @@ function exBar() {
     for (let i = 0; i < EX.hints; i++) body.push(h('p', { class: 'rt-exhint' }, h('b', null, 'Hint ' + (i + 1) + ': '), E.hints[i]));
     const acts = h('div', { class: 'rt-actions' });
     if (EX.hints < E.hints.length) acts.append(h('button', { class: 'rt-btn', type: 'button', onclick: () => { EX.hints++; track('exercise', E.id + '.hint' + EX.hints); exBar(); } }, EX.hints ? 'Another hint' : 'Hint'));
-    else if (E.optimiser) acts.append(h('button', { class: 'rt-btn', type: 'button', title: 'JEKrayPro’s optimiser searches the settings you may change for the goal (a free account has a few runs a month)', onclick: exOptimise }, 'Let the optimiser find it'));
+    else if (E.optimiser) acts.append(h('button', { class: 'rt-btn', type: 'button', title: 'The optimiser searches the settings you may change for the goal (it needs a free account)', onclick: exOptimise }, 'Let the optimiser find it'));
     acts.append(h('span', { class: 'rt-exmay' }, 'You can change ' + exAllowedText() + '.'));
     body.push(acts);
   } else {

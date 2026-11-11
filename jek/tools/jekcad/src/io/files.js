@@ -1,6 +1,6 @@
 import { EMBED, TEST_MODE } from '../../../jekray/src/core/constants.js';
 import { hooks } from '../../../jekray/src/core/hooks.js';
-import { accountGate } from '../../../jekray/src/ui/pro.js';
+import { accountGate, keepHere } from '../../../jekray/src/ui/pro.js';
 import { asmItems } from '../ui/assembly.js';
 import { editGate } from '../ui/app.js';
 import { track } from '../../../jekray/src/io/usage.js';
@@ -20,7 +20,8 @@ let saveTimer = null;
 export function scheduleSave() {
   if (TEST_MODE || EMBED) return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => { try { localStorage.setItem(CAD_STORE_KEY, fileText()); setStatus(hooks.cadCloudLinked && hooks.cadCloudLinked() ? '' : 'Autosaved in this browser'); } catch (err) { setStatus('Not autosaved: this browser’s storage is full'); } }, SAVE_EVERY);
+  // (signed out, nothing is kept: a Part Studio cannot be changed then either)
+  saveTimer = setTimeout(() => { if (!keepHere()) return; try { localStorage.setItem(CAD_STORE_KEY, fileText()); setStatus(hooks.cadCloudLinked && hooks.cadCloudLinked() ? '' : 'Autosaved in this browser'); } catch (err) { setStatus('Not autosaved: this browser’s storage is full'); } }, SAVE_EVERY);
 }
 export function restoreSaved() {
   if (TEST_MODE || EMBED) return null;

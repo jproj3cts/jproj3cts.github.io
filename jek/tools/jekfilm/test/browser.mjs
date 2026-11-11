@@ -116,29 +116,34 @@ export async function check(pw, base, shots) {
       ok('The designer alone: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
-    // signed out: optimising and saving ask to sign in; exporting asks for a free account
+    // signed out: optimising, saving and exporting each ask for a free account; the cloud is JEKrayPro's
     {
       const { p, errs } = await page('', { signedIn: false });
       await p.waitForSelector('#btnAcct', { timeout: 5000 }); await p.waitForTimeout(400);
-      const marks = await p.evaluate(() => ({ opt: document.getElementById('filmOptimise').classList.contains('rt-proneed'), save: document.getElementById('btnSaveFile').classList.contains('rt-proneed'), csv: document.getElementById('btnExportCsv').classList.contains('rt-acctneed') }));
-      ok('Signed out: Optimise and Save as .jekfilm marked Pro, Export the curves Free account', marks.opt && marks.save && marks.csv, JSON.stringify(marks));
+      const marks = await p.evaluate(() => { const c = id => document.getElementById(id).classList; return { opt: c('filmOptimise').contains('rt-acctneed') && !c('filmOptimise').contains('rt-proneed'), save: c('btnSaveFile').contains('rt-acctneed') && !c('btnSaveFile').contains('rt-proneed'), csv: c('btnExportCsv').contains('rt-acctneed'), cloud: c('btnCloudSave').contains('rt-proneed') }; });
+      ok('Signed out: Optimise, Save as .jekfilm and Export the curves marked Free account; Save to cloud marked Pro', marks.opt && marks.save && marks.csv && marks.cloud, JSON.stringify(marks));
       const d0 = await p.evaluate(() => window.JEKfilm.film().layers[0].d);
       await p.click('#filmOptimise'); await p.waitForTimeout(200);
       const so = await p.evaluate(() => ({ open: !!document.querySelector('#filmSignIn[open]'), h: (document.querySelector('#filmSignIn h2') || {}).textContent, d: window.JEKfilm.film().layers[0].d }));
-      ok('Signed out: Optimise asks to sign in, and changes nothing', so.open && so.h === 'Sign in first' && so.d === d0, JSON.stringify(so));
+      ok('Signed out: Optimise asks for a free account, and changes nothing', so.open && so.h === 'A free account is needed' && so.d === d0, JSON.stringify(so));
       await p.keyboard.press('Escape');
       await p.click('#btnFile'); await p.click('#btnExportCsv'); await p.waitForTimeout(200);
       ok('Signed out: Export the curves asks for a free account', await p.evaluate(() => (document.querySelector('#filmSignIn[open] h2') || {}).textContent === 'Exporting needs a free account'), 'no prompt');
       ok('Signed out: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
-    // a free account: Pro's work offers the plans
+    // a free account: the file saves and the optimiser runs; the cloud offers the plans
     {
       const { p, errs } = await page('', { signedIn: true, pro: false });
       await p.waitForSelector('#btnAcct.in', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(300);
-      await p.keyboard.press('Control+s'); await p.waitForTimeout(200);
+      const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 5000 }).catch(() => null), p.keyboard.press('Control+s')]);
+      const d0 = await p.evaluate(() => window.JEKfilm.film().layers[0].d);
+      await p.click('#filmOptimise'); await p.waitForTimeout(1200);
+      const ran = await p.evaluate(() => ({ prompt: !!document.querySelector('#filmSignIn[open]'), d: window.JEKfilm.film().layers[0].d, marked: document.getElementById('filmOptimise').classList.contains('rt-proneed') || document.getElementById('filmOptimise').classList.contains('rt-acctneed') }));
+      ok('A free account: Ctrl+S saves the .jekfilm file, and Optimise runs with nothing asked', !!dl && /\.jekfilm$/.test(dl.suggestedFilename()) && !ran.prompt && !ran.marked && ran.d !== d0, JSON.stringify([dl && dl.suggestedFilename(), ran, d0]));
+      await p.click('#btnFile'); await p.click('#btnCloudSave'); await p.waitForTimeout(300);
       const s = await p.evaluate(() => ({ h: (document.querySelector('#filmSignIn[open] h2') || {}).textContent, plans: !!document.querySelector('#filmSignIn[open] .rt-btn.primary') }));
-      ok('A free account: Ctrl+S (Save as .jekfilm) says JEKrayPro is needed, with the plans', s.h === 'JEKrayPro is needed' && s.plans, JSON.stringify(s));
+      ok('A free account: Save to cloud says JEKrayPro is needed, with the plans', s.h === 'JEKrayPro is needed' && s.plans, JSON.stringify(s));
       ok('A free account: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }

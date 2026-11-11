@@ -7,7 +7,7 @@ import { checkpoint, demoProject, loadProject, serialize } from '../state/elemen
 import { changed, downloadFile, markUnsaved, safeFileName, setStatus, toast, updateUndoButtons } from '../ui/actions.js';
 import { fitView } from '../ui/render.js';
 import { importCad } from './step.js';
-import { accountGate } from '../../../jekray/src/ui/pro.js';
+import { accountGate, keepHere, workChanged } from '../../../jekray/src/ui/pro.js';
 
 /* ==========================================================================
    Files: saving and opening .jekion files, the autosave in this browser, a new bench, the examples, and what to
@@ -18,6 +18,7 @@ export function scheduleSave() {
   if (TEST_MODE || EMBED || !project) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
+    if (!keepHere()) { workChanged(); setStatus('Not saved: a free account keeps your work'); return; }
     try { localStorage.setItem(ION_STORE_KEY, JSON.stringify(serialize())); if (!cloud) setStatus('Autosaved in this browser'); }    // a cloud bench's status is the cloud's
     catch (err) { setStatus('This browser is blocking autosave. Use Save .jekion to keep your work.'); }
   }, 350);
@@ -89,5 +90,6 @@ export function wireOpen() {
   document.getElementById('newCancel').addEventListener('click', () => dlg.close());
   document.getElementById('newConfirm').addEventListener('click', () => { dlg.close(); newProject(); toast('A new bench. Undo brings the old one back.'); });
   document.getElementById('importClose').addEventListener('click', () => document.getElementById('importDialog').close());
-  window.addEventListener('beforeunload', () => { if (!TEST_MODE && !EMBED && project) try { localStorage.setItem(ION_STORE_KEY, JSON.stringify(serialize())); } catch (err) { /* the last autosave stands */ } });
+  hooks.keepNow = () => { if (!cloud) scheduleSave(); };
+  window.addEventListener('beforeunload', () => { if (!TEST_MODE && !EMBED && project && keepHere()) try { localStorage.setItem(ION_STORE_KEY, JSON.stringify(serialize())); } catch (err) { /* the last autosave stands */ } });
 }

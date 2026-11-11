@@ -40,7 +40,7 @@ function fillDialog() {
   kindsBox.replaceChildren(...ION_DATA_KINDS.map(([k, label, about]) => h('label', { class: 'rt-check', title: about }, h('input', { type: 'checkbox', value: k, disabled: counts[k] ? null : '' }), label + (counts[k] ? ' (' + counts[k] + ')' : ' (none yet)'))));
   const first = kindsBox.querySelector('input:not(:disabled)'); if (first) first.checked = true;
   fmtBox.replaceChildren(...Object.entries(DATA_FORMATS).map(([k, F]) => { const b = h('button', { type: 'button', role: 'radio', class: 'rt-btn', 'aria-checked': String(k === fmt), onclick: () => { fmt = k; for (const x of fmtBox.children) x.setAttribute('aria-checked', String(x === b)); } }, F.label); return DATA_PRO_ION.has(k) ? needMark(b, 'pro', 'export data as ' + F.label) : b; }));
-  note.textContent = 'One kind as CSV or JSON needs a free account; Excel, NumPy and MATLAB, several kinds at once, or everything, are JEKrayPro’s. Every file carries the bench’s name, the units and the array’s settings.';
+  note.textContent = 'Exporting data needs a free account. Every file carries the bench’s name, the units and the array’s settings.';
 }
 export function wireDataExport() {
   const dlg = document.getElementById('dataDialog');

@@ -7,7 +7,7 @@ description: "The RF designer: a feed horn's beam through a system of RF lenses 
 
 <p class="dx-lead">A system of RF lenses and mirrors is designed as a whole in the RF designer: a feed horn's beam through the lenses to what it is for. It is the quasi-optical counterpart of the <a href="/jek/docs/jekray/lens-design/">Optical designer</a>, with the same workspace and the same engine underneath, and it ends in a lens that can be made.</p>
 
-<p><strong>What needs JEKrayPro.</strong> Anyone can open the RF designer, design a lens from its specification, look at it through every analysis, check that it can be made, and send it for a quote. The optimiser, tolerancing, the PDF report and the lens drawings need <a href="/jek/tools/jekray.html#pro">JEKrayPro</a> (a personal, Academic or team plan, or a university licence), and carry a <strong>Pro</strong> mark until you sign in with a plan.</p>
+<p><strong>What needs an account.</strong> Anyone can open the RF designer, design a lens from its specification, look at it through every analysis, check that it can be made, and send it for a quote. The optimiser, tolerancing, the PDF report and the lens drawings need a free account, and carry a <strong>Free account</strong> mark until you sign in.</p>
 
 ## Opening it
 

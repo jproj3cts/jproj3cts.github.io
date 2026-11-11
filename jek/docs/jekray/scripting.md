@@ -2,14 +2,14 @@
 layout: docs
 title: Scripting and headless use
 permalink: /jek/docs/jekray/scripting/
-description: "Drive JEKray from a script: the Scripts editor on the bench (JEKrayPro), in JavaScript or Python, the window.JEKray object in the page, the same engine in Node without a browser, and a command line that traces a bench file and prints its readouts or sweeps a parameter to a table."
+description: "Drive JEKray from a script: the Scripts editor on the bench (with a free account), in JavaScript or Python, the window.JEKray object in the page, the same engine in Node without a browser, and a command line that traces a bench file and prints its readouts or sweeps a parameter to a table."
 ---
 
-<p class="dx-lead">Everything the bench works out can be asked for from a script: on the bench, in the <strong>Scripts</strong> editor (JEKrayPro), in JavaScript or Python; in the page, through the <code>JEKray</code> object the tool puts on <code>window</code>; outside it, through the same engine running in Node, with no browser; and from the command line, which traces a bench file and prints what its panels would show. A design can sit in a repository with a check that runs it, and a parameter study can be a loop.</p>
+<p class="dx-lead">Everything the bench works out can be asked for from a script: on the bench, in the <strong>Scripts</strong> editor (with a free account), in JavaScript or Python; in the page, through the <code>JEKray</code> object the tool puts on <code>window</code>; outside it, through the same engine running in Node, with no browser; and from the command line, which traces a bench file and prints what its panels would show. A design can sit in a repository with a check that runs it, and a parameter study can be a loop.</p>
 
 ## On the bench: Scripts
 
-**Tools › Scripts…** opens an editor beside the bench, part of JEKrayPro. A script is JavaScript or [Python](#python), chosen for each script in the menu beside its name, given `J`, the bench, and `log()`. Choose **Run** (or Ctrl+Enter): the `log()` lines appear below as the script writes them, then what the script returned: rows (an array of objects) as a table, anything else as JSON. **Save as** under it keeps a table, an array or an object of named ones as CSV, JSON, Excel, NumPy or MATLAB; `save()` keeps whatever the script makes as a file of its own ([Saving files](#saving-files)). What the script changed is applied to the bench when it ends, as one step, so one **Undo** puts it back. Scripts are kept in this browser by name, each with its language; **Save as a file** and **Open a file…** move them as `.js` or `.py` files, and **Start from an example…** gives four to begin with, in either language: read a screen, sweep a part to a table, check a figure, list every part.
+**Tools › Scripts…** opens an editor beside the bench. Running a script needs a free account. A script is JavaScript or [Python](#python), chosen for each script in the menu beside its name, given `J`, the bench, and `log()`. Choose **Run** (or Ctrl+Enter): the `log()` lines appear below as the script writes them, then what the script returned: rows (an array of objects) as a table, anything else as JSON. **Save as** under it keeps a table, an array or an object of named ones as CSV, JSON, Excel, NumPy or MATLAB; `save()` keeps whatever the script makes as a file of its own ([Saving files](#saving-files)). What the script changed is applied to the bench when it ends, as one step, so one **Undo** puts it back. Scripts are kept in this browser by name, each with its language; **Save as a file** and **Open a file…** move them as `.js` or `.py` files, and **Start from an example…** gives four to begin with, in either language: read a screen, sweep a part to a table, check a figure, list every part.
 
 `J` has the calls in the table below, taking parts by name, and these besides:
 
@@ -110,7 +110,7 @@ BenchError: No part is called "Lens 2"
 
 **NumPy** is there: `import numpy` fetches it from this site the first time a script imports it (3.0 MB, once). Beyond NumPy, **only Python's standard library** is available (math, statistics, json, csv, re, itertools, fractions, datetime and the rest; not tkinter or turtle): an import of anything else stops with *No module named …: only the standard library and NumPy are available on the bench*. There are no threads or subprocesses, no files but the script's own memory, and `input()` reads nothing. `J.sweepPlay` needs the page: run the script on the page (no Stop) to use it, and there `await J.sweepPlay('Lens', 'x')` waits for a sweep's play, the one call that takes time.
 
-A Python script is checked against the same JEKrayPro plan as a JavaScript one, and is as much your own code in your own browser: through Pyodide's `js` module it can reach what a JavaScript one can (the worker, or the page when it is run there).
+A Python script needs the same free account as a JavaScript one, and is as much your own code in your own browser: through Pyodide's `js` module it can reach what a JavaScript one can (the worker, or the page when it is run there).
 
 ## In the page
 

@@ -14,7 +14,7 @@ const readSrc = p => readFileSync(srcUrl(p), 'utf8');
 
 // designWhyOf is a pure function: read it from the module's source, without the page it needs to load
 const src = readSrc('ui/pro.js');
-const body = src.slice(src.indexOf('export function designWhyOf'), src.indexOf('export const designWhy ='));
+const body = src.slice(src.indexOf('export function designWhyOf'), src.indexOf('export function designWhy('));
 const designWhyOf = new Function(body.replace('export ', '') + '\nreturn designWhyOf;')();
 const acctBody = src.slice(src.indexOf('export function acctWhyOf'), src.indexOf('export const acctWhy ='));
 const acctWhyOf = new Function(acctBody.replace('export ', '') + '\nreturn acctWhyOf;')();
@@ -146,12 +146,12 @@ test('share links are JEKrayPro’s: made through the API with a plan, the QR co
   assert.match(cl, /api\('\/v1\/links\/' \+ l\.id, \{ method: 'DELETE' \}\)/);
 });
 
-test('a script, in JavaScript or Python, runs from the Scripts window only with JEKrayPro', () => {
-  // the window's Run (and Ctrl+Enter) asks scriptsWhy first; scriptsWhy is JEKrayPro's reason, outside the tests and without accounts
+test('a script, in JavaScript or Python, runs from the Scripts window only with an account', () => {
+  // the window's Run (and Ctrl+Enter) asks scriptsWhy first; scriptsWhy is the account's reason (a free one is enough), outside the tests and without accounts
   assertGated('ui/scripts.js', 'run', undefined, ['scriptsWhy']);
   const ids = new Set();
   walk.full(fnOf('ui/scripts.js', 'scriptsWhy'), n => { if (n.type === 'Identifier') ids.add(n.name); else if (n.type === 'MemberExpression' && !n.computed) ids.add(n.property.name); });
-  assert.ok(ids.has('proWhy'), 'scriptsWhy asks for JEKrayPro');
+  assert.ok(ids.has('acctWhy') && !ids.has('proWhy'), 'scriptsWhy asks for an account, not for JEKrayPro');
   // the window runs a script, in either language, only through that run: runScript is called nowhere else in it
   let calls = 0;
   walk.fullAncestor(astOf('ui/scripts.js'), (n, st, anc) => {
@@ -312,4 +312,33 @@ test('a free account\u2019s tasters: every piece of JEKrayPro work that runs in 
     if (/share a link|QR code/.test(w)) assert.equal(tasterOf(w), 'share', w + ': a free account\u2019s share links');
     else assert.ok(TASTER_NAMES[tasterOf(w)], w + ' has a taster');
   }
+});
+
+// What is JEKrayPro's is what lives on the server; everything done in the browser is a free account's.
+test('the work a free account does asks for the account alone; the cloud is JEKrayPro’s; a free account has share links', async () => {
+  const { hooks } = await import('../../src/core/hooks.js');
+  const { designWhy, freeWork } = await import('../../src/ui/pro.js');
+  const FREE = ['optimise a design', 'search for designs', 'substitute glasses', 'tolerance a design', 'save a design report', 'save drawings', 'export a design', 'run scripts',
+    'export data as Excel', 'export several kinds of data at once', 'export everything at once', 'save a coating file', 'optimise a coating', 'tolerance a coating', 'make a coating specification'];
+  const CLOUD = ['save to the cloud', 'fork a bench', 'fork a Part Studio'];
+  for (const w of FREE) assert.ok(freeWork(w), w + ' is a free account’s');
+  for (const w of [...CLOUD, 'share a link', 'make a QR code of the bench']) assert.ok(!freeWork(w), w + ' is not');
+  const was = { account: hooks.account, proWhy: hooks.proWhy, tasterLeft: hooks.tasterLeft };
+  try {
+    hooks.proWhy = () => 'Needs JEKrayPro: subscribe from the account menu, or join a team with a plan'; hooks.tasterLeft = () => null;
+    // signed in on a free account: its own work is open, the cloud is not
+    hooks.account = () => ({ on: true, signedIn: true, known: true });
+    for (const w of FREE) assert.equal(designWhy(w), '', w);
+    for (const w of CLOUD) assert.match(designWhy(w), /^JEKrayPro is needed/, w);
+    assert.equal(designWhy('share a link'), '', 'a share link: the API says when a free account’s are used up');
+    hooks.tasterLeft = () => 0;
+    assert.match(designWhy('share a link'), /^JEKrayPro is needed/, 'JEKray’s count of them, all used');
+    // signed out: everything asks for an account, and the cloud for JEKrayPro’s sign-in
+    hooks.account = () => ({ on: true, signedIn: false, known: true }); hooks.proWhy = () => 'Sign in, top right, to use the cloud'; hooks.tasterLeft = () => null;
+    for (const w of [...FREE, 'share a link']) assert.match(designWhy(w), /^Needs a free account/, w);
+    for (const w of CLOUD) assert.match(designWhy(w), /^Sign in with JEKrayPro/, w);
+    // no accounts here: nothing is gated
+    hooks.account = () => ({ on: false, signedIn: false, known: false });
+    for (const w of [...FREE, ...CLOUD, 'share a link']) assert.equal(designWhy(w), '', w);
+  } finally { Object.assign(hooks, was); }
 });

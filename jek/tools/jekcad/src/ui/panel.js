@@ -183,6 +183,7 @@ let measureSeq = 0;
 async function measureShown() {
   const box = document.getElementById('measure');
   if (!box) return;
+  if (app.asm) { box.hidden = true; return; }           // (an assembly's parts are measured in their Part Studios)
   const picks = app.sel.filter(s => s.part && (s.kind === 'part' || s.kind === 'face' || s.kind === 'edge' || s.kind === 'vertex')).slice(0, 2);
   if (!picks.length || app.sketch) { box.hidden = true; return; }
   const seq = ++measureSeq;

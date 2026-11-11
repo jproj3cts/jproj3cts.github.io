@@ -3,8 +3,13 @@ import { h } from '../../../jekray/src/ui/dom.js';
 /* ==========================================================================
    The version, and what is new in it (Help › What’s new)
    ========================================================================== */
-export const APP_VERSION = '0.6.0';
+export const APP_VERSION = '0.7.0';
 export const NEWS = [
+  { v: '0.7.0', date: '11 Nov 2026', items: [
+    '<b>Tabs</b>: a document now holds several Part Studios and Assemblies, along the bottom of the window. The + adds one.',
+    '<b>Assemblies</b>: insert parts from the Part Studios, drag them into place, and join them with mates (Fastened, Revolute, Slider, Cylindrical, Planar).',
+    'A part changed in its Part Studio changes in every assembly, and its mates follow.',
+  ] },
   { v: '0.6.0', date: '11 Nov 2026', items: [
     '<b>Short share links</b>: signed in, Share gives a link of ten letters kept with your account.',
     '<b>Text in six fonts</b>, and Mirror now mirrors text and pictures.',

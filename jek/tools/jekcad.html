@@ -1957,6 +1957,22 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .cad-skin input { width: 3.6rem; font-size: 0.78rem; }
   /* the page: the feature list beside the view */
   .cad-main { position: relative; display: flex; flex: 1; min-height: 0; }
+  /* the document's tabs, along the bottom: Part Studios and Assemblies */
+  .cad-tabs { flex: none; display: flex; align-items: stretch; gap: 2px; padding: 2px 0.3rem 0; background: var(--rt-surface); border-top: 1px solid var(--jek-line); overflow-x: auto; min-height: 30px; }
+  .cad-tab { display: inline-flex; align-items: center; gap: 0.35rem; border: 1px solid transparent; border-bottom: 0; border-radius: 4px 4px 0 0; background: none; color: var(--jek-ink-soft); font: inherit; font-size: 0.8rem; padding: 0.2rem 0.7rem; cursor: pointer; white-space: nowrap; }
+  .cad-tab:hover { background: var(--jek-well); }
+  .cad-tab.on { background: var(--jek-sand, var(--rt-bg)); color: var(--jek-ink); border-color: var(--jek-line); border-top: 2px solid var(--jek-orange); font-weight: 600; }
+  .cad-tab[data-kind="assembly"] .ic2 { color: var(--jek-orange); }
+  .cad-tabadd { font-size: 1rem; padding: 0 0.6rem; }
+  .cad-tabmenu { position: fixed; z-index: 60; min-width: 180px; top: auto; right: auto; display: flex; flex-direction: column; }
+  .cad-irow { cursor: pointer; }
+  .cad-irow.picked { background: var(--jek-well); box-shadow: inset 2px 0 0 var(--jek-orange); }
+  .cad-irow.hid .nm { opacity: 0.5; }
+  .cad-empty { margin: 0.2rem 0.4rem 0.6rem; font-size: 0.78rem; color: var(--jek-ink-soft); }
+  .cad-pose { padding: 0 0.3rem; } .cad-pose .cad-frow { display: flex; align-items: center; gap: 0.4rem; margin: 0.15rem 0; } .cad-pose label { flex: 1; font-size: 0.78rem; } .cad-pose input { width: 6.5em; }
+  .cad-inslist { display: flex; flex-direction: column; gap: 0.25rem; max-height: 50vh; overflow: auto; margin: 0.4rem 0; }
+  .cad-insrow { display: flex; align-items: center; gap: 0.5rem; justify-content: flex-start; text-align: left; }
+  .cad-swatch { width: 0.9rem; height: 0.9rem; border-radius: 2px; border: 1px solid var(--jek-line); flex: none; }
   .cad-side { flex: none; width: 272px; overflow: auto; background: var(--rt-surface); border-right: 1px solid var(--jek-line); padding: 0.4rem 0.3rem; font-size: 0.82rem; }
   .cad-main.side-off .cad-side { display: none; }
   /* the tab on the list's edge: it closes the list, and opens it again from the view's edge */
@@ -2184,15 +2200,27 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         <span class="cad-grow"></span>
         <label class="cad-filter" title="What a click in the view picks">Select <select id="selFilter" aria-label="Selection filter"><option value="any">Anything</option><option value="face">Faces</option><option value="edge">Edges</option><option value="vertex">Vertices</option><option value="part">Parts</option><option value="region">Sketch regions</option><option value="plane">Planes</option></select></label>
       </div>
+      <div class="rt-row cad-fbar" id="asmBar" role="group" aria-label="Assembly" hidden>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="insert" data-icon="import" title="Insert parts from the Part Studios">Insert</button>
+        <span class="rt-qsep" aria-hidden="true"></span>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="fastened" data-icon="mate" title="Fastened mate: a face of one part onto a face of another, nothing left free">Fastened</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="revolute" data-icon="revolve" title="Revolute mate: the part turns about the axis">Revolute</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="slider" data-icon="slider" title="Slider mate: the part slides along the axis">Slider</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="cylindrical" data-icon="hole" title="Cylindrical mate: the part turns about the axis and slides along it">Cylindrical</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="planar" data-icon="plane" title="Planar mate: the part slides on the face and turns on it">Planar</button>
+      </div>
       <div class="rt-row cad-fbar cad-skbar" id="sketchBar" role="group" aria-label="Sketch tools" hidden></div>
     </div>
 
     <div class="cad-main" id="cadMain">
       <aside class="cad-side" id="side" aria-label="Feature list and parts">
-        <h2 class="cad-shead">Features</h2>
-        <ul class="cad-flist" id="featureList"></ul>
-        <h2 class="cad-shead">Parts <span id="partsCount"></span></h2>
-        <ul class="cad-plist" id="partsList"></ul>
+        <div id="studioSide">
+          <h2 class="cad-shead">Features</h2>
+          <ul class="cad-flist" id="featureList"></ul>
+          <h2 class="cad-shead">Parts <span id="partsCount"></span></h2>
+          <ul class="cad-plist" id="partsList"></ul>
+        </div>
+        <div id="asmSide" hidden></div>
       </aside>
       <button type="button" class="cad-sidetab" id="sideTab" aria-controls="side" aria-expanded="true" title="Hide the feature list" aria-label="Hide the feature list"><span aria-hidden="true">‹</span></button>
       <div class="rt-stage cad-stage" id="stage">
@@ -2209,7 +2237,15 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         <div class="rt-toast" id="toast" role="status"></div>
       </div>
     </div>
+    <div class="cad-tabs" id="tabBar" role="tablist" aria-label="Tabs: Part Studios and Assemblies"></div>
   </div>
+
+  <dialog class="rt-dialog" id="asmInsert" aria-labelledby="asmInsertTitle">
+    <h2 id="asmInsertTitle">Insert parts</h2>
+    <p class="rt-subsmall">Click a part to put it in the assembly. The first is fixed where its Part Studio has it; drag the others, or mate them.</p>
+    <div id="asmInsertList" class="cad-inslist"></div>
+    <div class="rt-actions"><button type="button" class="rt-btn primary" id="asmInsertClose">Close</button></div>
+  </dialog>
 
   <dialog class="rt-dialog rt-wide" id="varsDialog" aria-labelledby="varsTitle">
     <h2 id="varsTitle">Variables</h2>
@@ -3946,6 +3982,168 @@ function silhouetteOf(M, face, F) {
   return out;
 }
 /* ==========================================================================
+   An assembly: parts of the document's Part Studios put together. Each instance is a part (its studio's tab, the
+   part's id) and where it is: p, a place, and q, a turn (a quaternion x, y, z, w); world = turn(local) + p. A mate
+   joins two instances by a connector on each: a point o and two axes z and x, in the part's own coordinates,
+   found on a face (its middle and its normal; a round face's axis). The kinds of mate are what they leave free:
+     fastened     nothing
+     revolute     turning about z
+     slider       sliding along z
+     cylindrical  turning about z and sliding along it
+     planar       sliding in the plane square to z, and turning about z
+   The connectors' z axes meet head on (two faces laid one on the other), or the same way with flip.
+   Pure: no page, no kernel. The solver moves the instances that are not fixed until every mate holds.
+   ========================================================================== */
+const MATE_KINDS = ['fastened', 'revolute', 'slider', 'cylindrical', 'planar'];
+const MATE_NAMES = { fastened: 'Fastened', revolute: 'Revolute', slider: 'Slider', cylindrical: 'Cylindrical', planar: 'Planar' };
+const asmFin3 = (v, d) => (Array.isArray(v) && v.length >= 3 && v.slice(0, 3).every(Number.isFinite) ? v.slice(0, 3).map(Number) : d.slice());
+const asmStr = (v, n) => typeof v === 'string' && v.length > 0 && v.length <= n;
+const asmUnit = v => { const L = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / L, v[1] / L, v[2] / L]; };
+const asmCross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const asmDot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+/* ---------- turns ---------- */
+const qnormal = q => { const L = Math.hypot(q[0], q[1], q[2], q[3]) || 1; return [q[0] / L, q[1] / L, q[2] / L, q[3] / L]; };
+const qtimes = (a, b) => [a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0], a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]];
+const qturn = (q, v) => { const u = [q[0], q[1], q[2]], t = asmCross(u, v).map(x => 2 * x), c = asmCross(u, t); return [v[0] + q[3] * t[0] + c[0], v[1] + q[3] * t[1] + c[1], v[2] + q[3] * t[2] + c[2]]; };
+/* a turn about an axis (a unit vector) by an angle, radians; and the turn a small vector w stands for (about w, by its length) */
+const qabout = (ax, an) => { const s = Math.sin(an / 2); return [ax[0] * s, ax[1] * s, ax[2] * s, Math.cos(an / 2)]; };
+const asmQvec = w => { const an = Math.hypot(w[0], w[1], w[2]); return an < 1e-14 ? [0, 0, 0, 1] : qabout([w[0] / an, w[1] / an, w[2] / an], an); };
+/* a turn as angles about x, y, z (degrees, applied in that order), and back: what the panel shows and takes */
+const qFromEuler = e => { const r = Math.PI / 180; return qnormal(qtimes(qabout([0, 0, 1], e[2] * r), qtimes(qabout([0, 1, 0], e[1] * r), qabout([1, 0, 0], e[0] * r)))); };
+function qToEuler(q) {
+  const [x, y, z, w] = q, d = 180 / Math.PI, s = Math.max(-1, Math.min(1, 2 * (w * y - z * x)));
+  return [Math.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y)) * d, Math.asin(s) * d, Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)) * d];
+}
+/* a point, and a direction, of a part where its instance puts them */
+const placed = (I, v) => { const r = qturn(I.q, v); return [r[0] + I.p[0], r[1] + I.p[1], r[2] + I.p[2]]; };
+const turned3 = (I, v) => qturn(I.q, v);
+
+/* ---------- the document's assembly, checked ---------- */
+function asmConn(c) {
+  if (!c || typeof c !== 'object' || !asmStr(c.inst, 40)) return null;
+  const z = asmUnit(asmFin3(c.z, [0, 0, 1]));
+  let x = asmFin3(c.x, [1, 0, 0]); x = [0, 1, 2].map(i => x[i] - z[i] * asmDot(x, z));
+  if (Math.hypot(...x) < 1e-9) x = Math.abs(z[2]) < 0.9 ? asmCross([0, 0, 1], z) : [1, 0, 0];
+  return Object.assign({ inst: c.inst, o: asmFin3(c.o, [0, 0, 0]), z, x: asmUnit(x) }, asmStr(c.face, 160) ? { face: c.face } : {}, c.round ? { round: true } : {});
+}
+function normAsm(a, n) {
+  a = a && typeof a === 'object' ? a : {};
+  const ids = new Set(), instances = [];
+  for (const I of (Array.isArray(a.instances) ? a.instances : []).slice(0, 500)) {
+    if (!I || !asmStr(I.studio, 40) || !asmStr(I.part, 80)) continue;
+    const id = asmStr(I.id, 40) && !ids.has(I.id) ? I.id : sketchId('i'); ids.add(id);
+    const q = Array.isArray(I.q) && I.q.length === 4 && I.q.every(Number.isFinite) && Math.hypot(...I.q) > 1e-9 ? qnormal(I.q.map(Number)) : [0, 0, 0, 1];
+    instances.push(Object.assign({ id, studio: I.studio, part: I.part, p: asmFin3(I.p, [0, 0, 0]), q }, asmStr(I.name, 80) ? { name: I.name } : {}, I.fixed ? { fixed: true } : {}, I.hidden ? { hidden: true } : {}));
+  }
+  const mids = new Set(), mates = [];
+  for (const m of (Array.isArray(a.mates) ? a.mates : []).slice(0, 1000)) {
+    if (!m || !MATE_KINDS.includes(m.t)) continue;
+    const A = asmConn(m.a), B = asmConn(m.b);
+    if (!A || !B || A.inst === B.inst || !ids.has(A.inst) || !ids.has(B.inst)) continue;
+    const id = asmStr(m.id, 40) && !mids.has(m.id) ? m.id : sketchId('m'); mids.add(id);
+    mates.push(Object.assign({ id, t: m.t, name: asmStr(m.name, 80) ? m.name : MATE_NAMES[m.t] + ' ' + (mates.filter(x => x.t === m.t).length + 1), a: A, b: B }, m.flip ? { flip: true } : {}, m.suppressed ? { suppressed: true } : {}));
+  }
+  return { id: asmStr(a.id, 40) ? a.id : sketchId('t'), kind: 'assembly', name: asmStr(a.name, 120) && a.name.trim() ? a.name : 'Assembly ' + (n || 1), instances, mates };
+}
+
+/* ---------- a connector from a face of a part's mesh ----------
+   M: the mesh the kernel sends (pos, nrm, idx, faceGroups, faceKinds, faceNames). A flat face: its middle, z its
+   normal (out of the part). A round one (a hole's wall, a pin's side): a point on its axis, half way along, z along
+   the axis. In the part's own coordinates. */
+function faceConnector(M, face) {
+  const from = M.faceGroups[2 * face], cnt = M.faceGroups[2 * face + 1];
+  if (!(cnt >= 3)) return null;
+  const V = i => [M.pos[3 * i], M.pos[3 * i + 1], M.pos[3 * i + 2]], N = i => [M.nrm[3 * i], M.nrm[3 * i + 1], M.nrm[3 * i + 2]];
+  let A = 0; const c = [0, 0, 0], nm = [0, 0, 0], used = new Set();
+  for (let k = from; k + 2 < from + cnt; k += 3) {
+    const a = V(M.idx[k]), b = V(M.idx[k + 1]), d = V(M.idx[k + 2]), cr = asmCross([b[0] - a[0], b[1] - a[1], b[2] - a[2]], [d[0] - a[0], d[1] - a[1], d[2] - a[2]]), ar = Math.hypot(...cr) / 2;
+    A += ar; for (let i = 0; i < 3; i++) { c[i] += ar * (a[i] + b[i] + d[i]) / 3; }
+    const n0 = N(M.idx[k]); for (let i = 0; i < 3; i++) nm[i] += ar * n0[i];
+    used.add(M.idx[k]); used.add(M.idx[k + 1]); used.add(M.idx[k + 2]);
+  }
+  if (!(A > 0)) return null;
+  const mid = c.map(v => v / A), kind = M.faceKinds ? M.faceKinds[face] : 'plane', name = M.faceNames ? M.faceNames[face] : undefined;
+  const frame = (o, z, round) => { z = asmUnit(z); const x = asmUnit(Math.abs(z[2]) < 0.9 ? asmCross([0, 0, 1], z) : [1, 0, 0]); return Object.assign({ o, z, x }, name ? { face: name } : {}, round ? { round: true } : {}); };
+  if (kind === 'plane' || Math.hypot(...nm) / A > 0.999) return frame(mid, nm, false);
+  // a round face: its axis is square to every normal (the direction the normals have least of); a point on it is
+  // each corner less the radius along its normal
+  const ix = [...used], S = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  for (const i of ix) { const n0 = N(i); for (let r = 0; r < 3; r++) for (let s = 0; s < 3; s++) S[r][s] += n0[r] * n0[s]; }
+  // the least direction: what is left of a vector after the two greater ones are taken out (power steps on the rest)
+  const big = M0 => { let v = [1, 0.7, 0.3]; for (let k = 0; k < 60; k++) { v = asmUnit([0, 1, 2].map(r => asmDot(M0[r], v))); } return v; };
+  const v1 = big(S), l1 = asmDot(v1, [0, 1, 2].map(r => asmDot(S[r], v1))), S2 = S.map((row, r) => row.map((x, s) => x - l1 * v1[r] * v1[s])), v2 = big(S2);
+  const ax = asmUnit(asmCross(v1, v2));
+  if (!(Math.hypot(...asmCross(v1, v2)) > 1e-6)) return frame(mid, nm, false);
+  const u = asmUnit(asmCross(ax, Math.abs(ax[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0])), w = asmCross(ax, u);
+  // least squares for the centre (cu, cw) and the radius r: (p − r n)·u = cu, (p − r n)·w = cw
+  let n2 = 0, su = 0, sw = 0, snu = 0, snw = 0, spn = 0, cnt2 = 0;
+  for (const i of ix) { const p = V(i), n0 = N(i), pu = asmDot(p, u), pw = asmDot(p, w), nu = asmDot(n0, u), nw = asmDot(n0, w); su += pu; sw += pw; snu += nu; snw += nw; n2 += nu * nu + nw * nw; spn += pu * nu + pw * nw; cnt2++; }
+  const den = n2 - (snu * snu + snw * snw) / cnt2, r = Math.abs(den) > 1e-12 ? (spn - (su * snu + sw * snw) / cnt2) / den : 0;
+  const cu = (su - r * snu) / cnt2, cw = (sw - r * snw) / cnt2, hgt = asmDot(mid, ax);
+  // (the axis the way that is mostly up, so two holes drilled the same way have axes the same way)
+  const zz = (Math.abs(ax[2]) > 1e-6 ? ax[2] : Math.abs(ax[1]) > 1e-6 ? ax[1] : ax[0]) < 0 ? ax.map(v => -v) : ax;
+  return frame([0, 1, 2].map(i => u[i] * cu + w[i] * cw + ax[i] * hgt), zz, true);
+}
+
+/* ---------- the mates as equations, and their solving ---------- */
+function mateEqs(m, IA, IB, out) {
+  const oa = placed(IA, m.a.o), ob = placed(IB, m.b.o), za = turned3(IA, m.a.z), zb0 = turned3(IB, m.b.z), xa = turned3(IA, m.a.x), xb = turned3(IB, m.b.x);
+  // head on (a face laid on a face), or the same way; two round faces' axes run the same way unless flipped
+  const same = !!(m.a.round && m.b.round) !== !!m.flip, zb = same ? zb0 : zb0.map(v => -v), W = 20;
+  const d = [oa[0] - ob[0], oa[1] - ob[1], oa[2] - ob[2]], along = asmDot(d, zb);
+  for (let i = 0; i < 3; i++) out.push((za[i] - zb[i]) * W);
+  if (m.t === 'fastened' || m.t === 'slider') for (let i = 0; i < 3; i++) out.push((xa[i] - xb[i]) * W);
+  if (m.t === 'fastened' || m.t === 'revolute') out.push(d[0], d[1], d[2]);
+  else if (m.t === 'slider' || m.t === 'cylindrical') for (let i = 0; i < 3; i++) out.push(d[i] - along * zb[i]);
+  else if (m.t === 'planar') out.push(along);
+}
+/* the instances moved until the mates hold. hold: [{ inst, p, w }] soft pulls of an instance's place towards p (a
+   part being dragged). Changes the instances' p and q in place; { ok, err } */
+function solveMates(asm, hold) {
+  // (a pull is weighed against the mates, which leaves them a little out: so the mates are then solved alone, from there)
+  if (hold && hold.length) { solveMatesOnce(asm, hold); return solveMatesOnce(asm, null); }
+  return solveMatesOnce(asm, null);
+}
+function solveMatesOnce(asm, hold) {
+  const byId = new Map(asm.instances.map(I => [I.id, I])), mates = asm.mates.filter(m => !m.suppressed && byId.has(m.a.inst) && byId.has(m.b.inst));
+  const pulls = (hold || []).filter(hd => byId.has(hd.inst));
+  if (!mates.length) return { ok: true, err: 0 };
+  // what moves: the instances a mate (or a pull) reaches that are not fixed; if none of a group is fixed, its first is held
+  const touched = new Set(mates.flatMap(m => [m.a.inst, m.b.inst]));
+  let free = asm.instances.filter(I => touched.has(I.id) && !I.fixed);
+  if (!asm.instances.some(I => touched.has(I.id) && I.fixed) && !pulls.length) free = free.filter(I => I.id !== mates[0].b.inst);
+  const n = free.length * 6;
+  if (!n) { const F0 = []; for (const m of mates) mateEqs(m, byId.get(m.a.inst), byId.get(m.b.inst), F0); const e0 = Math.max(0, ...F0.map(Math.abs)); return { ok: e0 < 1e-6, err: e0 }; }
+  const base = free.map(I => ({ p: I.p.slice(), q: I.q.slice() }));
+  const put = x => free.forEach((I, k) => { const b = base[k]; I.p = [b.p[0] + x[6 * k], b.p[1] + x[6 * k + 1], b.p[2] + x[6 * k + 2]]; I.q = qnormal(qtimes(asmQvec([x[6 * k + 3], x[6 * k + 4], x[6 * k + 5]]), b.q)); });
+  const evalF = x => { put(x); const F = []; for (const m of mates) mateEqs(m, byId.get(m.a.inst), byId.get(m.b.inst), F); for (const hd of pulls) { const I = byId.get(hd.inst); for (let i = 0; i < 3; i++) F.push((I.p[i] - hd.p[i]) * (hd.w || 0.05)); } return F; };
+  const maxAbs = F => F.reduce((s, v) => Math.max(s, Math.abs(v)), 0);
+  let x = new Float64Array(n), F = evalF(x), err = maxAbs(F), lam = 1e-6;
+  for (let it = 0; it < 80 && err > 1e-10; it++) {
+    const m = F.length, J = Array.from({ length: m }, () => new Float64Array(n));
+    for (let j = 0; j < n; j++) { const h0 = j % 6 < 3 ? 1e-6 : 1e-7, x2 = Float64Array.from(x); x2[j] += h0; const F2 = evalF(x2); for (let i = 0; i < m; i++) J[i][j] = (F2[i] - F[i]) / h0; }
+    // (JᵀJ + lam) dx = −JᵀF
+    const A = Array.from({ length: n }, () => new Float64Array(n)), g = new Float64Array(n);
+    for (let i = 0; i < m; i++) { const r = J[i]; for (let a = 0; a < n; a++) { if (!r[a]) continue; g[a] -= r[a] * F[i]; for (let b = a; b < n; b++) A[a][b] += r[a] * r[b]; } }
+    for (let a = 0; a < n; a++) for (let b = 0; b < a; b++) A[a][b] = A[b][a];
+    let done = false;
+    for (let tries = 0; tries < 12 && !done; tries++) {
+      const M = A.map((row, i) => { const r = Array.from(row); r[i] += lam * (1 + row[i]); r.push(g[i]); return r; });
+      for (let c = 0; c < n; c++) { let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r; if (Math.abs(M[p][c]) < 1e-300) continue; [M[c], M[p]] = [M[p], M[c]]; for (let r = 0; r < n; r++) { if (r === c) continue; const f = M[r][c] / M[c][c]; if (f) for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k]; } }
+      const x2 = Float64Array.from(x); for (let i = 0; i < n; i++) x2[i] += Math.abs(M[i][i]) > 1e-300 ? M[i][n] / M[i][i] : 0;
+      const F2 = evalF(x2), e2 = maxAbs(F2);
+      if (e2 < err) { x = x2; F = F2; err = e2; lam = Math.max(lam / 5, 1e-12); done = true; } else lam *= 10;
+    }
+    if (!done) break;
+    // (the turn so far is folded into the instance, so the next step's small vector stays small)
+    put(x); free.forEach((I, k) => { base[k] = { p: I.p.slice(), q: I.q.slice() }; }); x = new Float64Array(n);
+  }
+  put(x);
+  const Fm = []; for (const m of mates) mateEqs(m, byId.get(m.a.inst), byId.get(m.b.inst), Fm);
+  const em = maxAbs(Fm);
+  return { ok: em < 1e-6, err: em };
+}
+/* ==========================================================================
    A Part Studio as a file (.jekcad, JSON): its Variables table, its feature list in order, the rollback bar, and its
    parts' names, colours and materials. There are no format migrations: every field has its default here (normDoc),
    so a file from an older JEKcad opens. The features hold what the person chose, never the geometry made from it:
@@ -4049,6 +4247,32 @@ function normDoc(d) {
   return { format: CAD_FORMAT, version: CAD_VERSION, name: isStr(d.name, 120) && d.name.trim() ? d.name : 'Part Studio 1', units: 'mm', variables: vars, features: feats, rollback: rb, parts, hide };
 }
 const newDoc = () => normDoc({});
+/* ---------- the whole document: tabs, each a Part Studio or an Assembly ----------
+   A .jekcad file with one Part Studio and nothing else is written as that Part Studio (as every file was before
+   there were tabs, so those open as they did); with more, as { version: 2, name, tabs, active }. */
+const FILE_VERSION = 2;
+function normFile(d) {
+  d = d && typeof d === 'object' ? d : {};
+  const tabs = [], ids = new Set(), tid = t => { let id = isStr(t.id, 40) && t.id ? t.id : sketchId('t'); while (ids.has(id)) id = sketchId('t'); ids.add(id); return id; };
+  if (Array.isArray(d.tabs)) {
+    for (const t of d.tabs.slice(0, 60)) {
+      if (!t || typeof t !== 'object') continue;
+      if (t.kind === 'assembly') tabs.push(Object.assign(normAsm(t, tabs.filter(x => x.kind === 'assembly').length + 1), { id: tid(t) }));
+      else { const s = normDoc(t); tabs.push(Object.assign(s, { id: tid(t), kind: 'studio', name: isStr(t.name, 120) && t.name.trim() ? t.name : 'Part Studio ' + (tabs.filter(x => x.kind === 'studio').length + 1) })); }
+    }
+  } else { const s = normDoc(d); tabs.push(Object.assign(s, { id: tid({}), kind: 'studio', name: 'Part Studio 1' })); }
+  if (!tabs.some(t => t.kind === 'studio')) tabs.unshift(Object.assign(normDoc({}), { id: tid({}), kind: 'studio', name: 'Part Studio 1' }));
+  // an assembly's instances are of parts of studios that are there
+  const studios = new Set(tabs.filter(t => t.kind === 'studio').map(t => t.id));
+  for (const t of tabs) if (t.kind === 'assembly') { t.instances = t.instances.filter(I => studios.has(I.studio)); const live = new Set(t.instances.map(I => I.id)); t.mates = t.mates.filter(m => live.has(m.a.inst) && live.has(m.b.inst)); }
+  const name = isStr(d.name, 120) && d.name.trim() ? d.name : 'Part Studio 1';
+  return { format: CAD_FORMAT, version: FILE_VERSION, name, tabs, active: tabs.some(t => t.id === d.active) ? d.active : tabs[0].id };
+}
+/* the document as it is written: one Part Studio alone as that Part Studio, anything more as it is */
+function fileData(file) {
+  if (file.tabs.length === 1 && file.tabs[0].kind === 'studio') { const { id, kind, ...s } = file.tabs[0]; void id; void kind; return Object.assign({}, s, { name: file.name, version: CAD_VERSION }); }
+  return file;
+}
 /* a new feature of a kind, with its defaults, named in sequence */
 function newFeature(doc, type, over) {
   const n = doc.features.filter(f => f.type === type).length + 1;
@@ -5652,7 +5876,10 @@ function h(tag, attrs, ...kids) {
    back), 'sel' (the selection), 'doc' (the document, before a regeneration), 'view' (the camera).
    ========================================================================== */
 const app = {
-  doc: newDoc(), sel: [], hover: null, filter: 'any', history: [], future: [], result: null, error: null,
+  file: null,             // the whole document: its name and its tabs (Part Studios and Assemblies)
+  doc: null,              // the Part Studio in hand: the tab that is open, or with an Assembly open the studio last open
+  asm: null,              // the Assembly that is open, or null
+  sel: [], hover: null, filter: 'any', history: [], future: [], result: null, error: null,
   editing: null,          // the feature dialog: { f (the feature as edited), at (its place), isNew, field (the active selection field) }
   sketch: null,           // the sketch being edited: see ui/sketcher.js
   picked: null,           // the feature clicked in the list (its id): its sketch's dimensions show on the model
@@ -5666,20 +5893,36 @@ function editGate() {
   if (hooks.cadEditSignIn) hooks.cadEditSignIn();
   return false;
 }
+/* the document set (opened, undone to): the tab that is open bound as app.doc or app.asm */
+function setFile(d, keepTab) {
+  const was = keepTab && app.file ? app.file.active : null;
+  app.file = normFile(d);
+  if (was && app.file.tabs.some(t => t.id === was)) app.file.active = was;
+  bindTab();
+}
+function bindTab() {
+  const F = app.file, t = F.tabs.find(x => x.id === F.active) || F.tabs[0];
+  F.active = t.id;
+  app.asm = t.kind === 'assembly' ? t : null;
+  if (t.kind === 'studio') app.doc = t;
+  else if (!app.doc || !F.tabs.includes(app.doc)) app.doc = F.tabs.find(x => x.kind === 'studio');
+}
+/* the document as text, as a file, the cloud and a link keep it */
+const fileText = pretty => JSON.stringify(fileData(app.file), null, pretty ? 1 : 0);
 const BUS = {};
 function on(ev, fn) { (BUS[ev] || (BUS[ev] = [])).push(fn); }
 function emit(ev, x) { for (const fn of BUS[ev] || []) { try { fn(x); } catch (err) { console.error(err); } } }
 /* ---------- undo and redo: whole documents, as JSON ---------- */
 const HISTORY_MAX = 200;
 function checkpoint() {
-  app.history.push(JSON.stringify(app.doc));
+  app.history.push(JSON.stringify(app.file));
   if (app.history.length > HISTORY_MAX) app.history.shift();
   app.future.length = 0;
   emit('history');
 }
-function undo() { if (!app.history.length) return false; app.future.push(JSON.stringify(app.doc)); app.doc = normDoc(JSON.parse(app.history.pop())); afterHistory(); return true; }
-function redo() { if (!app.future.length) return false; app.history.push(JSON.stringify(app.doc)); app.doc = normDoc(JSON.parse(app.future.pop())); afterHistory(); return true; }
-function afterHistory() { app.sel = []; if (app.picked && !app.doc.features.some(f => f.id === app.picked)) app.picked = null; emit('history'); emit('sel'); changed(); }
+function undo() { if (!app.history.length) return false; app.future.push(JSON.stringify(app.file)); setFile(JSON.parse(app.history.pop()), true); afterHistory(); return true; }
+function redo() { if (!app.future.length) return false; app.history.push(JSON.stringify(app.file)); setFile(JSON.parse(app.future.pop()), true); afterHistory(); return true; }
+function afterHistory() { app.sel = []; emit('tab'); if (app.picked && !app.doc.features.some(f => f.id === app.picked)) app.picked = null; emit('history'); emit('sel'); changed(); }
 /* the document changed: kept (autosave), told about, and regenerated soon */
 function changed(opts) {
   app.unsaved = true;
@@ -5702,6 +5945,7 @@ let regenWaiters = [];
 const regenDone = () => new Promise(res => regenWaiters.push(res));
 async function regenNow() {
   clearTimeout(regenTimer);
+  if (app.asm && hooks.cadAsmRegen) return hooks.cadAsmRegen();
   const t0 = performance.now(), opts = regenOpts();
   app.busy = true; emit('busy');
   let out;
@@ -5755,6 +5999,7 @@ function wireMenus() {
 const CAD_ICONS = {
   new: 'M4 1.5h5.5L12.5 4.5V14.5H4Z M9.5 1.5V4.5H12.5', open: 'M1.5 4.5V13.5H13L14.5 7.5H4L2.5 13 M1.5 4.5V2.5H6L7.5 4H12.5V7.5', save: 'M2.5 2.5H11L13.5 5V13.5H2.5Z M5 2.5V6H10V2.5 M5 13.5V9.5H11V13.5',
   export: 'M8 1.5V10 M5 7L8 10L11 7 M2.5 11V14H13.5V11', import: 'M8 10V1.5 M5 4.5L8 1.5L11 4.5 M2.5 11V14H13.5V11', undo: 'M5.5 3.5L2.5 6.5L5.5 9.5 M2.5 6.5H10Q13.5 6.5 13.5 10Q13.5 13.5 10 13.5H6', redo: 'M10.5 3.5L13.5 6.5L10.5 9.5 M13.5 6.5H6Q2.5 6.5 2.5 10Q2.5 13.5 6 13.5H10',
+  assembly: 'M2 6L6 4L10 6L6 8Z M2 6V10L6 12V8 M10 6V10L6 12 M9 9L12 7.5L15 9L12 10.5Z M9 9V12L12 13.5V10.5 M15 9V12L12 13.5', mate: 'M2 5H8V11H2Z M8 6.5H10 M8 9.5H10 M10 4H14V12H10Z', pin: 'M8 2V9 M5 9H11 M8 9V14 M5.5 2H10.5', flip: 'M3 5H13L10.5 2.5 M13 11H3L5.5 13.5', slider: 'M2 8H14 M5 5H11V11H5Z M2 8L4 6.5 M2 8L4 9.5 M14 8L12 6.5 M14 8L12 9.5',
   trash: 'M2.5 4H13.5 M5.5 4V2.5H10.5V4 M4 4L4.5 14H11.5L12 4', fit: 'M2 6V2H6 M10 2H14V6 M14 10V14H10 M6 14H2V10', check: 'M3 8.5L6.5 12L13 4', cube: 'M8 1.5L14 5V11L8 14.5L2 11V5Z M8 8L14 5 M8 8V14.5 M8 8L2 5',
   sketch: 'M2 14L3 10.5L11 2.5L13.5 5L5.5 13Z M9.5 4L12 6.5', extrude: 'M3 11H11V14H3Z M3 11L6 8H14L11 11 M14 8V11L11 14 M8.5 6.5V1.5 M6.5 3.5L8.5 1.5L10.5 3.5', revolve: 'M8 1.5V14.5 M4 4Q1 8 4 12 M12 4Q15 8 12 12 M10.5 11.5L12 12L12.5 10.5',
   sweep: 'M2 13Q6 13 8 8T14 3 M2 11V15 M4 11V15', loft: 'M3 13H9 M6 3H13 M3 13L6 3 M9 13L13 3', fillet: 'M2 14V7Q2 2 7 2H14', chamfer: 'M2 14V7L7 2H14', shell: 'M2 4H14V14H2Z M4 4V12H12V4',
@@ -7751,7 +7996,7 @@ function sketchBar() {
   const bar = document.getElementById('sketchBar');
   if (!bar) return;
   bar.hidden = !app.sketch;
-  document.getElementById('featureBar').hidden = !!app.sketch;
+  document.getElementById('featureBar').hidden = !!app.sketch || !!app.asm;
   mirrorPanel();
   if (!app.sketch) return;
   const btn = (id, title, icon, on) => h('button', { type: 'button', class: 'rt-btn rt-icon quiet cad-tool' + (on ? ' on' : ''), 'data-sktool': id, 'data-icon': icon, title, 'aria-label': title, 'aria-pressed': String(!!on), onclick: () => setTool(id) });
@@ -7825,6 +8070,7 @@ const FEATURE_FORMS = {
 const pickOf = (fd, f) => (typeof fd[3].pick === 'function' ? fd[3].pick(f) : fd[3].pick);
 /* ---------- opening ---------- */
 function openFeature(type, opts) {
+  if (app.asm) { toast('Features are made in a Part Studio: open one from the tabs below'); return; }
   if (!editGate()) return;
   if (app.sketch) { toast('Finish the sketch first'); return; }
   if (app.editing) closeDialog(false);
@@ -8287,6 +8533,7 @@ let measureSeq = 0;
 async function measureShown() {
   const box = document.getElementById('measure');
   if (!box) return;
+  if (app.asm) { box.hidden = true; return; }           // (an assembly's parts are measured in their Part Studios)
   const picks = app.sel.filter(s => s.part && (s.kind === 'part' || s.kind === 'face' || s.kind === 'edge' || s.kind === 'vertex')).slice(0, 2);
   if (!picks.length || app.sketch) { box.hidden = true; return; }
   const seq = ++measureSeq;
@@ -8313,6 +8560,358 @@ function wirePanel() {
   on('picked', () => { for (const r of document.querySelectorAll('.cad-frow-f')) r.classList.toggle('picked', r.dataset.id === app.picked); });
   document.addEventListener('pointerdown', e => { if (menuEl && !menuEl.contains(e.target)) closeRowMenu(); }, true);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRowMenu(); });
+}
+/* ==========================================================================
+   Tabs and assemblies. The document's tabs run along the bottom: Part Studios and Assemblies, one open at a time.
+   An Assembly shows parts of the Part Studios where its instances put them. Insert adds an instance; a part is
+   dragged about (Ctrl: turned about the line of sight), or placed by the numbers in its panel, or fixed; a mate
+   joins a face of one to a face of another (the mate's kind is what it leaves free), and the mates are solved again
+   whenever anything moves. Each Part Studio is regenerated by the kernel when it has changed, and its parts' meshes
+   are kept here; an instance is drawn as its part's mesh, moved.
+   ========================================================================== */
+const STUDIO = new Map();       // a studio's tab id → { key, parts } (its parts' meshes, as the kernel sent them)
+const BAKED = new Map();        // an instance's id → { key, part } (its mesh where the instance puts it)
+const AS = { mate: null, drag: null, insertBusy: false };
+const tabOf = id => app.file.tabs.find(t => t.id === id);
+const studios = () => app.file.tabs.filter(t => t.kind === 'studio');
+/* a studio's parts, regenerated if it has changed since they were last made */
+async function studioParts(t) {
+  const key = JSON.stringify(t), had = STUDIO.get(t.id);
+  if (had && had.key === key) return had.parts;
+  const out = await kernelAsk('regen', { doc: t, opts: {} }, 'regen');
+  if (!out) return null;                       // replaced by a newer request
+  STUDIO.set(t.id, { key, parts: out.parts });
+  return out.parts;
+}
+/* the mesh of a studio's part as last made (for a connector, which is in the part's own coordinates) */
+function localMesh(I) { const s = STUDIO.get(I.studio); return s ? s.parts.find(p => p.id === I.part) : null; }
+/* a part's mesh moved to where an instance puts it */
+function bake(M, I, look) {
+  const mv = (src, turnOnly) => { const out = new Float32Array(src.length); for (let k = 0; k < src.length; k += 3) { const v = turnOnly ? turned3(I, [src[k], src[k + 1], src[k + 2]]) : placed(I, [src[k], src[k + 1], src[k + 2]]); out[k] = v[0]; out[k + 1] = v[1]; out[k + 2] = v[2]; } return out; };
+  const pos = mv(M.pos), lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (let k = 0; k < pos.length; k += 3) for (let i = 0; i < 3; i++) { lo[i] = Math.min(lo[i], pos[k + i]); hi[i] = Math.max(hi[i], pos[k + i]); }
+  return Object.assign({}, M, { id: I.id, pos, nrm: mv(M.nrm, true), seg: mv(M.seg), verts: mv(M.verts), bbox: pos.length ? [lo, hi] : M.bbox, centroid: M.centroid ? placed(I, M.centroid) : M.centroid, look: Object.assign({}, look, { name: I.name || look.name, hidden: !!I.hidden }), inst: I.id });
+}
+/* the assembly shown: every studio it uses made, every instance's mesh put in its place */
+async function asmRegen() {
+  const A = app.asm;
+  if (!A) return null;
+  app.busy = true; emit('busy');
+  try {
+    for (const sid of new Set(A.instances.map(I => I.studio))) { const t = tabOf(sid); if (t && !(await studioParts(t))) return null; }
+  } catch (err) { app.busy = false; emit('busy'); app.error = err.message; toast('A Part Studio of this assembly could not be made: ' + err.message, true); return null; }
+  if (app.asm !== A) return null;
+  // a mate's connectors found again on their faces (a part changed in its studio keeps its mates where the faces went)
+  let moved = false;
+  for (const m of A.mates) for (const c of [m.a, m.b]) {
+    const I = A.instances.find(x => x.id === c.inst), M = I && localMesh(I);
+    if (!M || !c.face || !M.faceNames) continue;
+    let best = -1, bd = Infinity;
+    M.faceNames.forEach((nm, i) => { if (nm !== c.face) return; const k = faceConnector(M, i); if (!k) return; const d = Math.hypot(k.o[0] - c.o[0], k.o[1] - c.o[1], k.o[2] - c.o[2]); if (d < bd) { bd = d; best = i; } });
+    if (best < 0) continue;
+    const k = faceConnector(M, best);
+    if (bd > 1e-9 || Math.hypot(k.z[0] - c.z[0], k.z[1] - c.z[1], k.z[2] - c.z[2]) > 1e-9) { Object.assign(c, { o: k.o, z: k.z, x: k.x }); moved = true; }
+  }
+  if (moved) solveMates(A);
+  showAsm();
+  app.busy = false; app.error = null; app.regenCount++;
+  emit('busy');
+  return app.result;
+}
+/* the instances as the view's parts (only the ones that moved are made again) */
+function showAsm() {
+  const A = app.asm, parts = [], live = new Set();
+  for (const I of A.instances) {
+    const t = tabOf(I.studio), s = STUDIO.get(I.studio), i = s ? s.parts.findIndex(p => p.id === I.part) : -1;
+    if (i < 0) continue;
+    const key = s.key.length + '|' + I.p.join() + '|' + I.q.join() + '|' + (I.hidden ? 1 : 0) + '|' + (I.name || '') + '|' + JSON.stringify(t.parts[I.part] || {});
+    let b = BAKED.get(I.id);
+    if (!b || b.key !== key || b.src !== s.parts[i]) { b = { key, src: s.parts[i], part: bake(s.parts[i], I, partLook(t, I.part, i)) }; BAKED.set(I.id, b); }
+    parts.push(b.part); live.add(I.id);
+  }
+  for (const id of [...BAKED.keys()]) if (!live.has(id)) BAKED.delete(id);
+  app.result = { features: [], parts, frames: {}, vars: {}, errors: [], asm: true };
+  app.sel = app.sel.filter(x => !x.part || parts.some(p => p.id === x.part));
+  emit('model', app.result);
+  renderAsm();
+}
+/* ---------- tabs ---------- */
+function switchTab(id) {
+  if (id === app.file.active) return true;
+  if (app.sketch) { toast('Finish the sketch first'); return false; }
+  if (app.editing && hooks.cadCloseDialog) hooks.cadCloseDialog();
+  mateClose();
+  app.file.active = id; app.sel = []; app.picked = null; app.hover = null;
+  bindTab();
+  emit('tab'); emit('sel');
+  if (hooks.cadSaveLater) hooks.cadSaveLater();
+  const r = regenNow(); if (r && r.then) r.then(() => fit());
+  return true;
+}
+function addTab(kind) {
+  if (!editGate()) return null;
+  if (app.sketch) { toast('Finish the sketch first'); return null; }
+  checkpoint();
+  const n = app.file.tabs.filter(t => t.kind === kind).length + 1;
+  const t = kind === 'assembly' ? normAsm({ name: 'Assembly ' + n }, n) : Object.assign(normDoc({}), { id: sketchId('t'), kind: 'studio', name: 'Part Studio ' + n });
+  app.file.tabs.push(t);
+  changed();
+  switchTab(t.id);
+  return t.id;
+}
+function renameTab(id, name) {
+  const t = tabOf(id); name = String(name || '').trim().slice(0, 120);
+  if (!t || !name || name === t.name || !editGate()) return false;
+  checkpoint(); t.name = name; changed(); renderTabs(); return true;
+}
+function deleteTab(id) {
+  const t = tabOf(id);
+  if (!t || !editGate()) return false;
+  if (t.kind === 'studio' && studios().length === 1) { toast('A document keeps at least one Part Studio'); return false; }
+  const used = t.kind === 'studio' ? app.file.tabs.filter(a => a.kind === 'assembly' && a.instances.some(I => I.studio === id)).map(a => a.name) : [];
+  if (!confirm('Delete “' + t.name + '”?' + (used.length ? ' Its parts go from ' + used.join(', ') + ' too.' : '') + ' Undo brings it back.')) return false;
+  if (app.sketch) { toast('Finish the sketch first'); return false; }
+  checkpoint();
+  const i = app.file.tabs.indexOf(t);
+  app.file.tabs.splice(i, 1);
+  for (const a of app.file.tabs) if (a.kind === 'assembly') { a.instances = a.instances.filter(I => I.studio !== id); const live = new Set(a.instances.map(I => I.id)); a.mates = a.mates.filter(m => live.has(m.a.inst) && live.has(m.b.inst)); }
+  STUDIO.delete(id);
+  if (app.file.active === id) { app.file.active = (app.file.tabs[Math.max(0, i - 1)] || app.file.tabs[0]).id; app.sel = []; app.picked = null; if (app.editing && hooks.cadCloseDialog) hooks.cadCloseDialog(); bindTab(); emit('tab'); }
+  changed();
+  return true;
+}
+function duplicateTab(id) {
+  const t = tabOf(id);
+  if (!t || !editGate()) return null;
+  checkpoint();
+  const c = JSON.parse(JSON.stringify(t)); c.id = sketchId('t'); c.name = t.name + ' copy';
+  app.file.tabs.splice(app.file.tabs.indexOf(t) + 1, 0, c);
+  changed(); renderTabs();
+  return c.id;
+}
+let tabMenu = null;
+function closeTabMenu() { if (tabMenu) { tabMenu.remove(); tabMenu = null; } }
+function openTabMenu(at, items) {
+  closeTabMenu();
+  tabMenu = h('div', { class: 'rt-menu cad-tabmenu', role: 'menu' }, ...items.map(([label, fn]) => h('button', { type: 'button', role: 'menuitem', onclick: () => { closeTabMenu(); fn(); } }, label)));
+  document.body.append(tabMenu);
+  const r = at.getBoundingClientRect();
+  tabMenu.style.left = Math.max(4, Math.min(window.innerWidth - 190, r.left)) + 'px'; tabMenu.style.bottom = (window.innerHeight - r.top + 4) + 'px';
+}
+function renderTabs() {
+  const bar = document.getElementById('tabBar');
+  if (!bar || !app.file) return;
+  const tabs = app.file.tabs.map(t => {
+    const b = h('button', { type: 'button', class: 'cad-tab' + (t.id === app.file.active ? ' on' : ''), role: 'tab', 'aria-selected': String(t.id === app.file.active), 'data-tab': t.id, 'data-kind': t.kind, title: (t.kind === 'assembly' ? 'Assembly' : 'Part Studio') + ': ' + t.name + ' (double-click to rename, right-click for more)' },
+      h('span', { class: 'ic2', 'data-icon': t.kind === 'assembly' ? 'assembly' : 'cube' }), h('span', { class: 'nm' }, t.name));
+    b.addEventListener('click', () => switchTab(t.id));
+    b.addEventListener('dblclick', () => { const v = prompt('Name of this tab', t.name); if (v !== null) renameTab(t.id, v); });
+    b.addEventListener('contextmenu', e => { e.preventDefault(); openTabMenu(b, [['Rename…', () => { const v = prompt('Name of this tab', t.name); if (v !== null) renameTab(t.id, v); }], ['Duplicate', () => duplicateTab(t.id)], ['Delete', () => deleteTab(t.id)]]); });
+    return b;
+  });
+  const add = h('button', { type: 'button', class: 'cad-tab cad-tabadd', id: 'tabAdd', title: 'Add a Part Studio or an Assembly', 'aria-label': 'Add a tab', 'aria-haspopup': 'menu' }, '+');
+  add.addEventListener('click', () => openTabMenu(add, [['New Part Studio', () => addTab('studio')], ['New Assembly', () => addTab('assembly')]]));
+  bar.replaceChildren(add, ...tabs);
+  emit('icons', bar);
+  // what an assembly shows in place of the feature bar and the feature list
+  const asm = !!app.asm;
+  const fb = document.getElementById('featureBar'), ab = document.getElementById('asmBar'), ss = document.getElementById('studioSide'), as = document.getElementById('asmSide');
+  if (fb && !app.sketch) fb.hidden = asm;
+  if (ab) ab.hidden = !asm || !!app.sketch;
+  if (ss) ss.hidden = asm; if (as) as.hidden = !asm;
+  if (asm) renderAsm();
+}
+/* ---------- instances ---------- */
+const instName = I => { const t = tabOf(I.studio), s = STUDIO.get(I.studio), i = s ? s.parts.findIndex(p => p.id === I.part) : -1; return I.name || (t && i >= 0 ? partLook(t, I.part, i).name : 'Part'); };
+function addInstance(studio, part) {
+  const A = app.asm;
+  if (!A || !editGate()) return null;
+  checkpoint();
+  // the first is fixed where its studio has it; the next are set down beside what is there
+  let x = 0;
+  if (A.instances.length && app.result) for (const p of app.result.parts) if (p.bbox) x = Math.max(x, p.bbox[1][0] + 10);
+  const s = STUDIO.get(studio), M = s && s.parts.find(p => p.id === part), I = { id: sketchId('i'), studio, part, p: [M && M.bbox && A.instances.length ? x - M.bbox[0][0] : 0, 0, 0], q: [0, 0, 0, 1] };
+  if (!A.instances.length) I.fixed = true;
+  A.instances.push(I);
+  changed();
+  return I.id;
+}
+function deleteInstance(id) {
+  const A = app.asm;
+  if (!A || !editGate()) return;
+  checkpoint();
+  A.instances = A.instances.filter(I => I.id !== id);
+  A.mates = A.mates.filter(m => m.a.inst !== id && m.b.inst !== id);
+  app.sel = app.sel.filter(s => s.part !== id);
+  changed(); emit('sel');
+}
+/* an instance's place and turn set (from its panel, or a drag), the mates solved after */
+function poseInstance(id, p, q, quiet) {
+  const A = app.asm, I = A && A.instances.find(x => x.id === id);
+  if (!I) return false;
+  if (p) I.p = p.slice(); if (q) I.q = qnormal(q);
+  const r = solveMates(A, [{ inst: id, p: I.p, w: 0.05 }]);
+  showAsm();
+  if (!quiet) changed();
+  return r.ok;
+}
+async function openInsert() {
+  if (!app.asm || !editGate() || AS.insertBusy) return;
+  AS.insertBusy = true;
+  const dlg = document.getElementById('asmInsert'), box = document.getElementById('asmInsertList');
+  box.replaceChildren(h('p', { class: 'rt-subsmall' }, 'Making the Part Studios’ parts…'));
+  dlg.showModal();
+  const rows = [];
+  try {
+    for (const t of studios()) {
+      const parts = await studioParts(t);
+      if (!parts) continue;
+      rows.push(h('h3', { class: 'cad-shead' }, t.name));
+      if (!parts.length) rows.push(h('p', { class: 'rt-subsmall' }, 'No parts yet: extrude a sketch in this Part Studio first.'));
+      parts.forEach((p, i) => { const L = partLook(t, p.id, i); rows.push(h('button', { type: 'button', class: 'rt-btn cad-insrow', 'data-studio': t.id, 'data-part': p.id, onclick: () => { addInstance(t.id, p.id); toast('Put in ' + L.name + ': click more, or Close'); } }, h('span', { class: 'cad-swatch', style: 'background:' + L.colour }), L.name, h('span', { class: 'rt-subsmall' }, ' ' + fmtNum(p.volume / 1000, 3) + ' cm³'))); });
+    }
+  } catch (err) { rows.push(h('p', { class: 'rt-subsmall' }, 'A Part Studio could not be made: ' + err.message)); }
+  AS.insertBusy = false;
+  box.replaceChildren(...rows);
+}
+/* ---------- mates ---------- */
+function mateOpen(t) {
+  if (!app.asm || !editGate()) return;
+  if (app.asm.instances.length < 2) { toast('A mate joins two parts: insert another first'); return; }
+  AS.mate = { t, a: null, b: null, flip: false, field: 'a' };
+  app.sel = []; emit('sel');
+  matePanel();
+}
+function mateClose() { AS.mate = null; const p = document.getElementById('matePanel'); if (p) p.remove(); }
+/* a face clicked while a mate is being made: the connector on it, into the field that is waiting */
+function matePick(p) {
+  const M0 = AS.mate, A = app.asm;
+  if (!M0 || !A) return false;
+  if (!p || p.kind !== 'face') { toast('Click a face of a part: a flat one, or the wall of a hole or a pin'); return true; }
+  const I = A.instances.find(x => x.id === p.part), M = I && localMesh(I), c = M && faceConnector(M, p.index);
+  if (!c) return true;
+  const other = M0.field === 'a' ? M0.b : M0.a;
+  if (other && other.inst === I.id) { toast('The two faces are on two different parts'); return true; }
+  M0[M0.field] = Object.assign({ inst: I.id, pick: p }, c);
+  M0.field = M0.field === 'a' && !M0.b ? 'b' : M0.field === 'b' && !M0.a ? 'a' : M0.field;
+  app.sel = [M0.a, M0.b].filter(Boolean).map(x => x.pick); emit('sel');
+  matePanel();
+  return true;
+}
+function mateApply() {
+  const M0 = AS.mate, A = app.asm;
+  if (!M0 || !A || !M0.a || !M0.b) { toast('Click a face on each of two parts first'); return false; }
+  checkpoint();
+  const strip = c => { const { pick, ...rest } = c; void pick; return rest; };
+  const before = JSON.stringify(A.instances);
+  const m = { id: sketchId('m'), t: M0.t, name: MATE_NAMES[M0.t] + ' ' + (A.mates.filter(x => x.t === M0.t).length + 1), a: strip(M0.a), b: strip(M0.b) };
+  if (M0.flip) m.flip = true;
+  A.mates.push(m);
+  // (the first face's part goes to the second's, unless it is the one that is fixed)
+  const r = solveMates(A, A.instances.find(I => I.id === m.b.inst).fixed ? [] : [{ inst: m.b.inst, p: A.instances.find(I => I.id === m.b.inst).p, w: 0.2 }]);
+  if (!r.ok) { A.mates.pop(); A.instances = JSON.parse(before); app.history.pop(); toast('That mate cannot hold with the others: nothing was changed', true); showAsm(); return false; }
+  mateClose(); app.sel = []; emit('sel');
+  changed();
+  return true;
+}
+function matePanel() {
+  const M0 = AS.mate, old = document.getElementById('matePanel');
+  if (!M0) { if (old) old.remove(); return; }
+  const nameOf = c => (c ? instName(app.asm.instances.find(I => I.id === c.inst)) + (c.round ? ': a round face’s axis' : ': a flat face') : null);
+  const box = (key, label) => h('div', { class: 'cad-frow sel' }, h('label', null, label), h('div', { class: 'cad-selwrap' },
+    h('div', { class: 'cad-selbox' + (M0.field === key ? ' on' : '') + (M0[key] ? '' : ' empty'), role: 'button', tabindex: '0', 'data-mate': key, onclick: () => { M0.field = key; matePanel(); } }, nameOf(M0[key]) || (M0.field === key ? 'Click a face in the view' : 'Nothing chosen')),
+    M0[key] ? h('button', { type: 'button', class: 'cad-selclear', title: 'Clear', 'aria-label': 'Clear ' + label, onclick: () => { M0[key] = null; M0.field = key; app.sel = [M0.a, M0.b].filter(Boolean).map(x => x.pick); emit('sel'); matePanel(); } }, '×') : null));
+  const kinds = h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': 'Kind of mate' }, ...MATE_KINDS.map(k => h('button', { type: 'button', role: 'radio', 'aria-checked': String(M0.t === k), class: M0.t === k ? 'on' : '', 'data-matekind': k, onclick: () => { M0.t = k; matePanel(); } }, MATE_NAMES[k])));
+  const FREE = { fastened: 'Leaves nothing free.', revolute: 'Leaves the part turning about the axis.', slider: 'Leaves the part sliding along the axis.', cylindrical: 'Leaves the part turning about the axis and sliding along it.', planar: 'Leaves the part sliding on the face and turning on it.' };
+  const panel = h('div', { class: 'cad-dialog', id: 'matePanel', role: 'group', 'aria-label': 'Mate' },
+    h('div', { class: 'cad-fhead' }, h('span', { class: 'cad-fkind', 'data-icon': 'mate' }, 'Mate')),
+    h('div', { class: 'cad-fbody' }, kinds, h('p', { class: 'cad-fstatus' }, FREE[M0.t]), box('a', 'This part’s face'), box('b', 'goes to this face'),
+      h('label', { class: 'cad-check' }, h('input', Object.assign({ type: 'checkbox', id: 'mateFlip', onchange: e => { M0.flip = e.target.checked; } }, M0.flip ? { checked: '' } : {})), ' Flip (the other way round)')),
+    h('div', { class: 'cad-factions' }, h('button', { type: 'button', class: 'rt-btn', id: 'mateCancel', onclick: () => { mateClose(); app.sel = []; emit('sel'); } }, 'Cancel'), h('button', Object.assign({ type: 'button', class: 'rt-btn primary', id: 'mateOk', onclick: mateApply }, M0.a && M0.b ? {} : { disabled: '' }), '✓ Mate')));
+  if (old) old.replaceWith(panel); else document.getElementById('stage').append(panel);
+  emit('icons', panel);
+}
+function deleteMate(id) { const A = app.asm; if (!A || !editGate()) return; checkpoint(); A.mates = A.mates.filter(m => m.id !== id); changed(); }
+function toggleMate(id, key) {
+  const A = app.asm, m = A && A.mates.find(x => x.id === id);
+  if (!m || !editGate()) return;
+  checkpoint();
+  const before = JSON.stringify(A.instances);
+  if (m[key]) delete m[key]; else m[key] = true;
+  if (!solveMates(A).ok) { if (m[key]) delete m[key]; else m[key] = true; A.instances = JSON.parse(before); app.history.pop(); toast('That cannot hold with the other mates: nothing was changed', true); showAsm(); return; }
+  changed();
+}
+/* ---------- the assembly's side panel: its instances and its mates ---------- */
+function selInst() { const A = app.asm, ids = new Set(app.sel.map(s => s.part).filter(Boolean)); return A ? A.instances.filter(I => ids.has(I.id)) : []; }
+function renderAsm() {
+  const A = app.asm, box = document.getElementById('asmSide');
+  if (!A || !box) return;
+  const picked = new Set(selInst().map(I => I.id));
+  const ib = (icon, title, fn, on2) => { const b = h('button', { type: 'button', class: 'cad-eye' + (on2 ? ' off' : ''), title, 'aria-label': title, 'data-icon': icon, onclick: e => { e.stopPropagation(); fn(); } }); return b; };
+  const inst = A.instances.map(I => h('li', { class: 'cad-irow' + (picked.has(I.id) ? ' picked' : '') + (I.hidden ? ' hid' : ''), 'data-inst': I.id, title: 'Click to select; double-click to rename',
+    onclick: e => { if (e.target.closest('button')) return; app.sel = [{ part: I.id, kind: 'part' }]; emit('sel'); },
+    ondblclick: () => { if (!editGate()) return; const v = prompt('Name of this part in the assembly', instName(I)); if (v !== null && v.trim()) { checkpoint(); I.name = v.trim().slice(0, 80); changed(); } } },
+    h('span', { class: 'ic2', 'data-icon': 'cube' }), h('span', { class: 'nm' }, instName(I) + (I.fixed ? ' (fixed)' : '')),
+    ib('pin', I.fixed ? 'Let this part move' : 'Fix this part where it is', () => { if (!editGate()) return; checkpoint(); if (I.fixed) delete I.fixed; else I.fixed = true; changed(); }, !I.fixed),
+    ib(I.hidden ? 'eyeoff' : 'eye', I.hidden ? 'Show' : 'Hide', () => { if (!editGate()) return; checkpoint(); if (I.hidden) delete I.hidden; else I.hidden = true; changed(); }, I.hidden),
+    ib('trash', 'Take this part out of the assembly', () => deleteInstance(I.id))));
+  const mates = A.mates.map(m => { const a = A.instances.find(I => I.id === m.a.inst), b = A.instances.find(I => I.id === m.b.inst); return h('li', { class: 'cad-irow' + (m.suppressed ? ' hid' : ''), 'data-mateid': m.id, title: MATE_NAMES[m.t] + ': ' + (a ? instName(a) : '?') + ' to ' + (b ? instName(b) : '?') },
+    h('span', { class: 'ic2', 'data-icon': 'mate' }), h('span', { class: 'nm' }, m.name + ' · ' + (a ? instName(a) : '?') + ' → ' + (b ? instName(b) : '?')),
+    ib('flip', 'Flip: the other way round', () => toggleMate(m.id, 'flip'), !m.flip),
+    ib(m.suppressed ? 'eyeoff' : 'eye', m.suppressed ? 'Unsuppress' : 'Suppress', () => toggleMate(m.id, 'suppressed'), m.suppressed),
+    ib('trash', 'Delete this mate', () => deleteMate(m.id))); });
+  // the selected part's place and turn
+  const one = selInst().length === 1 ? selInst()[0] : null, rows = [];
+  if (one) {
+    const e = qToEuler(one.q), vals = { x: one.p[0], y: one.p[1], z: one.p[2], rx: e[0], ry: e[1], rz: e[2] };
+    const set = () => {
+      const g = k => { const el = document.getElementById('asm-' + k); return evalExpr(el.value, {}, k[0] === 'r' ? 'ang' : 'len'); };
+      let p, q; try { p = [g('x'), g('y'), g('z')]; q = qFromEuler([g('rx'), g('ry'), g('rz')]); } catch (err) { toast('That value: ' + err.message, true); return; }
+      if (!editGate()) return;
+      checkpoint();
+      if (!poseInstance(one.id, p, q) && app.asm.mates.length) toast('The mates hold this part: it went as far as they let it');
+    };
+    const num = (k, label) => h('div', { class: 'cad-frow' }, h('label', { for: 'asm-' + k }, label), h('input', { type: 'text', id: 'asm-' + k, value: fmtNum(vals[k], 4), spellcheck: 'false', onkeydown: ev => { ev.stopPropagation(); if (ev.key === 'Enter') set(); }, onchange: set }));
+    rows.push(h('h2', { class: 'cad-shead' }, 'Place of ' + instName(one)), h('div', { class: 'cad-pose' + (one.fixed ? ' fixed' : '') }, num('x', 'X'), num('y', 'Y'), num('z', 'Z'), num('rx', 'Turn about X'), num('ry', 'Turn about Y'), num('rz', 'Turn about Z')));
+  }
+  box.replaceChildren(h('h2', { class: 'cad-shead' }, 'Parts in this assembly (' + A.instances.length + ')'),
+    A.instances.length ? h('ul', { class: 'cad-plist', id: 'instList' }, ...inst) : h('p', { class: 'cad-empty' }, 'Nothing yet. Click Insert and pick parts from the Part Studios.'),
+    h('h2', { class: 'cad-shead' }, 'Mates (' + A.mates.length + ')'),
+    A.mates.length ? h('ul', { class: 'cad-plist', id: 'mateList' }, ...mates) : h('p', { class: 'cad-empty' }, 'A mate joins a face of one part to a face of another: Fastened leaves nothing free, Revolute a turn, Slider a slide.'),
+    ...rows);
+  emit('icons', box);
+}
+/* ---------- dragging a part in the view ---------- */
+function asmDragStart(p, sx, sy, turn) {
+  const A = app.asm, I = A && p && A.instances.find(x => x.id === p.part);
+  if (!I || AS.mate) return false;
+  AS.drag = { id: I.id, x: sx, y: sy, turn, moved: false, fixed: !!I.fixed };
+  return true;
+}
+function asmDragMove(sx, sy) {
+  const d = AS.drag, A = app.asm; if (!d || !A) return;
+  const dx = sx - d.x, dy = sy - d.y;
+  if (!d.moved) { if (Math.hypot(dx, dy) < 4) return; if (d.fixed) { toast('That part is fixed: unpin it in the list to move it'); AS.drag = null; return; } if (!editGate()) { AS.drag = null; return; } checkpoint(); d.moved = true; }
+  d.x = sx; d.y = sy;
+  const I = A.instances.find(x => x.id === d.id), a = camAxes(), s = 2 * V.hh / V.h;
+  if (d.turn) {
+    // about the line of sight, through the part's middle
+    const b = BAKED.get(I.id), c = b && b.part.bbox ? b.part.bbox[0].map((v, i) => (v + b.part.bbox[1][i]) / 2) : I.p, r = qabout(a.z, -dx * 0.01), rel = [I.p[0] - c[0], I.p[1] - c[1], I.p[2] - c[2]], t = turned3({ q: r }, rel);
+    poseInstance(I.id, [c[0] + t[0], c[1] + t[1], c[2] + t[2]], qtimes(r, I.q), true);
+  } else poseInstance(I.id, [0, 1, 2].map(i => I.p[i] + a.x[i] * dx * s - a.y[i] * dy * s), null, true);
+}
+function asmDragEnd() { const d = AS.drag; AS.drag = null; if (d && d.moved) { changed(); return true; } return false; }
+function wireAssembly() {
+  hooks.cadAsmRegen = asmRegen;
+  on('tab', renderTabs); on('doc', renderTabs); on('history', renderTabs); on('sketch', renderTabs);
+  on('sel', () => { if (app.asm) renderAsm(); });
+  document.addEventListener('pointerdown', e => { if (tabMenu && !tabMenu.contains(e.target) && !e.target.closest('#tabAdd')) closeTabMenu(); }, true);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeTabMenu(); if (AS.mate) { mateClose(); app.sel = []; emit('sel'); } } });
+  const bar = document.getElementById('asmBar');
+  if (bar) bar.addEventListener('click', e => { const b = e.target.closest('[data-asm]'); if (!b) return; if (b.dataset.asm === 'insert') openInsert(); else mateOpen(b.dataset.asm); });
+  const dlg = document.getElementById('asmInsert');
+  if (dlg) document.getElementById('asmInsertClose').addEventListener('click', () => dlg.close());
+  renderTabs();
 }
 /* ==========================================================================
    The pointer and the keys on the view. Right-drag orbits (in a sketch too: N looks straight at it again), middle-drag (or Shift with the right button) pans, the
@@ -8364,6 +8963,8 @@ function wirePointer() {
     over.setPointerCapture(e.pointerId);
     if (e.button === 2 || e.button === 1) { drag = { mode: e.button === 1 || e.shiftKey ? 'pan' : 'orbit', x: sx, y: sy, moved: false, travel: 0, button: e.button }; return; }
     if (app.sketch && sketchDown(e, sx, sy)) { drag = { mode: 'sketch' }; return; }
+    // in an assembly a part is dragged about by its own faces (Ctrl: turned about the line of sight)
+    if (app.asm && !AS.mate && !e.shiftKey) { const p0 = pickAt(sx, sy, 'face'); if (p0 && asmDragStart(p0, sx, sy, e.ctrlKey || e.metaKey)) { drag = { mode: 'asm', x: sx, y: sy, add: false }; return; } }
     drag = { mode: 'pick', x: sx, y: sy, moved: false, add: e.ctrlKey || e.shiftKey || e.metaKey };
   });
   over.addEventListener('pointermove', e => {
@@ -8376,6 +8977,7 @@ function wirePointer() {
       return;
     }
     if (drag && drag.mode === 'sketch') { sketchMove(e, sx, sy); return; }
+    if (drag && drag.mode === 'asm') { asmDragMove(sx, sy); return; }
     if (drag && drag.mode === 'pick') {
       if (!drag.moved && Math.hypot(sx - drag.x, sy - drag.y) > 4 && !fieldWants()) drag.moved = true;
       if (drag.moved) setBoxSel({ x0: drag.x, y0: drag.y, x1: sx, y1: sy });
@@ -8390,7 +8992,7 @@ function wirePointer() {
     if (!d) return;
     if (d.mode === 'sketch') { sketchUp(e, sx, sy); return; }
     // the right button let go where it went down: in a sketch, what is being drawn ends
-    if (d.mode !== 'pick') { if (d.button === 2 && d.travel < 4 && app.sketch) sketchRight(); return; }
+    if (d.mode !== 'pick' && d.mode !== 'asm') { if (d.button === 2 && d.travel < 4 && app.sketch) sketchRight(); return; }
     if (d.moved) {
       setBoxSel(null);
       const got = pickBox(d.x, d.y, sx, sy, app.filter === 'any' ? 'edge' : app.filter);
@@ -8398,7 +9000,10 @@ function wirePointer() {
       for (const p of got) if (!app.sel.some(s => sameSel(s, p))) app.sel.push(p);
       emit('sel'); return;
     }
+    // an assembly: a drag that moved a part is done; a click picks (a face into a mate being made)
+    if (d.mode === 'asm') { if (asmDragEnd()) return; }
     let p = pickHere(sx, sy);
+    if (app.asm && AS.mate) { matePick(p); return; }
     if (fieldWants()) { if (p) await fieldPick(p); return; }
     // a plane lies behind most of the view: with other things chosen, a click that lands only on a plane is a click on
     // nothing, and empties the selection (a plane joins a selection from its row in the list)
@@ -8413,6 +9018,7 @@ function wirePointer() {
     const [sx, sy] = xy(e);
     if (app.sketch) { sketchDbl(sx, sy); return; }
     if (app.editing) return;
+    if (app.asm) { fit(); return; }
     const md = modelDimAt(sx, sy);
     if (md) { app.sel = []; emit('sel'); modelDimEdit(md); return; }
     // a sketch (a shape of it, or one of its regions): opened to edit
@@ -8443,6 +9049,7 @@ function wirePointer() {
     if (k === 'escape') { if (app.editing) closeDialog(); else if (app.sel.length || app.picked) { app.sel = []; app.picked = null; emit('sel'); emit('picked'); } return; }
     if (k === 'enter' && app.editing && !app.editing.sketchPlane) { okDialog(); return; }
     // Delete, with whole parts selected (the Parts filter, or their rows): they are deleted
+    if ((k === 'delete' || k === 'backspace') && app.asm) { for (const id of new Set(app.sel.map(s => s.part).filter(Boolean))) deleteInstance(id); return; }
     if ((k === 'delete' || k === 'backspace') && !app.editing && app.sel.length && app.sel.every(s => s.kind === 'part')) { for (const s of app.sel.slice()) deletePart(s.part); return; }
     if (k === 'f') { fit(); return; }
     if (k === 'n') { normalToSel(); return; }
@@ -8465,8 +9072,13 @@ async function normalToSel() {
 /* ==========================================================================
    The version, and what is new in it (Help › What’s new)
    ========================================================================== */
-const APP_VERSION = '0.6.0';
+const APP_VERSION = '0.7.0';
 const NEWS = [
+  { v: '0.7.0', date: '11 Nov 2026', items: [
+    '<b>Tabs</b>: a document now holds several Part Studios and Assemblies, along the bottom of the window. The + adds one.',
+    '<b>Assemblies</b>: insert parts from the Part Studios, drag them into place, and join them with mates (Fastened, Revolute, Slider, Cylindrical, Planar).',
+    'A part changed in its Part Studio changes in every assembly, and its mates follow.',
+  ] },
   { v: '0.6.0', date: '11 Nov 2026', items: [
     '<b>Short share links</b>: signed in, Share gives a link of ten letters kept with your account.',
     '<b>Text in six fonts</b>, and Mirror now mirrors text and pictures.',
@@ -8554,19 +9166,19 @@ let saveTimer = null;
 function scheduleSave() {
   if (TEST_MODE || EMBED) return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => { try { localStorage.setItem(CAD_STORE_KEY, JSON.stringify(app.doc)); setStatus(hooks.cadCloudLinked && hooks.cadCloudLinked() ? '' : 'Autosaved in this browser'); } catch (err) { setStatus('Not autosaved: this browser’s storage is full'); } }, SAVE_EVERY);
+  saveTimer = setTimeout(() => { try { localStorage.setItem(CAD_STORE_KEY, fileText()); setStatus(hooks.cadCloudLinked && hooks.cadCloudLinked() ? '' : 'Autosaved in this browser'); } catch (err) { setStatus('Not autosaved: this browser’s storage is full'); } }, SAVE_EVERY);
 }
 function restoreSaved() {
   if (TEST_MODE || EMBED) return null;
-  try { const d = JSON.parse(localStorage.getItem(CAD_STORE_KEY) || 'null'); return d && d.format === CAD_FORMAT ? normDoc(d) : null; } catch (err) { return null; }
+  try { const d = JSON.parse(localStorage.getItem(CAD_STORE_KEY) || 'null'); return d && d.format === CAD_FORMAT ? d : null; } catch (err) { return null; }
 }
 /* a document opened in place of this one (Undo brings this one back) */
 function openDocData(d, label, opts) {
   if (!d || typeof d !== 'object' || (d.format && d.format !== CAD_FORMAT)) { toast('That is not a .jekcad file', true); return false; }
   if (!(opts && opts.fresh)) checkpoint();
-  app.doc = normDoc(d); app.sel = []; app.editing = null; app.sketch = null;
-  emit('sel'); emit('sketch'); emit('editing');
-  const nm = document.getElementById('docName'); if (nm) nm.value = app.doc.name;
+  setFile(d); app.sel = []; app.editing = null; app.sketch = null; app.picked = null;
+  emit('tab'); emit('sel'); emit('sketch'); emit('editing');
+  const nm = document.getElementById('docName'); if (nm) nm.value = app.file.name;
   changed();
   regenNow().then(() => fit());
   if (label) toast('Opened ' + label);
@@ -8579,7 +9191,7 @@ function newDocument() {
   track('new', 'cad');
 }
 function saveFile() {
-  downloadFile(safeName(app.doc.name) + '.jekcad', JSON.stringify(app.doc, null, 1), 'application/json');
+  downloadFile(safeName(app.file.name) + '.jekcad', fileText(true), 'application/json');
   app.unsaved = false; emit('saved');
   track('save', 'cad-file');
 }
@@ -8615,10 +9227,11 @@ async function importStep(file) {
 /* ---------- exports: STEP and STL, of every part or one ---------- */
 async function exportParts(fmt, ids) {
   if (!accountGate('export ' + (fmt === 'stl' ? 'STL' : 'STEP') + ' files')) return false;
+  if (app.asm) { toast('Export parts from a Part Studio: open one from the tabs below', true); return false; }
   const parts = app.result ? app.result.parts : [];
   if (!parts.length) { toast('There are no parts to export yet', true); return false; }
   const one = ids && ids.length === 1 ? parts.findIndex(p => p.id === ids[0]) : -1;
-  const base = safeName(one >= 0 ? partLook(app.doc, ids[0], one).name : app.doc.name);
+  const base = safeName(one >= 0 ? partLook(app.doc, ids[0], one).name : app.file.name);
   try {
     const bytes = await kernelAsk(fmt === 'stl' ? 'stl' : 'step', { parts: ids || [] });
     downloadFile(base + (fmt === 'stl' ? '.stl' : '.step'), bytes, fmt === 'stl' ? 'model/stl' : 'model/step');
@@ -8635,8 +9248,8 @@ function wireFiles() {
   stage.addEventListener('dragleave', () => stage.classList.remove('dropping'));
   stage.addEventListener('drop', e => { e.preventDefault(); stage.classList.remove('dropping'); const f = e.dataTransfer.files[0]; if (f) openAnyFile(f); });
   const nm = document.getElementById('docName');
-  nm.value = app.doc.name;
-  nm.addEventListener('change', () => { const v = nm.value.trim(); if (v && v !== app.doc.name) { checkpoint(); app.doc.name = v; changed(); } });
+  nm.value = app.file.name;
+  nm.addEventListener('change', () => { const v = nm.value.trim(); if (v && v !== app.file.name) { checkpoint(); app.file.name = v; changed(); } });
 }
 /* ==========================================================================
    Sharing a Part Studio as a link, as JEKion shares a bench: the document deflated and written after #p= ('c', or
@@ -8649,7 +9262,7 @@ const cadUnB64 = t => { const s2 = atob(t.replace(/-/g, '+').replace(/_/g, '/') 
 async function cadStream(bytes, T) { return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(T)).arrayBuffer()); }
 /* the part after #p= */
 async function cadShareHash(doc) {
-  const json = new TextEncoder().encode(JSON.stringify(doc || app.doc));
+  const json = new TextEncoder().encode((doc ? JSON.stringify(doc) : fileText()));
   if (typeof CompressionStream !== 'undefined') { try { return 'c' + cadB64(await cadStream(json, new CompressionStream('deflate-raw'))); } catch (err) { /* plain below */ } }
   return 'd' + cadB64(json);
 }
@@ -8665,7 +9278,7 @@ async function cadReadShare(hash) {
   let d;
   try { d = JSON.parse(new TextDecoder().decode(bytes)); } catch (err) { throw new Error('the link does not hold a Part Studio'); }
   if (!d || d.format !== CAD_FORMAT) throw new Error('the link does not hold a JEKcad Part Studio');
-  return normDoc(d);
+  return fileData(normFile(d));
 }
 /* a short link: the same text kept by the API with the person's account (jek-api src/links.js, as the other apps'
    links are, with JEKcad's own letters), /c/ and ten capitals on the site; the site's 404 page forwards /c/<id>
@@ -8675,7 +9288,7 @@ const CAD_MADE = new Map();
 const cadShortUrl = id => location.origin + '/c/' + id;
 async function cadShortLink(text) {
   if (CAD_MADE.has(text)) return CAD_MADE.get(text);
-  const r = await api('/v1/links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: app.doc.name || 'Untitled Part Studio', data: text }) });
+  const r = await api('/v1/links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: app.file.name || 'Untitled Part Studio', data: text }) });
   CAD_MADE.set(text, r.id);
   return r.id;
 }
@@ -9580,7 +10193,7 @@ function wireCadAccount() {
     usageTier: () => (!account ? 'anon' : cadProActive() ? 'pro' : 'free'),
     tasterLeft: () => null, tasterUse: () => false,
     // the bench kept in this browser before the page leaves to sign in or pay
-    keepWork: () => { if (!EMBED) try { localStorage.setItem(CAD_STORE_KEY, JSON.stringify(app.doc)); } catch (err) { /* the last autosave stands */ } },
+    keepWork: () => { if (!EMBED) try { localStorage.setItem(CAD_STORE_KEY, fileText()); } catch (err) { /* the last autosave stands */ } },
     // the menu in the bar, its icons drawn (JEKcad's set); the More menu's line names it
     accountMenu: rows => { const menu = document.getElementById('acctMenu'); if (!menu) return; menu.replaceChildren(...rows); cadIcons(menu); },
     // signed out, the way to the plans (JEKcad has no Get Pro in its bar)
@@ -9641,7 +10254,7 @@ function cloudLink(link) {
   leaseStart();
 }
 function cloudSay(text) { setStatus(cloud ? text : 'Autosaved in this browser'); }
-const cloudContent = () => JSON.stringify(app.doc);
+const cloudContent = () => fileText();
 /* ---------- the editing lease ---------- */
 async function leaseStart() {
   clearTimeout(lease.timer); lease.timer = null;
@@ -9709,7 +10322,7 @@ async function cloudPush(opts = {}) {
     const out = await api('/v1/benches/' + link.id, {
       method: 'PUT', keepalive: !!opts.keepalive && content.length < 60000,
       headers: { 'Content-Type': 'application/json', 'If-Match': '"' + (opts.over || link.version) + '"' },
-      body: JSON.stringify({ content, name: app.doc.name, checkpoint: !!opts.checkpoint }),
+      body: JSON.stringify({ content, name: app.file.name, checkpoint: !!opts.checkpoint }),
     });
     if (cloud !== link) return false;                       // another bench was opened meanwhile
     link.version = out.version; link.dirty = cloudAgain; link.name = out.name;
@@ -9763,7 +10376,7 @@ function newCloudBench(ws) {
   if (!places.length) return;
   let dlg = document.getElementById('cloudNewDialog');
   if (dlg) dlg.remove();
-  const name = h('input', { type: 'text', id: 'cloudNewName', value: app.doc.name || 'Part Studio 1', spellcheck: 'false', maxlength: '120' });
+  const name = h('input', { type: 'text', id: 'cloudNewName', value: app.file.name || 'Part Studio 1', spellcheck: 'false', maxlength: '120' });
   const where = h('select', { id: 'cloudNewWhere' }, ...places.map(w => h('option', { value: w.id }, placeName(w))));
   where.value = places.some(w => w.id === ws) ? ws : places[0].id;
   const note = h('p', { class: 'rt-subsmall' });
@@ -9780,7 +10393,7 @@ function newCloudBench(ws) {
     const wsId = where.value, nm = name.value.trim() || 'Part Studio 1';
     go.disabled = true;
     try {
-      app.doc.name = nm; document.getElementById('docName').value = nm; scheduleSave();
+      app.file.name = nm; document.getElementById('docName').value = nm; scheduleSave();
       const b = await api('/v1/workspaces/' + wsId + '/benches', Object.assign({ method: 'POST' }, jsonBody({ name: nm, content: cloudContent() })));
       dlg.close();
       const w = places.find(x => x.id === wsId);
@@ -9800,8 +10413,8 @@ function newCloudBench(ws) {
 /* this Part Studio kept as a copy of its own in the same workspace (a conflict, or someone else's lease) */
 async function keepAsCopy(link, suffix) {
   try {
-    const b = await api('/v1/workspaces/' + link.ws + '/benches', Object.assign({ method: 'POST' }, jsonBody({ name: app.doc.name + suffix, content: cloudContent() })));
-    app.doc.name = b.name; document.getElementById('docName').value = b.name;
+    const b = await api('/v1/workspaces/' + link.ws + '/benches', Object.assign({ method: 'POST' }, jsonBody({ name: app.file.name + suffix, content: cloudContent() })));
+    app.file.name = b.name; document.getElementById('docName').value = b.name;
     cloudLink({ id: b.id, ws: b.workspace_id, version: b.version, name: b.name, dirty: false });
     toast('Kept yours as “' + b.name + '”');
   } catch (err) { toast(err.message, true); }
@@ -9810,12 +10423,12 @@ async function keepAsCopy(link, suffix) {
 async function cloudFork() {
   if (!cloud || !cloudOn()) return;
   if (!designPro('fork a Part Studio')) return;
-  const name = (prompt('Name of the fork', (cloud.name || app.doc.name) + ' (fork)') || '').trim();
+  const name = (prompt('Name of the fork', (cloud.name || app.file.name) + ' (fork)') || '').trim();
   if (!name) return;
   try {
     if (cloud.dirty) await cloudPush({ quiet: true });
     const f = await api('/v1/benches/' + cloud.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ name })));
-    app.doc.name = f.name; document.getElementById('docName').value = f.name; scheduleSave();
+    app.file.name = f.name; document.getElementById('docName').value = f.name; scheduleSave();
     cloudLink({ id: f.id, ws: f.workspace_id, version: f.version, name: f.name, dirty: false });
     track('save', 'cad-fork');
     toast('Forked: you are now working on “' + f.name + '”');
@@ -9925,9 +10538,10 @@ if (!TEST_MODE && !EMBED && !window.name) window.name = 'jekcad';
 themeNow();
 if (typeof matchMedia === 'function') matchMedia('(prefers-color-scheme: dark)').addEventListener('change', themeNow);
 const saved = restoreSaved();
-if (saved) app.doc = saved;
+setFile(saved || {});
 on('icons', el => cadIcons(el));
-wireMenus(); wireSketcher(); wireDialog(); wirePanel(); wirePointer(); wireFiles(); wireCube(); wireFly(); wireNews(); wireCadAccount(); wireShare(); wireCloud(); wireUsage();
+hooks.cadCloseDialog = () => closeDialog();
+wireMenus(); wireSketcher(); wireDialog(); wirePanel(); wireAssembly(); wirePointer(); wireFiles(); wireCube(); wireFly(); wireNews(); wireCadAccount(); wireShare(); wireCloud(); wireUsage();
 /* the bar's buttons and menus */
 const click = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
 for (const b of document.querySelectorAll('[data-feature]')) b.addEventListener('click', () => { closeMenus(); openFeature(b.dataset.feature); });
@@ -9968,7 +10582,7 @@ on('history', () => { document.getElementById('btnUndo').disabled = !app.history
 on('sketchUndo', () => { sketchUndo(); });
 on('busy', () => { const b = document.getElementById('busy'); if (b) b.hidden = !app.busy; });
 on('saved', () => { const d = document.getElementById('saveDot'); if (d) d.hidden = !app.unsaved; });
-on('doc', () => { const d = document.getElementById('saveDot'); if (d) d.hidden = !app.unsaved; const nm = document.getElementById('docName'); if (nm && document.activeElement !== nm) nm.value = app.doc.name; });
+on('doc', () => { const d = document.getElementById('saveDot'); if (d) d.hidden = !app.unsaved; const nm = document.getElementById('docName'); if (nm && document.activeElement !== nm) nm.value = app.file.name; });
 /* the section view: a plane and where along it */
 function sectionToggle() {
   const ctl = document.getElementById('sectionCtl'), on2 = ctl.hidden;
@@ -9990,7 +10604,9 @@ on('model', out => { // the section's slider spans the parts
 });
 // the hint line: what the mouse does
 const hint = document.getElementById('hint');
-on('sketch', () => { hint.textContent = app.sketch ? 'Click to draw, and type a size as you go (Enter) · Shift: nothing inferred · Right-click or Esc ends a chain · D: dimension · Double-click a dimension to change it' : 'Right-drag: orbit · Middle-drag: pan · Wheel: zoom · Click: select · Double-click a dimension or a face to change it · F: fit'; sketchBar(); renderPanel(); });
+const ASM_HINT = 'Drag a part to move it · Ctrl-drag: turn it · Right-drag: orbit · Middle-drag: pan · Wheel: zoom · Insert puts parts in; a mate joins two faces';
+on('tab', () => { if (!app.sketch) hint.textContent = app.asm ? ASM_HINT : 'Right-drag: orbit · Middle-drag: pan · Wheel: zoom · Click: select · Double-click a dimension or a face to change it · F: fit'; });
+on('sketch', () => { hint.textContent = app.sketch ? 'Click to draw, and type a size as you go (Enter) · Shift: nothing inferred · Right-click or Esc ends a chain · D: dimension · Double-click a dimension to change it' : (app.asm ? ASM_HINT : 'Right-drag: orbit · Middle-drag: pan · Wheel: zoom · Click: select · Double-click a dimension or a face to change it · F: fit'); sketchBar(); renderPanel(); });
 emit('sketch');
 bootModes(); themeMenu();
 cadIcons(document);
@@ -10014,12 +10630,13 @@ if (!TEST_MODE && !EMBED) window.addEventListener('hashchange', () => { const sh
 // the tests' and the console's handle on the app
 window.JEKcad = {
   version: APP_VERSION, app, sk: SK, view: V,
-  doc: () => app.doc, load: d => openDocData(d, null, { fresh: true }), text: () => JSON.stringify(app.doc),
+  doc: () => app.doc, load: d => openDocData(d, null, { fresh: true }), text: () => fileText(), file: () => app.file,
   regen: regenNow, regenDone, changed, checkpoint, undo, redo,
   openFeature, editFeature, okDialog, closeDialog, fieldPick, startSketch, finishSketch, cancelSketch, setTool, addConstraint,
   deleteFeature, moveFeature, setRollback, exportParts, importStep, saveFile, kernel: kernelAsk, cloudPush,
   pickAt, pickHere, overlayPick, selectPick, project, toScreen, fit, viewFrom, setMode, png: viewPng, sketchOn: () => !!app.sketch,
   share: cadShare, shareHash: cadShareHash, readShare: cadReadShare, openShare: cadOpenShare,
+  as: AS, addTab, switchTab, renameTab, deleteTab, addInstance, poseInstance, mateOpen, matePick, mateApply,
   flyStart, flyStop, flyTurn, cubePart, turnStep, deletePart, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
 };
 })();

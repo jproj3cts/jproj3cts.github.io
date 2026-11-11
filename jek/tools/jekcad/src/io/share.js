@@ -2,8 +2,8 @@ import { EMBED, TEST_MODE } from '../../../jekray/src/core/constants.js';
 import { accountGate } from '../../../jekray/src/ui/pro.js';
 import { account, accountsOn, api } from '../../../jekray/src/io/account.js';
 import { track } from '../../../jekray/src/io/usage.js';
-import { CAD_FORMAT, normDoc } from '../core/doc.js';
-import { app, toast } from '../ui/app.js';
+import { CAD_FORMAT, fileData, normFile } from '../core/doc.js';
+import { app, fileText, toast } from '../ui/app.js';
 import { openDocData } from './files.js';
 
 /* ==========================================================================
@@ -17,7 +17,7 @@ const cadUnB64 = t => { const s2 = atob(t.replace(/-/g, '+').replace(/_/g, '/') 
 async function cadStream(bytes, T) { return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(T)).arrayBuffer()); }
 /* the part after #p= */
 export async function cadShareHash(doc) {
-  const json = new TextEncoder().encode(JSON.stringify(doc || app.doc));
+  const json = new TextEncoder().encode((doc ? JSON.stringify(doc) : fileText()));
   if (typeof CompressionStream !== 'undefined') { try { return 'c' + cadB64(await cadStream(json, new CompressionStream('deflate-raw'))); } catch (err) { /* plain below */ } }
   return 'd' + cadB64(json);
 }
@@ -33,7 +33,7 @@ export async function cadReadShare(hash) {
   let d;
   try { d = JSON.parse(new TextDecoder().decode(bytes)); } catch (err) { throw new Error('the link does not hold a Part Studio'); }
   if (!d || d.format !== CAD_FORMAT) throw new Error('the link does not hold a JEKcad Part Studio');
-  return normDoc(d);
+  return fileData(normFile(d));
 }
 /* a short link: the same text kept by the API with the person's account (jek-api src/links.js, as the other apps'
    links are, with JEKcad's own letters), /c/ and ten capitals on the site; the site's 404 page forwards /c/<id>
@@ -43,7 +43,7 @@ const CAD_MADE = new Map();
 export const cadShortUrl = id => location.origin + '/c/' + id;
 async function cadShortLink(text) {
   if (CAD_MADE.has(text)) return CAD_MADE.get(text);
-  const r = await api('/v1/links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: app.doc.name || 'Untitled Part Studio', data: text }) });
+  const r = await api('/v1/links', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: app.file.name || 'Untitled Part Studio', data: text }) });
   CAD_MADE.set(text, r.id);
   return r.id;
 }

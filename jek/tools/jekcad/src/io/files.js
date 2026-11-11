@@ -3,9 +3,9 @@ import { hooks } from '../../../jekray/src/core/hooks.js';
 import { accountGate } from '../../../jekray/src/ui/pro.js';
 import { editGate } from '../ui/app.js';
 import { track } from '../../../jekray/src/io/usage.js';
-import { CAD_FORMAT, CAD_STORE_KEY, appliedCount, newDoc, newFeature, normDoc, partLook } from '../core/doc.js';
+import { CAD_FORMAT, CAD_STORE_KEY, appliedCount, newDoc, newFeature, partLook } from '../core/doc.js';
 import { h } from '../../../jekray/src/ui/dom.js';
-import { app, changed, checkpoint, downloadFile, emit, on, regenNow, safeName, setStatus, toast } from '../ui/app.js';
+import { app, changed, checkpoint, downloadFile, emit, fileText, on, regenNow, safeName, setFile, setStatus, toast } from '../ui/app.js';
 import { kernelAsk } from '../page/kernel.js';
 import { fit } from '../ui/view3d.js';
 
@@ -19,19 +19,19 @@ let saveTimer = null;
 export function scheduleSave() {
   if (TEST_MODE || EMBED) return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => { try { localStorage.setItem(CAD_STORE_KEY, JSON.stringify(app.doc)); setStatus(hooks.cadCloudLinked && hooks.cadCloudLinked() ? '' : 'Autosaved in this browser'); } catch (err) { setStatus('Not autosaved: this browser’s storage is full'); } }, SAVE_EVERY);
+  saveTimer = setTimeout(() => { try { localStorage.setItem(CAD_STORE_KEY, fileText()); setStatus(hooks.cadCloudLinked && hooks.cadCloudLinked() ? '' : 'Autosaved in this browser'); } catch (err) { setStatus('Not autosaved: this browser’s storage is full'); } }, SAVE_EVERY);
 }
 export function restoreSaved() {
   if (TEST_MODE || EMBED) return null;
-  try { const d = JSON.parse(localStorage.getItem(CAD_STORE_KEY) || 'null'); return d && d.format === CAD_FORMAT ? normDoc(d) : null; } catch (err) { return null; }
+  try { const d = JSON.parse(localStorage.getItem(CAD_STORE_KEY) || 'null'); return d && d.format === CAD_FORMAT ? d : null; } catch (err) { return null; }
 }
 /* a document opened in place of this one (Undo brings this one back) */
 export function openDocData(d, label, opts) {
   if (!d || typeof d !== 'object' || (d.format && d.format !== CAD_FORMAT)) { toast('That is not a .jekcad file', true); return false; }
   if (!(opts && opts.fresh)) checkpoint();
-  app.doc = normDoc(d); app.sel = []; app.editing = null; app.sketch = null;
-  emit('sel'); emit('sketch'); emit('editing');
-  const nm = document.getElementById('docName'); if (nm) nm.value = app.doc.name;
+  setFile(d); app.sel = []; app.editing = null; app.sketch = null; app.picked = null;
+  emit('tab'); emit('sel'); emit('sketch'); emit('editing');
+  const nm = document.getElementById('docName'); if (nm) nm.value = app.file.name;
   changed();
   regenNow().then(() => fit());
   if (label) toast('Opened ' + label);
@@ -44,7 +44,7 @@ export function newDocument() {
   track('new', 'cad');
 }
 export function saveFile() {
-  downloadFile(safeName(app.doc.name) + '.jekcad', JSON.stringify(app.doc, null, 1), 'application/json');
+  downloadFile(safeName(app.file.name) + '.jekcad', fileText(true), 'application/json');
   app.unsaved = false; emit('saved');
   track('save', 'cad-file');
 }
@@ -80,10 +80,11 @@ export async function importStep(file) {
 /* ---------- exports: STEP and STL, of every part or one ---------- */
 export async function exportParts(fmt, ids) {
   if (!accountGate('export ' + (fmt === 'stl' ? 'STL' : 'STEP') + ' files')) return false;
+  if (app.asm) { toast('Export parts from a Part Studio: open one from the tabs below', true); return false; }
   const parts = app.result ? app.result.parts : [];
   if (!parts.length) { toast('There are no parts to export yet', true); return false; }
   const one = ids && ids.length === 1 ? parts.findIndex(p => p.id === ids[0]) : -1;
-  const base = safeName(one >= 0 ? partLook(app.doc, ids[0], one).name : app.doc.name);
+  const base = safeName(one >= 0 ? partLook(app.doc, ids[0], one).name : app.file.name);
   try {
     const bytes = await kernelAsk(fmt === 'stl' ? 'stl' : 'step', { parts: ids || [] });
     downloadFile(base + (fmt === 'stl' ? '.stl' : '.step'), bytes, fmt === 'stl' ? 'model/stl' : 'model/step');
@@ -100,6 +101,6 @@ export function wireFiles() {
   stage.addEventListener('dragleave', () => stage.classList.remove('dropping'));
   stage.addEventListener('drop', e => { e.preventDefault(); stage.classList.remove('dropping'); const f = e.dataTransfer.files[0]; if (f) openAnyFile(f); });
   const nm = document.getElementById('docName');
-  nm.value = app.doc.name;
-  nm.addEventListener('change', () => { const v = nm.value.trim(); if (v && v !== app.doc.name) { checkpoint(); app.doc.name = v; changed(); } });
+  nm.value = app.file.name;
+  nm.addEventListener('change', () => { const v = nm.value.trim(); if (v && v !== app.file.name) { checkpoint(); app.file.name = v; changed(); } });
 }

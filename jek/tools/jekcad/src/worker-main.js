@@ -6,6 +6,7 @@ import './core/units.js';
 import './core/sketch.js';
 import './core/font-data.js';
 import './core/sketch-tools.js';
+import './core/assembly.js';
 import './core/doc.js';
 import './engines/kernel.js';
 import './../../jekray/src/worker/shim.js';

@@ -5,7 +5,7 @@ import { account, accountShown, accountsOn, authOutcome, showSubscribe, signInRo
 import { h } from '../../../jekray/src/ui/dom.js';
 import { needsShown } from '../../../jekray/src/ui/pro.js';
 import { CAD_STORE_KEY } from '../core/doc.js';
-import { app, cadIcons, toast } from '../ui/app.js';
+import { cadIcons, fileText, toast } from '../ui/app.js';
 
 /* ==========================================================================
    JEKcad's part in the account. The account itself is JEKray's, shared as it is (jekray/src/io/account.js: the same
@@ -46,7 +46,7 @@ export function wireCadAccount() {
     usageTier: () => (!account ? 'anon' : cadProActive() ? 'pro' : 'free'),
     tasterLeft: () => null, tasterUse: () => false,
     // the bench kept in this browser before the page leaves to sign in or pay
-    keepWork: () => { if (!EMBED) try { localStorage.setItem(CAD_STORE_KEY, JSON.stringify(app.doc)); } catch (err) { /* the last autosave stands */ } },
+    keepWork: () => { if (!EMBED) try { localStorage.setItem(CAD_STORE_KEY, fileText()); } catch (err) { /* the last autosave stands */ } },
     // the menu in the bar, its icons drawn (JEKcad's set); the More menu's line names it
     accountMenu: rows => { const menu = document.getElementById('acctMenu'); if (!menu) return; menu.replaceChildren(...rows); cadIcons(menu); },
     // signed out, the way to the plans (JEKcad has no Get Pro in its bar)

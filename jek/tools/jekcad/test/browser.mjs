@@ -197,11 +197,11 @@ export async function check(pw, base, shots) {
     await p.evaluate(() => { document.querySelector('[data-theme="dark"]').click(); });
     // ---- a new Part Studio, for what 0.2 added ----
     await p.evaluate(() => window.JEKcad.load({ format: 'jekcad', features: [] })); await regen();
-    const lay = await p.evaluate(() => { const st = document.getElementById('stage').getBoundingClientRect(), sd = document.getElementById('side').getBoundingClientRect(); return { bottom: Math.round(innerHeight - st.bottom), right: Math.round(innerWidth - st.right), gap: Math.round(st.left - sd.right) }; });
+    const lay = await p.evaluate(() => { const st = document.getElementById('stage').getBoundingClientRect(), sd = document.getElementById('side').getBoundingClientRect(); return { bottom: Math.round(innerHeight - st.bottom), tabs: Math.round(document.getElementById('tabBar').getBoundingClientRect().height), right: Math.round(innerWidth - st.right), gap: Math.round(st.left - sd.right) }; });
     await p.click('#sideTab');
     const wide = await p.evaluate(() => ({ left: Math.round(document.getElementById('stage').getBoundingClientRect().left), off: document.getElementById('cadMain').classList.contains('side-off'), exp: document.getElementById('sideTab').getAttribute('aria-expanded') }));
     await p.click('#sideTab');
-    ok('The view fills the window to its edges; the tab on the feature list closes it (the view takes its room) and opens it again', lay.bottom === 0 && lay.right === 0 && lay.gap === 0 && wide.left === 0 && wide.off && wide.exp === 'false' && await p.evaluate(() => !document.getElementById('cadMain').classList.contains('side-off')), JSON.stringify([lay, wide]));
+    ok('The view fills the window to its edges, down to the tabs; the tab on the feature list closes it (the view takes its room) and opens it again', lay.bottom === lay.tabs && lay.tabs > 20 && lay.tabs < 40 && lay.right === 0 && lay.gap === 0 && wide.left === 0 && wide.off && wide.exp === 'false' && await p.evaluate(() => !document.getElementById('cadMain').classList.contains('side-off')), JSON.stringify([lay, wide]));
     // a centre rectangle, sized by typing straight after it is drawn
     await p.click('[data-feature="sketch"]'); await p.click('.cad-frow-p[data-plane="top"]');
     await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 15000 }).catch(() => {});
@@ -265,10 +265,12 @@ export async function check(pw, base, shots) {
     v = await vol();
     ok('The feature picked in the list shows its sketch’s dimensions on the model; the 60 double-clicked and typed as 80, the part follows', ml.length === 2 && near(v, 80 * 40 * 10, 1e-3), JSON.stringify(ml) + ' volume ' + v);
     // a part made far bigger from the model: the view fits it again, every dimension still inside the view
+    await p.waitForFunction(() => { const J = window.JEKcad; return !J.app.busy && (J.sk.mlabels || []).length === 2; }, null, { timeout: 8000 }).catch(() => {});
+    const bigDbg = await p.evaluate(() => { const J = window.JEKcad; return { picked: J.app.picked, n: (J.sk.mlabels || []).length, feats: J.app.doc.features.map(f => f.id).join(), asm: !!J.app.asm }; });
     const big = await p.evaluate(() => { const J = window.JEKcad, f = J.app.doc.features[0], b = J.sk.mlabels.find(x => f.dims.find(d => d.id === x.dim).x === '80'); return b && [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2]; });
     if (big) { await p.mouse.dblclick(ob.x + big[0], ob.y + big[1]); await p.waitForSelector('#dimInput', { timeout: 3000 }).catch(() => {}); if (await p.$('#dimInput')) { await p.fill('#dimInput', '400'); await p.keyboard.press('Enter'); await p.waitForFunction(() => { const J = window.JEKcad; return !J.app.busy && J.app.result && Math.abs(J.app.result.parts.reduce((t, x) => t + x.volume, 0) - 160000) < 1; }, null, { timeout: 15000 }).catch(() => {}); await p.waitForTimeout(400); } }
     const inView = await p.evaluate(() => { const J = window.JEKcad; return { n: J.sk.mlabels.length, in: J.sk.mlabels.every(b => b.x0 > 0 && b.x1 < J.view.w && b.y0 > 0 && b.y1 < J.view.h) }; });
-    { const vBig = await vol(); ok('A dimension typed on the model that grows the part past the view’s edge: the view fits it again', inView.n === 2 && inView.in && near(vBig, 400 * 40 * 10, 1e-3), JSON.stringify(inView) + ' volume ' + vBig); }
+    { const vBig = await vol(); ok('A dimension typed on the model that grows the part past the view’s edge: the view fits it again', inView.n === 2 && inView.in && near(vBig, 400 * 40 * 10, 1e-3), JSON.stringify(inView) + ' volume ' + vBig + ' ' + JSON.stringify(bigDbg)); }
     await p.keyboard.press('Control+z'); await regen();
     // the eyes: a plane, the origin, and the parts a feature made
     await p.hover('.cad-frow-p[data-plane="top"]'); await p.click('.cad-frow-p[data-plane="top"] .cad-eye');
@@ -513,8 +515,8 @@ export async function check(pw, base, shots) {
         return r.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify(body) });
       });
       await q.goto(base + '/jek/tools/' + app + '.html#cloud=bcad');
-      await q.waitForFunction(a => a === 'jekcad' ? window.JEKcad && window.JEKcad.app.doc && window.JEKcad.app.doc.name === 'Routed studio' : window.__opened.length > 0, app, { timeout: 30000 }).catch(() => {});
-      const res = await q.evaluate(a => ({ opened: window.__opened, name: a === 'jekcad' && window.JEKcad ? window.JEKcad.app.doc.name : null }), app);
+      await q.waitForFunction(a => a === 'jekcad' ? window.JEKcad && window.JEKcad.app.doc && window.JEKcad.app.file.name === 'Routed studio' : window.__opened.length > 0, app, { timeout: 30000 }).catch(() => {});
+      const res = await q.evaluate(a => ({ opened: window.__opened, name: a === 'jekcad' && window.JEKcad ? window.JEKcad.app.file.name : null }), app);
       await q.close();
       return res;
     };
@@ -675,10 +677,61 @@ export async function check(pw, base, shots) {
       await q.evaluate(() => document.getElementById('shareDialog').close());
       await q.evaluate(() => { window.JEKcad.load({ name: 'Other' }); });
       await q.evaluate(() => { location.hash = '#s=ABCDE23456'; });
-      await q.waitForFunction(() => window.JEKcad.app.doc.name === 'Short one', null, { timeout: 10000 }).catch(() => {});
-      const back = await q.evaluate(() => ({ name: window.JEKcad.app.doc.name, n: window.JEKcad.app.doc.features.length, hash: location.hash }));
+      await q.waitForFunction(() => window.JEKcad.app.file.name === 'Short one', null, { timeout: 10000 }).catch(() => {});
+      const back = await q.evaluate(() => ({ name: window.JEKcad.app.file.name, n: window.JEKcad.app.doc.features.length, hash: location.hash }));
       await q.close();
       ok('Share with an account: a short link, /c/ and ten capitals, kept by the API; opened at #s= it brings the Part Studio back', /\/c\/ABCDE23456$/.test(url) && posts.join() === 'Short one' && /^c[A-Za-z0-9_-]+$/.test(kept.data) && back.name === 'Short one' && back.n === 2 && !back.hash, JSON.stringify([url, posts, back]));
+    }
+    // tabs and an assembly: a second tab made from the + at the bottom; two parts inserted; one dragged; a Fastened mate
+    // sets it on the other; the Part Studio changed, the mate follows; the file keeps its tabs and reads back
+    {
+      const q = await b.newPage({ viewport: { width: 1400, height: 880 } }), qe = [];
+      q.on('pageerror', e => qe.push(e.message));
+      await q.goto(base + '/jek/tools/jekcad.html?test');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      const settle = async () => { await q.waitForTimeout(250); await q.waitForFunction(() => !window.JEKcad.app.busy, null, { timeout: 20000 }).catch(() => {}); await q.waitForTimeout(150); };
+      const at = async w => { const r = await q.evaluate(w2 => window.JEKcad.project(w2), w); const box = await q.locator('#over').boundingBox(); return [box.x + r[0], box.y + r[1]]; };
+      const boxes = () => q.evaluate(() => window.JEKcad.app.result.parts.map(x => x.bbox.map(v => v.map(z => +z.toFixed(3)))));
+      const d = newDoc(); d.name = 'Stack'; const s1 = rectSketch(d, 40, 20), s2 = rectSketch(d, 10, 10, null, [60, 0]);
+      d.features.push(s1, newFeature(d, 'extrude', { sketch: s1.id, regions: [[1, 1]], depth: '10', op: 'new' }), s2, newFeature(d, 'extrude', { sketch: s2.id, regions: [[61, 1]], depth: '15', op: 'new' }));
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d)); await settle();
+      const oneTab = await q.evaluate(() => ({ tabs: document.querySelectorAll('#tabBar [data-tab]').length, file: JSON.parse(window.JEKcad.text()).tabs === undefined }));
+      await q.click('#tabAdd'); await q.click('.cad-tabmenu button:nth-child(2)'); await settle();
+      const inAsm = await q.evaluate(() => ({ kinds: window.JEKcad.app.file.tabs.map(t => t.kind).join(), bar: !document.getElementById('asmBar').hidden && document.getElementById('featureBar').hidden, side: !document.getElementById('asmSide').hidden && document.getElementById('studioSide').hidden }));
+      await q.click('[data-asm="insert"]'); await q.waitForSelector('.cad-insrow', { timeout: 15000 }).catch(() => {});
+      const rows = await q.$$('.cad-insrow');
+      if (rows.length === 2) { await rows[0].click(); await settle(); await rows[1].click(); await settle(); }
+      await q.click('#asmInsertClose'); await settle();
+      await q.evaluate(() => { window.JEKcad.viewFrom('iso'); window.JEKcad.fit(); }); await q.waitForTimeout(400);
+      const b0 = await boxes(), inst0 = await q.evaluate(() => window.JEKcad.app.asm.instances.map(I => !!I.fixed));
+      // the second part dragged by its top face: it moves, the first (fixed) does not
+      const g = await at([(b0[1][0][0] + b0[1][1][0]) / 2, (b0[1][0][1] + b0[1][1][1]) / 2, b0[1][1][2]]);
+      await q.mouse.move(g[0], g[1]); await q.mouse.down(); await q.mouse.move(g[0] + 60, g[1] - 20, { steps: 6 }); await q.mouse.up(); await settle();
+      const b1 = await boxes();
+      const dragged = Math.hypot(b1[1][0][0] - b0[1][0][0], b1[1][0][1] - b0[1][0][1], b1[1][0][2] - b0[1][0][2]) > 1 && JSON.stringify(b1[0]) === JSON.stringify(b0[0]);
+      // Fastened: the small part's top face onto the big part's top (it turns over and sits on it)
+      await q.click('[data-asm="fastened"]'); await q.waitForSelector('#matePanel');
+      const c1 = await at([(b1[1][0][0] + b1[1][1][0]) / 2, (b1[1][0][1] + b1[1][1][1]) / 2, b1[1][1][2]]); await q.mouse.click(c1[0], c1[1]); await q.waitForTimeout(150);
+      const c2 = await at([8, 14, 10]); await q.mouse.click(c2[0], c2[1]); await q.waitForTimeout(150);
+      await q.click('#mateOk'); await settle();
+      const b2 = await boxes(), mates = await q.evaluate(() => window.JEKcad.app.asm.mates.map(m => m.t).join());
+      const sat = near(b2[1][0][2], 10, 1e-3) && near(b2[1][1][2], 25, 1e-3) && near((b2[1][0][0] + b2[1][1][0]) / 2, 20, 1e-3) && near((b2[1][0][1] + b2[1][1][1]) / 2, 10, 1e-3);
+      // back in the Part Studio the plate is made 14 thick; in the assembly the small part sits on its new top
+      await q.locator('#tabBar [data-kind="studio"]').first().click(); await settle();
+      const inStudio = await q.evaluate(() => ({ parts: window.JEKcad.app.result.parts.length, bar: !document.getElementById('featureBar').hidden && document.getElementById('asmBar').hidden }));
+      await q.evaluate(() => { const A = window.JEKcad; A.checkpoint(); A.app.doc.features[1].depth = '14'; A.changed(); }); await settle();
+      await q.locator('#tabBar [data-kind="assembly"]').first().click(); await settle();
+      const b3 = await boxes();
+      const followed = near(b3[0][1][2], 14, 1e-3) && near(b3[1][0][2], 14, 1e-3) && near(b3[1][1][2], 29, 1e-3);
+      // the file: version 2 with its tabs; read back, the assembly is as it was
+      const text = await q.evaluate(() => window.JEKcad.text()), file = JSON.parse(text);
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), text); await settle();
+      const back = await q.evaluate(() => ({ name: window.JEKcad.app.file.name, tabs: window.JEKcad.app.file.tabs.map(t => t.kind).join(), asm: !!window.JEKcad.app.asm, n: window.JEKcad.app.result.parts.length }));
+      const b4 = await boxes();
+      await q.close();
+      ok('One Part Studio is one tab and a file as before; + adds an Assembly, which has its own bar and list', oneTab.tabs === 1 && oneTab.file && inAsm.kinds === 'studio,assembly' && inAsm.bar && inAsm.side && !qe.length, JSON.stringify([oneTab, inAsm, qe]));
+      ok('Insert puts two parts in (the first fixed); the other is dragged in the view; a Fastened mate sets it on the first', rows.length === 2 && inst0.join() === 'true,false' && dragged && mates === 'fastened' && sat, JSON.stringify([rows.length, inst0, dragged, mates, b0, b1, b2]));
+      ok('The Part Studio changed (the plate 14 thick): its tab shows its features again, and back in the assembly the mate has followed; the file keeps its tabs and opens the same', inStudio.parts === 2 && inStudio.bar && followed && file.version === 2 && file.tabs.length === 2 && back.name === 'Stack' && back.tabs === 'studio,assembly' && back.asm && back.n === 2 && JSON.stringify(b4) === JSON.stringify(b3) && !qe.length, JSON.stringify([inStudio, followed, b3, file.version, back, qe]));
     }
     // signed out for sure: looking is free, changing is not (Sketch asks for an account and nothing is started)
     {

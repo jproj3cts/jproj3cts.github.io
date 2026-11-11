@@ -137,15 +137,27 @@
         <span class="cad-grow"></span>
         <label class="cad-filter" title="What a click in the view picks">Select <select id="selFilter" aria-label="Selection filter"><option value="any">Anything</option><option value="face">Faces</option><option value="edge">Edges</option><option value="vertex">Vertices</option><option value="part">Parts</option><option value="region">Sketch regions</option><option value="plane">Planes</option></select></label>
       </div>
+      <div class="rt-row cad-fbar" id="asmBar" role="group" aria-label="Assembly" hidden>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="insert" data-icon="import" title="Insert parts from the Part Studios">Insert</button>
+        <span class="rt-qsep" aria-hidden="true"></span>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="fastened" data-icon="mate" title="Fastened mate: a face of one part onto a face of another, nothing left free">Fastened</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="revolute" data-icon="revolve" title="Revolute mate: the part turns about the axis">Revolute</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="slider" data-icon="slider" title="Slider mate: the part slides along the axis">Slider</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="cylindrical" data-icon="hole" title="Cylindrical mate: the part turns about the axis and slides along it">Cylindrical</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-asm="planar" data-icon="plane" title="Planar mate: the part slides on the face and turns on it">Planar</button>
+      </div>
       <div class="rt-row cad-fbar cad-skbar" id="sketchBar" role="group" aria-label="Sketch tools" hidden></div>
     </div>
 
     <div class="cad-main" id="cadMain">
       <aside class="cad-side" id="side" aria-label="Feature list and parts">
-        <h2 class="cad-shead">Features</h2>
-        <ul class="cad-flist" id="featureList"></ul>
-        <h2 class="cad-shead">Parts <span id="partsCount"></span></h2>
-        <ul class="cad-plist" id="partsList"></ul>
+        <div id="studioSide">
+          <h2 class="cad-shead">Features</h2>
+          <ul class="cad-flist" id="featureList"></ul>
+          <h2 class="cad-shead">Parts <span id="partsCount"></span></h2>
+          <ul class="cad-plist" id="partsList"></ul>
+        </div>
+        <div id="asmSide" hidden></div>
       </aside>
       <button type="button" class="cad-sidetab" id="sideTab" aria-controls="side" aria-expanded="true" title="Hide the feature list" aria-label="Hide the feature list"><span aria-hidden="true">‹</span></button>
       <div class="rt-stage cad-stage" id="stage">
@@ -162,7 +174,15 @@
         <div class="rt-toast" id="toast" role="status"></div>
       </div>
     </div>
+    <div class="cad-tabs" id="tabBar" role="tablist" aria-label="Tabs: Part Studios and Assemblies"></div>
   </div>
+
+  <dialog class="rt-dialog" id="asmInsert" aria-labelledby="asmInsertTitle">
+    <h2 id="asmInsertTitle">Insert parts</h2>
+    <p class="rt-subsmall">Click a part to put it in the assembly. The first is fixed where its Part Studio has it; drag the others, or mate them.</p>
+    <div id="asmInsertList" class="cad-inslist"></div>
+    <div class="rt-actions"><button type="button" class="rt-btn primary" id="asmInsertClose">Close</button></div>
+  </dialog>
 
   <dialog class="rt-dialog rt-wide" id="varsDialog" aria-labelledby="varsTitle">
     <h2 id="varsTitle">Variables</h2>

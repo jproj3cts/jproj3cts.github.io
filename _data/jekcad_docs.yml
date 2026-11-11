@@ -8,6 +8,8 @@
   group: Modelling
 - title: Features
   url: /jek/docs/jekcad/features/
+- title: Tabs and assemblies
+  url: /jek/docs/jekcad/assemblies/
 - title: Files, the cloud and exports
   url: /jek/docs/jekcad/files/
   group: Your work

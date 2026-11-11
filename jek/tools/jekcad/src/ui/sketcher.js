@@ -1430,7 +1430,7 @@ export function sketchBar() {
   const bar = document.getElementById('sketchBar');
   if (!bar) return;
   bar.hidden = !app.sketch;
-  document.getElementById('featureBar').hidden = !!app.sketch;
+  document.getElementById('featureBar').hidden = !!app.sketch || !!app.asm;
   mirrorPanel();
   if (!app.sketch) return;
   const btn = (id, title, icon, on) => h('button', { type: 'button', class: 'rt-btn rt-icon quiet cad-tool' + (on ? ' on' : ''), 'data-sktool': id, 'data-icon': icon, title, 'aria-label': title, 'aria-pressed': String(!!on), onclick: () => setTool(id) });

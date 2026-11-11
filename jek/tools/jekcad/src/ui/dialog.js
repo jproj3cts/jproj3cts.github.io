@@ -48,6 +48,7 @@ export const FEATURE_FORMS = {
 const pickOf = (fd, f) => (typeof fd[3].pick === 'function' ? fd[3].pick(f) : fd[3].pick);
 /* ---------- opening ---------- */
 export function openFeature(type, opts) {
+  if (app.asm) { toast('Features are made in a Part Studio: open one from the tabs below'); return; }
   if (!editGate()) return;
   if (app.sketch) { toast('Finish the sketch first'); return; }
   if (app.editing) closeDialog(false);

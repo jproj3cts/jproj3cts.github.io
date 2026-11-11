@@ -3,7 +3,7 @@ import { hooks } from '../../../jekray/src/core/hooks.js';
 import { designPro, needsShown } from '../../../jekray/src/ui/pro.js';
 import { track } from '../../../jekray/src/io/usage.js';
 import { h } from '../../../jekray/src/ui/dom.js';
-import { app, emit, setStatus, toast } from '../ui/app.js';
+import { app, emit, fileText, setStatus, toast } from '../ui/app.js';
 import { openDocData, scheduleSave } from './files.js';
 import { API_BASE, account, accountsOn, api, fillAccount, setAccount } from '../../../jekray/src/io/account.js';
 import { cadSignIn } from './cad-account.js';
@@ -51,7 +51,7 @@ export function cloudLink(link) {
   leaseStart();
 }
 function cloudSay(text) { setStatus(cloud ? text : 'Autosaved in this browser'); }
-const cloudContent = () => JSON.stringify(app.doc);
+const cloudContent = () => fileText();
 /* ---------- the editing lease ---------- */
 async function leaseStart() {
   clearTimeout(lease.timer); lease.timer = null;
@@ -119,7 +119,7 @@ export async function cloudPush(opts = {}) {
     const out = await api('/v1/benches/' + link.id, {
       method: 'PUT', keepalive: !!opts.keepalive && content.length < 60000,
       headers: { 'Content-Type': 'application/json', 'If-Match': '"' + (opts.over || link.version) + '"' },
-      body: JSON.stringify({ content, name: app.doc.name, checkpoint: !!opts.checkpoint }),
+      body: JSON.stringify({ content, name: app.file.name, checkpoint: !!opts.checkpoint }),
     });
     if (cloud !== link) return false;                       // another bench was opened meanwhile
     link.version = out.version; link.dirty = cloudAgain; link.name = out.name;
@@ -173,7 +173,7 @@ export function newCloudBench(ws) {
   if (!places.length) return;
   let dlg = document.getElementById('cloudNewDialog');
   if (dlg) dlg.remove();
-  const name = h('input', { type: 'text', id: 'cloudNewName', value: app.doc.name || 'Part Studio 1', spellcheck: 'false', maxlength: '120' });
+  const name = h('input', { type: 'text', id: 'cloudNewName', value: app.file.name || 'Part Studio 1', spellcheck: 'false', maxlength: '120' });
   const where = h('select', { id: 'cloudNewWhere' }, ...places.map(w => h('option', { value: w.id }, placeName(w))));
   where.value = places.some(w => w.id === ws) ? ws : places[0].id;
   const note = h('p', { class: 'rt-subsmall' });
@@ -190,7 +190,7 @@ export function newCloudBench(ws) {
     const wsId = where.value, nm = name.value.trim() || 'Part Studio 1';
     go.disabled = true;
     try {
-      app.doc.name = nm; document.getElementById('docName').value = nm; scheduleSave();
+      app.file.name = nm; document.getElementById('docName').value = nm; scheduleSave();
       const b = await api('/v1/workspaces/' + wsId + '/benches', Object.assign({ method: 'POST' }, jsonBody({ name: nm, content: cloudContent() })));
       dlg.close();
       const w = places.find(x => x.id === wsId);
@@ -210,8 +210,8 @@ export function newCloudBench(ws) {
 /* this Part Studio kept as a copy of its own in the same workspace (a conflict, or someone else's lease) */
 async function keepAsCopy(link, suffix) {
   try {
-    const b = await api('/v1/workspaces/' + link.ws + '/benches', Object.assign({ method: 'POST' }, jsonBody({ name: app.doc.name + suffix, content: cloudContent() })));
-    app.doc.name = b.name; document.getElementById('docName').value = b.name;
+    const b = await api('/v1/workspaces/' + link.ws + '/benches', Object.assign({ method: 'POST' }, jsonBody({ name: app.file.name + suffix, content: cloudContent() })));
+    app.file.name = b.name; document.getElementById('docName').value = b.name;
     cloudLink({ id: b.id, ws: b.workspace_id, version: b.version, name: b.name, dirty: false });
     toast('Kept yours as “' + b.name + '”');
   } catch (err) { toast(err.message, true); }
@@ -220,12 +220,12 @@ async function keepAsCopy(link, suffix) {
 async function cloudFork() {
   if (!cloud || !cloudOn()) return;
   if (!designPro('fork a Part Studio')) return;
-  const name = (prompt('Name of the fork', (cloud.name || app.doc.name) + ' (fork)') || '').trim();
+  const name = (prompt('Name of the fork', (cloud.name || app.file.name) + ' (fork)') || '').trim();
   if (!name) return;
   try {
     if (cloud.dirty) await cloudPush({ quiet: true });
     const f = await api('/v1/benches/' + cloud.id + '/fork', Object.assign({ method: 'POST' }, jsonBody({ name })));
-    app.doc.name = f.name; document.getElementById('docName').value = f.name; scheduleSave();
+    app.file.name = f.name; document.getElementById('docName').value = f.name; scheduleSave();
     cloudLink({ id: f.id, ws: f.workspace_id, version: f.version, name: f.name, dirty: false });
     track('save', 'cad-fork');
     toast('Forked: you are now working on “' + f.name + '”');

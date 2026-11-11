@@ -185,7 +185,9 @@ export async function switchInterval(req, env, user, wsId) {
   const s = await stripe(env, 'GET', `/subscriptions/${current.stripe_subscription}`);
   const item = s.items && s.items.data && s.items.data[0];
   const key = (item && item.price && item.price.lookup_key) || '';
-  const tier = TIERS.includes(key.split('_')[0]) ? key.split('_')[0] : 'pro';
+  // (a price whose key has moved to a newer one: the tier is the plan the subscription is recorded with)
+  const tierOfPlan = Object.keys(PLAN_OF).find((t) => PLAN_OF[t] === current.plan);
+  const tier = TIERS.includes(key.split('_')[0]) ? key.split('_')[0] : tierOfPlan || 'pro';
   const price = (await prices(env))[`${tier}_${interval === 'year' ? 'yearly' : 'monthly'}`];
   if (!price) throw new ApiError(503, 'billing_off', 'That price is not available yet.');
   if (item.price.id === price.id) return { ok: true, unchanged: true };
@@ -251,15 +253,18 @@ export async function mirror(env, s) {
   if (!exists) return false;
   const item = (s.items && s.items.data && s.items.data[0]) || {};
   const key = (item.price && item.price.lookup_key) || '';
-  // a university licence is priced for each institution, so it has no lookup key
-  const plan = s.metadata.plan === 'institution' ? 'institution' : PLAN_OF[key.split('_')[0]] || 'individual';
   const interval = (item.price && item.price.recurring && item.price.recurring.interval) || null;
   // Since the 2025 API versions the period lives on the item.
   const periodEnd = ms(item.current_period_end || s.current_period_end);
   const cancelAt = s.cancel_at ? ms(s.cancel_at) : s.cancel_at_period_end ? periodEnd : null;
-  const prev = await env.DB.prepare('SELECT status, past_due_since, stripe_subscription FROM subscriptions WHERE workspace_id = ?')
+  const prev = await env.DB.prepare('SELECT status, past_due_since, stripe_subscription, plan FROM subscriptions WHERE workspace_id = ?')
     .bind(ws)
     .first();
+  // a university licence is priced for each institution, so it has no lookup key. A plan's price is known by its key
+  // (pro_…, academic_…, team_…); a price whose key has been moved to a newer price (new prices are made that way:
+  // README, Changing prices) says nothing, so the subscription keeps the plan it was recorded with.
+  const plan = s.metadata.plan === 'institution' ? 'institution'
+    : PLAN_OF[key.split('_')[0]] || (prev && prev.stripe_subscription === s.id && prev.plan !== 'institution' && prev.plan) || 'individual';
   // Another, newer subscription for the same workspace wins over a stale one ending.
   if (prev && prev.stripe_subscription && prev.stripe_subscription !== s.id && s.status === 'canceled') return false;
   const pastDueSince = s.status === 'past_due' ? (prev && prev.status === 'past_due' && prev.past_due_since) || now() : null;

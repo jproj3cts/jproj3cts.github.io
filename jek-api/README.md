@@ -163,6 +163,10 @@ Anyone who subscribes during the open beta keeps their price for as long as that
 prices, move the lookup keys (`pro_monthly` and the rest, `src/billing.js` `PRICE_KEYS`) to them, and leave every
 existing subscription where it is. Never migrate subscriptions to a new price, and never archive a price a
 subscription is on. The app reads prices through the lookup keys (cached an hour), so new subscribers see the new ones.
+A price that has been paid on cannot be given more currencies either: a new price is made the same way, with each
+currency's amount on it. A subscription is known for its plan by its price's key (`pro_…`, `academic_…`, `team_…`);
+when the key moves off its price it keeps the plan it was recorded with (`mirror` in `src/billing.js`), and an old
+price renamed keeping its start (`academic_monthly_gbp_only`) still says its plan.
 
 ## Tasters (free uses of JEKrayPro work)
 

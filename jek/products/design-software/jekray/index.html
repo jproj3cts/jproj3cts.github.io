@@ -29,7 +29,9 @@
   }
   /* the hero's key phrase, underlined in the JEK stripe */
   .jek-twin { background: linear-gradient(90deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%) no-repeat left 0 bottom 0.04em / 100% 0.16em; padding-bottom: 0.06em; }
-  .jek-hero .jek-shot video { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; background: #1f2529; }
+  .jek-hero .jek-shot video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: #000; }
+  /* the trailer keeps its own 16:9 shape, whole, its captions never cut (not cut to the words' height as a picture is) */
+  @media (min-width: 861px) { .jek-hero .jek-shot:has(video) { height: auto; min-height: 0; } .jek-hero .jek-shot video { flex: none; aspect-ratio: 16 / 9; object-fit: contain; } }
   /* See it work: the recording, full width of the column */
   .rt-video > p { margin: 0 0 1rem; font-size: 0.95rem; color: var(--jek-ink-soft); max-width: 70ch; }
   .rt-video video { display: block; width: 100%; height: auto; aspect-ratio: 8 / 5; background: #1f2529; }
@@ -103,9 +105,12 @@
           <div class="jek-facts"><span>Free, in your browser</span><span>Nothing to install</span><span>Starts without an account</span></div>
         </div>
         <figure class="jek-shot cover">
-          <video id="demoVideo" src="img/jekray-demo.webm" poster="img/jekray-demo.jpg" width="1280" height="800" muted loop playsinline autoplay preload="metadata" controls
-            aria-label="Screen recording: a grating spectrometer opened from the examples gallery, its lens dragged along the beam, the detector's spectrum plotted, the bench turned in the 3D view, the parts picker searched for fibre parts, and the bench saved to the cloud and listed in My benches beside a team's benches"></video>
-          <figcaption>Move a lens. Watch the light follow.</figcaption>
+          <video id="demoVideo" poster="img/jekray-trailer.jpg" width="1280" height="720" muted loop playsinline autoplay preload="metadata" controls
+            aria-label="The JEKray trailer: benches turned in 3D, a diffracting field, a fibre network with its gain, loss and noise, diffraction on a screen, every split and bounce ray traced, and an RF lens, with a caption under each">
+            <source src="img/jekray-trailer.webm" type="video/webm">
+            <source src="img/jekray-trailer.mp4" type="video/mp4">
+          </video>
+          <figcaption>JEKray in under a minute.</figcaption>
         </figure>
       </div>
     </section>

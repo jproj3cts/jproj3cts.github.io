@@ -2228,3 +2228,6 @@ main.main-content:not(.rt-app) { --jek-ink-soft: #2b2825; }
 .jek-feature:nth-of-type(even) { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
 .jek-feature:nth-of-type(even) .jek-shot { order: 0; }
 @media (max-width: 860px) { .jek-feature:nth-of-type(odd), .jek-feature:nth-of-type(even) { grid-template-columns: 1fr; } .jek-feature:nth-of-type(odd) .jek-shot { order: 0; } }
+
+/* on a phone the page top is one column: the words, then the picture under them (the even split above is for wider screens) */
+@media (max-width: 860px) { .jek-hero .jek-wrap { grid-template-columns: 1fr; } }

@@ -4316,9 +4316,9 @@ const FEATURE_KINDS = {
   sketch: { label: 'Sketch', defaults: { plane: { std: 'top' }, ents: [], cons: [], dims: [] } },
   plane: { label: 'Plane', defaults: { ref: { std: 'top' }, offset: '10 mm', flip: false } },
   extrude: { label: 'Extrude', defaults: { sketch: null, regions: [], split: false, faces: [], op: 'add', end: 'blind', depth: '10 mm', flip: false, upto: null, second: false, end2: 'blind', depth2: '10 mm', upto2: null, draft: '0 deg', targets: [] } },
-  revolve: { label: 'Revolve', defaults: { sketch: null, regions: [], axis: null, op: 'new', kind: 'full', angle: '360 deg', flip: false, targets: [] } },
-  sweep: { label: 'Sweep', defaults: { sketch: null, regions: [], path: null, op: 'new', targets: [] } },
-  loft: { label: 'Loft', defaults: { sections: [], op: 'new', ruled: false, targets: [] } },
+  revolve: { label: 'Revolve', defaults: { sketch: null, regions: [], split: false, axis: null, op: 'new', kind: 'full', angle: '360 deg', flip: false, targets: [] } },
+  sweep: { label: 'Sweep', defaults: { sketch: null, regions: [], split: false, path: null, op: 'new', targets: [] } },
+  loft: { label: 'Loft', defaults: { sections: [], split: false, op: 'new', ruled: false, targets: [] } },
   fillet: { label: 'Fillet', defaults: { edges: [], radius: '2 mm' } },
   chamfer: { label: 'Chamfer', defaults: { edges: [], distance: '1 mm' } },
   shell: { label: 'Shell', defaults: { faces: [], thickness: '1 mm', outward: false } },
@@ -5075,6 +5075,23 @@ function makeKernel(oc) {
       for (const g of edgeShapes(e, F)) out.push(Object.assign(g, { id: 'mdl' + out.length, mdl: true }));
       if (out.length > 600) return [];                // (a model this busy in the plane: its sketch's regions are left whole)
     }
+    // and where a part that passes through the plane is cut by it: the outline of the part there
+    const pln = T(new oc.gp_Pln(T(new oc.gp_Ax3(pnt(F.o), gdir(F.n), gdir(F.x)))));
+    for (const b of S.parts) {
+      const bb = bbox(b.shape);
+      if (!bb) continue;
+      // (only a part with some of itself on each side of the plane)
+      let lo = Infinity, hi = -Infinity;
+      for (const x of [bb[0][0], bb[1][0]]) for (const y of [bb[0][1], bb[1][1]]) for (const z of [bb[0][2], bb[1][2]]) { const hgt = v3.dot(v3.sub([x, y, z], F.o), F.n); lo = Math.min(lo, hgt); hi = Math.max(hi, hgt); }
+      if (!(lo < -1e-6 && hi > 1e-6)) continue;
+      try {
+        const sc = T(new oc.BRepAlgoAPI_Section(b.shape, pln, false));
+        sc.Build(prog());
+        if (!sc.IsDone()) continue;
+        for (const e of subShapes(sc.Shape(), TA.TopAbs_EDGE)) for (const g of edgeShapes(e, F)) out.push(Object.assign(g, { id: 'mdl' + out.length, mdl: true }));
+      } catch (err) { /* that part's outline is left out */ }
+      if (out.length > 600) return [];
+    }
     return out;
   }
   /* ---------- the features ---------- */
@@ -5131,7 +5148,7 @@ function makeKernel(oc) {
       return { made: r.made };
     },
     revolve(S, f, V) {
-      const sk = sketchOf(S, f.sketch), faces = pickRegions(sk, f.regions);
+      const sk = sketchOf(S, f.sketch), faces = pickRegions(sk, f.regions, f.split);
       let p, d;
       if (f.axis && typeof f.axis === 'string' && /^[xyz]$/.test(f.axis)) { p = [0, 0, 0]; d = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] }[f.axis]; }
       else {
@@ -5159,7 +5176,7 @@ function makeKernel(oc) {
       return { made: r.made };
     },
     sweep(S, f) {
-      const sk = sketchOf(S, f.sketch), faces = pickRegions(sk, f.regions), path = sketchOf(S, f.path);
+      const sk = sketchOf(S, f.sketch), faces = pickRegions(sk, f.regions, f.split), path = sketchOf(S, f.path);
       const spine = chainWire(path);
       const pieces = faces.map(face => {
         const mk = T(new oc.BRepOffsetAPI_MakePipeShell(spine));
@@ -5178,7 +5195,7 @@ function makeKernel(oc) {
     loft(S, f) {
       if ((f.sections || []).length < 2) throw new Error('choose two profiles or more');
       const mk = T(new oc.BRepOffsetAPI_ThruSections(true, !!f.ruled, 1e-6));
-      for (const s of f.sections) { const sk = sketchOf(S, s.sketch), fs = pickRegions(sk, s.regions && s.regions.length ? s.regions : null); mk.AddWire(oc.BRepTools.OuterWire(fs[0])); }
+      for (const s of f.sections) { const sk = sketchOf(S, s.sketch), fs = pickRegions(sk, s.regions && s.regions.length ? s.regions : null, f.split); mk.AddWire(oc.BRepTools.OuterWire(fs[0])); }
       mk.CheckCompatibility(false);
       mk.Build(prog());
       if (!mk.IsDone()) throw new Error('the profiles could not be lofted');
@@ -7718,8 +7735,16 @@ function regionsSplit(f) {
   return R;
 }
 /* the regions to show and pick for a sketch now: cut by the model, except while a feature that takes whole regions
-   is open (a revolve, a sweep, a loft, and an extrude made before regions were cut) */
-function regionsShown(f) { const E = app.editing; return E && !(E.f.type === 'extrude' && E.f.split) ? regionsCached(f) : regionsSplit(f); }
+   is open (none does now: a feature made before regions were cut is given its pieces as it is opened) */
+function regionsShown(f) { const E = app.editing; return E && ('regions' in E.f || 'sections' in E.f) && !E.f.split ? regionsCached(f) : regionsSplit(f); }
+/* a feature made before regions were cut, opened again: its whole regions as the pieces they are cut into (for a cut,
+   the model's holes inside them too, which it took where they were empty), so each piece can be taken out or put
+   back. What it makes is the same until a piece is clicked. */
+function splitPts(f, pts, fill) {
+  const plain = regionsCached(f), chosen = new Set((pts || []).map(q => regionAt(plain, q)).filter(Boolean));
+  if (fill) for (const r of plain) if (!chosen.has(r) && r.outer.src && r.outer.src.every(e => e && e.ref) && [...chosen].some(c => (c.holes || []).some(hole => inside(hole, r.pt)))) chosen.add(r);
+  return regionsSplit(f).filter(r => chosen.has(regionAt(plain, r.pt))).map(r => r.pt.map(v => +v.toFixed(6)));
+}
 /* the regions a new extrude starts with: every piece of the sketch's regions that are not holes (fill, for a cut:
    the model's holes too) */
 function splitDefaultPts(f, fill) {
@@ -8372,6 +8397,14 @@ function editFeature(i) {
   app.editing = { f: JSON.parse(JSON.stringify(f)), at: i, isNew: false, field: null };
   // an extrude to a depth, ticked Opposite direction (from before a depth could be below 0): the same as a negative depth
   { const g = app.editing.f; if (g.type === 'extrude' && g.flip && (g.end === 'blind' || g.end === 'symmetric')) { g.flip = false; if (g.end === 'blind') g.depth = /^\s*-/.test(g.depth) ? g.depth.replace(/^\s*-\s*/, '') : '-(' + g.depth + ')'; } }
+  // one made before regions were cut by the model's edges: its regions as the pieces they are cut into, so any of
+  // them can be clicked out (nothing is changed unless OK is pressed, and what it makes is the same until then)
+  { const g = app.editing.f, skOf = id => app.doc.features.find(x => x.id === id && x.type === 'sketch');
+    if (!g.split && ('regions' in g || 'sections' in g)) {
+      if ('regions' in g && g.sketch && skOf(g.sketch) && g.regions.length) g.regions = splitPts(skOf(g.sketch), g.regions, g.type === 'extrude' && g.op === 'remove');
+      if (g.sections) for (const s of g.sections) if (skOf(s.sketch) && s.regions && s.regions.length) s.regions = splitPts(skOf(s.sketch), s.regions, false);
+      g.split = true;
+    } }
   showDialog();
   // (its regions ready to be clicked in the view, as they are when the feature is new)
   if ((FEATURE_FORMS[f.type] || []).some(fd => fd[0] === 'regions')) activate('regions');
@@ -8384,22 +8417,22 @@ function prefill(f, at) {
   const regions = sel.filter(s => s.kind === 'region');
   if (('regions' in f) && regions.length) { f.sketch = regions[0].sketch; f.regions = regions.filter(r => r.sketch === f.sketch).map(r => r.pt); }
   // (a new extrude takes the pieces the model's edges cut its sketch's regions into, each for itself)
-  if (f.type === 'extrude') f.split = true;
+  if ('regions' in f || 'sections' in f) f.split = true;
   if (f.type === 'loft' && regions.length) { const by = new Map(); for (const r of regions) { if (!by.has(r.sketch)) by.set(r.sketch, []); by.get(r.sketch).push(r.pt); } f.sections = [...by].map(([sketch, regs]) => ({ sketch, regions: regs })); }
   // nothing chosen: the last sketch before the bar, all its regions that are not holes
   if (('regions' in f) && f.type !== 'sweep' && !f.sketch) {
     // (one no feature has used yet: a sketch already extruded is not offered again, with the same regions, to the next)
     const taken = new Set(app.doc.features.flatMap(x => [x.sketch, x.path, ...(x.sections || []).map(s2 => s2.sketch)]));
     const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && !x.suppressed && !taken.has(x.id) && regionsCached(x).length);
-    if (sk) { f.sketch = sk.id; f.regions = f.type === 'extrude' ? splitDefaultPts(sk, f.op === 'remove') : defaultRegionPts(sk.ents, f.op === 'remove'); f.autoRegions = true; }
+    if (sk) { f.sketch = sk.id; f.regions = splitDefaultPts(sk, f.type === 'extrude' && f.op === 'remove'); f.autoRegions = true; }
   }
   // a loft or a sweep with nothing chosen: the sketches no feature has used yet (a loft's profiles in order; a
   // sweep's profile the last with a region, its path the last without one)
   if ((f.type === 'loft' && !f.sections.length) || (f.type === 'sweep' && !f.sketch)) {
     const used = new Set(app.doc.features.flatMap(x => [x.sketch, x.path, ...(x.sections || []).map(s2 => s2.sketch)]));
     const free = app.doc.features.slice(0, at).filter(x => x.type === 'sketch' && !x.suppressed && !used.has(x.id)), closed = free.filter(x => regionsCached(x).length), open = free.filter(x => !regionsCached(x).length && x.ents.some(e => !e.k && e.t !== 'point'));
-    if (f.type === 'loft' && closed.length >= 2) f.sections = closed.map(x => ({ sketch: x.id, regions: defaultRegionPts(x.ents) }));
-    if (f.type === 'sweep' && closed.length) { const pr = closed[closed.length - 1]; f.sketch = pr.id; f.regions = defaultRegionPts(pr.ents); if (open.length && !f.path) f.path = open[open.length - 1].id; }
+    if (f.type === 'loft' && closed.length >= 2) f.sections = closed.map(x => ({ sketch: x.id, regions: splitDefaultPts(x) }));
+    if (f.type === 'sweep' && closed.length) { const pr = closed[closed.length - 1]; f.sketch = pr.id; f.regions = splitDefaultPts(pr); if (open.length && !f.path) f.path = open[open.length - 1].id; }
   }
   // a revolve about the sketch's centre line: its one construction line, if it has just one
   if (f.type === 'revolve' && f.sketch && !f.axis) { const sk = app.doc.features.find(x => x.id === f.sketch), ls = sk ? sk.ents.filter(e => e.t === 'line' && e.k && !e.ref) : []; if (ls.length === 1) f.axis = { e: ls[0].id }; }
@@ -8550,7 +8583,7 @@ function showDialog() {
     else if (kind === 'sel') rows.push(selField(E, fd));
     else if (kind === 'check') rows.push(h('label', { class: 'cad-frow check' }, h('input', { type: 'checkbox', 'data-key': key, id: 'fd-' + key, checked: f[key] ? true : null, onchange: e => { f[key] = e.target.checked; showDialog(); regenSoon(0); } }), label));
     else if (kind === 'select') { const s = h('select', { 'data-key': key, id: 'fd-' + key, onchange: e => { f[key] = e.target.value; showDialog(); regenSoon(0); } }, ...more.options.map(([v, t]) => h('option', { value: v, selected: f[key] === v ? true : null }, t))); rows.push(h('div', { class: 'cad-frow' }, h('label', { for: 'fd-' + key }, label), s)); }
-    else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; if (key === 'op' && E.auto) { const sk = app.doc.features.find(x => x.id === f.sketch); if (sk) f.regions = f.type === 'extrude' && f.split ? splitDefaultPts(sk, v === 'remove') : defaultRegionPts(sk.ents, v === 'remove'); } if (E.field) activate(E.field.key); else showDialog(); regenSoon(0); } }, t))));
+    else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; if (key === 'op' && E.auto) { const sk = app.doc.features.find(x => x.id === f.sketch); if (sk) f.regions = f.split ? splitDefaultPts(sk, f.type === 'extrude' && v === 'remove') : defaultRegionPts(sk.ents, v === 'remove'); } if (E.field) activate(E.field.key); else showDialog(); regenSoon(0); } }, t))));
     else if (kind === 'file') rows.push(h('div', { class: 'cad-frow' }, h('label', null, label), h('div', null, f.file || 'No file', ' ', h('button', { type: 'button', class: 'rt-btn', onclick: () => { const inp = h('input', { type: 'file', accept: '.step,.stp' }); inp.addEventListener('change', async () => { const fl = inp.files[0]; if (!fl) return; f.file = fl.name; f.data = await fl.text(); f.name = 'Import ' + fl.name.replace(/\.(step|stp)$/i, ''); showDialog(); regenSoon(0); }); inp.click(); } }, 'Choose…'))));
   }
   const rep = app.result && app.result.preview && app.result.preview.rep;
@@ -9483,7 +9516,7 @@ async function normalToSel() {
 const APP_VERSION = '0.8.0';
 const NEWS = [
   { v: '0.8.0', date: '11 Nov 2026', items: [
-    '<b>Extrude understands the model’s faces</b>: a sketched shape that runs over the edge of a face is cut there, so the part on the face and the part beyond it are picked separately.',
+    '<b>Regions understand the model</b>: a sketched shape that runs over the edge of a face, or over a part the sketch’s plane passes through, is cut there, so each piece is picked separately. For Extrude, Revolve, Sweep and Loft.',
     '<b>Measure readout</b> at the bottom right: select two parallel faces and it shows how far apart they are; a hole shows its diameter, two holes their centre distance. Its tab opens the full list, and a value clicked is copied.',
     '<b>Assemblies</b>: a handle on the selected part slides it along an axis or turns it about one.',
     'Mates take an <b>offset</b> and <b>limits</b>, join edges and corners as well as faces, and open again from their row to change.',

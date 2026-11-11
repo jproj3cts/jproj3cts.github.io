@@ -772,6 +772,20 @@ export async function check(pw, base, shots) {
       await q.click('[data-key="op"][data-val="new"]'); await q.fill('#fd-depth', '5'); await q.waitForTimeout(300); await q.click('#featureOk'); await settle();
       await q.waitForFunction(() => window.JEKcad.app.result.parts.length === 2, null, { timeout: 8000 }).catch(() => {});
       const made = await q.evaluate(() => { const P = window.JEKcad.app.result.parts; return { n: P.length, v: P[P.length - 1].volume, hi: P[P.length - 1].bbox[1][0], err: window.JEKcad.app.result.features.filter(f => f.ok === false).map(f => f.error) }; });
+      // an extrude made before regions were cut (it takes the whole circle): opened again, it has its two pieces, the
+      // same solid until one is clicked out
+      const d2 = JSON.parse(JSON.stringify(d)); d2.features.push(newFeature(d2, 'extrude', { sketch: ck.id, regions: [[38, 10]], op: 'new', depth: '5' }));
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d2)); await settle();
+      const whole = await q.evaluate(() => { const P = window.JEKcad.app.result.parts; return P[P.length - 1].volume; });
+      await q.evaluate(() => { window.JEKcad.viewFrom('top'); window.JEKcad.fit(); }); await q.waitForTimeout(300);
+      await q.evaluate(() => window.JEKcad.editFeature(3)); await q.waitForSelector('#fd-depth'); await settle();
+      const opened = await q.evaluate(() => { const f = window.JEKcad.app.editing.f; return { split: f.split, n: f.regions.length, saved: !!window.JEKcad.app.doc.features[3].split }; });
+      const r2 = await q.evaluate(() => window.JEKcad.project([43, 10, 0])), ob2 = await q.locator('#over').boundingBox();
+      await q.mouse.move(ob2.x + r2[0], ob2.y + r2[1], { steps: 3 }); await q.waitForTimeout(80); await q.mouse.click(ob2.x + r2[0], ob2.y + r2[1]); await q.waitForTimeout(300);
+      await q.click('#featureOk'); await settle();
+      await q.waitForFunction(v => { const P = window.JEKcad.app.result.parts; return Math.abs(P[P.length - 1].volume - v) > 1; }, whole, { timeout: 8000 }).catch(() => {});
+      const halfNow = await q.evaluate(() => { const P = window.JEKcad.app.result.parts; return P[P.length - 1].volume; });
+      ok('An extrude made before regions were cut takes the whole circle; opened again it has its two pieces (unsaved until OK), and one clicked out leaves the half', near(whole, Math.PI * 25 * 5, 0.5) && opened.split === true && opened.n === 2 && !opened.saved && near(halfNow, Math.PI * 25 / 2 * 5, 0.3), JSON.stringify([whole, opened, halfNow]));
       await q.close();
       ok('A circle half over a block’s end is two regions for Extrude, both chosen to begin with; the piece beyond the edge clicked is taken out, and the half on the face is extruded alone', start.split === true && start.n === 2 && start.sketch && after.n === 1 && after.x[0] < 40 && made.n === 2 && near(made.v, Math.PI * 25 / 2 * 5, 0.3) && near(made.hi, 40, 1e-6) && !made.err.length && !qe.length, JSON.stringify([start, after, made, qe]));
     }

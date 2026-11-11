@@ -6,7 +6,7 @@ import { h } from '../../../jekray/src/ui/dom.js';
 export const APP_VERSION = '0.8.0';
 export const NEWS = [
   { v: '0.8.0', date: '11 Nov 2026', items: [
-    '<b>Extrude understands the model’s faces</b>: a sketched shape that runs over the edge of a face is cut there, so the part on the face and the part beyond it are picked separately.',
+    '<b>Regions understand the model</b>: a sketched shape that runs over the edge of a face, or over a part the sketch’s plane passes through, is cut there, so each piece is picked separately. For Extrude, Revolve, Sweep and Loft.',
     '<b>Measure readout</b> at the bottom right: select two parallel faces and it shows how far apart they are; a hole shows its diameter, two holes their centre distance. Its tab opens the full list, and a value clicked is copied.',
     '<b>Assemblies</b>: a handle on the selected part slides it along an axis or turns it about one.',
     'Mates take an <b>offset</b> and <b>limits</b>, join edges and corners as well as faces, and open again from their row to change.',

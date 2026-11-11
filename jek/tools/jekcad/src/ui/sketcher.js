@@ -1,6 +1,6 @@
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { STD_PLANES, appliedCount } from '../core/doc.js';
-import { curveIsClosed, definedEnts, dimMeasure, entKeys, hpt, lineDir, sketchId, solveNear, solveSketch } from '../core/sketch.js';
+import { curveIsClosed, definedEnts, dimMeasure, inside, entKeys, hpt, lineDir, sketchId, solveNear, solveSketch } from '../core/sketch.js';
 import { alignedRectEnts, arc3, arcSweep, carryRegions, defaultRegionPts, centreArc, chamferCorner, circularPattern, distToEnt, dxfEnts, entOutline, extendEnt, filletCorner, imageCorners, linearPattern, mirrorEnts, offsetEnts, polygonEnts, rectEnts, regionAt, regionsOf, slotEnts, silhouetteOf, splitEnt, tangentArc, textFonts, textRings, transformEnts, trimEnt } from '../core/sketch-tools.js';
 import { evalExpr, fmtNum } from '../core/units.js';
 import { toWorld } from '../engines/kernel.js';
@@ -915,8 +915,16 @@ export function regionsSplit(f) {
   return R;
 }
 /* the regions to show and pick for a sketch now: cut by the model, except while a feature that takes whole regions
-   is open (a revolve, a sweep, a loft, and an extrude made before regions were cut) */
-export function regionsShown(f) { const E = app.editing; return E && !(E.f.type === 'extrude' && E.f.split) ? regionsCached(f) : regionsSplit(f); }
+   is open (none does now: a feature made before regions were cut is given its pieces as it is opened) */
+export function regionsShown(f) { const E = app.editing; return E && ('regions' in E.f || 'sections' in E.f) && !E.f.split ? regionsCached(f) : regionsSplit(f); }
+/* a feature made before regions were cut, opened again: its whole regions as the pieces they are cut into (for a cut,
+   the model's holes inside them too, which it took where they were empty), so each piece can be taken out or put
+   back. What it makes is the same until a piece is clicked. */
+export function splitPts(f, pts, fill) {
+  const plain = regionsCached(f), chosen = new Set((pts || []).map(q => regionAt(plain, q)).filter(Boolean));
+  if (fill) for (const r of plain) if (!chosen.has(r) && r.outer.src && r.outer.src.every(e => e && e.ref) && [...chosen].some(c => (c.holes || []).some(hole => inside(hole, r.pt)))) chosen.add(r);
+  return regionsSplit(f).filter(r => chosen.has(regionAt(plain, r.pt))).map(r => r.pt.map(v => +v.toFixed(6)));
+}
 /* the regions a new extrude starts with: every piece of the sketch's regions that are not holes (fill, for a cut:
    the model's holes too) */
 export function splitDefaultPts(f, fill) {

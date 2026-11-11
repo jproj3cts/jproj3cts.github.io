@@ -550,6 +550,18 @@ test('an extrude’s regions cut by the model’s edges: the part of a circle on
   // the rest of the face is not a region of the sketch
   r = ex([[5, 5]], true);
   assert.match(errorsOf(r.o).join(' '), /no longer there|region/);
+  // a revolve takes a piece too: the half beyond the edge turned about the y axis (Pappus: 2π × its centroid's x × its area)
+  { const d = JSON.parse(JSON.stringify(doc)); d.features.push(newFeature(d, 'revolve', { sketch: c.id, regions: [[42, 10]], split: true, axis: 'y', op: 'new' }));
+    const o = K.regen(d); assert.ok(okAll(o), errorsOf(o).join('; '));
+    const A = Math.PI * 25 / 2, xbar = 40 + 4 * 5 / (3 * Math.PI); near(o.parts[o.parts.length - 1].volume, 2 * Math.PI * xbar * A, 2 * Math.PI * xbar * A * 0.005, 'the half revolved'); }
+  // a part that passes through the sketch's plane cuts its regions too: a block from z = −5 to 5, a sketch on Top
+  { const d = newDoc(), sk = rectSketch(d, 40, 20);
+    d.features.push(sk, newFeature(d, 'extrude', { sketch: sk.id, regions: [[1, 1]], depth: '10', end: 'symmetric', op: 'new' }));
+    const c3 = circleSketch(d, [40, 10], 5, { std: 'top' });
+    d.features.push(c3, newFeature(d, 'extrude', { sketch: c3.id, regions: [[42, 10]], split: true, op: 'new', depth: '5' }));
+    const o = K.regen(d); assert.ok(okAll(o), errorsOf(o).join('; '));
+    assert.ok(o.features.find(f => f.id === c3.id).info.extra.length >= 4, 'the block’s outline where the plane cuts it');
+    const made = o.parts[o.parts.length - 1]; near(made.volume, half, 0.2, 'the half outside the block'); near(made.bbox[0][0], 40, 1e-6); }
   // a circle wholly on the face is one piece, cut or not
   const d2 = block(40, 20, 10), c2 = circleSketch(d2, [20, 10], 5, { std: 'top' });
   d2.features.push(c2, newFeature(d2, 'extrude', { sketch: c2.id, regions: [[20, 10]], split: true, op: 'new', depth: '5' }));

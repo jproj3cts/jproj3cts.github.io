@@ -596,6 +596,23 @@ export function makeKernel(oc) {
       for (const g of edgeShapes(e, F)) out.push(Object.assign(g, { id: 'mdl' + out.length, mdl: true }));
       if (out.length > 600) return [];                // (a model this busy in the plane: its sketch's regions are left whole)
     }
+    // and where a part that passes through the plane is cut by it: the outline of the part there
+    const pln = T(new oc.gp_Pln(T(new oc.gp_Ax3(pnt(F.o), gdir(F.n), gdir(F.x)))));
+    for (const b of S.parts) {
+      const bb = bbox(b.shape);
+      if (!bb) continue;
+      // (only a part with some of itself on each side of the plane)
+      let lo = Infinity, hi = -Infinity;
+      for (const x of [bb[0][0], bb[1][0]]) for (const y of [bb[0][1], bb[1][1]]) for (const z of [bb[0][2], bb[1][2]]) { const hgt = v3.dot(v3.sub([x, y, z], F.o), F.n); lo = Math.min(lo, hgt); hi = Math.max(hi, hgt); }
+      if (!(lo < -1e-6 && hi > 1e-6)) continue;
+      try {
+        const sc = T(new oc.BRepAlgoAPI_Section(b.shape, pln, false));
+        sc.Build(prog());
+        if (!sc.IsDone()) continue;
+        for (const e of subShapes(sc.Shape(), TA.TopAbs_EDGE)) for (const g of edgeShapes(e, F)) out.push(Object.assign(g, { id: 'mdl' + out.length, mdl: true }));
+      } catch (err) { /* that part's outline is left out */ }
+      if (out.length > 600) return [];
+    }
     return out;
   }
   /* ---------- the features ---------- */
@@ -652,7 +669,7 @@ export function makeKernel(oc) {
       return { made: r.made };
     },
     revolve(S, f, V) {
-      const sk = sketchOf(S, f.sketch), faces = pickRegions(sk, f.regions);
+      const sk = sketchOf(S, f.sketch), faces = pickRegions(sk, f.regions, f.split);
       let p, d;
       if (f.axis && typeof f.axis === 'string' && /^[xyz]$/.test(f.axis)) { p = [0, 0, 0]; d = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] }[f.axis]; }
       else {
@@ -680,7 +697,7 @@ export function makeKernel(oc) {
       return { made: r.made };
     },
     sweep(S, f) {
-      const sk = sketchOf(S, f.sketch), faces = pickRegions(sk, f.regions), path = sketchOf(S, f.path);
+      const sk = sketchOf(S, f.sketch), faces = pickRegions(sk, f.regions, f.split), path = sketchOf(S, f.path);
       const spine = chainWire(path);
       const pieces = faces.map(face => {
         const mk = T(new oc.BRepOffsetAPI_MakePipeShell(spine));
@@ -699,7 +716,7 @@ export function makeKernel(oc) {
     loft(S, f) {
       if ((f.sections || []).length < 2) throw new Error('choose two profiles or more');
       const mk = T(new oc.BRepOffsetAPI_ThruSections(true, !!f.ruled, 1e-6));
-      for (const s of f.sections) { const sk = sketchOf(S, s.sketch), fs = pickRegions(sk, s.regions && s.regions.length ? s.regions : null); mk.AddWire(oc.BRepTools.OuterWire(fs[0])); }
+      for (const s of f.sections) { const sk = sketchOf(S, s.sketch), fs = pickRegions(sk, s.regions && s.regions.length ? s.regions : null, f.split); mk.AddWire(oc.BRepTools.OuterWire(fs[0])); }
       mk.CheckCompatibility(false);
       mk.Build(prog());
       if (!mk.IsDone()) throw new Error('the profiles could not be lofted');

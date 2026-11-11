@@ -3,7 +3,7 @@ import { h } from '../../../jekray/src/ui/dom.js';
 import { acctWhy } from '../../../jekray/src/ui/pro.js';
 import { appliedCount, fileData, normFile } from '../core/doc.js';
 import { carryRegions } from '../core/sketch-tools.js';
-import { kernelAsk } from '../page/kernel.js';
+import { kernelAsk, kernelHas } from '../page/kernel.js';
 
 /* ==========================================================================
    The page's state, in one object every module reads and changes (so none needs another's setter): the document,
@@ -67,8 +67,11 @@ export function changed(opts) {
   if (hooks.cadCloudChanged) hooks.cadCloudChanged();
   regenSoon();
 }
-let regenTimer = null;
-export function regenSoon(ms) { clearTimeout(regenTimer); regenTimer = setTimeout(regenNow, ms === undefined ? 20 : ms); }
+let regenTimer = null, regenQueued = false;
+export function regenSoon(ms) { clearTimeout(regenTimer); regenQueued = true; regenTimer = setTimeout(regenNow, ms === undefined ? 20 : ms); }
+/* is a regeneration still to come: one waiting on its timer, or asked of the kernel and not back yet. A regeneration
+   that comes back while a newer one is on its way is not the model's last word: regenDone waits for the newer. */
+export const regenPending = () => regenQueued || kernelHas('regen');
 /* what is shown: up to the rollback bar, or up to the feature being edited (with its preview), or the sketch's place */
 export function regenOpts() {
   const E = app.editing, S = app.sketch;
@@ -79,22 +82,24 @@ export function regenOpts() {
 let regenWaiters = [];
 /* a promise of the next regeneration's result (the tests wait on it) */
 export const regenDone = () => new Promise(res => regenWaiters.push(res));
+/* those waiting for the model, told: once nothing newer is on its way (a Part Studio's regeneration, or an assembly's) */
+export function regenTold(out) { if (regenPending()) return; const w = regenWaiters; regenWaiters = []; for (const r of w) r(out); }
 export async function regenNow() {
-  clearTimeout(regenTimer);
+  clearTimeout(regenTimer); regenQueued = false;
   if (app.asm && hooks.cadAsmRegen) return hooks.cadAsmRegen();
   const t0 = performance.now(), opts = regenOpts();
   app.busy = true; emit('busy');
   let out;
   try { out = await kernelAsk('regen', { doc: app.doc, opts }, 'regen'); }
-  catch (err) { app.error = err.message; app.busy = false; emit('busy'); toast('The model could not be made: ' + err.message, true); const w = regenWaiters; regenWaiters = []; for (const r of w) r(null); return null; }
+  catch (err) { app.error = err.message; app.busy = regenPending(); emit('busy'); toast('The model could not be made: ' + err.message, true); regenTold(null); return null; }
   if (!out) return null;                 // replaced by a newer request
   // a sketch whose shapes followed the model's edges (the kernel moved and solved it): the document takes it up
   for (const r of out.features) if (r.ok && r.info && r.info.ents) { const f = app.doc.features.find(x => x.id === r.id); if (f && f.type === 'sketch') { if (r.info.was) carryRegions(app.doc, f.id, r.info.was, r.info.ents); f.ents = r.info.ents; f.cons = r.info.cons; f.dims = r.info.dims; } }
-  app.result = out; app.error = null; app.busy = false; app.regenMs = performance.now() - t0; app.regenCount++;
+  app.result = out; app.error = null; app.busy = regenPending(); app.regenMs = performance.now() - t0; app.regenCount++;
   // a selection of parts, faces or edges no longer there goes
   app.sel = app.sel.filter(s => !s.part || out.parts.some(p => p.id === s.part && (s.kind === 'part' || (s.kind === 'face' ? s.index < p.faceGroups.length / 2 : s.kind === 'edge' ? s.index < p.edgeGroups.length / 2 : s.index < p.verts.length / 3))));
   emit('busy'); emit('model', out);
-  const w = regenWaiters; regenWaiters = []; for (const r of w) r(out);
+  regenTold(out);
   return out;
 }
 export const applied = () => appliedCount(app.doc);

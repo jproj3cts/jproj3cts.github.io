@@ -5,7 +5,7 @@ import { normDoc, partLook } from '../core/doc.js';
 import { sketchId } from '../core/sketch.js';
 import { evalExpr, fmtNum } from '../core/units.js';
 import { kernelAsk } from '../page/kernel.js';
-import { app, bindTab, changed, checkpoint, editGate, emit, on, regenNow, toast } from './app.js';
+import { app, bindTab, changed, checkpoint, editGate, emit, on, regenNow, regenTold, toast } from './app.js';
 import { V, camAxes, fit, project } from './view3d.js';
 
 /* ==========================================================================
@@ -75,6 +75,7 @@ export async function asmRegen() {
   showAsm();
   app.busy = false; app.error = null; app.regenCount++;
   emit('busy');
+  regenTold(app.result);
   return app.result;
 }
 /* the instances as the view's parts (only the ones that moved are made again) */

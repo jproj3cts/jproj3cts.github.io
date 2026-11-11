@@ -25,6 +25,9 @@ behind JEKray's shim (`page/kernel.js`), or on the dev page the modules as a mod
   out, its side lies on the hole's own wall and the two leave slivers. Also meshes with
   face and edge groups, measure, STEP and STL out, projecting edges into a sketch.
 - `src/worker/main.js` the worker's side; `src/page/kernel.js` the page's client (the last regeneration wins).
+  A regeneration that comes back while a newer one is on its way is not told to those waiting (`regenDone`,
+  `regenTold` in `ui/app.js`: `regenPending` is a timer running or a request with the kernel); the browser checks wait
+  on `JEKcad.regenIdle()` (`settled` in `test/browser.mjs`), not on the next regeneration to finish.
 - `src/ui/`: state, undo, menus and icons (`app.js`); the three.js view, picking, view cube, modes and section
   (`view3d.js`); the sketcher and the overlay of planes and sketches (`sketcher.js`); the feature dialogs and the
   Variables table (`dialog.js`); the feature list, rollback bar, parts list and measure box (`panel.js`); the pointer

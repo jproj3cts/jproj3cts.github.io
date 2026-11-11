@@ -7,6 +7,29 @@ import { newDoc, newFeature } from '../src/core/doc.js';
 import { rectSketch } from './node/helpers.mjs';
 
 const near = (a, b, t) => Math.abs(a - b) <= t;
+/* The model as it stands once an action's regeneration is back: waits until nothing is waiting or being worked on
+   (JEKcad.regenIdle: no regeneration on its timer or with the kernel) and a regeneration has come back since this
+   page was last waited on. An action that makes none is let through after a quiet 1.2 s. (Waiting for "the next
+   regeneration to finish" took an older one, still on its way when the action was made, for the action's own
+   whenever the machine was busy; and waited 20 s for one that had already come back when it was quick.) */
+const SEEN = new WeakMap();
+async function settled(page) {
+  const r = await page.evaluate(async seen => {
+    const J = window.JEKcad, t0 = performance.now(), from = J.app.regenCount < seen ? -1 : seen;   // (a page loaded again counts from 0)
+    for (let idleAt = null; ;) {
+      const now = performance.now();
+      if (J.regenIdle()) {
+        if (idleAt === null) idleAt = now;
+        if (J.app.regenCount > from && now - idleAt >= 40) return { n: J.app.regenCount };
+        if (now - idleAt >= 1200) return { n: J.app.regenCount, quiet: true };
+      } else idleAt = null;
+      if (now - t0 > 30000) return { n: J.app.regenCount, timeout: true };
+      await new Promise(res => setTimeout(res, 15));
+    }
+  }, SEEN.get(page) || 0);
+  SEEN.set(page, r.n);
+  return r.timeout ? 'timeout' : r;
+}
 export async function check(pw, base, shots) {
   const out = [], ok = (name, pass, why) => { out.push({ name, ok: !!pass, why: pass ? '' : why }); if (process.env.JEKCAD_LOG) console.log((pass ? 'ok   ' : 'FAIL ') + name + (pass ? '' : ' :: ' + String(why).slice(0, 300))); };
   const b = await pw.chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
@@ -19,7 +42,7 @@ export async function check(pw, base, shots) {
     await p.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
     const st = await p.evaluate(() => ({ ready: !!(window.JEKcad && window.JEKcad.view.ready), n: window.JEKcad && window.JEKcad.app.regenCount, err: window.JEKcad && window.JEKcad.app.error }));
     ok('The page loads, three.js draws, and the kernel worker regenerates an empty Part Studio', st.ready && st.n > 0 && !st.err, JSON.stringify(st) + errs.join(' | '));
-    const regen = () => p.evaluate(() => Promise.race([window.JEKcad.regenDone(), new Promise(r => setTimeout(() => r('timeout'), 20000))]));
+    const regen = () => settled(p);
     const vol = () => p.evaluate(() => window.JEKcad.app.result.parts.reduce((s, x) => s + x.volume, 0));
     const xy = async w => { const r = await p.evaluate(w2 => window.JEKcad.project(w2), w); const box = await p.locator('#over').boundingBox(); return [box.x + r[0], box.y + r[1]]; };
     const uvXY = async uv => { const r = await p.evaluate(u => window.JEKcad.toScreen(u), uv); const box = await p.locator('#over').boundingBox(); return [box.x + r[0], box.y + r[1]]; };
@@ -268,7 +291,9 @@ export async function check(pw, base, shots) {
     await p.waitForFunction(() => { const J = window.JEKcad; return !J.app.busy && (J.sk.mlabels || []).length === 2; }, null, { timeout: 8000 }).catch(() => {});
     const bigDbg = await p.evaluate(() => { const J = window.JEKcad; return { picked: J.app.picked, n: (J.sk.mlabels || []).length, feats: J.app.doc.features.map(f => f.id).join(), asm: !!J.app.asm }; });
     const big = await p.evaluate(() => { const J = window.JEKcad, f = J.app.doc.features[0], b = J.sk.mlabels.find(x => f.dims.find(d => d.id === x.dim).x === '80'); return b && [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2]; });
-    if (big) { await p.mouse.dblclick(ob.x + big[0], ob.y + big[1]); await p.waitForSelector('#dimInput', { timeout: 3000 }).catch(() => {}); if (await p.$('#dimInput')) { await p.fill('#dimInput', '400'); await p.keyboard.press('Enter'); await p.waitForFunction(() => { const J = window.JEKcad; return !J.app.busy && J.app.result && Math.abs(J.app.result.parts.reduce((t, x) => t + x.volume, 0) - 160000) < 1; }, null, { timeout: 15000 }).catch(() => {}); await p.waitForTimeout(400); } }
+    if (big) { await p.mouse.dblclick(ob.x + big[0], ob.y + big[1]); await p.waitForSelector('#dimInput', { timeout: 3000 }).catch(() => {}); if (await p.$('#dimInput')) { await p.fill('#dimInput', '400'); await p.keyboard.press('Enter'); await p.waitForFunction(() => { const J = window.JEKcad; return !J.app.busy && J.app.result && Math.abs(J.app.result.parts.reduce((t, x) => t + x.volume, 0) - 160000) < 1; }, null, { timeout: 15000 }).catch(() => {});
+      // (the view is fitted once the model is back: waited for by what it does, the dimensions inside the view again)
+      await p.waitForFunction(() => { const J = window.JEKcad; return J.sk.mlabels.length === 2 && J.sk.mlabels.every(b => b.x0 > 0 && b.x1 < J.view.w && b.y0 > 0 && b.y1 < J.view.h); }, null, { timeout: 6000 }).catch(() => {}); } }
     const inView = await p.evaluate(() => { const J = window.JEKcad; return { n: J.sk.mlabels.length, in: J.sk.mlabels.every(b => b.x0 > 0 && b.x1 < J.view.w && b.y0 > 0 && b.y1 < J.view.h) }; });
     { const vBig = await vol(); ok('A dimension typed on the model that grows the part past the view’s edge: the view fits it again', inView.n === 2 && inView.in && near(vBig, 400 * 40 * 10, 1e-3), JSON.stringify(inView) + ' volume ' + vBig + ' ' + JSON.stringify(bigDbg)); }
     await p.keyboard.press('Control+z'); await regen();
@@ -528,7 +553,7 @@ export async function check(pw, base, shots) {
       const d = newDoc(), sk = rectSketch(d, 40, 20);
       d.features.push(sk, newFeature(d, 'extrude', { sketch: sk.id, regions: [[1, 1]], depth: '10' }));
       await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d));
-      const done = () => q.evaluate(() => Promise.race([window.JEKcad.regenDone(), new Promise(r => setTimeout(() => r('timeout'), 20000))]));
+      const done = () => settled(q);
       const volq = () => q.evaluate(() => window.JEKcad.app.result.parts.reduce((s2, x) => s2 + x.volume, 0));
       const at = async w => { const r = await q.evaluate(w2 => window.JEKcad.project(w2), w); const box = await q.locator('#over').boundingBox(); return [box.x + r[0], box.y + r[1]]; };
       await done(); await q.evaluate(() => { window.JEKcad.viewFrom('iso'); window.JEKcad.fit(); }); await q.waitForTimeout(400);
@@ -581,7 +606,7 @@ export async function check(pw, base, shots) {
       q.on('pageerror', e => qe.push(e.message));
       await q.goto(base + '/jek/tools/jekcad.html?test');
       await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
-      const done = () => q.evaluate(() => Promise.race([window.JEKcad.regenDone(), new Promise(r => setTimeout(() => r('timeout'), 20000))]));
+      const done = () => settled(q);
       const uvq = async uv => { const r = await q.evaluate(u => window.JEKcad.toScreen(u), uv); const box = await q.locator('#over').boundingBox(); return [box.x + r[0], box.y + r[1]]; };
       const cl = async (uv, o) => { const a2 = await uvq(uv); await q.mouse.move(a2[0], a2[1], { steps: 3 }); await q.waitForTimeout(40); await q.mouse.click(a2[0], a2[1], o); };
       const grp = async (g, t) => { await q.click('[data-skgroup="' + g + '"]'); await q.click('[data-skpick="' + t + '"]'); };

@@ -339,7 +339,7 @@ export function setPartLook(id, k, v) {
   changed();
 }
 export function wireDialog() {
-  on('model', () => { if (app.editing) { const st = document.getElementById('featureStatus'), rep = app.result.preview && app.result.preview.rep; if (st && rep) { st.textContent = rep.ok ? (rep.info && rep.info.made && rep.info.made.length ? 'Makes ' + rep.info.made.length + ' part' + (rep.info.made.length === 1 ? '' : 's') : 'Ready') : rep.error; st.classList.toggle('bad', !rep.ok); } } });
+  on('model', () => { if (app.editing) { const st = document.getElementById('featureStatus'), rep = app.result.preview && app.result.preview.rep; if (st && rep) { st.textContent = rep.ok ? (rep.info && rep.info.skipped ? rep.info.skipped + (rep.info.skipped === 1 ? ' edge does' : ' edges do') + ' not fit this size and ' + (rep.info.skipped === 1 ? 'is' : 'are') + ' left square; ' + rep.info.edges + ' done' : rep.info && rep.info.made && rep.info.made.length ? 'Makes ' + rep.info.made.length + ' part' + (rep.info.made.length === 1 ? '' : 's') : 'Ready') : rep.error; st.classList.toggle('bad', !rep.ok); st.classList.toggle('warn', !!(rep.ok && rep.info && rep.info.skipped)); } } });
   document.getElementById('varsClose').addEventListener('click', () => document.getElementById('varsDialog').close());
   void FEATURE_KINDS;
 }

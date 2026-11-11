@@ -6,6 +6,7 @@ import { h } from '../../../jekray/src/ui/dom.js';
 export const APP_VERSION = '0.8.0';
 export const NEWS = [
   { v: '0.8.0', date: '11 Nov 2026', items: [
+    'Fixed: a fillet or chamfer on a whole face could leave a broken part where the size did not fit every edge. The edges it fits are now done, the rest are left square, and the feature says how many.',
     '<b>Regions understand the model</b>: a sketched shape that runs over the edge of a face, or over a part the sketch’s plane passes through, is cut there, so each piece is picked separately. For Extrude, Revolve, Sweep and Loft.',
     '<b>Measure readout</b> at the bottom right: select two parallel faces and it shows how far apart they are; a hole shows its diameter, two holes their centre distance. Its tab opens the full list, and a value clicked is copied.',
     '<b>Assemblies</b>: a handle on the selected part slides it along an axis or turns it about one.',

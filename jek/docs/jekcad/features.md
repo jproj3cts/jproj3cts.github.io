@@ -33,6 +33,8 @@ Extrude also takes flat faces of the model with no sketch. Click a face while th
 
 **Fillet** rounds edges and **Chamfer** bevels them. Choosing a face takes all its edges. The rounding follows on along edges that meet tangentially, so a fillet chosen on one edge of a rounded outline runs all the way round.
 
+Where the radius does not fit every edge chosen, the edges it fits are rounded and the rest are left square. The dialog and the feature's row say how many were left. Click a face to choose every edge round it, which is where this most often happens: a small hole or a thin wall cannot take a large radius. Chamfer does the same.
+
 **Shell** hollows a part. Choose the faces to remove and the wall thickness, inward unless you choose Thicken outward.
 
 **Hole** puts a hole at each point of a sketch, drilled against the sketch's normal: Simple, Counterbore or Countersink, blind or through all. A blind hole can end in a 118° drill tip.

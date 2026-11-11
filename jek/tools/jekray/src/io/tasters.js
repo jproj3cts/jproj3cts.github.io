@@ -1,18 +1,16 @@
 import { hooks } from '../core/hooks.js';
 import { h } from '../ui/dom.js';
-import { toast } from '../ui/actions.js';
 import { needsShown } from '../ui/pro.js';
 import { account, accountsOn, api, showSubscribe } from './account.js';
 import { track } from './usage.js';
-import { TASTER_NAMES, tasterOf } from '../core/tasters.js';
+import { tasterOf } from '../core/tasters.js';
 
-/* ---------- Tasters ----------
-   So that someone on a free account can try JEKrayPro's work before paying, a few uses a month of each part of it
-   that runs in their own browser (jek-api src/tasters.js keeps the count): the designers' optimiser, tolerancing,
-   scripts, design reports, drawings, design exports and the data export's Pro formats. The balance is read when the
-   account is (cloud.js cloudGates), shown on the Pro badges ("4 free"), and spent as the work starts (ui/pro.js
-   designPro, ui/scripts.js); once spent, a card says what is used and what JEKrayPro costs. Counted as 'taster'
-   <feature>.used and <feature>.out. */
+/* ---------- A free account's share links ----------
+   A free account keeps a few share links at once (jek-api src/links.js FREE_LINKS; JEKrayPro any number). How many
+   it has left is read when the account is (cloud.js cloudGates), from GET /v1/tasters, and shown on the Share
+   badges ("3 free"); with none left a card says so and what JEKrayPro adds. Counted as 'taster' share.out and
+   share.plans. (The name is from when a free account also had a month's free uses of the designers' work, which is
+   a free account's outright now.) */
 let tasterState = null;                     // { month, limits, left } for the account signed in without a plan; null otherwise
 let tasterFor = null;                       // whose it is
 /* the balance, for someone signed in without a plan (noPlan); dropped otherwise */
@@ -23,33 +21,21 @@ export async function loadTasters(noPlan) {
   try { tasterState = await api('/v1/tasters'); } catch (err) { tasterState = null; tasterFor = null; return; }
   needsShown();
 }
-/* how many free uses of the work named are left this month: a number, or null (no taster for it, or none to count) */
+/* how many share links a free account has left: a number, or null (not share links, or none to count) */
 export function tasterLeft(what) {
   const f = tasterOf(what);
   return f && tasterState && tasterState.left[f] !== undefined ? tasterState.left[f] : null;
 }
-/* one free use of the work named, if there is one left: true when it may go ahead */
-export function tasterUse(what) {
-  const f = tasterOf(what), left = tasterLeft(what);
-  if (!(left > 0)) return false;
-  // a share link is counted by the link itself, once made (the same bench again makes none): read again then (tasterRefresh)
-  if (f === 'share') return true;
-  tasterState.left[f] = left - 1;
-  track('taster', f + '.used');
-  api('/v1/tasters/' + f, { method: 'POST' }).then(r => { if (tasterState && r && typeof r.left === 'number') tasterState.left[f] = r.left; needsShown(); })
-    .catch(err => { if (tasterState && err && err.code === 'taster_used') { tasterState.left[f] = 0; needsShown(); } });
-  needsShown();
-  const n = tasterState.left[f], lim = tasterState.limits[f];
-  toast('Free with your account: ' + n + ' of ' + lim + ' ' + TASTER_NAMES[f] + ' left this month');
-  return true;
-}
-/* the month's free uses spent: what was used, and what JEKrayPro costs (the founding price, and the student one);
-   false when the work named has no taster (the plans are offered as before) */
+/* may a share link be made on the free account: true while it has one left (the link itself is the count, read
+   again once it is made: tasterRefresh) */
+export function tasterUse(what) { return tasterLeft(what) > 0; }
+/* a free account's share links all in use: what to do, and what JEKrayPro costs (the founding price, and the
+   student one); false when the work named is not share links (the plans are offered as before) */
 export function tasterOut(what) {
   const f = tasterOf(what);
   if (!f || !tasterState) return false;
   track('taster', f + '.out');
-  const lim = tasterState.limits[f], share = f === 'share';
+  const lim = tasterState.limits[f];
   let dlg = document.getElementById('tasterOut');
   if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'tasterOut', 'aria-labelledby': 'tasterOutTitle' }); document.body.append(dlg); }
   const close = () => dlg.close();
@@ -59,9 +45,8 @@ export function tasterOut(what) {
     const m = (q) => P && P[q] ? new Intl.NumberFormat('en-GB', { style: 'currency', currency: (P[q].currency || 'gbp').toUpperCase() }).format(P[q].amount / 100).replace(/\.00$/, '') : '';
     if (m('academic_monthly')) price.replaceChildren(h('b', null, 'Students and university staff: '), 'JEKrayPro is ' + m('academic_monthly') + ' a month' + (m('academic_yearly') ? ' or ' + m('academic_yearly') + ' a year' : '') + ' with your university email' + (m('pro_monthly') ? ' (' + m('pro_monthly') + ' a month otherwise)' : '') + '.');
   }).catch(() => { /* the line as it is */ });
-  dlg.replaceChildren(h('h2', { id: 'tasterOutTitle' }, share ? 'Your free share links are all in use' : 'This month’s free ' + TASTER_NAMES[f] + ' are used'),
-    h('p', null, share ? 'A free account keeps ' + lim + ' share links at once: delete an old one in My benches, under My links, to make another. JEKrayPro has them without a limit, with saving to the cloud and the design work.'
-      : 'Your free account has ' + lim + ' ' + TASTER_NAMES[f] + ' a month, and they are back on the 1st. JEKrayPro has them without a limit, with the rest of the design work and saving to the cloud.'),
+  dlg.replaceChildren(h('h2', { id: 'tasterOutTitle' }, 'Your free share links are all in use'),
+    h('p', null, 'A free account keeps ' + lim + ' share links at once: delete an old one in My benches, under My links, to make another. JEKrayPro has them without a limit, with saving to the cloud.'),
     price,
     h('p', null, h('b', null, 'Founding members: '), 'subscribe during the open beta and keep that price for as long as you stay subscribed.'),
     h('div', { class: 'rt-actions' },

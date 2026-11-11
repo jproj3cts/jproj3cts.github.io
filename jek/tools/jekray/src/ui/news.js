@@ -4,6 +4,7 @@ import { project } from '../state/project.js';
 import { phoneSheet } from './panel.js';
 import { h } from './dom.js';
 import { saveFile, toast, typingIn } from './actions.js';
+import { accountGate } from './pro.js';
 import { shareBase, shareHash } from '../io/share.js';
 import { openProjectData } from '../io/open.js';
 import { EXPERIMENTAL, exp, expOn, expPicked, expWhy, setExperimental } from './experimental.js';
@@ -549,7 +550,7 @@ export function wireNews() {
           catch (err) { toast('Could not open that version (' + err.message + ').', true); }
         } }, 'Open'))) : [h('p', null, 'Nothing kept yet. Copies appear here once you have been working for a few minutes.')]));
     };
-    document.getElementById('btnSnaps').addEventListener('click', () => { fill(); dlg.showModal(); });
+    document.getElementById('btnSnaps').addEventListener('click', () => { if (!accountGate('see the earlier versions kept in this browser')) return; fill(); dlg.showModal(); });
     document.getElementById('snapsClose').addEventListener('click', () => dlg.close());
   }
 

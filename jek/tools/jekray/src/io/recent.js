@@ -36,10 +36,12 @@ const KIND = { file: 'file', example: 'example', cloud: 'cloud' };
 export function fillRecent() {
   const menu = document.getElementById('recentMenu');
   if (!menu) return;
-  const list = readRecent();
+  // signed out, nothing is kept (ui/pro.js keepHere): what was kept before is not listed either, but the examples opened
+  const out = !keepHere(), list = readRecent().filter(r => !out || r.kind === 'example');
   menu.replaceChildren(...(list.length ? list.map(r => h('button', { type: 'button', role: 'menuitem', title: r.label, onclick: () => openRecent(r) },
-    h('span', { class: 'rt-recentname' }, r.label), h('span', { class: 'k' }, KIND[r.kind] || ''))) : [h('span', { class: 'rt-menunote' }, 'Nothing opened yet: a file, an example or a cloud bench you open is kept here.')]),
-    ...(list.length ? [h('div', { class: 'sep' }), h('button', { type: 'button', role: 'menuitem', onclick: () => { try { localStorage.removeItem(OPENED_KEY); } catch (err) { /* none */ } fillRecent(); } }, 'Clear this list')] : []));
+    h('span', { class: 'rt-recentname' }, r.label), h('span', { class: 'k' }, KIND[r.kind] || ''))) : [h('span', { class: 'rt-menunote' }, out ? 'Signed out, the files you open are not kept here: a free account keeps them.' : 'Nothing opened yet: a file, an example or a cloud bench you open is kept here.')]),
+    ...(out && list.length ? [h('span', { class: 'rt-menunote' }, 'A free account keeps the files you open here too.')] : []),
+    ...(list.length && !out ? [h('div', { class: 'sep' }), h('button', { type: 'button', role: 'menuitem', onclick: () => { try { localStorage.removeItem(OPENED_KEY); } catch (err) { /* none */ } fillRecent(); } }, 'Clear this list')] : []));
 }
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */

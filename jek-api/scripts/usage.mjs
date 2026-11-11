@@ -31,7 +31,7 @@ export const LABELS = {
   from: ['Where visits came from', 'post tag or site'], goal: ['What visits led to', 'source.step'],
   prompt: ['Sign-in prompts', 'where.answer'], remind: ['Links emailed from a phone', ''],
   visitor: ['People (browsers)', 'first visit of the day, week, month, or ever'],
-  taster: ['Free uses of JEKrayPro work', 'feature.used, .out (spent) or .plans (went to the plans)'],
+  taster: ['A free account’s share links all in use', 'share.out (the card shown) or share.plans (went to the plans); older rows: a month’s free uses of JEKrayPro work'],
   funnel: ['People, step by step', 'source.step or dev-device.step'], cohort: ['First visits', 'source.week'],
   back: ['Back again', 'source.week.d1, d7 or d30'], exercise: ['Exercises', 'exercise.step (start, hint1, hint2, solve, next, share, optimise, leave), list.where'], load: ['Bench drawn', 'drawn or early (left before), and how long'],
 };

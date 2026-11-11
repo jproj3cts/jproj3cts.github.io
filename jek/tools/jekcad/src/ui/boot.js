@@ -12,7 +12,7 @@ import { deleteFeature, deletePart, moveFeature, renderPanel, setRollback, toggl
 import { normalToSel, pickHere, selectPick, wirePointer } from './pointer.js';
 import { exportParts, importStep, newDocument, openDocData, openFile, restoreSaved, saveFile, wireFiles } from '../io/files.js';
 import { wireCadAccount } from '../io/cad-account.js';
-import { cadOpenShare, cadReadShare, cadShare, cadShareHash, wireShare } from '../io/share.js';
+import { cadOpenShare, cadOpenShort, cadReadShare, cadShare, cadShareHash, wireShare } from '../io/share.js';
 import { cloudPush, openCloudBench, openCloudList, wireCloud } from '../io/cloud.js';
 import { kernelAsk } from '../page/kernel.js';
 import { APP_VERSION, wireNews } from './news.js';
@@ -108,7 +108,10 @@ if (!TEST_MODE && !EMBED && location.hash === '#new') { window.history.replaceSt
 // #p=<the Part Studio itself>: a shared link
 const sharedAt = location.hash.match(/^#p=([cd][A-Za-z0-9_-]+)$/);
 if (sharedAt) { window.history.replaceState(null, '', location.pathname + location.search); cadOpenShare(sharedAt[1]); }
-if (!TEST_MODE && !EMBED) window.addEventListener('hashchange', () => { const sh = location.hash.match(/^#p=([cd][A-Za-z0-9_-]+)$/); if (sh) { window.history.replaceState(null, '', location.pathname); cadOpenShare(sh[1]); return; } const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/); if (cl) cloudHash(cl); else if (location.hash === '#new') { window.history.replaceState(null, '', location.pathname); openDocData(normDoc({}), null, { fresh: true }); } });
+// #s=<id>: a short link (/c/<id> on the site)
+const shortAt = location.hash.match(/^#s=([A-Za-z2-7]{10})$/);
+if (shortAt) { window.history.replaceState(null, '', location.pathname + location.search); cadOpenShort(shortAt[1].toUpperCase()); }
+if (!TEST_MODE && !EMBED) window.addEventListener('hashchange', () => { const sh = location.hash.match(/^#p=([cd][A-Za-z0-9_-]+)$/); if (sh) { window.history.replaceState(null, '', location.pathname); cadOpenShare(sh[1]); return; } const ss = location.hash.match(/^#s=([A-Za-z2-7]{10})$/); if (ss) { window.history.replaceState(null, '', location.pathname); cadOpenShort(ss[1].toUpperCase()); return; } const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?$/); if (cl) cloudHash(cl); else if (location.hash === '#new') { window.history.replaceState(null, '', location.pathname); openDocData(normDoc({}), null, { fresh: true }); } });
 // the tests' and the console's handle on the app
 window.JEKcad = {
   version: APP_VERSION, app, sk: SK, view: V,

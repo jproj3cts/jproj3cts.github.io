@@ -605,6 +605,81 @@ export async function check(pw, base, shots) {
       await q.close();
       ok('Silhouette: a cylinder’s side seen from the front comes in as two lines at its radius, 20 tall; Pierce: its top edge goes through the plane at (±10, 20), points that keep the edge', sil.length === 2 && sil.every(l => near(Math.abs(l[0]), 10, 0.01) && near(l[1], 20, 0.01)) && pr.length === 2 && pr.every(x => near(Math.abs(x[0]), 10, 1e-3) && near(x[1], 20, 1e-3) && x[2]) && !qe.length, JSON.stringify([sil, pr, qe]));
     }
+    // a picture to trace over, a Bézier curve made to run into a line (Curvature), a text in another font mirrored,
+    // and a line made tangent to a spline part-way along it
+    {
+      const q = await b.newPage({ viewport: { width: 1400, height: 880 } }), qe = [];
+      q.on('pageerror', e => qe.push(e.message));
+      await q.goto(base + '/jek/tools/jekcad.html?test');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      const uvq = async uv => { const r = await q.evaluate(u => window.JEKcad.toScreen(u), uv); const box = await q.locator('#over').boundingBox(); return [box.x + r[0], box.y + r[1]]; };
+      const cl = async (uv, o) => { const a2 = await uvq(uv); await q.mouse.move(a2[0], a2[1], { steps: 3 }); await q.waitForTimeout(40); await q.mouse.click(a2[0], a2[1], o); };
+      const grp = async (g, t) => { await q.click('[data-skgroup="' + g + '"]'); await q.click('[data-skpick="' + t + '"]'); };
+      const rc = () => q.mouse.click(1300, 800, { button: 'right' });
+      const sel = ids => q.evaluate(i => { window.JEKcad.sk.sel = i.map(id => ({ t: 'ent', id })); }, ids);
+      const entsOf = () => q.evaluate(() => window.JEKcad.app.sketch.f.ents.map(e => ({ id: e.id, t: e.t, cv: !!e.cv, font: e.font, my: !!e.my, w: e.w, k: !!e.k, n: e.pts ? e.pts.length : 0, pts: e.pts, a: e.a, b: e.b })));
+      await q.click('[data-feature="sketch"]'); await q.click('.cad-frow-p[data-plane="top"]');
+      await q.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 15000 }).catch(() => {});
+      await q.waitForTimeout(200);
+      // a 2 × 1 PNG, made here
+      const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAEklEQVR4nGP8z8Dwn4GBgYEJADEFAgHrdT0oAAAAAElFTkSuQmCC', 'base64');
+      const [fc] = await Promise.all([q.waitForEvent('filechooser'), grp('use', 'image')]);
+      await fc.setFiles({ name: 'plan.png', mimeType: 'image/png', buffer: png });
+      await q.waitForSelector('#ske-w', { timeout: 5000 }).catch(() => {});
+      if (await q.$('#ske-w')) { await q.fill('#ske-w', '60'); await q.click('#skEditOk'); }
+      await q.waitForTimeout(200);
+      const pic = (await entsOf()).filter(e => e.t === 'image');
+      await grp('spline', 'bezier'); for (const u of [[-40, -10], [-30, -25], [-15, -28], [0, -20]]) await cl(u); await rc();
+      await q.click('[data-sktool="line"]').catch(() => grp('line', 'line')); await cl([0, -20]); await cl([25, -20]); await rc();
+      await q.keyboard.press('s');
+      let E = await entsOf();
+      await sel(E.filter(e => e.cv || e.t === 'line').map(e => e.id));
+      await q.click('[data-con="curvature"]'); await q.waitForTimeout(300);
+      const cons1 = await q.evaluate(() => window.JEKcad.app.sketch.f.cons.map(c => c.t));
+      E = await entsOf(); const bz = E.find(e => e.cv), ln = E.find(e => e.t === 'line');
+      const flat = bz && ln && bz.pts.slice(1).every(pt => Math.abs(pt[1] - ln.a[1]) < 1e-5);
+      // a text in the serif font, mirrored in a construction line
+      await grp('point', 'text'); await cl([10, 20]);
+      await q.waitForSelector('#ske-font', { timeout: 4000 }).catch(() => {});
+      await q.fill('#ske-s', 'R4'); await q.selectOption('#ske-font', 'serif'); await q.fill('#ske-h', '6'); await q.click('#skEditOk'); await q.waitForTimeout(200);
+      await grp('line', 'cline'); await cl([40, 10]); await cl([40, 40]); await rc();
+      await q.keyboard.press('s');
+      E = await entsOf(); const tx = E.find(e => e.t === 'text'), ml = E.filter(e => e.t === 'line' && e.k).pop();
+      await sel([tx.id]);
+      await grp('mirror', 'mirror').catch(() => q.click('[data-sktool="mirror"]'));
+      await q.click('[data-mirror="line"]'); const mm = await uvq([40, 25]); await q.mouse.click(mm[0], mm[1]); await q.waitForTimeout(100);
+      await q.click('#mirrorOk'); await q.waitForTimeout(200);
+      const texts = (await entsOf()).filter(e => e.t === 'text');
+      ok('A picture put in to trace over (60 wide, construction); Curvature on a Bézier curve and a line it runs into flattens the curve’s end onto the line; a serif text mirrored is a second text, flipped', pic.length === 1 && pic[0].w === 60 && pic[0].k && cons1.includes('curvature') && cons1.includes('tangent') && flat && texts.length === 2 && texts[0].font === 'serif' && texts.some(t2 => t2.my) && !!ml && !qe.length, JSON.stringify([pic.map(x => [x.w, x.k]), cons1, flat, texts.map(t2 => [t2.font, t2.my]), qe]));
+    }
+    // a short link: with an account, the API keeps the Part Studio and the link is /c/ and ten capitals; opened at #s=
+    {
+      const q = await b.newPage({ viewport: { width: 1200, height: 800 } }), posts = [];
+      let kept = null;
+      await q.route('http://localhost:8787/**', async r => {
+        const req = r.request(), path = new URL(req.url()).pathname, cors = { 'Access-Control-Allow-Origin': req.headers().origin || '*', 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'Content-Type, If-Match', 'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE' };
+        if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors });
+        let body = {};
+        if (path === '/v1/me') body = me;
+        else if (path === '/v1/links' && req.method() === 'POST') { kept = JSON.parse(req.postData()); posts.push(kept.name); body = { id: 'ABCDE23456', name: kept.name }; }
+        else if (path === '/v1/links/ABCDE23456') body = { id: 'ABCDE23456', name: kept.name, data: kept.data };
+        return r.fulfill({ status: 200, contentType: 'application/json', headers: cors, body: JSON.stringify(body) });
+      });
+      await q.goto(base + '/jek/tools/jekcad.html');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      await q.waitForTimeout(1500);
+      const d = newDoc(); d.name = 'Short one'; const sk = rectSketch(d, 30, 20); d.features.push(sk, newFeature(d, 'extrude', { sketch: sk.id, regions: [[1, 1]], depth: '5' }));
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d));
+      await q.evaluate(() => window.JEKcad.share()); await q.waitForTimeout(500);
+      const url = await q.evaluate(() => document.getElementById('shareUrl').value);
+      await q.evaluate(() => document.getElementById('shareDialog').close());
+      await q.evaluate(() => { window.JEKcad.load({ name: 'Other' }); });
+      await q.evaluate(() => { location.hash = '#s=ABCDE23456'; });
+      await q.waitForFunction(() => window.JEKcad.app.doc.name === 'Short one', null, { timeout: 10000 }).catch(() => {});
+      const back = await q.evaluate(() => ({ name: window.JEKcad.app.doc.name, n: window.JEKcad.app.doc.features.length, hash: location.hash }));
+      await q.close();
+      ok('Share with an account: a short link, /c/ and ten capitals, kept by the API; opened at #s= it brings the Part Studio back', /\/c\/ABCDE23456$/.test(url) && posts.join() === 'Short one' && /^c[A-Za-z0-9_-]+$/.test(kept.data) && back.name === 'Short one' && back.n === 2 && !back.hash, JSON.stringify([url, posts, back]));
+    }
     // signed out for sure: looking is free, changing is not (Sketch asks for an account and nothing is started)
     {
       const q = await b.newPage({ viewport: { width: 1200, height: 800 } });

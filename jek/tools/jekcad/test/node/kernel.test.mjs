@@ -511,4 +511,17 @@ test('pierce: the point where an edge goes through a sketch’s plane, following
   assert.ok(sil[0].a[0] * sil[1].a[0] < 0, 'one each side');
   // a flat face has none
   assert.equal(silhouetteOf(M, M.faceKinds.findIndex(k => k === 'plane'), Ff).length, 0);
+  // in a sketch on Front, each line remembering its face: the cylinder made 30 across, the lines are at ±15
+  const fr = K.refs([{ part: M.id, kind: 'face', index: round }])[0];
+  const ls = sil.map((l, i) => Object.assign(l, { id: 'sl' + i, ref: true, src: { kind: 'silh', part: fr.part, names: fr.names, pt: fr.pt } }));
+  const sk2 = newFeature(d2, 'sketch', { plane: { std: 'front' }, ents: ls, cons: ls.flatMap(l => ['a', 'b'].map(k => ({ id: 'f' + l.id + k, t: 'fix', r: [{ e: l.id, k }], at: l[k].slice() }))), dims: [] });
+  assert.ok(sk2.ents.every(e => e.src && e.src.kind === 'silh'), 'the lines keep their face');
+  d2.features.push(sk2);
+  let o3 = K.regen(d2); assert.ok(okAll(o3), errorsOf(o3).join('; '));
+  d2.features[0].dims[0].x = '30';
+  o3 = K.regen(d2); assert.ok(okAll(o3), errorsOf(o3).join('; '));
+  const back = (o3.features.find(x => x.id === sk2.id).info || {}).ents;
+  assert.ok(back, 'the sketch is sent back moved');
+  const xs = back.filter(e => e.t === 'line').map(e => e.a[0]).sort((x, y) => x - y);
+  near(xs[0], -15, 2e-3, 'left'); near(xs[1], 15, 2e-3, 'right');
 });

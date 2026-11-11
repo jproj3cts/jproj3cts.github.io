@@ -278,25 +278,33 @@ test('constraints on curves: a point held on an ellipse and on a spline, a line 
   const e0 = splineEnd(cn, true); assert.ok(Math.abs(e0.t[0] * 12 - e0.t[1] * 10) < 1e-9);
 });
 
-test('trim and offset on an ellipse and a spline: what is left is a spline that keeps the shape', () => {
+test('trim on an ellipse and a spline leaves the same curve with a range along it, its constraints kept; offset makes a spline', () => {
   // an ellipse 20 × 10 cut by a vertical line at x = 5: the right-hand part clicked away
-  const sk = { ents: [{ id: 'e', t: 'ellipse', c: [0, 0], rx: 20, ry: 10, rot: 0 }, { id: 'l', t: 'line', a: [5, -30], b: [5, 30] }], cons: [], dims: [] };
+  const fx = (e, k, at) => ({ id: sketchId('c'), t: 'fix', r: [{ e, k }], at });
+  const sk = { ents: [{ id: 'e', t: 'ellipse', c: [0, 0], rx: 20, ry: 10, rot: 0 }, { id: 'l', t: 'line', a: [5, -30], b: [5, 30] }], cons: [fx('e', 'c', [0, 0])], dims: [] };
   assert.ok(trimEnt(sk, 'e', [20, 0]));
-  const s = sk.ents.find(x => x.t === 'spline');
-  assert.ok(s && !sk.ents.some(x => x.t === 'ellipse'), 'a spline in its place');
-  const y5 = 10 * Math.sqrt(1 - 25 / 400), ends = [s.pts[0], s.pts[s.pts.length - 1]];
-  for (const p of ends) assert.ok(Math.abs(p[0] - 5) < 0.02 && Math.abs(Math.abs(p[1]) - y5) < 0.02, 'ends on the line: ' + p);
-  let worst = 0; for (const p of curvePts(s, 1)) { worst = Math.max(worst, Math.abs(Math.hypot(p[0] / 20, p[1] / 10) - 1) * 10); assert.ok(p[0] < 5.02); }
-  assert.ok(worst < 0.05, 'on the ellipse to within 0.05 mm: ' + worst);
+  const s = sk.ents.find(x => x.t === 'ellipse');
+  assert.ok(s && s.id === 'e' && s.u0 !== undefined && s.u1 > s.u0, 'still the ellipse, with a range: ' + JSON.stringify(s));
+  assert.equal(sk.cons.length, 1, 'what held it still holds it');
+  const Q = curvePts(s, 1), y5 = 10 * Math.sqrt(1 - 25 / 400);
+  for (const p of [Q[0], Q[Q.length - 1]]) assert.ok(Math.abs(p[0] - 5) < 0.02 && Math.abs(Math.abs(p[1]) - y5) < 0.02, 'ends on the line: ' + p);
+  for (const p of Q) { assert.ok(Math.abs(Math.hypot(p[0] / 20, p[1] / 10) - 1) < 1e-12, 'exactly on the ellipse'); assert.ok(p[0] < 5.02); }
+  assert.ok(normEnts(sk.ents).find(x => x.t === 'ellipse').u1 === s.u1, 'the range is kept in a file');
   // the region between it and the line: the ellipse's area left of x = 5
   const R = regionsOf(sk.ents);
   const whole = Math.PI * 200, right = 200 * (Math.acos(0.25) - 0.25 * Math.sqrt(1 - 0.0625));
   assert.equal(R.length, 1); assert.ok(Math.abs(Math.abs(R[0].area) - (whole - right)) < 0.6, 'area ' + R[0].area + ' for ' + (whole - right));
-  // an open spline cut by a line: the end beyond it goes
+  // an open spline cut by a line: the end beyond it goes; cut in the middle, it is two with their points held together
   const s2 = { ents: [{ id: 's', t: 'spline', pts: [[0, 0], [10, 8], [20, 3], [30, 10]] }, { id: 'l', t: 'line', a: [15, -10], b: [15, 20] }], cons: [], dims: [] };
   assert.ok(trimEnt(s2, 's', [28, 9]));
-  const k = s2.ents.filter(x => x.t === 'spline'); assert.equal(k.length, 1);
-  assert.ok(Math.abs(k[0].pts[0][0]) < 1e-9 && Math.abs(k[0].pts[k[0].pts.length - 1][0] - 15) < 0.02, JSON.stringify(k[0].pts.slice(-1)));
+  const k = s2.ents.filter(x => x.t === 'spline'); assert.equal(k.length, 1); assert.equal(k[0].pts.length, 4);
+  const Q2 = curvePts(k[0], 1);
+  assert.ok(Math.abs(Q2[0][0]) < 1e-9 && Math.abs(Q2[Q2.length - 1][0] - 15) < 0.02, JSON.stringify(Q2.slice(-1)));
+  const s3 = { ents: [{ id: 's', t: 'spline', pts: [[0, 0], [10, 8], [20, 3], [30, 10]] }, { id: 'l1', t: 'line', a: [12, -10], b: [12, 20] }, { id: 'l2', t: 'line', a: [18, -10], b: [18, 20] }], cons: [], dims: [] };
+  assert.ok(trimEnt(s3, 's', [15, 6]));
+  const two = s3.ents.filter(x => x.t === 'spline'); assert.equal(two.length, 2);
+  assert.equal(s3.cons.filter(c => c.t === 'coincident').length, 4, 'the second piece’s points are held on the first’s');
+  assert.ok(Math.abs(curvePts(two[0], 1).slice(-1)[0][0] - 12) < 0.02 && Math.abs(curvePts(two[1], 1)[0][0] - 18) < 0.02);
   // offsets: an ellipse 2 out is everywhere 2 from it; a spline's offset 2 to its left
   const o = { ents: [{ id: 'e', t: 'ellipse', c: [0, 0], rx: 20, ry: 10, rot: 0 }, { id: 's', t: 'spline', pts: [[0, 30], [10, 38], [20, 33], [30, 40]] }], cons: [], dims: [] };
   const made = offsetEnts(o, ['e', 's'], 2);
@@ -323,4 +331,70 @@ test('DXF: a spline by its fit points and by its control points and knots, an ol
   // inches
   const inch = dxfEnts(dxf([head(1), ['0', 'CIRCLE', '10', '1', '20', '2', '40', '0.5', '0', 'ENDSEC', '0', 'EOF']]));
   assert.ok(Math.abs(inch[0].c[0] - 25.4) < 1e-9 && Math.abs(inch[0].c[1] - 50.8) < 1e-9 && Math.abs(inch[0].r - 12.7) < 1e-9);
+});
+
+test('a circle touching an ellipse, a line and a circle touching a spline part-way along it, and a text mirrored', () => {
+  const fix = (e, k, at) => ({ id: sketchId('c'), t: 'fix', r: [{ e, k }], at });
+  // a circle of radius 5 whose centre is held on the x axis, outside a 20 × 10 ellipse: it comes to x = 25
+  let ents = [{ id: 'e', t: 'ellipse', c: [0, 0], rx: 20, ry: 10, rot: 0 }, { id: 'c', t: 'circle', c: [31, 0], r: 5 }];
+  let cons = [fix('e', 'c', [0, 0]), fix('e', 'pa', [20, 0]), fix('e', 'pb', [0, 10]), { id: 'h', t: 'horizontal', r: [{ e: 'c', k: 'c' }, { e: 'origin' }] }, { id: 't', t: 'tangent', r: [{ e: 'e' }, { e: 'c' }], s: 1 }];
+  let dims = [{ id: 'd', t: 'dia', r: [{ e: 'c' }], v: 10, x: '10' }];
+  let r = solveSketch(ents, cons, dims);
+  assert.ok(r.ok && Math.abs(ents[1].c[0] - 25) < 1e-6 && Math.abs(ents[1].c[1]) < 1e-6, 'outside: ' + JSON.stringify(ents[1]));
+  // the ellipse inside a circle about (2, 0), touching it from within: the far end of the ellipse is 22 away
+  ents = [{ id: 'e', t: 'ellipse', c: [0, 0], rx: 20, ry: 10, rot: 0 }, { id: 'c', t: 'circle', c: [2, 0], r: 30 }];
+  cons = [fix('e', 'c', [0, 0]), fix('e', 'pa', [20, 0]), fix('e', 'pb', [0, 10]), fix('c', 'c', [2, 0]), { id: 't', t: 'tangent', r: [{ e: 'e' }, { e: 'c' }], s: -1 }];
+  r = solveSketch(ents, cons, []);
+  assert.ok(r.ok && Math.abs(ents[1].r - 22) < 1e-6, 'round it: ' + ents[1].r);
+  // a horizontal line above a spline's hump comes down onto the top of the hump
+  const hump = () => ({ id: 's', t: 'spline', pts: [[0, 0], [10, 8], [20, 0]] });
+  ents = [hump(), { id: 'l', t: 'line', a: [-5, 14], b: [25, 14] }];
+  cons = [0, 1, 2].map(i => fix('s', 'q' + i, ents[0].pts[i].slice())).concat({ id: 'h', t: 'horizontal', r: [{ e: 'l' }] }, { id: 't', t: 'tangent', r: [{ e: 's' }, { e: 'l' }] });
+  r = solveSketch(ents, cons, []);
+  const top = Math.max(...curvePts(hump(), 0.5).map(q => q[1]));
+  assert.ok(r.ok && Math.abs(ents[1].a[1] - top) < 2e-3, 'on the hump’s top: ' + ents[1].a[1] + ' for ' + top);
+  // a circle of radius 3 held above the hump at x = 10 sits on it
+  ents = [hump(), { id: 'c', t: 'circle', c: [10, 15], r: 3 }];
+  cons = [0, 1, 2].map(i => fix('s', 'q' + i, ents[0].pts[i].slice())).concat({ id: 'v', t: 'vertical', r: [{ e: 'c', k: 'c' }, { e: 's', k: 'q1' }] }, { id: 't', t: 'tangent', r: [{ e: 's' }, { e: 'c' }], s: 1 });
+  r = solveSketch(ents, cons, [{ id: 'd', t: 'dia', r: [{ e: 'c' }], v: 6, x: '6' }]);
+  assert.ok(r.ok && Math.abs(ents[1].c[1] - (top + 3)) < 5e-3, 'sat on the hump: ' + ents[1].c[1]);
+  // a text mirrored in the y axis: placed at its reflection, turned and flipped, its letters the mirror images
+  const sk = { ents: [{ id: 't', t: 'text', c: [5, 2], s: 'F', h: 10, rot: 0 }, { id: 'm', t: 'line', a: [0, -10], b: [0, 30] }], cons: [], dims: [] };
+  mirrorEnts(sk, ['t'], 'm');
+  const mt = sk.ents.find(e => e.t === 'text' && e.id !== 't');
+  assert.ok(mt && mt.my && Math.abs(mt.c[0] + 5) < 1e-9 && Math.abs(mt.c[1] - 2) < 1e-9, JSON.stringify(mt));
+  const R0 = regionsOf([sk.ents[0]]), R1 = regionsOf([mt]);
+  assert.equal(R1.length, R0.length);
+  assert.ok(Math.abs(Math.abs(R0[0].area) - Math.abs(R1[0].area)) < 1e-9 && Math.abs(R0[0].pt[0] + R1[0].pt[0]) < 1e-6 && Math.abs(R0[0].pt[1] - R1[0].pt[1]) < 1e-6, 'the mirror image');
+  assert.ok(normEnts([mt])[0].my, 'kept in a file');
+});
+
+test('DXF: text, a block put in twice (moved, turned and scaled), and a hatch’s outlines', () => {
+  const dxf = rows => rows.flat().join('\n');
+  const blocks = ['0', 'SECTION', '2', 'BLOCKS', '0', 'BLOCK', '2', 'HOLE', '10', '0', '20', '0', '0', 'CIRCLE', '10', '0', '20', '0', '40', '2', '0', 'LINE', '10', '0', '20', '0', '11', '2', '21', '0', '0', 'ENDBLK', '0', 'ENDSEC'];
+  const ents = ['0', 'SECTION', '2', 'ENTITIES',
+    '0', 'TEXT', '10', '5', '20', '6', '40', '3', '1', 'JEK 42', '50', '90',
+    '0', 'MTEXT', '10', '0', '20', '20', '40', '2', '1', '{\\fArial|b0;Two\\Plines}',
+    '0', 'INSERT', '2', 'HOLE', '10', '10', '20', '0',
+    '0', 'INSERT', '2', 'HOLE', '10', '30', '20', '0', '41', '2', '42', '2', '50', '90',
+    // a hatch of two outlines: a closed polyline (a 10 × 5 box), and edges (a line and a half circle, drawn clockwise)
+    '0', 'HATCH', '2', 'SOLID', '91', '2',
+    '92', '2', '72', '0', '73', '1', '93', '4', '10', '0', '20', '0', '10', '10', '20', '0', '10', '10', '20', '5', '10', '0', '20', '5', '97', '0',
+    '92', '1', '93', '2', '72', '1', '10', '20', '20', '0', '11', '30', '21', '0', '72', '2', '10', '25', '20', '0', '40', '5', '50', '180', '51', '360', '73', '0', '97', '0',
+    '0', 'ENDSEC', '0', 'EOF'];
+  const es = dxfEnts(dxf([blocks, ents]));
+  const tx = es.filter(e => e.t === 'text');
+  assert.deepEqual(tx.map(e => [e.s, e.h, e.rot, e.c]), [['JEK 42', 3, 90, [5, 6]], ['Two lines', 2, 0, [0, 20]]]);
+  const cs = es.filter(e => e.t === 'circle');
+  assert.deepEqual(cs.map(e => [e.c.map(v => +v.toFixed(6)), e.r]), [[[10, 0], 2], [[30, 0], 4]]);
+  // the second block's line, turned a quarter turn and doubled: from (30, 0) up to (30, 4)
+  const bl = es.filter(e => e.t === 'line' && Math.abs(e.a[0] - 30) < 1e-9 && Math.abs(e.b[0] - 30) < 1e-9);
+  assert.ok(bl.some(e => Math.abs(e.b[1] - 4) < 1e-9 && Math.abs(e.a[1]) < 1e-9), 'the block’s line turned: ' + JSON.stringify(bl));
+  // the hatch: the box's four sides; the line and the arc over y ≥ 0 (clockwise from 180° to 360° is the upper half)
+  const R = regionsOf(es.filter(e => e.t !== 'text' && e.t !== 'circle' && !(Math.abs((e.a || [0])[0] - 30) < 1e-9 && Math.abs((e.b || [1])[0] - 30) < 1e-9) && !(e.t === 'line' && e.a[0] === 10 && e.b[0] === 12)));
+  const areas = R.map(r => Math.abs(r.area)).sort((x, y) => x - y);
+  assert.ok(areas.some(a => Math.abs(a - 50) < 1e-6), 'the box: ' + areas);
+  assert.ok(areas.some(a => Math.abs(a - Math.PI * 25 / 2) < 0.05), 'the half disc: ' + areas);
+  const arc = es.find(e => e.t === 'arc');
+  assert.ok(arc && Math.abs(arc.a0) < 1e-9 && Math.abs(arc.a1 - 180) < 1e-9, 'the arc, anticlockwise: ' + JSON.stringify(arc));
 });

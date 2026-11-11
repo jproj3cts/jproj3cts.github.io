@@ -13,7 +13,7 @@ behind JEKray's shim (`page/kernel.js`), or on the dev page the modules as a mod
 
 - `src/core/`: numbers with units and expressions, and the Variables table (`units.js`); the sketch solver, copied
   from JEKray's old Model mode and owned here (`sketch.js`: constraints, dimensions, Levenberg–Marquardt solve,
-  fully-defined analysis, regions); the letters of a sketch's text (`font-data.js`: Source Sans 3 Semibold's outlines, made from `jek/assets/fonts/` by fontTools with overlaps removed, OFL 1.1); the sketch tools (`sketch-tools.js`: outlines, regions for features, trim,
+  fully-defined analysis, regions); the letters of a sketch's text (`font-data.js`: the outlines of six fonts, made by `scripts/fonts.py` from the site's Source Sans 3 and IBM Plex Mono and from Liberation Serif, all OFL 1.1); the sketch tools (`sketch-tools.js`: outlines, regions for features, trim,
   fillet, offset, mirror, rectangles, slots, polygons, arcs); the document (`doc.js`: the .jekcad format, every
   feature's fields and defaults in `FEATURE_KINDS`, `normDoc` so old files load, `prepareDoc` which evaluates
   dimensions and re-solves sketches, reordering rules, materials).

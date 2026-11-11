@@ -1,6 +1,6 @@
 import { STD_PLANES, TOOL_FEATURES, appliedCount, fieldValue, normDoc, partLook, prepareDoc } from '../core/doc.js';
-import { WELD, arcSweep, carryPt, distToEnt, entCross, regionAt, regionsOf, weldEnts } from '../core/sketch-tools.js';
-import { curvePts, entKeys, hpt, inside, solveSketch } from '../core/sketch.js';
+import { WELD, arcSweep, carryPt, distToEnt, entCross, regionAt, regionsOf, silhouetteOf, weldEnts } from '../core/sketch-tools.js';
+import { curveIsClosed, curvePts, entKeys, hpt, inside, solveSketch } from '../core/sketch.js';
 
 /* ==========================================================================
    The kernel: the feature list regenerated with OpenCascade (the vendored replicad-opencascadejs build), in the
@@ -253,7 +253,7 @@ export function makeKernel(oc) {
     const out = [];
     for (const e of ents) {
       if (e.k || e.t === 'point' || e.t === 'text' || e.t === 'image') continue;
-      if (e.t === 'ellipse' || e.t === 'spline') { const P = curvePts(e, 1.5); if (e.t === 'ellipse' || e.closed) P.push(P[0]); try { for (const edge of curveEdges(F, P)) out.push({ e, edge }); } catch (err) { /* left out */ } continue; }
+      if (e.t === 'ellipse' || e.t === 'spline') { const P = curvePts(e, 1.5); if (curveIsClosed(e)) P.push(P[0]); try { for (const edge of curveEdges(F, P)) out.push({ e, edge }); } catch (err) { /* left out */ } continue; }
       let edge;
       if (e.t === 'line') { if (Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]) < 1e-9) continue; edge = T(new oc.BRepBuilderAPI_MakeEdge(pnt(toWorld(F, e.a)), pnt(toWorld(F, e.b)))).Edge(); }
       else {
@@ -521,8 +521,27 @@ export function makeKernel(oc) {
   function followRefs(S, f, F) {
     let moved = false;
     const far = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-7;
+    // silhouettes: each face's found again once, on its mesh as it is now; each shape takes the nearest of its kind
+    const sils = new Map(), mid = g => (g.t === 'line' ? [(g.a[0] + g.b[0]) / 2, (g.a[1] + g.b[1]) / 2] : g.t === 'spline' ? g.pts[Math.floor(g.pts.length / 2)] : g.c);
     for (const e of f.ents) {
-      if (!e.ref || !e.src) continue;
+      if (!e.ref || !e.src || e.src.kind !== 'silh') continue;
+      const key = e.src.names.join('|') + '@' + e.src.pt.join(',');
+      if (!sils.has(key)) { let got = []; try { const hit = findFace(S, { kind: 'face', part: e.src.part, names: e.src.names, pt: e.src.pt }); if (hit) got = silhouetteOf(meshBody(hit.b, hit.b.id), hit.i, F); } catch (err) { got = []; } sils.set(key, got.map(g => ({ g, used: false }))); }
+      let best = null, bd = Infinity; const m0 = mid(e);
+      for (const c of sils.get(key)) { if (c.used || c.g.t !== e.t || (e.t === 'spline' && (c.g.pts.length !== e.pts.length || !!c.g.closed !== !!e.closed))) continue; const m1 = mid(c.g), d = Math.hypot(m1[0] - m0[0], m1[1] - m0[1]); if (d < bd) { bd = d; best = c; } }
+      if (!best) continue;
+      best.used = true;
+      const g = best.g;
+      if (e.t === 'line') { if (Math.hypot(g.a[0] - e.a[0], g.a[1] - e.a[1]) + Math.hypot(g.b[0] - e.b[0], g.b[1] - e.b[1]) > Math.hypot(g.b[0] - e.a[0], g.b[1] - e.a[1]) + Math.hypot(g.a[0] - e.b[0], g.a[1] - e.b[1])) [g.a, g.b] = [g.b, g.a]; if (!far(g.a, e.a) && !far(g.b, e.b)) continue; e.a = g.a; e.b = g.b; }
+      else if (e.t === 'circle') { if (!far(g.c, e.c) && Math.abs(g.r - e.r) < 1e-7) continue; e.c = g.c; e.r = g.r; for (const d of f.dims) if ((d.t === 'rad' || d.t === 'dia') && d.r[0].e === e.id) { d.v = d.t === 'dia' ? 2 * e.r : e.r; d.x = String(+d.v.toFixed(6)); } }
+      else if (e.t === 'spline') { if (g.pts.every((q, i) => !far(q, e.pts[i]))) continue; e.pts = g.pts; }
+      else continue;
+      const Em = new Map([[e.id, e]]);
+      for (const c of f.cons) if (c.t === 'fix' && c.r[0].e === e.id && entKeys(e).includes(c.r[0].k)) c.at = hpt(Em, c.r[0]).slice();
+      moved = true;
+    }
+    for (const e of f.ents) {
+      if (!e.ref || !e.src || e.src.kind === 'silh') continue;
       if (e.src.kind === 'vertex') {
         if (e.t !== 'point') continue;
         let q; try { q = toPlane(F, findVertex(S, e.src)); } catch (err) { continue; }

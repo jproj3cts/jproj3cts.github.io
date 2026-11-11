@@ -87,8 +87,29 @@ const radiusOf = e => (e.t === 'hole' ? e.d / 2 : e.r);
    spline from its first point to its last, or round to its first again when it is closed). A spline goes through
    its points, each stretch a cubic that leaves a point the way the points either side of it lie (Catmull and
    Rom's); with cv its points are one Bézier curve's control points; with cn (rho, three points) it is a conic. step, degrees, sets how fine. */
+/* a curve trimmed keeps what it is, and a range along it: u0 to u1, where the whole curve runs from 0 to 1 (an
+   ellipse round from the end of its rx; a spline from its first point to its last; a closed one may run on past 1) */
+export const curveIsClosed = e => (e.t === 'ellipse' || (e.t === 'spline' && !!e.closed && !e.cv && !e.cn)) && e.u0 === undefined;
+/* the point of a whole ellipse or spline at u */
+export function curveAt(e, u) {
+  if (e.t === 'ellipse') { const a = e.rot * deg, ca = Math.cos(a), sa = Math.sin(a), t = 2 * Math.PI * u, x = e.rx * Math.cos(t), y = e.ry * Math.sin(t); return [e.c[0] + x * ca - y * sa, e.c[1] + x * sa + y * ca]; }
+  const P = e.pts;
+  if (e.cn && P.length === 3) { const w = e.cn / (1 - e.cn), t = u, b0 = (1 - t) * (1 - t), b1 = 2 * t * (1 - t) * w, b2 = t * t, d = b0 + b1 + b2; return [0, 1].map(k => (b0 * P[0][k] + b1 * P[1][k] + b2 * P[2][k]) / d); }
+  if (e.cv) { let Q = P.map(q => q.slice()); while (Q.length > 1) Q = Q.slice(1).map((q, j) => [Q[j][0] + (q[0] - Q[j][0]) * u, Q[j][1] + (q[1] - Q[j][1]) * u]); return Q[0]; }
+  const m = P.length, cl = !!e.closed && m > 2, at = i => (cl ? P[((i % m) + m) % m] : P[Math.max(0, Math.min(m - 1, i))]), spans = cl ? m : m - 1;
+  let x = u * spans; if (cl) x = ((x % spans) + spans) % spans; else x = Math.max(0, Math.min(spans, x));
+  const s = Math.min(spans - 1, Math.floor(x)), t = x - s, t2 = t * t, t3 = t2 * t, p0 = at(s - 1), p1 = at(s), p2 = at(s + 1), p3 = at(s + 2);
+  return [0, 1].map(k => 0.5 * (2 * p1[k] + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3));
+}
 export function curvePts(e, step) {
   const fine = Math.max(1, Math.min(8, Math.round(6 / (step || 6) * 2)));
+  if (e.u0 !== undefined && e.u1 !== undefined) {
+    // a stretch of it: in as many even steps as that much of the whole curve has
+    const full = e.t === 'ellipse' ? 48 * fine : e.cn ? 32 * fine : e.cv ? 16 * fine * Math.max(1, e.pts.length - 1) : 8 * fine * (e.closed && e.pts.length > 2 ? e.pts.length : e.pts.length - 1);
+    const n = Math.max(2, Math.ceil(full * (e.u1 - e.u0))), out = [];
+    for (let i = 0; i <= n; i++) out.push(curveAt(e, e.u0 + (e.u1 - e.u0) * i / n));
+    return out;
+  }
   if (e.t === 'ellipse') {
     const n = 48 * fine, a = e.rot * deg, ca = Math.cos(a), sa = Math.sin(a), out = [];
     for (let i = 0; i < n; i++) { const t = 2 * Math.PI * i / n, x = e.rx * Math.cos(t), y = e.ry * Math.sin(t); out.push([e.c[0] + x * ca - y * sa, e.c[1] + x * sa + y * ca]); }
@@ -183,7 +204,22 @@ function conResiduals(E, c, out) {
       if (e1.t === 'spline' || e2.t === 'spline') {
         // a spline's end leaving the way the other shape goes there: along a line, square to an arc's radius, the way
         // another spline's end goes, square to an ellipse's way out
-        const si = e1.t === 'spline' ? 0 : 1, sp = si ? e2 : e1, o = si ? e1 : e2, A = endOfRef(sp, c.r[si]); if (!A) return;
+        const si = e1.t === 'spline' ? 0 : 1, sp = si ? e2 : e1, o = si ? e1 : e2;
+        if (!c.r[si].k && (o.t === 'line' || o.t === 'arc' || o.t === 'circle')) {
+          // part-way along the spline (no end named): the line just touches it (the curve all to one side of the
+          // line, s, and nowhere across it), or the circle does (the curve's nearest point, or with s below 0 its
+          // farthest, on the circle). Taken along the curve in fine steps, the best one sharpened by its neighbours.
+          const Q = curvePts(sp, 1), n = Q.length, cl = !!sp.closed && !sp.cv && !sp.cn;
+          const f = o.t === 'line' ? Q.map(q => sdLine(q, o)) : Q.map(q => Math.hypot(q[0] - o.c[0], q[1] - o.c[1]));
+          let s = c.s; if (!s && o.t === 'line') { let m = 0; for (const v of f) if (Math.abs(v) > Math.abs(m)) m = v; s = m < 0 ? -1 : 1; }
+          const lo = o.t === 'line' ? s > 0 : !(s < 0);
+          let bi = 0; for (let i = 1; i < n; i++) if (lo ? f[i] < f[bi] : f[i] > f[bi]) bi = i;
+          let v = f[bi];
+          if (cl || (bi > 0 && bi < n - 1)) { const a = f[(bi - 1 + n) % n], b = f[(bi + 1) % n], den = a - 2 * v + b; if (Math.abs(den) > 1e-14) v -= (b - a) * (b - a) / (8 * den); }
+          out.push(o.t === 'line' ? v : v - radiusOf(o));
+          return;
+        }
+        const A = endOfRef(sp, c.r[si]); if (!A) return;
         if (o.t === 'line') { const d = lineDir(o), n = Math.hypot(...d) || 1e-12; out.push((A.t[0] * d[1] - A.t[1] * d[0]) / n * 50); }
         else if (o.t === 'arc' || o.t === 'circle') out.push((A.t[0] * (A.p[0] - o.c[0]) + A.t[1] * (A.p[1] - o.c[1])) / (Math.hypot(A.p[0] - o.c[0], A.p[1] - o.c[1]) || 1e-12) * 50);
         else if (o.t === 'spline') { const B = endOfRef(o, c.r[1 - si]); if (B) out.push((A.t[0] * B.t[1] - A.t[1] * B.t[0]) * 50); }
@@ -192,7 +228,19 @@ function conResiduals(E, c, out) {
       }
       if (e1.t === 'ellipse' || e2.t === 'ellipse') {
         // a line touching an ellipse: as far from its centre as the ellipse reaches that way
-        const el = e1.t === 'ellipse' ? e1 : e2, L = el === e1 ? e2 : e1; if (L.t !== 'line') return;
+        const el = e1.t === 'ellipse' ? e1 : e2, L = el === e1 ? e2 : e1;
+        if (L.t === 'circle' || L.t === 'arc') {
+          // a circle touching an ellipse: the ellipse's nearest point to the circle's centre is on the circle (with s
+          // below 0, its farthest: the ellipse inside the circle). Found round the ellipse, then closed in on.
+          const a = el.rot * deg, ca = Math.cos(a), sa = Math.sin(a), far = c.s < 0;
+          const dAt = t => { const x = el.rx * Math.cos(t), y = el.ry * Math.sin(t); return Math.hypot(el.c[0] + x * ca - y * sa - L.c[0], el.c[1] + x * sa + y * ca - L.c[1]); };
+          let bt = 0, bd = far ? -Infinity : Infinity;
+          for (let i = 0; i < 72; i++) { const t = 2 * Math.PI * i / 72, d = dAt(t); if (far ? d > bd : d < bd) { bd = d; bt = t; } }
+          let lo = bt - 2 * Math.PI / 72, hi = bt + 2 * Math.PI / 72;
+          for (let i = 0; i < 60; i++) { const m1 = lo + (hi - lo) / 3, m2 = hi - (hi - lo) / 3; if ((dAt(m1) < dAt(m2)) !== far) hi = m2; else lo = m1; }
+          out.push(dAt((lo + hi) / 2) - radiusOf(L)); return;
+        }
+        if (L.t !== 'line') return;
         const d = lineDir(L), n = Math.hypot(...d) || 1e-12, nx = d[1] / n, ny = -d[0] / n, a = el.rot * deg, u = nx * Math.cos(a) + ny * Math.sin(a), v = -nx * Math.sin(a) + ny * Math.cos(a);
         out.push(Math.abs(sdLine(el.c, L)) - Math.hypot(el.rx * u, el.ry * v)); return;
       }
@@ -380,7 +428,7 @@ export function sketchRegions(ents, outline) {
   const segs = [], srcOf = [];
   for (const e of ents) {
     if (e.k || e.t === 'point') continue;
-    const P = outline(e), closed = e.t === 'spline' ? !!e.closed : !(e.t === 'line' || e.t === 'arc');
+    const P = outline(e), closed = e.t === 'spline' || e.t === 'ellipse' ? curveIsClosed(e) : !(e.t === 'line' || e.t === 'arc');
     for (let i = 0; i + 1 < P.length; i++) { segs.push([P[i], P[i + 1]]); srcOf.push(e); }
     if (closed && P.length > 2) { segs.push([P[P.length - 1], P[0]]); srcOf.push(e); }
   }

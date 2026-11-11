@@ -3,8 +3,16 @@ import { h } from '../../../jekray/src/ui/dom.js';
 /* ==========================================================================
    The version, and what is new in it (Help › What’s new)
    ========================================================================== */
-export const APP_VERSION = '0.5.0';
+export const APP_VERSION = '0.6.0';
 export const NEWS = [
+  { v: '0.6.0', date: '11 Nov 2026', items: [
+    '<b>Short share links</b>: signed in, Share gives a link of ten letters kept with your account.',
+    '<b>Text in six fonts</b>, and Mirror now mirrors text and pictures.',
+    '<b>Trim keeps the curve</b>: a trimmed ellipse or spline is still that ellipse or spline, with its constraints and dimensions.',
+    '<b>Tangent</b> between an ellipse and a circle, and between a line or circle and a spline part-way along it.',
+    'A silhouette brought into a sketch follows its face when the model changes.',
+    'Insert DXF reads text, blocks and the outlines of hatches.',
+  ] },
   { v: '0.5.0', date: '11 Nov 2026', items: [
     '<b>Sketch text</b>: click where it starts, type the words and the height. Each letter is a region to extrude or cut.',
     '<b>Conic</b> (by its ends, a steering point and rho), and the <b>Curvature</b> constraint for a spline’s end. Tangent and Coincident now work on ellipses and splines, and Trim and Offset work on them too.',

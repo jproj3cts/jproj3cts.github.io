@@ -751,6 +751,30 @@ export async function check(pw, base, shots) {
       ok('Insert puts two parts in (the first fixed); the other is dragged in the view; a Fastened mate sets it on the first', rows.length === 2 && inst0.join() === 'true,false' && dragged && mates === 'fastened' && sat, JSON.stringify([rows.length, inst0, dragged, mates, b0, b1, b2]));
       ok('The Part Studio changed (the plate 14 thick): its tab shows its features again, and back in the assembly the mate has followed; the file keeps its tabs and opens the same', inStudio.parts === 2 && inStudio.bar && followed && file.version === 2 && file.tabs.length === 2 && back.name === 'Stack' && back.tabs === 'studio,assembly' && back.asm && back.n === 2 && JSON.stringify(b4) === JSON.stringify(b3) && !qe.length, JSON.stringify([inStudio, followed, b3, file.version, back, qe]));
     }
+    // an extrude's regions are cut by the model's edges: a circle half over a block's end is two pieces, both chosen to
+    // begin with; the piece beyond the edge clicked is taken out, and the half on the face alone is extruded
+    {
+      const q = await b.newPage({ viewport: { width: 1200, height: 800 } }), qe = [];
+      q.on('pageerror', e => qe.push(e.message));
+      await q.goto(base + '/jek/tools/jekcad.html?test');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      const settle = async () => { await q.waitForTimeout(250); await q.waitForFunction(() => !window.JEKcad.app.busy, null, { timeout: 20000 }).catch(() => {}); await q.waitForTimeout(150); };
+      const d = newDoc(), sk = rectSketch(d, 40, 20);
+      const ck = newFeature(d, 'sketch', { plane: { std: 'top' }, ents: [{ id: 'c1', t: 'circle', c: [40, 10], r: 5 }], cons: [], dims: [] });
+      d.features.push(sk, newFeature(d, 'extrude', { sketch: sk.id, regions: [[1, 1]], depth: '10', op: 'new' }), ck);
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d)); await settle();
+      await q.evaluate(() => { window.JEKcad.viewFrom('top'); window.JEKcad.fit(); }); await q.waitForTimeout(400);
+      await q.click('[data-feature="extrude"]'); await q.waitForSelector('#fd-depth'); await settle();
+      const start = await q.evaluate(() => { const f = window.JEKcad.app.editing.f; return { split: f.split, n: f.regions.length, sketch: !!f.sketch }; });
+      const r = await q.evaluate(() => window.JEKcad.project([43, 10, 0])), ob = await q.locator('#over').boundingBox();
+      await q.mouse.move(ob.x + r[0], ob.y + r[1], { steps: 3 }); await q.waitForTimeout(80); await q.mouse.click(ob.x + r[0], ob.y + r[1]); await q.waitForTimeout(300);
+      const after = await q.evaluate(() => { const f = window.JEKcad.app.editing.f; return { n: f.regions.length, x: f.regions.map(p => +p[0].toFixed(1)) }; });
+      await q.click('[data-key="op"][data-val="new"]'); await q.fill('#fd-depth', '5'); await q.waitForTimeout(300); await q.click('#featureOk'); await settle();
+      await q.waitForFunction(() => window.JEKcad.app.result.parts.length === 2, null, { timeout: 8000 }).catch(() => {});
+      const made = await q.evaluate(() => { const P = window.JEKcad.app.result.parts; return { n: P.length, v: P[P.length - 1].volume, hi: P[P.length - 1].bbox[1][0], err: window.JEKcad.app.result.features.filter(f => f.ok === false).map(f => f.error) }; });
+      await q.close();
+      ok('A circle half over a block’s end is two regions for Extrude, both chosen to begin with; the piece beyond the edge clicked is taken out, and the half on the face is extruded alone', start.split === true && start.n === 2 && start.sketch && after.n === 1 && after.x[0] < 40 && made.n === 2 && near(made.v, Math.PI * 25 / 2 * 5, 0.3) && near(made.hi, 40, 1e-6) && !made.err.length && !qe.length, JSON.stringify([start, after, made, qe]));
+    }
     // more of an assembly: the handle on a part (an arrow slides it, an arc turns it); a mate with an offset, changed
     // from its row; a connector on an edge; measuring two parts where they are placed; parts found running into each
     // other; the assembly exported as one STEP file

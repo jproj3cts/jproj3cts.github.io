@@ -403,17 +403,24 @@ export function makeKernel(oc) {
     if (!sk) throw new Error(id ? 'its sketch is not there (it failed, or is after the rollback bar)' : 'no sketch chosen');
     return sk;
   }
-  function pickRegions(sk, pts) {
-    const faces = regionFaces(sk);
+  function pickRegions(sk0, pts, split) {
+    let sk = sk0, faces = regionFaces(sk0), parents = null;
     if (!faces.length) throw new Error('the sketch has no closed regions');
     if (!pts || !pts.length) throw new Error('no region of the sketch is chosen');
+    // split: the sketch's regions cut by the model's edges in its plane, each piece a region of its own (a piece is
+    // of the sketch only inside one of the sketch's own regions: the rest of a face is not)
+    if (split && sk0.extra && sk0.extra.length && sk0.regions) {
+      if (!sk0.cut) sk0.cut = { frame: sk0.frame, ents: sk0.ents.concat(sk0.extra), was: sk0.was };
+      const f2 = regionFaces(sk0.cut);
+      if (f2.length && sk0.cut.regions) { sk = sk0.cut; faces = f2; parents = sk0.regions; }
+    }
     const out = [];
     // (where the faces are the page's regions, the region a point is in is found as the page finds it: its point for a
     // sliver beside a circle can be a hair inside the true circle, the page's circle being drawn in short steps)
-    const at = q => { if (sk.regions) { const r = regionAt(sk.regions, q); return r ? faces[sk.regions.indexOf(r)] : undefined; } const v = vertexAt(toWorld(sk.frame, q)); return faces.find(ff => distance(v, ff).d < 1e-6); };
+    const at = q => { if (sk.regions) { const r = regionAt(sk.regions, q); return r && (!parents || regionAt(parents, r.pt)) ? faces[sk.regions.indexOf(r)] : undefined; } const v = vertexAt(toWorld(sk.frame, q)); return faces.find(ff => distance(v, ff).d < 1e-6); };
     for (const pt of pts) {
       // a sketch that has just followed the model: the point as it follows its shape, else where it was
-      const f = (sk.was && at(carryPt(sk.was, sk.ents, pt))) || at(pt);
+      const f = (sk0.was && at(carryPt(sk0.was, sk0.ents, pt))) || at(pt);
       if (!f) throw new Error('a chosen region of the sketch is no longer there: choose the regions again');
       if (!out.includes(f)) out.push(f);
     }
@@ -579,14 +586,27 @@ export function makeKernel(oc) {
     if (moved) solveSketch(f.ents, f.cons, f.dims, null, { iters: 80 });
     return moved;
   }
+  /* the model's edges that lie in a plane, as sketch shapes: where a sketch's regions are cut by the faces they are
+     drawn on (the part of a circle that is on a face, and the part that hangs over its edge, are two regions) */
+  function planeEdges(S, F) {
+    const out = [];
+    for (const b of S.parts) for (const e of edgesOf(b)) {
+      const c = T(new oc.BRepAdaptor_Curve(e)), t0 = c.FirstParameter(), t1 = c.LastParameter();
+      if (![t0, t0 + (t1 - t0) * 0.31, (t0 + t1) / 2, t1].every(t => Math.abs(v3.dot(v3.sub(xyz(T(c.Value(t))), F.o), F.n)) < 1e-6)) continue;
+      for (const g of edgeShapes(e, F)) out.push(Object.assign(g, { id: 'mdl' + out.length, mdl: true }));
+      if (out.length > 600) return [];                // (a model this busy in the plane: its sketch's regions are left whole)
+    }
+    return out;
+  }
   /* ---------- the features ---------- */
   const FEAT = {
     sketch(S, f) {
       const frame = planeFrame(S, f.plane);
       const was = f.ents.some(e => e.ref && e.src) ? JSON.parse(JSON.stringify(f.ents)) : null, moved = followRefs(S, f, frame);
-      S.sketches[f.id] = { frame, ents: f.ents, was: moved ? was : null };
+      let extra = []; try { extra = planeEdges(S, frame); } catch (err) { extra = []; }
+      S.sketches[f.id] = { frame, ents: f.ents, was: moved ? was : null, extra };
       S.frames[f.id] = frame;
-      return Object.assign({ frame, regions: regionFaces(S.sketches[f.id]).length }, moved ? { ents: f.ents, cons: f.cons, dims: f.dims, was } : {});
+      return Object.assign({ frame, regions: regionFaces(S.sketches[f.id]).length, extra }, moved ? { ents: f.ents, cons: f.cons, dims: f.dims, was } : {});
     },
     plane(S, f, V) {
       const base = planeFrame(S, f.ref), off = fieldValue(f, 'offset', V, 'len') * (f.flip ? -1 : 1);
@@ -621,7 +641,8 @@ export function makeKernel(oc) {
         return pieces;
       };
       // (a cut takes in the holes of the model that lie in what it takes, where they are empty already)
-      const faces = onFaces ? bases : pickRegions(sk, f.op === 'remove' ? withEmptyHoles(S, sk, f.regions, f.targets, piecesOf) : f.regions);
+      // (split: each piece the model's edges cut the sketch into is chosen for itself, the model's holes among them)
+      const faces = onFaces ? bases : f.split ? pickRegions(sk, f.regions, true) : pickRegions(sk, f.op === 'remove' ? withEmptyHoles(S, sk, f.regions, f.targets, piecesOf) : f.regions);
       let tool = fuseAll(piecesOf(faces), f.id, f.id);
       const draft = fieldValue(f, 'draft', V, 'ang');
       if (Math.abs(draft) > 1e-9) tool = drafted(tool, sk.frame, n0, draft, f.id);

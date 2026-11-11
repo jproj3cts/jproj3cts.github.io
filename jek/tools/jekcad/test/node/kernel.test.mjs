@@ -525,3 +525,33 @@ test('pierce: the point where an edge goes through a sketch’s plane, following
   const xs = back.filter(e => e.t === 'line').map(e => e.a[0]).sort((x, y) => x - y);
   near(xs[0], -15, 2e-3, 'left'); near(xs[1], 15, 2e-3, 'right');
 });
+
+test('an extrude’s regions cut by the model’s edges: the part of a circle on a face, and the part that hangs over its edge', async () => {
+  const K = await kernel(), doc = block(40, 20, 10);
+  // a circle of radius 5 half over the block's end, in the plane of its bottom face
+  const c = circleSketch(doc, [40, 10], 5, { std: 'top' });
+  doc.features.push(c);
+  let out = K.regen(doc);
+  const extra = out.features.find(f => f.id === c.id).info.extra;
+  assert.equal(extra.length, 4, 'the bottom face’s four edges are in the sketch’s plane'); assert.ok(extra.every(e => e.t === 'line' && e.mdl));
+  const half = Math.PI * 25 / 2 * 5;
+  const ex = (regions, split) => { const d = JSON.parse(JSON.stringify(doc)); d.features.push(newFeature(d, 'extrude', { sketch: c.id, regions, split, op: 'new', depth: '5' })); const o = K.regen(d); return { o, made: o.parts[o.parts.length - 1] }; };
+  // the piece on the face alone: half the disc, ending at x = 40
+  let r = ex([[38, 10]], true);
+  assert.ok(okAll(r.o), errorsOf(r.o).join('; ')); near(r.made.volume, half, 0.2, 'the half on the face'); near(r.made.bbox[1][0], 40, 1e-6); near(r.made.bbox[0][0], 35, 1e-3);
+  // the piece beyond the edge alone
+  r = ex([[42, 10]], true);
+  assert.ok(okAll(r.o), errorsOf(r.o).join('; ')); near(r.made.volume, half, 0.2, 'the half beyond'); near(r.made.bbox[0][0], 40, 1e-6); near(r.made.bbox[1][0], 45, 1e-3);
+  // both pieces: the whole disc, as one
+  r = ex([[38, 10], [42, 10]], true);
+  assert.ok(okAll(r.o)); near(r.made.volume, 2 * half, 0.4, 'both'); assert.equal(r.o.parts.length, 2);
+  // an extrude made before regions were cut (no split) takes the whole circle from either point, as it always did
+  r = ex([[38, 10]], false); near(r.made.volume, 2 * half, 0.4, 'whole, as before');
+  // the rest of the face is not a region of the sketch
+  r = ex([[5, 5]], true);
+  assert.match(errorsOf(r.o).join(' '), /no longer there|region/);
+  // a circle wholly on the face is one piece, cut or not
+  const d2 = block(40, 20, 10), c2 = circleSketch(d2, [20, 10], 5, { std: 'top' });
+  d2.features.push(c2, newFeature(d2, 'extrude', { sketch: c2.id, regions: [[20, 10]], split: true, op: 'new', depth: '5' }));
+  out = K.regen(d2); assert.ok(okAll(out), errorsOf(out).join('; ')); near(out.parts[out.parts.length - 1].volume, Math.PI * 25 * 5, 0.4);
+});

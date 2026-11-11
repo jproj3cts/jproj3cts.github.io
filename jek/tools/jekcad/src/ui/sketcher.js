@@ -1,7 +1,7 @@
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { STD_PLANES, appliedCount } from '../core/doc.js';
 import { curveIsClosed, definedEnts, dimMeasure, entKeys, hpt, lineDir, sketchId, solveNear, solveSketch } from '../core/sketch.js';
-import { alignedRectEnts, arc3, arcSweep, carryRegions, centreArc, chamferCorner, circularPattern, distToEnt, dxfEnts, entOutline, extendEnt, filletCorner, imageCorners, linearPattern, mirrorEnts, offsetEnts, polygonEnts, rectEnts, regionAt, regionsOf, slotEnts, silhouetteOf, splitEnt, tangentArc, textFonts, textRings, transformEnts, trimEnt } from '../core/sketch-tools.js';
+import { alignedRectEnts, arc3, arcSweep, carryRegions, defaultRegionPts, centreArc, chamferCorner, circularPattern, distToEnt, dxfEnts, entOutline, extendEnt, filletCorner, imageCorners, linearPattern, mirrorEnts, offsetEnts, polygonEnts, rectEnts, regionAt, regionsOf, slotEnts, silhouetteOf, splitEnt, tangentArc, textFonts, textRings, transformEnts, trimEnt } from '../core/sketch-tools.js';
 import { evalExpr, fmtNum } from '../core/units.js';
 import { toWorld } from '../engines/kernel.js';
 import { app, changed, checkpoint, editGate, emit, isDark, on, regenDone, regenNow, toast } from './app.js';
@@ -902,6 +902,27 @@ function dimInputClose(cancel) {
 /* ---------- the overlay ---------- */
 const regionCache = new Map();
 export function regionsCached(f) { const key = f.id + ':' + JSON.stringify(f.ents); let R = regionCache.get(key); if (!R) { R = regionsOf(f.ents); regionCache.set(key, R); if (regionCache.size > 60) regionCache.delete(regionCache.keys().next().value); } return R; }
+/* a sketch's regions cut by the model's edges that lie in its plane (the kernel says which: each sketch's report has
+   them), so the part of a circle on a face and the part that hangs over the face's edge are two regions. A piece is
+   one only inside a region of the sketch itself: the rest of the face is not a region. */
+export function regionsSplit(f) {
+  const rep = app.result && app.result.features ? app.result.features.find(r => r.id === f.id) : null, extra = rep && rep.info && rep.info.extra;
+  const plain = regionsCached(f);
+  if (!extra || !extra.length || !plain.length) return plain;
+  const key = f.id + ':cut:' + JSON.stringify(f.ents) + JSON.stringify(extra);
+  let R = regionCache.get(key);
+  if (!R) { try { R = regionsOf(f.ents.concat(extra)).filter(r => regionAt(plain, r.pt)); } catch (err) { R = plain; } if (!R.length) R = plain; regionCache.set(key, R); if (regionCache.size > 60) regionCache.delete(regionCache.keys().next().value); }
+  return R;
+}
+/* the regions to show and pick for a sketch now: cut by the model, except while a feature that takes whole regions
+   is open (a revolve, a sweep, a loft, and an extrude made before regions were cut) */
+export function regionsShown(f) { const E = app.editing; return E && !(E.f.type === 'extrude' && E.f.split) ? regionsCached(f) : regionsSplit(f); }
+/* the regions a new extrude starts with: every piece of the sketch's regions that are not holes (fill, for a cut:
+   the model's holes too) */
+export function splitDefaultPts(f, fill) {
+  const plain = regionsCached(f), D = new Set(defaultRegionPts(f.ents, fill).map(q => regionAt(plain, q)));
+  return regionsSplit(f).filter(r => D.has(regionAt(plain, r.pt))).map(r => r.pt.map(v => +v.toFixed(6)));
+}
 /* the sketches the overlay shows (and can be picked in): applied, visible, with a frame */
 export function shownSketches() {
   const out = [], frames = app.result ? app.result.frames : {}, n = app.sketch ? app.sketch.at : app.editing ? app.editing.at : appliedCount(app.doc);
@@ -945,7 +966,7 @@ export function overlayPick(sx, sy, want) {
       if (best) return { kind: 'sketchEnt', sketch: f.id, ent: best.id };
       continue;
     }
-    if (want === 'regions' || want === 'any' || want === 'region') { const R = regionsCached(f), r = regionAt(R, uv); if (r) return { kind: 'region', sketch: f.id, pt: r.pt.map(v => +v.toFixed(6)) }; }
+    if (want === 'regions' || want === 'any' || want === 'region') { const R = regionsShown(f), r = regionAt(R, uv); if (r) return { kind: 'region', sketch: f.id, pt: r.pt.map(v => +v.toFixed(6)) }; }
   }
   return null;
 }
@@ -974,7 +995,7 @@ export function drawOverlay() {
   for (const { f, F } of shownSketches()) {
     if (app.sketch && app.sketch.f.id === f.id) continue;
     const P = uv => project(toWorld(F, uv)), regionsOn = !field || field.kind === 'regions' || field.kind === 'sections';
-    if (regionsOn) for (const r of regionsCached(f)) {
+    if (regionsOn) for (const r of regionsShown(f)) {
       const key = selKey({ kind: 'region', sketch: f.id, pt: r.pt.map(v => +v.toFixed(6)) });
       const chosen = selected.has(key) || (ed && fieldHasRegion(ed, f.id, r.pt)), hov = app.hover && app.hover.kind === 'region' && selKey(app.hover) === key;
       if (!chosen && !hov) continue;
@@ -1109,7 +1130,7 @@ export function setBoxSel(b) { boxSel = b; drawOverlay(); }
 function fieldHasPlane(ed, key) { const f = ed.f, fk = ed.field && ed.field.key; const v = fk ? f[fk] : null; return v && !Array.isArray(v) && ((key.std && v.std === key.std) || (key.feature && v.feature === key.feature)); }
 function fieldHasRegion(ed, sk, pt) {
   const f = ed.f, near = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-5;
-  const R = regionsCached(app.doc.features.find(x => x.id === sk) || { id: sk, ents: [] });
+  const R = regionsShown(app.doc.features.find(x => x.id === sk) || { id: sk, ents: [] });
   const regionOf = q => regionAt(R, q);
   const mine = regionOf(pt);
   if (f.sketch === sk && (f.regions || []).some(q => regionOf(q) === mine || near(q, pt))) return true;

@@ -4315,7 +4315,7 @@ const PART_COLOURS = ['#9aa7b4', '#e0892e', '#5b8fd1', '#6aa56a', '#c75a5a', '#b
 const FEATURE_KINDS = {
   sketch: { label: 'Sketch', defaults: { plane: { std: 'top' }, ents: [], cons: [], dims: [] } },
   plane: { label: 'Plane', defaults: { ref: { std: 'top' }, offset: '10 mm', flip: false } },
-  extrude: { label: 'Extrude', defaults: { sketch: null, regions: [], faces: [], op: 'add', end: 'blind', depth: '10 mm', flip: false, upto: null, second: false, end2: 'blind', depth2: '10 mm', upto2: null, draft: '0 deg', targets: [] } },
+  extrude: { label: 'Extrude', defaults: { sketch: null, regions: [], split: false, faces: [], op: 'add', end: 'blind', depth: '10 mm', flip: false, upto: null, second: false, end2: 'blind', depth2: '10 mm', upto2: null, draft: '0 deg', targets: [] } },
   revolve: { label: 'Revolve', defaults: { sketch: null, regions: [], axis: null, op: 'new', kind: 'full', angle: '360 deg', flip: false, targets: [] } },
   sweep: { label: 'Sweep', defaults: { sketch: null, regions: [], path: null, op: 'new', targets: [] } },
   loft: { label: 'Loft', defaults: { sections: [], op: 'new', ruled: false, targets: [] } },
@@ -4882,17 +4882,24 @@ function makeKernel(oc) {
     if (!sk) throw new Error(id ? 'its sketch is not there (it failed, or is after the rollback bar)' : 'no sketch chosen');
     return sk;
   }
-  function pickRegions(sk, pts) {
-    const faces = regionFaces(sk);
+  function pickRegions(sk0, pts, split) {
+    let sk = sk0, faces = regionFaces(sk0), parents = null;
     if (!faces.length) throw new Error('the sketch has no closed regions');
     if (!pts || !pts.length) throw new Error('no region of the sketch is chosen');
+    // split: the sketch's regions cut by the model's edges in its plane, each piece a region of its own (a piece is
+    // of the sketch only inside one of the sketch's own regions: the rest of a face is not)
+    if (split && sk0.extra && sk0.extra.length && sk0.regions) {
+      if (!sk0.cut) sk0.cut = { frame: sk0.frame, ents: sk0.ents.concat(sk0.extra), was: sk0.was };
+      const f2 = regionFaces(sk0.cut);
+      if (f2.length && sk0.cut.regions) { sk = sk0.cut; faces = f2; parents = sk0.regions; }
+    }
     const out = [];
     // (where the faces are the page's regions, the region a point is in is found as the page finds it: its point for a
     // sliver beside a circle can be a hair inside the true circle, the page's circle being drawn in short steps)
-    const at = q => { if (sk.regions) { const r = regionAt(sk.regions, q); return r ? faces[sk.regions.indexOf(r)] : undefined; } const v = vertexAt(toWorld(sk.frame, q)); return faces.find(ff => distance(v, ff).d < 1e-6); };
+    const at = q => { if (sk.regions) { const r = regionAt(sk.regions, q); return r && (!parents || regionAt(parents, r.pt)) ? faces[sk.regions.indexOf(r)] : undefined; } const v = vertexAt(toWorld(sk.frame, q)); return faces.find(ff => distance(v, ff).d < 1e-6); };
     for (const pt of pts) {
       // a sketch that has just followed the model: the point as it follows its shape, else where it was
-      const f = (sk.was && at(carryPt(sk.was, sk.ents, pt))) || at(pt);
+      const f = (sk0.was && at(carryPt(sk0.was, sk0.ents, pt))) || at(pt);
       if (!f) throw new Error('a chosen region of the sketch is no longer there: choose the regions again');
       if (!out.includes(f)) out.push(f);
     }
@@ -5058,14 +5065,27 @@ function makeKernel(oc) {
     if (moved) solveSketch(f.ents, f.cons, f.dims, null, { iters: 80 });
     return moved;
   }
+  /* the model's edges that lie in a plane, as sketch shapes: where a sketch's regions are cut by the faces they are
+     drawn on (the part of a circle that is on a face, and the part that hangs over its edge, are two regions) */
+  function planeEdges(S, F) {
+    const out = [];
+    for (const b of S.parts) for (const e of edgesOf(b)) {
+      const c = T(new oc.BRepAdaptor_Curve(e)), t0 = c.FirstParameter(), t1 = c.LastParameter();
+      if (![t0, t0 + (t1 - t0) * 0.31, (t0 + t1) / 2, t1].every(t => Math.abs(v3.dot(v3.sub(xyz(T(c.Value(t))), F.o), F.n)) < 1e-6)) continue;
+      for (const g of edgeShapes(e, F)) out.push(Object.assign(g, { id: 'mdl' + out.length, mdl: true }));
+      if (out.length > 600) return [];                // (a model this busy in the plane: its sketch's regions are left whole)
+    }
+    return out;
+  }
   /* ---------- the features ---------- */
   const FEAT = {
     sketch(S, f) {
       const frame = planeFrame(S, f.plane);
       const was = f.ents.some(e => e.ref && e.src) ? JSON.parse(JSON.stringify(f.ents)) : null, moved = followRefs(S, f, frame);
-      S.sketches[f.id] = { frame, ents: f.ents, was: moved ? was : null };
+      let extra = []; try { extra = planeEdges(S, frame); } catch (err) { extra = []; }
+      S.sketches[f.id] = { frame, ents: f.ents, was: moved ? was : null, extra };
       S.frames[f.id] = frame;
-      return Object.assign({ frame, regions: regionFaces(S.sketches[f.id]).length }, moved ? { ents: f.ents, cons: f.cons, dims: f.dims, was } : {});
+      return Object.assign({ frame, regions: regionFaces(S.sketches[f.id]).length, extra }, moved ? { ents: f.ents, cons: f.cons, dims: f.dims, was } : {});
     },
     plane(S, f, V) {
       const base = planeFrame(S, f.ref), off = fieldValue(f, 'offset', V, 'len') * (f.flip ? -1 : 1);
@@ -5100,7 +5120,8 @@ function makeKernel(oc) {
         return pieces;
       };
       // (a cut takes in the holes of the model that lie in what it takes, where they are empty already)
-      const faces = onFaces ? bases : pickRegions(sk, f.op === 'remove' ? withEmptyHoles(S, sk, f.regions, f.targets, piecesOf) : f.regions);
+      // (split: each piece the model's edges cut the sketch into is chosen for itself, the model's holes among them)
+      const faces = onFaces ? bases : f.split ? pickRegions(sk, f.regions, true) : pickRegions(sk, f.op === 'remove' ? withEmptyHoles(S, sk, f.regions, f.targets, piecesOf) : f.regions);
       let tool = fuseAll(piecesOf(faces), f.id, f.id);
       const draft = fieldValue(f, 'draft', V, 'ang');
       if (Math.abs(draft) > 1e-9) tool = drafted(tool, sk.frame, n0, draft, f.id);
@@ -7684,6 +7705,27 @@ function dimInputClose(cancel) {
 /* ---------- the overlay ---------- */
 const regionCache = new Map();
 function regionsCached(f) { const key = f.id + ':' + JSON.stringify(f.ents); let R = regionCache.get(key); if (!R) { R = regionsOf(f.ents); regionCache.set(key, R); if (regionCache.size > 60) regionCache.delete(regionCache.keys().next().value); } return R; }
+/* a sketch's regions cut by the model's edges that lie in its plane (the kernel says which: each sketch's report has
+   them), so the part of a circle on a face and the part that hangs over the face's edge are two regions. A piece is
+   one only inside a region of the sketch itself: the rest of the face is not a region. */
+function regionsSplit(f) {
+  const rep = app.result && app.result.features ? app.result.features.find(r => r.id === f.id) : null, extra = rep && rep.info && rep.info.extra;
+  const plain = regionsCached(f);
+  if (!extra || !extra.length || !plain.length) return plain;
+  const key = f.id + ':cut:' + JSON.stringify(f.ents) + JSON.stringify(extra);
+  let R = regionCache.get(key);
+  if (!R) { try { R = regionsOf(f.ents.concat(extra)).filter(r => regionAt(plain, r.pt)); } catch (err) { R = plain; } if (!R.length) R = plain; regionCache.set(key, R); if (regionCache.size > 60) regionCache.delete(regionCache.keys().next().value); }
+  return R;
+}
+/* the regions to show and pick for a sketch now: cut by the model, except while a feature that takes whole regions
+   is open (a revolve, a sweep, a loft, and an extrude made before regions were cut) */
+function regionsShown(f) { const E = app.editing; return E && !(E.f.type === 'extrude' && E.f.split) ? regionsCached(f) : regionsSplit(f); }
+/* the regions a new extrude starts with: every piece of the sketch's regions that are not holes (fill, for a cut:
+   the model's holes too) */
+function splitDefaultPts(f, fill) {
+  const plain = regionsCached(f), D = new Set(defaultRegionPts(f.ents, fill).map(q => regionAt(plain, q)));
+  return regionsSplit(f).filter(r => D.has(regionAt(plain, r.pt))).map(r => r.pt.map(v => +v.toFixed(6)));
+}
 /* the sketches the overlay shows (and can be picked in): applied, visible, with a frame */
 function shownSketches() {
   const out = [], frames = app.result ? app.result.frames : {}, n = app.sketch ? app.sketch.at : app.editing ? app.editing.at : appliedCount(app.doc);
@@ -7727,7 +7769,7 @@ function overlayPick(sx, sy, want) {
       if (best) return { kind: 'sketchEnt', sketch: f.id, ent: best.id };
       continue;
     }
-    if (want === 'regions' || want === 'any' || want === 'region') { const R = regionsCached(f), r = regionAt(R, uv); if (r) return { kind: 'region', sketch: f.id, pt: r.pt.map(v => +v.toFixed(6)) }; }
+    if (want === 'regions' || want === 'any' || want === 'region') { const R = regionsShown(f), r = regionAt(R, uv); if (r) return { kind: 'region', sketch: f.id, pt: r.pt.map(v => +v.toFixed(6)) }; }
   }
   return null;
 }
@@ -7756,7 +7798,7 @@ function drawOverlay() {
   for (const { f, F } of shownSketches()) {
     if (app.sketch && app.sketch.f.id === f.id) continue;
     const P = uv => project(toWorld(F, uv)), regionsOn = !field || field.kind === 'regions' || field.kind === 'sections';
-    if (regionsOn) for (const r of regionsCached(f)) {
+    if (regionsOn) for (const r of regionsShown(f)) {
       const key = selKey({ kind: 'region', sketch: f.id, pt: r.pt.map(v => +v.toFixed(6)) });
       const chosen = selected.has(key) || (ed && fieldHasRegion(ed, f.id, r.pt)), hov = app.hover && app.hover.kind === 'region' && selKey(app.hover) === key;
       if (!chosen && !hov) continue;
@@ -7891,7 +7933,7 @@ function setBoxSel(b) { boxSel = b; drawOverlay(); }
 function fieldHasPlane(ed, key) { const f = ed.f, fk = ed.field && ed.field.key; const v = fk ? f[fk] : null; return v && !Array.isArray(v) && ((key.std && v.std === key.std) || (key.feature && v.feature === key.feature)); }
 function fieldHasRegion(ed, sk, pt) {
   const f = ed.f, near = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-5;
-  const R = regionsCached(app.doc.features.find(x => x.id === sk) || { id: sk, ents: [] });
+  const R = regionsShown(app.doc.features.find(x => x.id === sk) || { id: sk, ents: [] });
   const regionOf = q => regionAt(R, q);
   const mine = regionOf(pt);
   if (f.sketch === sk && (f.regions || []).some(q => regionOf(q) === mine || near(q, pt))) return true;
@@ -8341,13 +8383,15 @@ function prefill(f, at) {
   const sel = app.sel;
   const regions = sel.filter(s => s.kind === 'region');
   if (('regions' in f) && regions.length) { f.sketch = regions[0].sketch; f.regions = regions.filter(r => r.sketch === f.sketch).map(r => r.pt); }
+  // (a new extrude takes the pieces the model's edges cut its sketch's regions into, each for itself)
+  if (f.type === 'extrude') f.split = true;
   if (f.type === 'loft' && regions.length) { const by = new Map(); for (const r of regions) { if (!by.has(r.sketch)) by.set(r.sketch, []); by.get(r.sketch).push(r.pt); } f.sections = [...by].map(([sketch, regs]) => ({ sketch, regions: regs })); }
   // nothing chosen: the last sketch before the bar, all its regions that are not holes
   if (('regions' in f) && f.type !== 'sweep' && !f.sketch) {
     // (one no feature has used yet: a sketch already extruded is not offered again, with the same regions, to the next)
     const taken = new Set(app.doc.features.flatMap(x => [x.sketch, x.path, ...(x.sections || []).map(s2 => s2.sketch)]));
     const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && !x.suppressed && !taken.has(x.id) && regionsCached(x).length);
-    if (sk) { f.sketch = sk.id; f.regions = defaultRegionPts(sk.ents, f.op === 'remove'); f.autoRegions = true; }
+    if (sk) { f.sketch = sk.id; f.regions = f.type === 'extrude' ? splitDefaultPts(sk, f.op === 'remove') : defaultRegionPts(sk.ents, f.op === 'remove'); f.autoRegions = true; }
   }
   // a loft or a sweep with nothing chosen: the sketches no feature has used yet (a loft's profiles in order; a
   // sweep's profile the last with a region, its path the last without one)
@@ -8406,7 +8450,7 @@ async function fieldPick(p) {
     if (p.kind !== 'region') return false;
     E.auto = false; if (f.faces) f.faces = [];
     if (f.sketch !== p.sketch) { f.sketch = p.sketch; f.regions = [p.pt]; }
-    else { const R = regionsCached(app.doc.features.find(x => x.id === p.sketch)), mine = regionAt(R, p.pt), i = f.regions.findIndex(q => regionAt(R, q) === mine); if (i >= 0) f.regions.splice(i, 1); else f.regions.push(p.pt); }
+    else { const R = regionsShown(app.doc.features.find(x => x.id === p.sketch)), mine = regionAt(R, p.pt), i = f.regions.findIndex(q => regionAt(R, q) === mine); if (i >= 0) f.regions.splice(i, 1); else f.regions.push(p.pt); }
     if (f.axis && typeof f.axis === 'object' && f.axis.sketch && f.axis.sketch !== f.sketch) f.axis = null;
   } else if (kind === 'sections') {
     if (p.kind !== 'region') return false;
@@ -8506,7 +8550,7 @@ function showDialog() {
     else if (kind === 'sel') rows.push(selField(E, fd));
     else if (kind === 'check') rows.push(h('label', { class: 'cad-frow check' }, h('input', { type: 'checkbox', 'data-key': key, id: 'fd-' + key, checked: f[key] ? true : null, onchange: e => { f[key] = e.target.checked; showDialog(); regenSoon(0); } }), label));
     else if (kind === 'select') { const s = h('select', { 'data-key': key, id: 'fd-' + key, onchange: e => { f[key] = e.target.value; showDialog(); regenSoon(0); } }, ...more.options.map(([v, t]) => h('option', { value: v, selected: f[key] === v ? true : null }, t))); rows.push(h('div', { class: 'cad-frow' }, h('label', { for: 'fd-' + key }, label), s)); }
-    else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; if (key === 'op' && E.auto) { const sk = app.doc.features.find(x => x.id === f.sketch); if (sk) f.regions = defaultRegionPts(sk.ents, v === 'remove'); } if (E.field) activate(E.field.key); else showDialog(); regenSoon(0); } }, t))));
+    else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; if (key === 'op' && E.auto) { const sk = app.doc.features.find(x => x.id === f.sketch); if (sk) f.regions = f.type === 'extrude' && f.split ? splitDefaultPts(sk, v === 'remove') : defaultRegionPts(sk.ents, v === 'remove'); } if (E.field) activate(E.field.key); else showDialog(); regenSoon(0); } }, t))));
     else if (kind === 'file') rows.push(h('div', { class: 'cad-frow' }, h('label', null, label), h('div', null, f.file || 'No file', ' ', h('button', { type: 'button', class: 'rt-btn', onclick: () => { const inp = h('input', { type: 'file', accept: '.step,.stp' }); inp.addEventListener('change', async () => { const fl = inp.files[0]; if (!fl) return; f.file = fl.name; f.data = await fl.text(); f.name = 'Import ' + fl.name.replace(/\.(step|stp)$/i, ''); showDialog(); regenSoon(0); }); inp.click(); } }, 'Choose…'))));
   }
   const rep = app.result && app.result.preview && app.result.preview.rep;
@@ -9439,6 +9483,7 @@ async function normalToSel() {
 const APP_VERSION = '0.8.0';
 const NEWS = [
   { v: '0.8.0', date: '11 Nov 2026', items: [
+    '<b>Extrude understands the model’s faces</b>: a sketched shape that runs over the edge of a face is cut there, so the part on the face and the part beyond it are picked separately.',
     '<b>Measure readout</b> at the bottom right: select two parallel faces and it shows how far apart they are; a hole shows its diameter, two holes their centre distance. Its tab opens the full list, and a value clicked is copied.',
     '<b>Assemblies</b>: a handle on the selected part slides it along an axis or turns it about one.',
     'Mates take an <b>offset</b> and <b>limits</b>, join edges and corners as well as faces, and open again from their row to change.',

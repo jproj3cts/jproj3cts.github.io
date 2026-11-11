@@ -201,7 +201,7 @@ export async function check(pw, base, shots) {
     await p.click('#sideTab');
     const wide = await p.evaluate(() => ({ left: Math.round(document.getElementById('stage').getBoundingClientRect().left), off: document.getElementById('cadMain').classList.contains('side-off'), exp: document.getElementById('sideTab').getAttribute('aria-expanded') }));
     await p.click('#sideTab');
-    ok('The view fills the window to its edges, down to the tabs; the tab on the feature list closes it (the view takes its room) and opens it again', lay.bottom === lay.tabs && lay.tabs > 20 && lay.tabs < 40 && lay.right === 0 && lay.gap === 0 && wide.left === 0 && wide.off && wide.exp === 'false' && await p.evaluate(() => !document.getElementById('cadMain').classList.contains('side-off')), JSON.stringify([lay, wide]));
+    ok('The view fills the window to its edges, the tabs at its foot; the tab on the feature list closes it (the view takes its room) and opens it again', lay.bottom === 0 && lay.tabs > 20 && lay.tabs < 40 && lay.right === 0 && lay.gap === 0 && wide.left === 0 && wide.off && wide.exp === 'false' && await p.evaluate(() => !document.getElementById('cadMain').classList.contains('side-off')), JSON.stringify([lay, wide]));
     // a centre rectangle, sized by typing straight after it is drawn
     await p.click('[data-feature="sketch"]'); await p.click('.cad-frow-p[data-plane="top"]');
     await p.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 15000 }).catch(() => {});

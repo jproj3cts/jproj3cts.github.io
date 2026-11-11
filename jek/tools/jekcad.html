@@ -1938,6 +1938,8 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   /* the feature bar and the sketch bar */
   .cad-fbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem; padding: 0.2rem 0.3rem; background: var(--rt-surface); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); border-top: 3px solid transparent; border-image: linear-gradient(90deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%) 3 0 0 0; }
   .cad-fbar[hidden] { display: none; }
+  /* (right across the window: out over the toolbar's padding, with no ends of its own) */
+  .cad-app .rt-toolbar .cad-fbar { margin: 0 -0.75rem -0.2rem; padding-left: 0.75rem; padding-right: 0.75rem; border-left: 0; border-right: 0; border-bottom: 0; border-radius: 0; }
   .cad-fbtn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.5rem; font-size: 0.8rem; }
   .cad-fbtn svg.ic, .cad-tool svg.ic, .cad-toolmenu svg.ic, .ic2 svg.ic, .cad-fkind svg.ic { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
   .cad-fbtn[data-feature="sketch"] { font-weight: 700; color: var(--jek-orange); }
@@ -1957,13 +1959,10 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .cad-skin input { width: 3.6rem; font-size: 0.78rem; }
   /* the page: the feature list beside the view */
   .cad-main { position: relative; display: flex; flex: 1; min-height: 0; }
-  /* the document's tabs, along the bottom: Part Studios and Assemblies */
-  .cad-tabs { flex: none; display: flex; align-items: stretch; gap: 2px; padding: 2px 0.3rem 0; background: var(--rt-surface); border-top: 1px solid var(--jek-line); overflow-x: auto; min-height: 30px; }
-  .cad-tab { display: inline-flex; align-items: center; gap: 0.35rem; border: 1px solid transparent; border-bottom: 0; border-radius: 4px 4px 0 0; background: none; color: var(--jek-ink-soft); font: inherit; font-size: 0.8rem; padding: 0.2rem 0.7rem; cursor: pointer; white-space: nowrap; }
-  .cad-tab:hover { background: var(--jek-well); }
-  .cad-tab.on { background: var(--jek-sand, var(--rt-bg)); color: var(--jek-ink); border-color: var(--jek-line); border-top: 2px solid var(--jek-orange); font-weight: 600; }
-  .cad-tab[data-kind="assembly"] .ic2 { color: var(--jek-orange); }
-  .cad-tabadd { font-size: 1rem; padding: 0 0.6rem; }
+  /* the document's tabs: JEKray's strip of tabs at the foot of the view (its .rt-benchtabs), each with its kind's mark */
+  .cad-tabs button .ic2 { display: inline-flex; margin-right: 0.35rem; vertical-align: -0.2em; }
+  .cad-tabs button .ic2 svg.ic { width: 13px; height: 13px; }
+  .cad-tabs button[data-kind="assembly"] .ic2 { color: var(--jek-orange); }
   .cad-tabmenu { position: fixed; z-index: 60; min-width: 180px; top: auto; right: auto; display: flex; flex-direction: column; }
   .cad-irow { cursor: pointer; }
   .cad-irow.picked { background: var(--jek-well); box-shadow: inset 2px 0 0 var(--jek-orange); }
@@ -2022,7 +2021,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .cad-stage > canvas { position: absolute; left: 0; top: 0; }
   .cad-stage #over { cursor: default; outline: none; }
   .cad-stage.dropping::after { content: 'Drop a .jekcad or a STEP file'; position: absolute; inset: 1rem; display: flex; align-items: center; justify-content: center; border: 2px dashed var(--jek-orange); border-radius: 6px; color: var(--jek-orange); font-weight: 700; pointer-events: none; }
-  .cad-hint { position: absolute; left: 1.4rem; bottom: 0.45rem; font-size: 0.72rem; color: var(--rt-over-mute, var(--jek-ink-soft)); pointer-events: none; max-width: calc(100% - 22rem); }
+  .cad-hint { position: absolute; left: 1.4rem; bottom: 2.2rem; font-size: 0.72rem; color: var(--rt-over-mute, var(--jek-ink-soft)); pointer-events: none; max-width: calc(100% - 22rem); }
   .cad-busy { position: absolute; left: 50%; top: 0.6rem; transform: translateX(-50%); font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 2px; background: var(--rt-over); color: var(--rt-over-ink); border: 1px solid var(--rt-over-line); pointer-events: none; }
   .cad-note { position: absolute; inset: auto 1rem 3rem; padding: 0.6rem; background: var(--rt-bad-bg); color: var(--jek-red); }
   .cad-measure { position: absolute; right: 0.6rem; bottom: 2rem; min-width: 12rem; max-width: 20rem; padding: 0.4rem 0.6rem; font-size: 0.75rem; background: var(--rt-over); color: var(--rt-over-ink); border: 1px solid var(--rt-over-line); border-radius: 2px; }
@@ -2232,12 +2231,12 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         <div class="cad-measure" id="measure" hidden aria-live="polite"></div>
         <div class="cad-busy" id="busy" hidden>Regenerating…</div>
         <p class="cad-note" id="viewNote" hidden></p>
+        <div class="rt-benchtabs cad-tabs" id="tabBar" role="tablist" aria-label="Tabs: Part Studios and Assemblies"></div>
         <div class="cad-hint" id="hint"></div>
         <div class="rt-flyhint" id="flyHint" role="status" hidden></div>
         <div class="rt-toast" id="toast" role="status"></div>
       </div>
     </div>
-    <div class="cad-tabs" id="tabBar" role="tablist" aria-label="Tabs: Part Studios and Assemblies"></div>
   </div>
 
   <dialog class="rt-dialog" id="asmInsert" aria-labelledby="asmInsertTitle">
@@ -8689,6 +8688,30 @@ function duplicateTab(id) {
   changed(); renderTabs();
   return c.id;
 }
+/* a tab dragged along the strip: it follows the pointer, the others step aside, and it is put where it is let go */
+function tabDragStart(e, btn) {
+  if (e.button !== 0 || e.target.classList.contains('x')) return;
+  const box = document.getElementById('tabBar'), tabs = [...box.querySelectorAll('button[role="tab"]')];
+  const from = tabs.indexOf(btn), rects = tabs.map(t => t.getBoundingClientRect()), x0 = e.clientX;
+  let started = false, to = from;
+  btn.setPointerCapture(e.pointerId);
+  const move = ev => {
+    const dx = ev.clientX - x0;
+    if (!started) { if (Math.abs(dx) < 5) return; started = true; btn.classList.add('dragging'); }
+    const d = Math.max(rects[0].left - rects[from].left, Math.min(rects[rects.length - 1].right - rects[from].right, dx)), mid = rects[from].left + rects[from].width / 2 + d, w = rects[from].width;
+    btn.style.transform = 'translateX(' + d + 'px)';
+    to = 0; tabs.forEach((t, k) => { if (k !== from && rects[k].left + rects[k].width / 2 < mid) to++; });
+    tabs.forEach((t, k) => { if (k === from) return; const shift = from < to && k > from && k <= to ? -w : to < from && k >= to && k < from ? w : 0; t.style.transform = shift ? 'translateX(' + shift + 'px)' : ''; });
+  };
+  const up = () => {
+    btn.removeEventListener('pointermove', move); btn.removeEventListener('pointerup', up); btn.removeEventListener('pointercancel', up);
+    if (!started) return;
+    btn._dragged = true;
+    if (to !== from && editGate()) { checkpoint(); const [m] = app.file.tabs.splice(from, 1); app.file.tabs.splice(to, 0, m); changed(); }
+    renderTabs();
+  };
+  btn.addEventListener('pointermove', move); btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up);
+}
 let tabMenu = null;
 function closeTabMenu() { if (tabMenu) { tabMenu.remove(); tabMenu = null; } }
 function openTabMenu(at, items) {
@@ -8701,17 +8724,29 @@ function openTabMenu(at, items) {
 function renderTabs() {
   const bar = document.getElementById('tabBar');
   if (!bar || !app.file) return;
+  // as JEKray's tabs are: a strip at the foot of the view, the one open marked, a double-click to rename in place,
+  // a × on the open one to delete it, dragged along the strip to reorder, and + at the end
   const tabs = app.file.tabs.map(t => {
-    const b = h('button', { type: 'button', class: 'cad-tab' + (t.id === app.file.active ? ' on' : ''), role: 'tab', 'aria-selected': String(t.id === app.file.active), 'data-tab': t.id, 'data-kind': t.kind, title: (t.kind === 'assembly' ? 'Assembly' : 'Part Studio') + ': ' + t.name + ' (double-click to rename, right-click for more)' },
-      h('span', { class: 'ic2', 'data-icon': t.kind === 'assembly' ? 'assembly' : 'cube' }), h('span', { class: 'nm' }, t.name));
-    b.addEventListener('click', () => switchTab(t.id));
-    b.addEventListener('dblclick', () => { const v = prompt('Name of this tab', t.name); if (v !== null) renameTab(t.id, v); });
-    b.addEventListener('contextmenu', e => { e.preventDefault(); openTabMenu(b, [['Rename…', () => { const v = prompt('Name of this tab', t.name); if (v !== null) renameTab(t.id, v); }], ['Duplicate', () => duplicateTab(t.id)], ['Delete', () => deleteTab(t.id)]]); });
+    const on2 = t.id === app.file.active, kind = t.kind === 'assembly' ? 'Assembly' : 'Part Studio';
+    const b = h('button', { type: 'button', class: on2 ? 'on' : '', role: 'tab', 'aria-selected': String(on2), 'data-tab': t.id, 'data-kind': t.kind, title: kind + ': ' + (on2 ? 'double-click to rename. ' : 'show ' + t.name + '. ') + 'Drag to reorder; right-click for more.' },
+      h('span', { class: 'ic2', 'data-icon': t.kind === 'assembly' ? 'assembly' : 'cube' }), t.name);
+    b.addEventListener('click', e => { if (e.target.classList.contains('x') || b._dragged) { b._dragged = false; return; } switchTab(t.id); });
+    b.addEventListener('pointerdown', e => tabDragStart(e, b));
+    b.addEventListener('dblclick', () => {
+      const inp = h('input', { type: 'text', value: t.name, 'aria-label': 'Tab name' });
+      let over = false;
+      const done = ok2 => { if (over) return; over = true; if (!(ok2 && renameTab(t.id, inp.value))) renderTabs(); };
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); e.stopPropagation(); });
+      inp.addEventListener('blur', () => done(true));
+      b.replaceWith(inp); inp.focus(); inp.select();
+    });
+    b.addEventListener('contextmenu', e => { e.preventDefault(); openTabMenu(b, [['Duplicate', () => duplicateTab(t.id)], ['Delete', () => deleteTab(t.id)]]); });
+    if (on2 && app.file.tabs.length > 1) { const x = h('span', { class: 'x', title: 'Delete this tab', 'aria-label': 'Delete ' + t.name }, '\u00d7'); x.addEventListener('click', () => deleteTab(t.id)); b.append(x); }
     return b;
   });
-  const add = h('button', { type: 'button', class: 'cad-tab cad-tabadd', id: 'tabAdd', title: 'Add a Part Studio or an Assembly', 'aria-label': 'Add a tab', 'aria-haspopup': 'menu' }, '+');
+  const add = h('button', { type: 'button', class: 'add', id: 'tabAdd', title: 'Add a Part Studio or an Assembly', 'aria-label': 'Add a tab', 'aria-haspopup': 'menu' }, '+');
   add.addEventListener('click', () => openTabMenu(add, [['New Part Studio', () => addTab('studio')], ['New Assembly', () => addTab('assembly')]]));
-  bar.replaceChildren(add, ...tabs);
+  bar.replaceChildren(...tabs, add);
   emit('icons', bar);
   // what an assembly shows in place of the feature bar and the feature list
   const asm = !!app.asm;

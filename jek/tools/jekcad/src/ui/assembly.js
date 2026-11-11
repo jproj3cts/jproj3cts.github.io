@@ -136,6 +136,30 @@ export function duplicateTab(id) {
   changed(); renderTabs();
   return c.id;
 }
+/* a tab dragged along the strip: it follows the pointer, the others step aside, and it is put where it is let go */
+function tabDragStart(e, btn) {
+  if (e.button !== 0 || e.target.classList.contains('x')) return;
+  const box = document.getElementById('tabBar'), tabs = [...box.querySelectorAll('button[role="tab"]')];
+  const from = tabs.indexOf(btn), rects = tabs.map(t => t.getBoundingClientRect()), x0 = e.clientX;
+  let started = false, to = from;
+  btn.setPointerCapture(e.pointerId);
+  const move = ev => {
+    const dx = ev.clientX - x0;
+    if (!started) { if (Math.abs(dx) < 5) return; started = true; btn.classList.add('dragging'); }
+    const d = Math.max(rects[0].left - rects[from].left, Math.min(rects[rects.length - 1].right - rects[from].right, dx)), mid = rects[from].left + rects[from].width / 2 + d, w = rects[from].width;
+    btn.style.transform = 'translateX(' + d + 'px)';
+    to = 0; tabs.forEach((t, k) => { if (k !== from && rects[k].left + rects[k].width / 2 < mid) to++; });
+    tabs.forEach((t, k) => { if (k === from) return; const shift = from < to && k > from && k <= to ? -w : to < from && k >= to && k < from ? w : 0; t.style.transform = shift ? 'translateX(' + shift + 'px)' : ''; });
+  };
+  const up = () => {
+    btn.removeEventListener('pointermove', move); btn.removeEventListener('pointerup', up); btn.removeEventListener('pointercancel', up);
+    if (!started) return;
+    btn._dragged = true;
+    if (to !== from && editGate()) { checkpoint(); const [m] = app.file.tabs.splice(from, 1); app.file.tabs.splice(to, 0, m); changed(); }
+    renderTabs();
+  };
+  btn.addEventListener('pointermove', move); btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up);
+}
 let tabMenu = null;
 function closeTabMenu() { if (tabMenu) { tabMenu.remove(); tabMenu = null; } }
 function openTabMenu(at, items) {
@@ -148,17 +172,29 @@ function openTabMenu(at, items) {
 export function renderTabs() {
   const bar = document.getElementById('tabBar');
   if (!bar || !app.file) return;
+  // as JEKray's tabs are: a strip at the foot of the view, the one open marked, a double-click to rename in place,
+  // a × on the open one to delete it, dragged along the strip to reorder, and + at the end
   const tabs = app.file.tabs.map(t => {
-    const b = h('button', { type: 'button', class: 'cad-tab' + (t.id === app.file.active ? ' on' : ''), role: 'tab', 'aria-selected': String(t.id === app.file.active), 'data-tab': t.id, 'data-kind': t.kind, title: (t.kind === 'assembly' ? 'Assembly' : 'Part Studio') + ': ' + t.name + ' (double-click to rename, right-click for more)' },
-      h('span', { class: 'ic2', 'data-icon': t.kind === 'assembly' ? 'assembly' : 'cube' }), h('span', { class: 'nm' }, t.name));
-    b.addEventListener('click', () => switchTab(t.id));
-    b.addEventListener('dblclick', () => { const v = prompt('Name of this tab', t.name); if (v !== null) renameTab(t.id, v); });
-    b.addEventListener('contextmenu', e => { e.preventDefault(); openTabMenu(b, [['Rename…', () => { const v = prompt('Name of this tab', t.name); if (v !== null) renameTab(t.id, v); }], ['Duplicate', () => duplicateTab(t.id)], ['Delete', () => deleteTab(t.id)]]); });
+    const on2 = t.id === app.file.active, kind = t.kind === 'assembly' ? 'Assembly' : 'Part Studio';
+    const b = h('button', { type: 'button', class: on2 ? 'on' : '', role: 'tab', 'aria-selected': String(on2), 'data-tab': t.id, 'data-kind': t.kind, title: kind + ': ' + (on2 ? 'double-click to rename. ' : 'show ' + t.name + '. ') + 'Drag to reorder; right-click for more.' },
+      h('span', { class: 'ic2', 'data-icon': t.kind === 'assembly' ? 'assembly' : 'cube' }), t.name);
+    b.addEventListener('click', e => { if (e.target.classList.contains('x') || b._dragged) { b._dragged = false; return; } switchTab(t.id); });
+    b.addEventListener('pointerdown', e => tabDragStart(e, b));
+    b.addEventListener('dblclick', () => {
+      const inp = h('input', { type: 'text', value: t.name, 'aria-label': 'Tab name' });
+      let over = false;
+      const done = ok2 => { if (over) return; over = true; if (!(ok2 && renameTab(t.id, inp.value))) renderTabs(); };
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') done(true); if (e.key === 'Escape') done(false); e.stopPropagation(); });
+      inp.addEventListener('blur', () => done(true));
+      b.replaceWith(inp); inp.focus(); inp.select();
+    });
+    b.addEventListener('contextmenu', e => { e.preventDefault(); openTabMenu(b, [['Duplicate', () => duplicateTab(t.id)], ['Delete', () => deleteTab(t.id)]]); });
+    if (on2 && app.file.tabs.length > 1) { const x = h('span', { class: 'x', title: 'Delete this tab', 'aria-label': 'Delete ' + t.name }, '\u00d7'); x.addEventListener('click', () => deleteTab(t.id)); b.append(x); }
     return b;
   });
-  const add = h('button', { type: 'button', class: 'cad-tab cad-tabadd', id: 'tabAdd', title: 'Add a Part Studio or an Assembly', 'aria-label': 'Add a tab', 'aria-haspopup': 'menu' }, '+');
+  const add = h('button', { type: 'button', class: 'add', id: 'tabAdd', title: 'Add a Part Studio or an Assembly', 'aria-label': 'Add a tab', 'aria-haspopup': 'menu' }, '+');
   add.addEventListener('click', () => openTabMenu(add, [['New Part Studio', () => addTab('studio')], ['New Assembly', () => addTab('assembly')]]));
-  bar.replaceChildren(add, ...tabs);
+  bar.replaceChildren(...tabs, add);
   emit('icons', bar);
   // what an assembly shows in place of the feature bar and the feature list
   const asm = !!app.asm;

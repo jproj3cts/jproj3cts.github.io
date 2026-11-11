@@ -6,11 +6,11 @@ permalink: /jek/docs/jekcad/assemblies/
 description: "A JEKcad document's tabs: several Part Studios and Assemblies in one file. Inserting parts into an assembly, moving them, and the five mates."
 ---
 
-<p class="dx-lead">A document holds tabs along the bottom of the window. Each tab is a Part Studio, where parts are made, or an Assembly, where parts are put together.</p>
+<p class="dx-lead">A document holds tabs at the foot of the view, as a JEKray bench does. Each tab is a Part Studio, where parts are made, or an Assembly, where parts are put together.</p>
 
 ## Tabs
 
-Click **+** at the left of the tabs to add a Part Studio or an Assembly. Click a tab to open it. Double-click a tab to rename it. Right-click it to rename, duplicate or delete it.
+Click **+** at the end of the tabs to add a Part Studio or an Assembly. Click a tab to open it and double-click it to rename it in place. Drag a tab along the strip to reorder it. The **×** on the open tab deletes it, and a right-click duplicates or deletes.
 
 A document keeps at least one Part Studio. Deleting a Part Studio takes its parts out of every assembly that used them. Undo brings a deleted tab back.
 

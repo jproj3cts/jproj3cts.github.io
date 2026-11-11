@@ -1152,13 +1152,13 @@ function imageOpen() {
 export function entEdit(id, fresh) {
   const e = entById(id), old = document.getElementById('skEdit');
   if (old) old.remove();
-  const kind = e && (e.t === 'text' ? 'text' : e.t === 'image' ? 'image' : e.t === 'spline' && e.cn ? 'conic' : null);
+  const kind = e && (e.t === 'text' ? 'text' : e.t === 'image' ? 'image' : e.t === 'spline' && e.cn ? 'conic' : e.t === 'spline' && e.of ? 'offset' : null);
   if (!kind || e.ref) return false;
-  const v = kind === 'text' ? { s: e.s, h: String(e.h), rot: String(e.rot), font: e.font || 'sans' } : kind === 'image' ? { w: String(e.w), rot: String(e.rot) } : { cn: String(e.cn) };
+  const v = kind === 'text' ? { s: e.s, h: String(e.h), rot: String(e.rot), font: e.font || 'sans' } : kind === 'image' ? { w: String(e.w), rot: String(e.rot) } : kind === 'offset' ? { d: String(e.of.d) } : { cn: String(e.cn) };
   const close = () => { const p = document.getElementById('skEdit'); if (p) p.remove(); };
   const apply = () => {
     const vars = app.result ? app.result.vars : {}, n = {};
-    try { for (const [k, unit] of Object.entries({ h: 'len', w: 'len', rot: 'ang', cn: 'num' })) if (k in v) n[k] = evalExpr(v[k], vars, unit); } catch (err) { toast('That value: ' + err.message, true); return; }
+    try { for (const [k, unit] of Object.entries({ h: 'len', w: 'len', d: 'len', rot: 'ang', cn: 'num' })) if (k in v) n[k] = evalExpr(v[k], vars, unit); } catch (err) { toast('That value: ' + err.message, true); return; }
     if (kind === 'text' && !v.s.trim()) { toast('Type the text first', true); return; }
     if ((n.h !== undefined && !(n.h > 0)) || (n.w !== undefined && !(n.w > 0))) { toast('A size must be more than 0', true); return; }
     if (kind === 'conic' && !(n.cn > 0 && n.cn < 1)) { toast('Rho is between 0 and 1: 0.5 is a parabola, less an ellipse, more a hyperbola', true); return; }
@@ -1166,14 +1166,15 @@ export function entEdit(id, fresh) {
     keep();
     if (kind === 'text') { t.s = v.s.slice(0, 200); t.h = n.h; t.rot = n.rot; if (v.font && v.font !== 'sans') t.font = v.font; else delete t.font; }
     else if (kind === 'image') { t.w = n.w; t.rot = n.rot; }
+    else if (kind === 'offset') t.of.d = n.d;
     else t.cn = Math.max(0.05, Math.min(0.95, n.cn));
     close(); resolve();
   };
   const row = (key, label, wide) => h('div', { class: 'cad-frow' }, h('label', { for: 'ske-' + key }, label), h('input', { type: 'text', id: 'ske-' + key, value: v[key], spellcheck: 'false', style: wide ? 'min-width: 12em' : null, oninput: ev => { v[key] = ev.target.value; }, onkeydown: ev => { ev.stopPropagation(); if (ev.key === 'Enter') apply(); if (ev.key === 'Escape') close(); } }));
   const fontRow = () => h('div', { class: 'cad-frow' }, h('label', { for: 'ske-font' }, 'Font'), h('select', { id: 'ske-font', onchange: ev => { v.font = ev.target.value; }, onkeydown: ev => ev.stopPropagation() }, ...textFonts().map(([k, nm]) => h('option', Object.assign({ value: k }, k === v.font ? { selected: '' } : {}), nm))));
-  const rows = kind === 'text' ? [row('s', 'Text', true), fontRow(), row('h', 'Height of a capital'), row('rot', 'Turned (degrees)')] : kind === 'image' ? [row('w', 'Width'), row('rot', 'Turned (degrees)')] : [row('cn', 'Rho (0.5: a parabola)')];
-  const panel = h('div', { class: 'cad-dialog', id: 'skEdit', role: 'group', 'aria-label': kind === 'text' ? 'Text' : kind === 'image' ? 'Picture' : 'Conic' },
-    h('div', { class: 'cad-fhead' }, h('span', { class: 'cad-fkind', 'data-icon': kind === 'image' ? 'image' : kind }, kind === 'text' ? 'Text' : kind === 'image' ? 'Picture' : 'Conic')),
+  const rows = kind === 'text' ? [row('s', 'Text', true), fontRow(), row('h', 'Height of a capital'), row('rot', 'Turned (degrees)')] : kind === 'image' ? [row('w', 'Width'), row('rot', 'Turned (degrees)')] : kind === 'offset' ? [row('d', 'Offset (below 0: the other side)')] : [row('cn', 'Rho (0.5: a parabola)')];
+  const panel = h('div', { class: 'cad-dialog', id: 'skEdit', role: 'group', 'aria-label': kind === 'text' ? 'Text' : kind === 'image' ? 'Picture' : kind === 'offset' ? 'Offset' : 'Conic' },
+    h('div', { class: 'cad-fhead' }, h('span', { class: 'cad-fkind', 'data-icon': kind === 'image' ? 'image' : kind }, kind === 'text' ? 'Text' : kind === 'image' ? 'Picture' : kind === 'offset' ? 'Offset' : 'Conic')),
     h('div', { class: 'cad-fbody' }, ...rows),
     h('div', { class: 'cad-factions' }, h('button', { type: 'button', class: 'rt-btn', id: 'skEditCancel', onclick: close }, 'Cancel'), h('button', { type: 'button', class: 'rt-btn primary', id: 'skEditOk', onclick: apply }, '✓ Apply')));
   document.getElementById('stage').append(panel);

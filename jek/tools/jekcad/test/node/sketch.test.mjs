@@ -311,6 +311,22 @@ test('trim on an ellipse and a spline leaves the same curve with a range along i
   assert.equal(made.length, 2); assert.ok(made[0].closed && !made[1].closed);
   for (const m of made) { const base = o.ents.find(x => x.id === (m.closed ? 'e' : 's')); for (const p of m.pts) assert.ok(Math.abs(distToEnt(base, p) - 2) < 0.05, 'off by 2: ' + distToEnt(base, p)); }
   assert.ok(made[0].pts.every(p => Math.hypot(p[0] / 20, p[1] / 10) > 1), 'outwards');
+  // each stays an offset of its curve: the ellipse made 30 × 10, its offset is 2 off the new ellipse; and it has
+  // no numbers of its own (dragging the offset is dragging nothing), and is kept so in a file
+  assert.deepEqual(made[0].of, { e: 'e', d: 2 });
+  o.ents[0].rx = 30;
+  solveSketch(o.ents, o.cons, o.dims);
+  for (const p of made[0].pts) assert.ok(Math.abs(distToEnt(o.ents[0], p) - 2) < 0.05, 'follows: ' + distToEnt(o.ents[0], p));
+  assert.ok(Math.max(...made[0].pts.map(p => p[0])) > 31.9);
+  const kept = normEnts(o.ents).find(x => x.id === made[0].id);
+  assert.deepEqual(kept.of, { e: 'e', d: 2 });
+  // its curve deleted: a spline of its own, where it was
+  assert.equal(normEnts(o.ents.filter(x => x.id !== 'e')).find(x => x.id === made[0].id).of, undefined);
+  // the distance changed: it moves
+  const y0 = made[1].pts[0][1];
+  made[1].of.d = -1; solveSketch(o.ents, o.cons, o.dims);
+  for (const p of made[1].pts) assert.ok(Math.abs(distToEnt(o.ents[1], p) - 1) < 0.05, 'the other side, 1 off: ' + distToEnt(o.ents[1], p));
+  assert.ok(Math.abs(made[1].pts[0][1] - y0) > 1, 'it moved across the curve');
 });
 
 test('DXF: a spline by its fit points and by its control points and knots, an old POLYLINE, part of an ellipse, a drawing in inches', () => {

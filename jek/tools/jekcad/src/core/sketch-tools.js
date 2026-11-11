@@ -1,5 +1,5 @@
 import { TEXT_FONTS } from './font-data.js';
-import { ENT_KINDS, curveIsClosed, curvePts, entKeys, hpt, inRegion, inside, lineDir, sketchId, sketchRegions } from './sketch.js';
+import { ENT_KINDS, curveIsClosed, curvePts, entKeys, hpt, offsetCurvePts, inRegion, inside, lineDir, sketchId, sketchRegions } from './sketch.js';
 
 /* ==========================================================================
    A sketch's shapes checked as a file is read, their outlines, the regions found for features, and the sketch
@@ -21,7 +21,7 @@ export function normEnts(ents) {
     else if (e.t === 'arc') { n.c = pt2(e.c, [0, 0]); n.r = Math.abs(fin(e.r, 5)) || 5; n.a0 = fin(e.a0, 0); n.a1 = fin(e.a1, 90); }
     else if (e.t === 'circle') { n.c = pt2(e.c, [0, 0]); n.r = Math.abs(fin(e.r, 5)) || 5; }
     else if (e.t === 'ellipse') { n.c = pt2(e.c, [0, 0]); n.rx = Math.abs(fin(e.rx, 10)) || 10; n.ry = Math.abs(fin(e.ry, 5)) || 5; n.rot = fin(e.rot, 0); }
-    else if (e.t === 'spline') { n.pts = (Array.isArray(e.pts) ? e.pts : []).slice(0, 200).map(q => pt2(q, [0, 0])); if (n.pts.length < 2) continue; if (e.cv) n.cv = true; if (e.closed) n.closed = true; if (n.pts.length === 3 && Number.isFinite(+e.cn) && +e.cn > 0) { n.cn = Math.max(0.05, Math.min(0.95, +e.cn)); delete n.cv; delete n.closed; } }
+    else if (e.t === 'spline') { n.pts = (Array.isArray(e.pts) ? e.pts : []).slice(0, 200).map(q => pt2(q, [0, 0])); if (n.pts.length < 2) continue; if (e.cv) n.cv = true; if (e.closed) n.closed = true; if (e.of && typeof e.of.e === 'string' && e.of.e.length < 30 && Number.isFinite(+e.of.d) && !e.cv && !e.cn) n.of = { e: e.of.e, d: +e.of.d }; if (n.pts.length === 3 && Number.isFinite(+e.cn) && +e.cn > 0) { n.cn = Math.max(0.05, Math.min(0.95, +e.cn)); delete n.cv; delete n.closed; } }
     else if (e.t === 'text') { n.c = pt2(e.c, [0, 0]); n.s = typeof e.s === 'string' ? e.s.slice(0, 200) : ''; n.h = Math.max(0.01, Math.abs(fin(e.h, 10)) || 10); n.rot = fin(e.rot, 0); if (e.my) n.my = true; if (typeof e.font === 'string' && e.font !== 'sans' && TEXT_FONTS[e.font]) n.font = e.font; if (!n.s.trim()) continue; }
     else if (e.t === 'image') { if (typeof e.data !== 'string' || !/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(e.data) || e.data.length > 3e6) continue; n.c = pt2(e.c, [0, 0]); n.w = Math.max(0.01, Math.abs(fin(e.w, 50)) || 50); n.ar = Math.max(1e-3, Math.min(1e3, fin(e.ar, 1))); n.rot = fin(e.rot, 0); if (e.my) n.my = true; n.data = e.data; n.k = true; }
     else n.c = pt2(e.c, [0, 0]);
@@ -36,6 +36,7 @@ export function normEnts(ents) {
     else if (sr && sr.kind === 'vertex' && e.t === 'point' && typeof sr.part === 'string' && sr.part.length < 80 && Array.isArray(sr.faces) && sr.faces.length >= 1 && sr.faces.length <= 6 && sr.faces.every(x => typeof x === 'string' && x.length < 120) && Array.isArray(sr.pt) && sr.pt.length === 3 && sr.pt.every(Number.isFinite)) n.src = { kind: 'vertex', part: sr.part, faces: sr.faces.slice(), pt: sr.pt.slice() };
     out.push(n);
   }
+  for (const n of out) if (n.of && !out.some(x => x.id === n.of.e && (x.t === 'ellipse' || x.t === 'spline') && !x.of)) delete n.of;
   return out;
 }
 /* an arc's sweep, degrees, in (0, 360] */
@@ -413,14 +414,9 @@ export function offsetEnts(sk, ids, d) {
   // an ellipse or a spline: a spline through points set d off the curve (a closed one: outwards, as a circle's is)
   const loose = [];
   for (const e of sk.ents.filter(x => ids.includes(x.id) && isCurve(x))) {
-    const P = curvePts(e, 3), cl = curveClosed(e), n = P.length;
-    let A = 0; if (cl) for (let i = 0; i < n; i++) { const a = P[i], b = P[(i + 1) % n]; A += a[0] * b[1] - b[0] * a[1]; }
-    const sg = cl ? (A > 0 ? -1 : 1) : 1, m = Math.max(3, Math.min(48, cl ? Math.round(n / 4) : Math.round(n / 4) + 1)), pts = [];
-    for (let j = 0; j < (cl ? m : m + 1); j++) {
-      const i = cl ? Math.round(j * n / m) % n : Math.min(n - 1, Math.round(j * (n - 1) / m)), a = P[cl ? (i - 1 + n) % n : Math.max(0, i - 1)], b = P[cl ? (i + 1) % n : Math.min(n - 1, i + 1)], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-      pts.push([P[i][0] - (b[1] - a[1]) / L * d * sg, P[i][1] + (b[0] - a[0]) / L * d * sg]);
-    }
-    const s = Object.assign({ id: sketchId('s'), t: 'spline', pts }, cl ? { closed: true } : {}, e.k ? { k: true } : {});
+    // (it stays an offset of that curve: of names the curve and the distance, and its points follow)
+    const cl = curveClosed(e), pts = offsetCurvePts(e, d);
+    const s = Object.assign({ id: sketchId('s'), t: 'spline', pts }, cl ? { closed: true } : {}, e.k ? { k: true } : {}, e.of ? {} : { of: { e: e.id, d } });
     sk.ents.push(s); loose.push(s);
   }
   ids = ids.filter(id => !isCurve(sk.ents.find(x => x.id === id)));
@@ -621,7 +617,7 @@ export function splitEnt(sk, id, q) {
 /* a shape moved by f (a point to a point), turned by rot degrees and sized by scale, as a new shape or in place */
 function mapEnt(e, f, rot, scale, fresh) {
   const m = fresh ? Object.assign(JSON.parse(JSON.stringify(e)), { id: sketchId(e.t[0]) }) : e;
-  delete m.ref; delete m.src;
+  delete m.ref; delete m.src; delete m.of;          // (a copy, or a shape moved, is no longer the offset of the curve it came from)
   if (m.t === 'line') { m.a = f(e.a); m.b = f(e.b); }
   else if (m.t === 'spline') m.pts = e.pts.map(f);
   else { m.c = f(e.c); if (m.t === 'arc') { m.a0 = e.a0 + rot; m.a1 = e.a1 + rot; } if (m.t === 'ellipse') { m.rx = e.rx * scale; m.ry = e.ry * scale; m.rot = e.rot + rot; } else if (isBox(m)) { m.rot = (e.rot || 0) + rot; if (m.t === 'text') m.h = e.h * scale; else m.w = e.w * scale; } else if (m.r !== undefined) m.r = e.r * scale; }

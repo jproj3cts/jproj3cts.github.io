@@ -11,6 +11,7 @@ export const NEWS = [
     '<b>Trim keeps the curve</b>: a trimmed ellipse or spline is still that ellipse or spline, with its constraints and dimensions.',
     '<b>Tangent</b> between an ellipse and a circle, and between a line or circle and a spline part-way along it.',
     'A silhouette brought into a sketch follows its face when the model changes.',
+    'The offset of an ellipse or a spline follows the curve when it changes. Double-click it to change the distance.',
     'Insert DXF reads text, blocks and the outlines of hatches.',
   ] },
   { v: '0.5.0', date: '11 Nov 2026', items: [

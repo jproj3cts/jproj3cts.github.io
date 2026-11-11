@@ -2590,7 +2590,8 @@ const PARAMS = {
 /* an ellipse: its centre c, half-widths rx (along its own x, turned rot degrees) and ry; its points are c, pa (the
    end of rx) and pb (the end of ry), which is how it is sized and turned: by dimensions and constraints on them.
    A spline: its points pts (the curve goes through them; cv: they are a Bézier curve's control points instead) */
-const paramsOf = e => (e.t === 'spline' ? e.pts.flatMap((q, i) => [['pts', i, 0], ['pts', i, 1]]) : PARAMS[e.t] || []);
+// (an offset of a curve has no numbers of its own to solve for: its points are worked out from the curve it is off)
+const paramsOf = e => (e.of ? [] : e.t === 'spline' ? e.pts.flatMap((q, i) => [['pts', i, 0], ['pts', i, 1]]) : PARAMS[e.t] || []);
 const getP = (e, p) => (p.length === 3 ? e[p[0]][p[1]][p[2]] : p.length === 2 ? e[p[0]][p[1]] : e[p[0]]);
 const setP = (e, p, v) => { if (p.length === 3) e[p[0]][p[1]][p[2]] = v; else if (p.length === 2) e[p[0]][p[1]] = v; else e[p[0]] = v; };
 /* a point of a shape, by its key; the origin is [0, 0] */
@@ -2892,7 +2893,33 @@ function solveSym(A, b, lam) {
 const maxAbs = F => F.reduce((s, v) => Math.max(s, Math.abs(v)), 0);
 /* every constraint and dimension made to hold, the shapes moved as little as they can be (each step the smallest that
    would solve the equations, Levenberg's damping keeping it in hand): { ok, err (the largest left, mm), it } */
+/* the points of a spline set d off an ellipse or a spline (a closed one: outwards, as a circle's offset is) */
+function offsetCurvePts(e, d) {
+  const P = curvePts(e, 3), cl = curveIsClosed(e), n = P.length;
+  let A = 0; if (cl) for (let i = 0; i < n; i++) { const a = P[i], b = P[(i + 1) % n]; A += a[0] * b[1] - b[0] * a[1]; }
+  const sg = cl ? (A > 0 ? -1 : 1) : 1, m = Math.max(3, Math.min(48, cl ? Math.round(n / 4) : Math.round(n / 4) + 1)), pts = [];
+  for (let j = 0; j < (cl ? m : m + 1); j++) {
+    const i = cl ? Math.round(j * n / m) % n : Math.min(n - 1, Math.round(j * (n - 1) / m)), a = P[cl ? (i - 1 + n) % n : Math.max(0, i - 1)], b = P[cl ? (i + 1) % n : Math.min(n - 1, i + 1)], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    pts.push([P[i][0] - (b[1] - a[1]) / L * d * sg, P[i][1] + (b[0] - a[0]) / L * d * sg]);
+  }
+  return pts;
+}
+/* every offset of a curve set again from its curve as it is now (of: { e: the curve, d: how far }) */
+function refreshOffsets(ents) {
+  for (const e of ents) {
+    if (!e.of) continue;
+    const src = ents.find(x => x.id === e.of.e);
+    if (!src || (src.t !== 'ellipse' && src.t !== 'spline') || src.of) { delete e.of; continue; }
+    e.pts = offsetCurvePts(src, e.of.d);
+    if (curveIsClosed(src)) e.closed = true; else delete e.closed;
+  }
+}
 function solveSketch(ents, cons, dims, extra, opts) {
+  const r = solveCore(ents, cons, dims, extra, opts);
+  refreshOffsets(ents);
+  return r;
+}
+function solveCore(ents, cons, dims, extra, opts) {
   opts = opts || {};
   const S = system(ents, cons || [], dims || [], extra);
   if (!S.eqs.length || !S.vars.length) return { ok: true, err: 0, it: 0 };
@@ -3102,7 +3129,7 @@ function normEnts(ents) {
     else if (e.t === 'arc') { n.c = pt2(e.c, [0, 0]); n.r = Math.abs(fin(e.r, 5)) || 5; n.a0 = fin(e.a0, 0); n.a1 = fin(e.a1, 90); }
     else if (e.t === 'circle') { n.c = pt2(e.c, [0, 0]); n.r = Math.abs(fin(e.r, 5)) || 5; }
     else if (e.t === 'ellipse') { n.c = pt2(e.c, [0, 0]); n.rx = Math.abs(fin(e.rx, 10)) || 10; n.ry = Math.abs(fin(e.ry, 5)) || 5; n.rot = fin(e.rot, 0); }
-    else if (e.t === 'spline') { n.pts = (Array.isArray(e.pts) ? e.pts : []).slice(0, 200).map(q => pt2(q, [0, 0])); if (n.pts.length < 2) continue; if (e.cv) n.cv = true; if (e.closed) n.closed = true; if (n.pts.length === 3 && Number.isFinite(+e.cn) && +e.cn > 0) { n.cn = Math.max(0.05, Math.min(0.95, +e.cn)); delete n.cv; delete n.closed; } }
+    else if (e.t === 'spline') { n.pts = (Array.isArray(e.pts) ? e.pts : []).slice(0, 200).map(q => pt2(q, [0, 0])); if (n.pts.length < 2) continue; if (e.cv) n.cv = true; if (e.closed) n.closed = true; if (e.of && typeof e.of.e === 'string' && e.of.e.length < 30 && Number.isFinite(+e.of.d) && !e.cv && !e.cn) n.of = { e: e.of.e, d: +e.of.d }; if (n.pts.length === 3 && Number.isFinite(+e.cn) && +e.cn > 0) { n.cn = Math.max(0.05, Math.min(0.95, +e.cn)); delete n.cv; delete n.closed; } }
     else if (e.t === 'text') { n.c = pt2(e.c, [0, 0]); n.s = typeof e.s === 'string' ? e.s.slice(0, 200) : ''; n.h = Math.max(0.01, Math.abs(fin(e.h, 10)) || 10); n.rot = fin(e.rot, 0); if (e.my) n.my = true; if (typeof e.font === 'string' && e.font !== 'sans' && TEXT_FONTS[e.font]) n.font = e.font; if (!n.s.trim()) continue; }
     else if (e.t === 'image') { if (typeof e.data !== 'string' || !/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(e.data) || e.data.length > 3e6) continue; n.c = pt2(e.c, [0, 0]); n.w = Math.max(0.01, Math.abs(fin(e.w, 50)) || 50); n.ar = Math.max(1e-3, Math.min(1e3, fin(e.ar, 1))); n.rot = fin(e.rot, 0); if (e.my) n.my = true; n.data = e.data; n.k = true; }
     else n.c = pt2(e.c, [0, 0]);
@@ -3117,6 +3144,7 @@ function normEnts(ents) {
     else if (sr && sr.kind === 'vertex' && e.t === 'point' && typeof sr.part === 'string' && sr.part.length < 80 && Array.isArray(sr.faces) && sr.faces.length >= 1 && sr.faces.length <= 6 && sr.faces.every(x => typeof x === 'string' && x.length < 120) && Array.isArray(sr.pt) && sr.pt.length === 3 && sr.pt.every(Number.isFinite)) n.src = { kind: 'vertex', part: sr.part, faces: sr.faces.slice(), pt: sr.pt.slice() };
     out.push(n);
   }
+  for (const n of out) if (n.of && !out.some(x => x.id === n.of.e && (x.t === 'ellipse' || x.t === 'spline') && !x.of)) delete n.of;
   return out;
 }
 /* an arc's sweep, degrees, in (0, 360] */
@@ -3494,14 +3522,9 @@ function offsetEnts(sk, ids, d) {
   // an ellipse or a spline: a spline through points set d off the curve (a closed one: outwards, as a circle's is)
   const loose = [];
   for (const e of sk.ents.filter(x => ids.includes(x.id) && isCurve(x))) {
-    const P = curvePts(e, 3), cl = curveClosed(e), n = P.length;
-    let A = 0; if (cl) for (let i = 0; i < n; i++) { const a = P[i], b = P[(i + 1) % n]; A += a[0] * b[1] - b[0] * a[1]; }
-    const sg = cl ? (A > 0 ? -1 : 1) : 1, m = Math.max(3, Math.min(48, cl ? Math.round(n / 4) : Math.round(n / 4) + 1)), pts = [];
-    for (let j = 0; j < (cl ? m : m + 1); j++) {
-      const i = cl ? Math.round(j * n / m) % n : Math.min(n - 1, Math.round(j * (n - 1) / m)), a = P[cl ? (i - 1 + n) % n : Math.max(0, i - 1)], b = P[cl ? (i + 1) % n : Math.min(n - 1, i + 1)], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-      pts.push([P[i][0] - (b[1] - a[1]) / L * d * sg, P[i][1] + (b[0] - a[0]) / L * d * sg]);
-    }
-    const s = Object.assign({ id: sketchId('s'), t: 'spline', pts }, cl ? { closed: true } : {}, e.k ? { k: true } : {});
+    // (it stays an offset of that curve: of names the curve and the distance, and its points follow)
+    const cl = curveClosed(e), pts = offsetCurvePts(e, d);
+    const s = Object.assign({ id: sketchId('s'), t: 'spline', pts }, cl ? { closed: true } : {}, e.k ? { k: true } : {}, e.of ? {} : { of: { e: e.id, d } });
     sk.ents.push(s); loose.push(s);
   }
   ids = ids.filter(id => !isCurve(sk.ents.find(x => x.id === id)));
@@ -3702,7 +3725,7 @@ function splitEnt(sk, id, q) {
 /* a shape moved by f (a point to a point), turned by rot degrees and sized by scale, as a new shape or in place */
 function mapEnt(e, f, rot, scale, fresh) {
   const m = fresh ? Object.assign(JSON.parse(JSON.stringify(e)), { id: sketchId(e.t[0]) }) : e;
-  delete m.ref; delete m.src;
+  delete m.ref; delete m.src; delete m.of;          // (a copy, or a shape moved, is no longer the offset of the curve it came from)
   if (m.t === 'line') { m.a = f(e.a); m.b = f(e.b); }
   else if (m.t === 'spline') m.pts = e.pts.map(f);
   else { m.c = f(e.c); if (m.t === 'arc') { m.a0 = e.a0 + rot; m.a1 = e.a1 + rot; } if (m.t === 'ellipse') { m.rx = e.rx * scale; m.ry = e.ry * scale; m.rot = e.rot + rot; } else if (isBox(m)) { m.rot = (e.rot || 0) + rot; if (m.t === 'text') m.h = e.h * scale; else m.w = e.w * scale; } else if (m.r !== undefined) m.r = e.r * scale; }
@@ -7450,13 +7473,13 @@ function imageOpen() {
 function entEdit(id, fresh) {
   const e = entById(id), old = document.getElementById('skEdit');
   if (old) old.remove();
-  const kind = e && (e.t === 'text' ? 'text' : e.t === 'image' ? 'image' : e.t === 'spline' && e.cn ? 'conic' : null);
+  const kind = e && (e.t === 'text' ? 'text' : e.t === 'image' ? 'image' : e.t === 'spline' && e.cn ? 'conic' : e.t === 'spline' && e.of ? 'offset' : null);
   if (!kind || e.ref) return false;
-  const v = kind === 'text' ? { s: e.s, h: String(e.h), rot: String(e.rot), font: e.font || 'sans' } : kind === 'image' ? { w: String(e.w), rot: String(e.rot) } : { cn: String(e.cn) };
+  const v = kind === 'text' ? { s: e.s, h: String(e.h), rot: String(e.rot), font: e.font || 'sans' } : kind === 'image' ? { w: String(e.w), rot: String(e.rot) } : kind === 'offset' ? { d: String(e.of.d) } : { cn: String(e.cn) };
   const close = () => { const p = document.getElementById('skEdit'); if (p) p.remove(); };
   const apply = () => {
     const vars = app.result ? app.result.vars : {}, n = {};
-    try { for (const [k, unit] of Object.entries({ h: 'len', w: 'len', rot: 'ang', cn: 'num' })) if (k in v) n[k] = evalExpr(v[k], vars, unit); } catch (err) { toast('That value: ' + err.message, true); return; }
+    try { for (const [k, unit] of Object.entries({ h: 'len', w: 'len', d: 'len', rot: 'ang', cn: 'num' })) if (k in v) n[k] = evalExpr(v[k], vars, unit); } catch (err) { toast('That value: ' + err.message, true); return; }
     if (kind === 'text' && !v.s.trim()) { toast('Type the text first', true); return; }
     if ((n.h !== undefined && !(n.h > 0)) || (n.w !== undefined && !(n.w > 0))) { toast('A size must be more than 0', true); return; }
     if (kind === 'conic' && !(n.cn > 0 && n.cn < 1)) { toast('Rho is between 0 and 1: 0.5 is a parabola, less an ellipse, more a hyperbola', true); return; }
@@ -7464,14 +7487,15 @@ function entEdit(id, fresh) {
     keep();
     if (kind === 'text') { t.s = v.s.slice(0, 200); t.h = n.h; t.rot = n.rot; if (v.font && v.font !== 'sans') t.font = v.font; else delete t.font; }
     else if (kind === 'image') { t.w = n.w; t.rot = n.rot; }
+    else if (kind === 'offset') t.of.d = n.d;
     else t.cn = Math.max(0.05, Math.min(0.95, n.cn));
     close(); resolve();
   };
   const row = (key, label, wide) => h('div', { class: 'cad-frow' }, h('label', { for: 'ske-' + key }, label), h('input', { type: 'text', id: 'ske-' + key, value: v[key], spellcheck: 'false', style: wide ? 'min-width: 12em' : null, oninput: ev => { v[key] = ev.target.value; }, onkeydown: ev => { ev.stopPropagation(); if (ev.key === 'Enter') apply(); if (ev.key === 'Escape') close(); } }));
   const fontRow = () => h('div', { class: 'cad-frow' }, h('label', { for: 'ske-font' }, 'Font'), h('select', { id: 'ske-font', onchange: ev => { v.font = ev.target.value; }, onkeydown: ev => ev.stopPropagation() }, ...textFonts().map(([k, nm]) => h('option', Object.assign({ value: k }, k === v.font ? { selected: '' } : {}), nm))));
-  const rows = kind === 'text' ? [row('s', 'Text', true), fontRow(), row('h', 'Height of a capital'), row('rot', 'Turned (degrees)')] : kind === 'image' ? [row('w', 'Width'), row('rot', 'Turned (degrees)')] : [row('cn', 'Rho (0.5: a parabola)')];
-  const panel = h('div', { class: 'cad-dialog', id: 'skEdit', role: 'group', 'aria-label': kind === 'text' ? 'Text' : kind === 'image' ? 'Picture' : 'Conic' },
-    h('div', { class: 'cad-fhead' }, h('span', { class: 'cad-fkind', 'data-icon': kind === 'image' ? 'image' : kind }, kind === 'text' ? 'Text' : kind === 'image' ? 'Picture' : 'Conic')),
+  const rows = kind === 'text' ? [row('s', 'Text', true), fontRow(), row('h', 'Height of a capital'), row('rot', 'Turned (degrees)')] : kind === 'image' ? [row('w', 'Width'), row('rot', 'Turned (degrees)')] : kind === 'offset' ? [row('d', 'Offset (below 0: the other side)')] : [row('cn', 'Rho (0.5: a parabola)')];
+  const panel = h('div', { class: 'cad-dialog', id: 'skEdit', role: 'group', 'aria-label': kind === 'text' ? 'Text' : kind === 'image' ? 'Picture' : kind === 'offset' ? 'Offset' : 'Conic' },
+    h('div', { class: 'cad-fhead' }, h('span', { class: 'cad-fkind', 'data-icon': kind === 'image' ? 'image' : kind }, kind === 'text' ? 'Text' : kind === 'image' ? 'Picture' : kind === 'offset' ? 'Offset' : 'Conic')),
     h('div', { class: 'cad-fbody' }, ...rows),
     h('div', { class: 'cad-factions' }, h('button', { type: 'button', class: 'rt-btn', id: 'skEditCancel', onclick: close }, 'Cancel'), h('button', { type: 'button', class: 'rt-btn primary', id: 'skEditOk', onclick: apply }, '✓ Apply')));
   document.getElementById('stage').append(panel);
@@ -8449,6 +8473,7 @@ const NEWS = [
     '<b>Trim keeps the curve</b>: a trimmed ellipse or spline is still that ellipse or spline, with its constraints and dimensions.',
     '<b>Tangent</b> between an ellipse and a circle, and between a line or circle and a spline part-way along it.',
     'A silhouette brought into a sketch follows its face when the model changes.',
+    'The offset of an ellipse or a spline follows the curve when it changes. Double-click it to change the distance.',
     'Insert DXF reads text, blocks and the outlines of hatches.',
   ] },
   { v: '0.5.0', date: '11 Nov 2026', items: [

@@ -111,7 +111,7 @@ Select a free point or shape and drag it: the sketch is solved as it moves, keep
 | | Split | Click a line or an arc where to cut it in two. The halves stay joined. |
 | | Sketch chamfer | Click a corner where two lines meet. The distance back from the corner is in the bar. |
 | | Sketch fillet | Click a corner where two lines meet. The radius is in the bar. Anything that held or measured the corner now holds a construction point left where it was. |
-| O | Offset | Select shapes, set the distance in the bar (negative for the other side), then click Offset. Copies of lines that met are joined. An ellipse's or a spline's copy is a spline set that far off it. |
+| O | Offset | Select shapes, set the distance in the bar (negative for the other side), then click Offset. Copies of lines that met are joined. An ellipse's or a spline's copy is a spline set that far off it, which follows the curve when it changes. Double-click it to change the distance. |
 | | Mirror | Click Mirror: a small panel opens. Click the shapes to mirror (or drag a box round them), click the Mirror line box and then the line, and press Mirror. Each copy's points are held symmetric to the original. A text or a picture is mirrored too, and reads backwards as a reflection does. |
 | | Linear pattern | Click the shapes into the panel, type the step across and up and how many in all, then Pattern. Copies keep the constraints and dimensions among the shapes copied. |
 | | Circular pattern | The same, about a point (x, y) and over an angle. |

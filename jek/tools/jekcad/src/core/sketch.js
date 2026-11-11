@@ -47,7 +47,8 @@ const PARAMS = {
 /* an ellipse: its centre c, half-widths rx (along its own x, turned rot degrees) and ry; its points are c, pa (the
    end of rx) and pb (the end of ry), which is how it is sized and turned: by dimensions and constraints on them.
    A spline: its points pts (the curve goes through them; cv: they are a Bézier curve's control points instead) */
-const paramsOf = e => (e.t === 'spline' ? e.pts.flatMap((q, i) => [['pts', i, 0], ['pts', i, 1]]) : PARAMS[e.t] || []);
+// (an offset of a curve has no numbers of its own to solve for: its points are worked out from the curve it is off)
+const paramsOf = e => (e.of ? [] : e.t === 'spline' ? e.pts.flatMap((q, i) => [['pts', i, 0], ['pts', i, 1]]) : PARAMS[e.t] || []);
 const getP = (e, p) => (p.length === 3 ? e[p[0]][p[1]][p[2]] : p.length === 2 ? e[p[0]][p[1]] : e[p[0]]);
 const setP = (e, p, v) => { if (p.length === 3) e[p[0]][p[1]][p[2]] = v; else if (p.length === 2) e[p[0]][p[1]] = v; else e[p[0]] = v; };
 /* a point of a shape, by its key; the origin is [0, 0] */
@@ -349,7 +350,33 @@ function solveSym(A, b, lam) {
 const maxAbs = F => F.reduce((s, v) => Math.max(s, Math.abs(v)), 0);
 /* every constraint and dimension made to hold, the shapes moved as little as they can be (each step the smallest that
    would solve the equations, Levenberg's damping keeping it in hand): { ok, err (the largest left, mm), it } */
+/* the points of a spline set d off an ellipse or a spline (a closed one: outwards, as a circle's offset is) */
+export function offsetCurvePts(e, d) {
+  const P = curvePts(e, 3), cl = curveIsClosed(e), n = P.length;
+  let A = 0; if (cl) for (let i = 0; i < n; i++) { const a = P[i], b = P[(i + 1) % n]; A += a[0] * b[1] - b[0] * a[1]; }
+  const sg = cl ? (A > 0 ? -1 : 1) : 1, m = Math.max(3, Math.min(48, cl ? Math.round(n / 4) : Math.round(n / 4) + 1)), pts = [];
+  for (let j = 0; j < (cl ? m : m + 1); j++) {
+    const i = cl ? Math.round(j * n / m) % n : Math.min(n - 1, Math.round(j * (n - 1) / m)), a = P[cl ? (i - 1 + n) % n : Math.max(0, i - 1)], b = P[cl ? (i + 1) % n : Math.min(n - 1, i + 1)], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    pts.push([P[i][0] - (b[1] - a[1]) / L * d * sg, P[i][1] + (b[0] - a[0]) / L * d * sg]);
+  }
+  return pts;
+}
+/* every offset of a curve set again from its curve as it is now (of: { e: the curve, d: how far }) */
+export function refreshOffsets(ents) {
+  for (const e of ents) {
+    if (!e.of) continue;
+    const src = ents.find(x => x.id === e.of.e);
+    if (!src || (src.t !== 'ellipse' && src.t !== 'spline') || src.of) { delete e.of; continue; }
+    e.pts = offsetCurvePts(src, e.of.d);
+    if (curveIsClosed(src)) e.closed = true; else delete e.closed;
+  }
+}
 export function solveSketch(ents, cons, dims, extra, opts) {
+  const r = solveCore(ents, cons, dims, extra, opts);
+  refreshOffsets(ents);
+  return r;
+}
+function solveCore(ents, cons, dims, extra, opts) {
   opts = opts || {};
   const S = system(ents, cons || [], dims || [], extra);
   if (!S.eqs.length || !S.vars.length) return { ok: true, err: 0, it: 0 };

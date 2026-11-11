@@ -92,7 +92,16 @@
   .cad-hint { position: absolute; left: 1.4rem; bottom: 2.2rem; font-size: 0.72rem; color: var(--rt-over-mute, var(--jek-ink-soft)); pointer-events: none; max-width: calc(100% - 22rem); }
   .cad-busy { position: absolute; left: 50%; top: 0.6rem; transform: translateX(-50%); font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 2px; background: var(--rt-over); color: var(--rt-over-ink); border: 1px solid var(--rt-over-line); pointer-events: none; }
   .cad-note { position: absolute; inset: auto 1rem 3rem; padding: 0.6rem; background: var(--rt-bad-bg); color: var(--jek-red); }
-  .cad-measure { position: absolute; right: 0.6rem; bottom: 2rem; min-width: 12rem; max-width: 20rem; padding: 0.4rem 0.6rem; font-size: 0.75rem; background: var(--rt-over); color: var(--rt-over-ink); border: 1px solid var(--rt-over-line); border-radius: 2px; }
+  .cad-measure { position: absolute; right: 0.6rem; bottom: 0.5rem; min-width: 12rem; max-width: 20rem; padding: 0.4rem 0.6rem; font-size: 0.75rem; background: var(--rt-over); color: var(--rt-over-ink); border: 1px solid var(--rt-over-line); border-radius: 2px; }
+  /* (the readout's tab: the one value, and an arrow to the rest) */
+  .cad-measure { padding: 0; overflow: hidden; }
+  .cad-measure dl { padding: 0.4rem 0.6rem; max-height: 46vh; overflow: auto; border-bottom: 1px solid var(--rt-over-line); }
+  .cad-measure dl[hidden] { display: none; }
+  .cad-mtab { display: flex; align-items: baseline; gap: 0.6rem; width: 100%; border: 0; background: none; color: inherit; font: inherit; padding: 0.35rem 0.6rem; cursor: pointer; text-align: left; }
+  .cad-mtab:hover { background: rgba(127,127,127,0.15); }
+  .cad-mtab .k { color: var(--rt-over-mute, inherit); } .cad-mtab .v { flex: 1; text-align: right; font-family: var(--jek-mono); font-weight: 600; } .cad-mtab .car { font-size: 0.7rem; opacity: 0.7; }
+  .cad-measure dt.grp { grid-column: 1 / 3; font-weight: 700; margin-top: 0.3rem; color: inherit; } .cad-measure dd.grp { display: none; }
+  .cad-measure dd.num { cursor: copy; } .cad-measure dd.num:hover { text-decoration: underline; } .cad-measure dd.copied { color: var(--jek-orange); }
   .cad-measure dl { display: grid; grid-template-columns: auto 1fr; gap: 0.1rem 0.6rem; margin: 0; }
   .cad-measure dt { color: var(--rt-over-mute, inherit); }
   .cad-measure dd { margin: 0; font-family: var(--jek-mono); text-align: right; }

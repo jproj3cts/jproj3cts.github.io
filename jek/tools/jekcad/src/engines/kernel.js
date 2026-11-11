@@ -1040,8 +1040,8 @@ export function makeKernel(oc) {
         if (x.kind === 'part') {
           const v = props(x.s, 'v'), a = props(x.s, 'a'), look = x.look;
           Object.assign(it, { volume: v.m, area: a.m, centroid: v.c, density: look.density, mass: look.density ? v.m / 1000 * look.density : null, name: look.name, bbox: bbox(x.s) });
-        } else if (x.kind === 'face') { const a = props(x.s, 'a'); Object.assign(it, { area: a.m, centroid: a.c, type: surfType(x.s) }); if (it.type === 'cylinder') { const s = T(new oc.BRepAdaptor_Surface(x.s, true)); it.radius = T(s.Cylinder()).Radius(); } if (it.type === 'plane') it.normal = faceFrame(x.s).n; }
-        else if (x.kind === 'edge') { const l = props(x.s, 'l'); Object.assign(it, { length: l.m, type: curveType(x.s) }); if (it.type === 'circle') { const c = T(new oc.BRepAdaptor_Curve(x.s)); it.radius = T(c.Circle()).Radius(); } if (it.type === 'line') it.dir = lineOfEdge(x.s).d; }
+        } else if (x.kind === 'face') { const a = props(x.s, 'a'); Object.assign(it, { area: a.m, centroid: a.c, type: surfType(x.s) }); if (it.type === 'cylinder') { const s = T(new oc.BRepAdaptor_Surface(x.s, true)), cy = T(s.Cylinder()), ax = T(cy.Axis()); it.radius = cy.Radius(); it.axis = { p: xyz(T(ax.Location())), d: xyz(T(ax.Direction())) }; } if (it.type === 'plane') it.normal = faceFrame(x.s).n; }
+        else if (x.kind === 'edge') { const l = props(x.s, 'l'); Object.assign(it, { length: l.m, type: curveType(x.s) }); if (it.type === 'circle') { const c = T(new oc.BRepAdaptor_Curve(x.s)); it.radius = T(c.Circle()).Radius(); } if (it.type === 'line') { const ln = lineOfEdge(x.s); it.dir = ln.d; it.at = ln.p; } else if (it.type === 'circle') it.axis = lineOfEdge(x.s); }
         else it.pt = xyz(T(oc.BRep_Tool.Pnt(x.s)));
         out.items.push(it);
       }

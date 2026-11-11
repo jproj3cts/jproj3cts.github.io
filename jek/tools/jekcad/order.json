@@ -6,6 +6,7 @@
   "core/sketch.js",
   "core/font-data.js",
   "core/sketch-tools.js",
+  "core/measure.js",
   "core/assembly.js",
   "core/doc.js",
   "engines/kernel.js",

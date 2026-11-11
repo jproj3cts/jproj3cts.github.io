@@ -553,6 +553,24 @@ export async function check(pw, base, shots) {
       const tA = await tinted();
       await q.keyboard.press('Escape'); await q.waitForTimeout(150);
       const tB = await tinted();
+      // the measure readout at the foot of the view: two opposite faces chosen (the ends at x = 0 and x = 44), it leads
+      // with how far apart they are; its tab folds the rest away and opens it again; one face alone leads with its area
+      const ends = await q.evaluate(async () => {
+        const J = window.JEKcad, p0 = J.app.result.parts[0], out = {};
+        for (let i = 0; i < p0.faceGroups.length / 2; i++) { const m = await J.kernel('measure', { picks: [{ part: p0.id, kind: 'face', index: i }], doc: J.app.doc }); const it = m.items[0]; if (it.type === 'plane' && Math.abs(Math.abs(it.normal[0]) - 1) < 1e-6) out[it.normal[0] < 0 ? 'lo' : 'hi'] = i; }
+        J.app.sel = [{ part: p0.id, kind: 'face', index: out.lo }, { part: p0.id, kind: 'face', index: out.hi }]; J.selectPick(null, true);
+        return out;
+      });
+      await q.waitForFunction(() => { const t = document.getElementById('measureTab'); return t && /Parallel/.test(t.textContent); }, null, { timeout: 8000 }).catch(() => {});
+      const read1 = await q.evaluate(() => ({ tab: (document.getElementById('measureTab') || {}).textContent, open: !document.getElementById('measureRows').hidden, rows: document.getElementById('measureRows').textContent }));
+      await q.click('#measureTab'); await q.waitForTimeout(300);
+      const shut = await q.evaluate(() => ({ hidden: document.getElementById('measureRows').hidden, tab: document.getElementById('measureTab').textContent }));
+      await q.click('#measureTab'); await q.waitForTimeout(300);
+      const open2 = await q.evaluate(() => !document.getElementById('measureRows').hidden);
+      await q.evaluate(lo => { const J = window.JEKcad, p0 = J.app.result.parts[0]; J.app.sel = [{ part: p0.id, kind: 'face', index: lo }]; J.selectPick(null, true); }, ends.lo);
+      await q.waitForFunction(() => { const t = document.getElementById('measureTab'); return t && /Area/.test(t.textContent); }, null, { timeout: 8000 }).catch(() => {});
+      const read2 = await q.evaluate(() => (document.getElementById('measureTab') || {}).textContent);
+      ok('The measure readout: two opposite faces lead with their parallel distance (44 mm), with the least distance, dX and the total area in the list; its tab folds the list and opens it; one face leads with its area', /Parallel distance/.test(read1.tab || '') && /44 mm/.test(read1.tab || '') && read1.open && /Minimum distance/.test(read1.rows) && /dX/.test(read1.rows) && /Total area/.test(read1.rows) && shut.hidden && /44 mm/.test(shut.tab) && open2 && /Area/.test(read2 || '') && /300 mm²/.test(read2 || ''), JSON.stringify([ends, read1, shut, open2, read2]));
       await q.close();
       ok('Extrude from a face of the model: the top clicked in the dialog goes up 5; a side chosen first goes out 4', empty && picked.n === 1 && !picked.sketch && picked.text && near(v1, 12000, 1e-3) && n1 === 1 && near(v2, 13200, 1e-3), JSON.stringify([empty, picked, v1, n1, v2]));
       ok('A feature clicked in the list tints the faces it made in the view; Esc clears it', t0 === 0 && tA >= 1 && tA <= 5 && tB === 0, JSON.stringify([t0, tA, tB]));
@@ -798,7 +816,7 @@ export async function check(pw, base, shots) {
       const [dl] = await Promise.all([q.waitForEvent('download', { timeout: 20000 }).catch(() => null), q.evaluate(() => window.JEKcad.exportParts('step'))]);
       const stepText = dl ? readFileSync(await dl.path(), 'utf8') : '';
       await q.close();
-      ok('A mate’s connector on an edge is the edge’s middle, along it; two parts are measured where the assembly has them', !!onEdge && onEdge.on === 'edge' && near(onEdge.o[0], 20, 1e-2) && near(onEdge.z[0], 1, 1e-3) && /Distance/.test(meas) && /Volume/.test(meas), JSON.stringify([onEdge, meas]));
+      ok('A mate’s connector on an edge is the edge’s middle, along it; two parts are measured where the assembly has them', !!onEdge && onEdge.on === 'edge' && near(onEdge.o[0], 20, 1e-2) && near(onEdge.z[0], 1, 1e-3) && /Minimum distance/.test(meas) && /Volume/.test(meas), JSON.stringify([onEdge, meas]));
       ok('Interference lists the pair of parts that run into each other with the volume they share; the assembly exports as one STEP file', clash.rows === 1 && clash.n === 1 && near(clash.v, 10 * 10 * 5, 1e-3) && /^ISO-10303-21/.test(stepText) && /Stack|Assembly/.test(dl ? dl.suggestedFilename() : '') && !qe.length, JSON.stringify([clash, stepText.slice(0, 20), dl && dl.suggestedFilename(), qe]));
     }
     // signed out for sure: looking is free, changing is not (Sketch asks for an account and nothing is started)

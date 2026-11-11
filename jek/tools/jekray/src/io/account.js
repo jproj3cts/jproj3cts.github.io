@@ -128,7 +128,7 @@ export async function showSubscribe() {
   else licNote.append('Pay now and your account is made from the address you pay with; you are signed in when you come back. Already have an account? ',
     h('button', { type: 'button', class: 'rt-link', onclick: () => { dlg.close(); proSignIn(); } }, 'Sign in'), ' first.');
   box.replaceChildren(licNote, tabs, h('div', { class: 'rt-subcards' },
-    card('pro', 'JEKrayPro', 'For anyone: your benches in the cloud, their history, on every device; the optimiser, tolerancing, reports, scripts and share links.'),
+    card('pro', 'JEKrayPro', 'For anyone: your benches in the cloud, with their history, on every device; forks, folders, your own parts and any number of share links.'),
     card('academic', 'Academic', 'The same, at half the price, for students and staff at a university.', { node: acNode, email: ac ? null : acMail, err: acErr }),
     card('team', 'Team', 'For a lab, group or company: one workspace everyone works in, with roles, invitations by email and an activity record. A seat each for the owner, admins and editors, at least three; viewers are free. Each seat has JEKrayPro on their own benches too.', { seat: true, go: teamGo })));
 }

@@ -2109,7 +2109,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitemcheckbox" id="btnAuto" aria-checked="true" data-icon="check" title="Solve and fly again after every change; off, press Fly">Fly after every change</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" id="btnTrap" data-icon="target" title="The Mathieu parameters, secular frequencies and stability at the analysis point (the array’s centre unless one is set)">Trap analysis…</button>
-            <button type="button" role="menuitem" id="btnScripts" data-icon="flask" data-need="pro" data-what="run scripts" title="JavaScript run against this bench: set voltages, fly, read the results, sweep a parameter (JEKrayPro)">Scripts…</button>
+            <button type="button" role="menuitem" id="btnScripts" data-icon="flask" data-need="account" data-what="run scripts" title="JavaScript run against this bench: set voltages, fly, read the results, sweep a parameter">Scripts…</button>
             <button type="button" role="menuitem" data-click="btnSideTab" data-icon="sliders" title="The array, the gas, the magnetic field, flying and display">Bench settings…</button>
           </div>
         </div>
@@ -2143,7 +2143,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
           <input class="rt-name" id="projName" type="text" aria-label="Bench name" spellcheck="false">
         </div>
         <div class="rt-group rt-right">
-          <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro; a free account keeps three)">Share</button>
+          <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (a free account keeps three at once; JEKrayPro any number)">Share</button>
           <button class="rt-btn rt-tbl" id="btnSave" data-icon="save" data-need="account" data-what="save the bench as a file" title="Save the bench as a .jekion file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save</button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>
           <div class="rt-more rt-phonegone" id="acct" hidden>
@@ -2214,7 +2214,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   </dialog>
   <dialog class="rt-dialog rt-wide" id="subDialog" aria-labelledby="subTitle">
     <h2 id="subTitle">JEKrayPro</h2>
-    <p>Keep your benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders in JEKsuite. Do the full design work in JEKray’s Optical and RF designers, and share any bench as a short link. The apps themselves stay free.</p>
+    <p>Keep your benches in the cloud, from every JEK app: open them on any computer, go back to any earlier version, fork one to try an idea without touching the original, and organise them in folders in JEKsuite. Keep your own parts and assemblies to use on any bench, work with a team in a shared workspace, and make any number of share links. Everything done in the apps themselves needs only a free account.</p>
     <p class="rt-founding"><b>Founding member price.</b> Subscribe while JEKray is in its open beta and you keep the price you start on for as long as your subscription carries on, whatever later prices are.</p>
     <div id="subPlans"></div>
     <p class="rt-subsmall">Prices include VAT where it applies. Payment is taken securely by Stripe; cancel any time from Billing in the account menu. By subscribing you agree to the <a href="/jek/terms.html" target="_blank">JEKrayPro Terms</a>.</p>
@@ -4886,18 +4886,32 @@ function iwReset() {
   IW.local = null;
 }
 /* ==========================================================================
-   The designers' work as JEKrayPro's
-   Anyone may open the Optical and RF designers, build and edit a design and look at it from every side. Doing the
-   work with it is JEKrayPro's: the optimiser (and the global search and glass substitution), tolerancing, design
-   reports, drawings and exporting a design. The RF designer's way from a specification to a lens that can be made
-   and quoted stays open to all, as does the coating designer. The tests, and a build without accounts, are not gated.
+   What is JEKrayPro's, and what a free account does
+   JEKrayPro is what lives on JEK's servers: benches saved to the cloud with their history, forks, My parts, teams.
+   Everything done in the browser is a free account's (freeWork): the designers' optimiser (and the global search and
+   glass substitution), tolerancing, design reports, drawings and exporting a design, scripts, every data format,
+   JEKfilm's file, optimiser, tolerancing and specification. Each still goes through designPro(what) / proMark, which
+   ask for the account alone when the work is free. Share links are kept on the server but a free account has a few
+   (jek-api FREE_LINKS): signed out they ask for an account; signed in the API says when they are used up (JEKray
+   counts them on the badge, io/tasters.js). The tests, and a build without accounts, are not gated.
    ========================================================================== */
+const FREE_WORK = /optimise|search for designs|substitute glasses|tolerance a|design report|drawings|export a design|run scripts|export (data as|several kinds|everything)|save a coating file|coating specification/;
+const freeWork = what => FREE_WORK.test(String(what || ''));
+const shareWork = what => /share a link|QR code/.test(String(what || ''));
 /* why the work named is not open now, from the account's own reason (cloud.js proWhy: not signed in, or no plan): '' when it is */
 function designWhyOf(why, what) {
   if (!why) return '';
   return /^Sign in/.test(why) ? 'Sign in with JEKrayPro, top right, to ' + what : 'JEKrayPro is needed to ' + what + ': subscribe from the account menu, or join a team with a plan';
 }
-const designWhy = what => (!hooks.account().on || !hooks.proWhy ? '' : designWhyOf(hooks.proWhy(), what));
+function designWhy(what) {
+  const a = hooks.account();
+  if (!a.on) return '';
+  if (freeWork(what) || (shareWork(what) && !a.signedIn)) return acctWhy(what);
+  if (!hooks.proWhy) return '';
+  const why = designWhyOf(hooks.proWhy(), what);
+  // a free account's share links, where the app keeps no count of them: the API says when they are used up
+  return why && shareWork(what) && a.signedIn && hooks.tasterLeft(what) === null ? '' : why;
+}
 /* see the result, pay to keep it: signed in without a plan and this month's free uses of the work spent, it may still
    run as a preview, its result shown, kept only with JEKrayPro (the designers' optimisers) */
 function previewOK(what) {
@@ -4906,6 +4920,7 @@ function previewOK(what) {
 }
 /* before the work is done: true when it may be; otherwise it says why and offers the way (sign in, or subscribe) */
 function designPro(what) {
+  if (freeWork(what) || (shareWork(what) && !hooks.account().signedIn)) return accountGate(what);
   const why = designWhy(what);
   if (!why) return true;
   // signed in without a plan: a free use of it this month, while there are any (io/tasters.js)
@@ -4939,8 +4954,9 @@ function accountGate(what) {
 /* ---- the badges: Pro, or Free account, on what needs it, shown only while it is needed ----
    el.dataset.need is 'pro' or 'account', el.dataset.what the work; needsShown() redoes them all as the account changes */
 function needShow(el) {
-  const pro = el.dataset.need === 'pro', why = pro ? designWhy(el.dataset.what) : acctWhy(el.dataset.what);
-  el.classList.toggle(pro ? 'rt-proneed' : 'rt-acctneed', !!why);
+  // (work marked Pro that a free account does, and a share link asked for signed out, carry the Free account badge)
+  const what = el.dataset.what, pro = el.dataset.need === 'pro' && !freeWork(what) && !(shareWork(what) && !hooks.account().signedIn), why = el.dataset.need === 'pro' ? designWhy(what) : acctWhy(what);
+  el.classList.toggle('rt-proneed', pro && !!why); el.classList.toggle('rt-acctneed', !pro && !!why);
   // a free account's free uses of it this month, on its badge ("4 free"; none left: Pro again)
   const left = pro && why && !/^Sign in/.test(why) ? hooks.tasterLeft(el.dataset.what) : null;
   if (left > 0) el.dataset.free = String(left); else delete el.dataset.free;
@@ -6824,6 +6840,7 @@ async function importCad(file, at) {
 const APP_VERSION = '1.0', APP_DATE = '12 November 2026';
 const NEWS = [
   ['1.0', APP_DATE, [
+    '<b>Scripts and every data export need only a free account now</b>, and a free account keeps three share links. JEKrayPro is the cloud: benches saved online, with their history and forks.',
     '<b>Flying the ions and saving the .jekion file need a free account</b>. Drawing electrodes and seeing their fields need none. A <b>Free account</b> badge marks each until you are signed in.',
     '<b>Signed out, nothing is kept</b>: the bench is not autosaved in this browser. <b>Not kept</b> beside Save says so and opens the sign-in; the bench comes with you.',
     '<b>JEKsuite</b>, the JEK hub: File \u203a My benches on JEKsuite opens <a href="/jek/tools/jeksuite.html" target="_blank">JEKsuite</a> in its own tab, with every cloud bench of every JEK app, JEKion\u2019s among them, labelled and filtered by app; a JEKion bench chosen there opens here. New there starts a JEKion bench, in the cloud when you can save there. Your account, plan and teams are there too.',
@@ -7265,7 +7282,7 @@ async function showSubscribe() {
   else licNote.append('Pay now and your account is made from the address you pay with; you are signed in when you come back. Already have an account? ',
     h('button', { type: 'button', class: 'rt-link', onclick: () => { dlg.close(); proSignIn(); } }, 'Sign in'), ' first.');
   box.replaceChildren(licNote, tabs, h('div', { class: 'rt-subcards' },
-    card('pro', 'JEKrayPro', 'For anyone: your benches in the cloud, their history, on every device; the optimiser, tolerancing, reports, scripts and share links.'),
+    card('pro', 'JEKrayPro', 'For anyone: your benches in the cloud, with their history, on every device; forks, folders, your own parts and any number of share links.'),
     card('academic', 'Academic', 'The same, at half the price, for students and staff at a university.', { node: acNode, email: ac ? null : acMail, err: acErr }),
     card('team', 'Team', 'For a lab, group or company: one workspace everyone works in, with roles, invitations by email and an activity record. A seat each for the owner, admins and editors, at least three; viewers are free. Each seat has JEKrayPro on their own benches too.', { seat: true, go: teamGo })));
 }
@@ -7977,7 +7994,7 @@ function showSignIn(kind, what) {
   track('prompt', (kind === 'export' ? 'export' : kind === 'cloud' ? 'cloud' : 'pro') + '.shown');
   const dlg = ionPrompt('ionSignIn'), close = () => dlg.close();
   const pro = kind === 'pro' && account;
-  dlg.replaceChildren(h('h2', { id: 'ionSignInTitle' }, kind === 'export' ? (/^keep/.test(what) ? 'Keeping your work needs a free account' : /^fly/.test(what) ? 'Flying the ions needs a free account' : /^save the bench/.test(what) ? 'Saving the file needs a free account' : 'Exporting needs a free account') : kind === 'cloud' ? 'The cloud needs an account' : pro ? 'JEKrayPro is needed' : 'Sign in first'),
+  dlg.replaceChildren(h('h2', { id: 'ionSignInTitle' }, kind === 'export' ? (/^keep/.test(what) ? 'Keeping your work needs a free account' : /^fly/.test(what) ? 'Flying the ions needs a free account' : /^save the bench/.test(what) ? 'Saving the file needs a free account' : /^(export|save a picture|save plots|save a plot|make a part pack)/.test(what) ? 'Exporting needs a free account' : 'A free account is needed') : kind === 'cloud' ? 'The cloud needs an account' : pro ? 'JEKrayPro is needed' : 'Sign in first'),
     h('p', null, kind === 'export' ? 'Sign in to ' + what + '. ' + (/^keep/.test(what) ? 'Signed out, nothing is kept when you leave this page; the bench comes with you when you sign in.' : 'Drawing electrodes and seeing their fields need no account.') : kind === 'cloud' ? 'Sign in to ' + what + '. A free account opens your cloud benches and saves the .jekion file on your computer; saving to the cloud needs JEKrayPro.' : pro ? 'To ' + what + ', JEKrayPro is needed, or a place in a team with a plan.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan.'),
     h('p', null, h('b', null, 'One account for every JEK app.'), ' Your bench stays here while you sign in.'),
     pro ? null : h('div', { class: 'rt-actions rt-signrow' }, ...signInRow(kind, close)),
@@ -8047,7 +8064,7 @@ function fillDialog() {
   kindsBox.replaceChildren(...ION_DATA_KINDS.map(([k, label, about]) => h('label', { class: 'rt-check', title: about }, h('input', { type: 'checkbox', value: k, disabled: counts[k] ? null : '' }), label + (counts[k] ? ' (' + counts[k] + ')' : ' (none yet)'))));
   const first = kindsBox.querySelector('input:not(:disabled)'); if (first) first.checked = true;
   fmtBox.replaceChildren(...Object.entries(DATA_FORMATS).map(([k, F]) => { const b = h('button', { type: 'button', role: 'radio', class: 'rt-btn', 'aria-checked': String(k === fmt), onclick: () => { fmt = k; for (const x of fmtBox.children) x.setAttribute('aria-checked', String(x === b)); } }, F.label); return DATA_PRO_ION.has(k) ? needMark(b, 'pro', 'export data as ' + F.label) : b; }));
-  note.textContent = 'One kind as CSV or JSON needs a free account; Excel, NumPy and MATLAB, several kinds at once, or everything, are JEKrayPro’s. Every file carries the bench’s name, the units and the array’s settings.';
+  note.textContent = 'Exporting data needs a free account. Every file carries the bench’s name, the units and the array’s settings.';
 }
 function wireDataExport() {
   const dlg = document.getElementById('dataDialog');

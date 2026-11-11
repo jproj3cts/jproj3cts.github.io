@@ -45,7 +45,7 @@ The site should read as written by the people who build the things on it. Before
 | JEKion (source) | `jek/tools/jekion/src/` — built into `jek/tools/jekion.html` (committed); shares JEKray's modules by path in its `order.json`; tests `jek/tools/jekion/test/` + `jek/tools/jekion-tests.html`; demos `jek/tools/demos/*.jekion`; docs `jek/docs/jekion/` (`_data/jekion_docs.yml`, `docs: jekion` in front matter) |
 | Site pages (HTML built by Jekyll; nav from `_includes/site-nav.html`) | `jek/*.html`, `jek/products/`, `jek/calculators/`, `index.html`, `404.html` (old-URL map) |
 | JEKsuite, the JEK hub (the apps and every cloud bench, account, plans, teams) | `jek/tools/jeksuite/` — built into `jek/tools/jeksuite.html` (committed), as JEKion is; `README.md` there; the file system (folder tree, drag and drop, picking, the table, names in place) in `src/ui/home.js`, its arithmetic in `src/core/files.js`; the apps' colours there are JEKsuite's alone (`--app` in its `style.css`); tests `node test/run.mjs` (build, Node, a Playwright check against `test/fake-api.mjs`); docs `jek/docs/jekray/jeksuite.md` |
-| JEKfilm, the coating designer (`.jekfilm`; a cloud bench with tool `jekfilm`) | `jek/tools/jekfilm/` — built into `jek/tools/jekfilm.html` (committed), as JEKsuite is; `README.md` there; shares JEKray's `core/coatings.js` and `core/coatdesign.js`; saving and optimising are Pro; tests `node test/run.mjs`; docs `jek/docs/jekray/jekfilm.md` |
+| JEKfilm, the coating designer (`.jekfilm`; a cloud bench with tool `jekfilm`) | `jek/tools/jekfilm/` — built into `jek/tools/jekfilm.html` (committed), as JEKsuite is; `README.md` there; shares JEKray's `core/coatings.js` and `core/coatdesign.js`; saving and optimising need a free account, the cloud Pro; tests `node test/run.mjs`; docs `jek/docs/jekray/jekfilm.md` |
 | JEKcad, the Part Studio CAD app (`.jekcad`; a cloud bench with tool `jekcad`, also known by its content's format) | `jek/tools/jekcad/` — built into `jek/tools/jekcad.html` (committed), as JEKfilm is; `README.md` there; OpenCascade (replicad-opencascadejs, LGPL-2.1) vendored in `jek/assets/vendor/replicad-opencascadejs/<version>/`, run in a worker, loaded on first use; feature list, sketch solver and tools in `src/core/`; a document is tabs, Part Studios and Assemblies (`normFile` in `core/doc.js`, mates in `core/assembly.js`, `ui/assembly.js`); exports need a free account, the cloud Pro (as JEKion); share links short with an account (`io/share.js`, the API's `links.js` letters c and d, `/c/<id>` forwarded by `404.html`); tests `node test/run.mjs`; docs `jek/docs/jekcad/` (`_data/jekcad_docs.yml`); demo `jek/tools/demos/*.jekcad` |
 | Accounts / benches / billing API (Cloudflare Worker) | `jek-api/` (routes in `src/index.js`, D1 migrations in `migrations/`) |
 | Shop fulfilment worker | `worker/` (separate; products in `src/catalogue.js`) |
@@ -110,11 +110,13 @@ through `core/hooks.js`.
   back with the worker's done message (Stop: none) and become files on the page in `saveScriptFiles` (gated by
   `scriptsWhy`); the output's Save as… goes through it too. Node `headless.mjs`, `cli.mjs`; documented in
   `jek/docs/jekray/scripting.md`.
-- **JEKrayPro gating**: `ui/pro.js` (`designPro`, `proMark`), reasons in `io/cloud.js` (`proWhy`). Pro: optimiser,
-  tolerancing, reports, drawings, design export, share links/QR, scripts, My parts, and data export as XLSX/NPZ/MAT,
-  several kinds at once or Export everything (`exportData`/`exportEverything` in `io/data-export.js`: `accountGate`
-  first, then `designPro`; `DATA_PRO`). Exports (layout, 3D PNG, plots' PNG/CSV, screen CSV, data as CSV or JSON one
-  kind at a time, .zmx, CAD) and saving the .jekray file (`saveFile`) need a free account: `accountGate(what)` in `ui/pro.js` opens each export function
+- **JEKrayPro gating**: `ui/pro.js` (`designPro`, `proMark`), reasons in `io/cloud.js` (`proWhy`). JEKrayPro is only
+  what lives on the server: cloud save, history, forks, folders, My parts, teams, and more share links than a free
+  account's three (`FREE_LINKS` in `jek-api/src/links.js`). Everything done in the browser needs only a free account
+  (`freeWork` in `ui/pro.js`, in every app: the optimiser, tolerancing, reports, drawings, design export, scripts,
+  every data format, JEKfilm's file, optimiser and specification): it still goes through `designPro(what)` /
+  `proMark`, which ask for the account alone when `freeWork(what)`. Exports (layout, 3D PNG, plots' PNG/CSV, screen
+  CSV, data, .zmx, CAD) and saving the .jekray file (`saveFile`) need a free account: `accountGate(what)` in `ui/pro.js` opens each export function
   and shows the sign-in prompt (`exportSignIn` in `io/nudges.js`, counted as `export.*`); only someone signed out for
   sure is stopped (account unknown or API down: allowed). JEKion's .jekion file is the same, and its ions fly only
   for someone signed in (`flyBar` in `jekion/src/ui/sim.js`: the fields are still solved and drawn). Signed out,

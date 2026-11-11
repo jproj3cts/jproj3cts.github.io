@@ -8,6 +8,7 @@ import { playing } from './sweeps.js';
 import { serialize } from '../state/elements.js';
 import { modDelta } from '../engines/mods.js';
 import { accountsOn } from '../io/account.js';
+import { accountGate, acctWhy } from './pro.js';
 import { track } from '../io/usage.js';
 import { NUMPY_BYTES, PY_BYTES, PY_DIR, pyReady, pyRun } from './python.js';
 import { WORKERS_OK, newAppWorker } from '../page/workers.js';
@@ -95,9 +96,8 @@ result = R`, 'py'],
 J.elements()`, 'py'],
 ];
 
-// why scripts are not available now ('' when they are): they are JEKrayPro's; the tests and a build without accounts are not gated
-export const scriptsWhy = () => (TEST_MODE || !accountsOn() ? '' : hooks.proWhy() || '');
-let tasterRun = false;                 // the run under way is one of a free account's free runs (io/tasters.js): its files come down too
+// why scripts are not available now ('' when they are): they need a free account; the tests and a build without accounts are not gated
+export const scriptsWhy = () => (TEST_MODE || !accountsOn() ? '' : acctWhy('run scripts'));
 
 /* what a script is given: P is the page's window.JEKray (or, in the tests, the same calls made in Node); saves, the
    list its save() calls go into, for the page to make into files when the run ends */
@@ -157,10 +157,9 @@ export async function scriptDataFile(s, script) {
   const out = await dfWrite({ meta, items }, s.format);
   return { name: base + out.ext, base, ext: out.ext, blob: new Blob([out.bytes], { type: out.mime }) };
 }
-/* the files a run's save() calls asked for, downloaded (a run's script is JEKrayPro's: so is this). More than five come as one zip */
+/* the files a run's save() calls asked for, downloaded (a run's script needs an account: so does this). More than five come as one zip */
 export async function saveScriptFiles(saves, script) {
-  if (scriptsWhy() && !tasterRun) { toast(scriptsWhy(), true); return []; }
-  tasterRun = false;
+  if (scriptsWhy()) { toast(scriptsWhy(), true); return []; }
   if (!saves || !saves.length) return [];
   const files = [], used = new Set();
   for (const s of saves) {
@@ -402,11 +401,8 @@ export function wireScripts() {
     if (on) { const t0 = performance.now(); const tick = () => { clock.textContent = 'Running… ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s'; }; tick(); timer = setInterval(tick, 100); }
   };
   const run = async (o = {}) => {
-    // signed in without a plan: one of the month's free runs (its files come down with it), or the card once spent
-    const why = scriptsWhy(), free = !!why && !/^Sign in/.test(why) && !scriptRunning() && hooks.tasterUse('run scripts');
-    if (scriptsWhy() && !free) { if (!/^Sign in/.test(why) && hooks.tasterLeft('run scripts') !== 0) toast(why, true); hooks.proFix('run scripts'); return; }
+    if (scriptsWhy()) { accountGate('run scripts'); return; }
     if (scriptRunning()) return;
-    tasterRun = free;
     keep();
     out.replaceChildren(logBox = h('div', { id: 'scriptLogs' }), status = h('div', { class: 'rt-script-note', id: 'scriptLoading' }));
     // Python's first run fetches it: what that is doing, below the lines logged so far
@@ -471,10 +467,9 @@ export function wireScripts() {
     showList();
     const why = scriptsWhy();
     gate.hidden = !why;
-    const free = why && !/^Sign in/.test(why) ? hooks.tasterLeft('run scripts') : null;
-    if (why) gate.replaceChildren(h('b', null, 'Part of JEKrayPro. '), /^Sign in/.test(why) ? 'Sign in, top right, with an account that has a plan. ' : free > 0 ? 'Your free account has ' + free + ' free runs left this month; JEKrayPro has them without a limit. ' : 'Scripts need a plan: your own JEKrayPro, or a team with one. ',
-      h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => hooks.proFix('run scripts') }, /^Sign in/.test(why) ? 'Sign in' : 'Get JEKrayPro'));
-    if (!scriptRunning()) { runBtn.disabled = !!why && !(free > 0); out.replaceChildren(); }
+    if (why) gate.replaceChildren(h('b', null, 'Scripts need a free account. '), 'Sign in, top right, to run one. ',
+      h('button', { type: 'button', class: 'rt-btn quiet', onclick: () => accountGate('run scripts') }, 'Sign in'));
+    if (!scriptRunning()) { runBtn.disabled = !!why; out.replaceChildren(); }
     if (!why || free > 0) scriptWarm(langOf());
     dlg.showModal();
     ed.focus();

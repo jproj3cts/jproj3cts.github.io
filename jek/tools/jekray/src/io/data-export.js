@@ -17,7 +17,7 @@ import { track } from './usage.js';
    and the bench itself, as CSV (a zip of CSV files with README.txt), JSON, Excel, NumPy or MATLAB
    (core/datafiles.js writes them; engines/data-export.js gathers all but the plots, which are the panels' own).
    A free account exports one kind at a time as CSV or JSON; several kinds at once, everything in one go,
-   and Excel, NumPy and MATLAB files are JEKrayPro's. The tests, and a build without accounts, are not gated. */
+   and Excel, NumPy and MATLAB files went with JEKrayPro once; every format and any number of kinds are a free account's now. The tests, and a build without accounts, are not gated. */
 export const DATA_PRO = new Set(['xlsx', 'npz', 'mat']);
 export const DATA_FMT_LIST = [['csv', 'CSV (zip)'], ['json', 'JSON'], ['xlsx', 'Excel (.xlsx)'], ['npz', 'NumPy (.npz)'], ['mat', 'MATLAB (.mat)']];
 const PRO_FMT_WHAT = 'export data as Excel, NumPy or MATLAB files', PRO_MANY_WHAT = 'export several kinds of data at once', PRO_ALL_WHAT = 'export everything at once';
@@ -106,7 +106,7 @@ async function dataFile(kinds, fmt) {
   return { name: base + out.ext, blob: new Blob([out.bytes], { type: out.mime }), count: G.items.length };
 }
 
-/* the kinds ticked, in the format chosen: a free account's for one kind as CSV or JSON; JEKrayPro's for more */
+/* the kinds ticked, in the format chosen: a free account's */
 export async function exportData(kinds, fmt) {
   if (!accountGate('export data')) return null;
   if (DATA_PRO.has(fmt)) { if (!designPro(PRO_FMT_WHAT)) return null; }
@@ -121,7 +121,7 @@ export async function exportData(kinds, fmt) {
     return F.name;
   } catch (err) { toast('The data could not be exported: ' + err.message, true); return null; }
 }
-/* everything there is, in one file (JEKrayPro) */
+/* everything there is, in one file (a free account's) */
 export async function exportEverything(fmt) {
   if (!accountGate('export data')) return null;
   if (!designPro(PRO_ALL_WHAT)) return null;
@@ -161,7 +161,7 @@ export function wireDataExport() {
   const say = () => {
     const ks = kindsNow(), f = fmtNow(), pro = DATA_PRO.has(f) || ks.length > 1;
     go.disabled = !ks.length;
-    note.textContent = !ks.length ? 'Tick at least one kind of data.' : pro && designWhy(ks.length > 1 ? PRO_MANY_WHAT : PRO_FMT_WHAT) ? 'With a free account: one kind at a time, as CSV or JSON. Several at once, everything in one go, and Excel, NumPy and MATLAB files are part of JEKrayPro.'
+    note.textContent = !ks.length ? 'Tick at least one kind of data.' : pro && designWhy(ks.length > 1 ? PRO_MANY_WHAT : PRO_FMT_WHAT) ? 'Exporting data needs a free account: sign in, top right.'
       : 'Each file says what it holds: the bench, the JEKray version, the date, every column’s unit and the settings of the parts the numbers come from.';
     go.textContent = ks.length > 1 ? 'Export ' + ks.length + ' kinds' : 'Export';
   };

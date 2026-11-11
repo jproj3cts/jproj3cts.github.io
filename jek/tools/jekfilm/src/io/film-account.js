@@ -20,7 +20,7 @@ export function filmSignIn(kind, what) {
   let dlg = document.getElementById('filmSignIn');
   if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'filmSignIn', 'aria-labelledby': 'filmSignInTitle' }); document.body.append(dlg); }
   const close = () => dlg.close(), pro = kind === 'pro' && account;
-  dlg.replaceChildren(h('h2', { id: 'filmSignInTitle' }, kind === 'export' ? (/^keep/.test(what) ? 'Keeping your work needs a free account' : 'Exporting needs a free account') : pro ? 'JEKrayPro is needed' : 'Sign in first'),
+  dlg.replaceChildren(h('h2', { id: 'filmSignInTitle' }, kind === 'export' ? (/^keep/.test(what) ? 'Keeping your work needs a free account' : /^(export|save a picture|save plots|save a plot|make a part pack)/.test(what) ? 'Exporting needs a free account' : 'A free account is needed') : pro ? 'JEKrayPro is needed' : 'Sign in first'),
     h('p', null, kind === 'export' ? 'Sign in to ' + what + '.' + (/^keep/.test(what) ? ' Signed out, nothing is kept when you leave this page; the coating comes with you when you sign in.' : '') : pro ? 'To ' + what + ', JEKrayPro is needed, or a place in a team with a plan.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan.'),
     h('p', null, h('b', null, 'One account for every JEK app.'), ' Your coating stays in this browser while you sign in.'),
     pro ? null : h('div', { class: 'rt-actions rt-signrow' }, ...signInRow(kind, close)),

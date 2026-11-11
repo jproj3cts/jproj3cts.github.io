@@ -1,18 +1,32 @@
 import { hooks } from '../core/hooks.js';
 
 /* ==========================================================================
-   The designers' work as JEKrayPro's
-   Anyone may open the Optical and RF designers, build and edit a design and look at it from every side. Doing the
-   work with it is JEKrayPro's: the optimiser (and the global search and glass substitution), tolerancing, design
-   reports, drawings and exporting a design. The RF designer's way from a specification to a lens that can be made
-   and quoted stays open to all, as does the coating designer. The tests, and a build without accounts, are not gated.
+   What is JEKrayPro's, and what a free account does
+   JEKrayPro is what lives on JEK's servers: benches saved to the cloud with their history, forks, My parts, teams.
+   Everything done in the browser is a free account's (freeWork): the designers' optimiser (and the global search and
+   glass substitution), tolerancing, design reports, drawings and exporting a design, scripts, every data format,
+   JEKfilm's file, optimiser, tolerancing and specification. Each still goes through designPro(what) / proMark, which
+   ask for the account alone when the work is free. Share links are kept on the server but a free account has a few
+   (jek-api FREE_LINKS): signed out they ask for an account; signed in the API says when they are used up (JEKray
+   counts them on the badge, io/tasters.js). The tests, and a build without accounts, are not gated.
    ========================================================================== */
+const FREE_WORK = /optimise|search for designs|substitute glasses|tolerance a|design report|drawings|export a design|run scripts|export (data as|several kinds|everything)|save a coating file|coating specification/;
+export const freeWork = what => FREE_WORK.test(String(what || ''));
+const shareWork = what => /share a link|QR code/.test(String(what || ''));
 /* why the work named is not open now, from the account's own reason (cloud.js proWhy: not signed in, or no plan): '' when it is */
 export function designWhyOf(why, what) {
   if (!why) return '';
   return /^Sign in/.test(why) ? 'Sign in with JEKrayPro, top right, to ' + what : 'JEKrayPro is needed to ' + what + ': subscribe from the account menu, or join a team with a plan';
 }
-export const designWhy = what => (!hooks.account().on || !hooks.proWhy ? '' : designWhyOf(hooks.proWhy(), what));
+export function designWhy(what) {
+  const a = hooks.account();
+  if (!a.on) return '';
+  if (freeWork(what) || (shareWork(what) && !a.signedIn)) return acctWhy(what);
+  if (!hooks.proWhy) return '';
+  const why = designWhyOf(hooks.proWhy(), what);
+  // a free account's share links, where the app keeps no count of them: the API says when they are used up
+  return why && shareWork(what) && a.signedIn && hooks.tasterLeft(what) === null ? '' : why;
+}
 /* see the result, pay to keep it: signed in without a plan and this month's free uses of the work spent, it may still
    run as a preview, its result shown, kept only with JEKrayPro (the designers' optimisers) */
 export function previewOK(what) {
@@ -21,6 +35,7 @@ export function previewOK(what) {
 }
 /* before the work is done: true when it may be; otherwise it says why and offers the way (sign in, or subscribe) */
 export function designPro(what) {
+  if (freeWork(what) || (shareWork(what) && !hooks.account().signedIn)) return accountGate(what);
   const why = designWhy(what);
   if (!why) return true;
   // signed in without a plan: a free use of it this month, while there are any (io/tasters.js)
@@ -54,8 +69,9 @@ export function accountGate(what) {
 /* ---- the badges: Pro, or Free account, on what needs it, shown only while it is needed ----
    el.dataset.need is 'pro' or 'account', el.dataset.what the work; needsShown() redoes them all as the account changes */
 function needShow(el) {
-  const pro = el.dataset.need === 'pro', why = pro ? designWhy(el.dataset.what) : acctWhy(el.dataset.what);
-  el.classList.toggle(pro ? 'rt-proneed' : 'rt-acctneed', !!why);
+  // (work marked Pro that a free account does, and a share link asked for signed out, carry the Free account badge)
+  const what = el.dataset.what, pro = el.dataset.need === 'pro' && !freeWork(what) && !(shareWork(what) && !hooks.account().signedIn), why = el.dataset.need === 'pro' ? designWhy(what) : acctWhy(what);
+  el.classList.toggle('rt-proneed', pro && !!why); el.classList.toggle('rt-acctneed', !pro && !!why);
   // a free account's free uses of it this month, on its badge ("4 free"; none left: Pro again)
   const left = pro && why && !/^Sign in/.test(why) ? hooks.tasterLeft(el.dataset.what) : null;
   if (left > 0) el.dataset.free = String(left); else delete el.dataset.free;

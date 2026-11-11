@@ -53,7 +53,7 @@ export function exportSignIn(what) {
   track('prompt', 'export.shown');
   nudgeTaken();
   const dlg = promptDialog('exportSignIn'), close = () => dlg.close();
-  dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, /^keep/.test(what) ? 'Keeping your work needs a free account' : /^save the bench/.test(what) ? 'Saving the file needs a free account' : 'Exporting needs a free account'),
+  dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, /^keep/.test(what) ? 'Keeping your work needs a free account' : /^save the bench/.test(what) ? 'Saving the file needs a free account' : /^(export|save a picture|save plots|save a plot|make a part pack)/.test(what) ? 'Exporting needs a free account' : 'A free account is needed'),
     h('p', null, 'Sign in to ' + what + '. Signed out, nothing is kept when you leave this page; the bench comes with you when you sign in.'),
     freeLead('Create a free account or sign in.', 'Your bench stays here while you sign in.'),
     uniNote(),

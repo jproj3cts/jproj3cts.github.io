@@ -6,7 +6,7 @@ permalink: /jek/docs/jekion/scripting/
 description: "Tools › Scripts: JavaScript run against the bench through J, to set voltages, fly, read the results, sweep a parameter and save tables."
 ---
 
-<p class="dx-lead">Tools › Scripts (JEKrayPro) runs JavaScript on the page against the bench. The script gets `J`, and may `await`.</p>
+<p class="dx-lead">Tools › Scripts (with a free account) runs JavaScript on the page against the bench. The script gets `J`, and may `await`.</p>
 
 ## The API
 

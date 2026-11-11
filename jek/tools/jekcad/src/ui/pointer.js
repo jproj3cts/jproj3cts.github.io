@@ -1,6 +1,6 @@
 import { app, emit, redo, toast, undo } from './app.js';
 import { V, fit, normalTo, orbit, pan, pickAt, pickBox, viewFrom, zoomAt } from './view3d.js';
-import { AS, asmDragEnd, asmDragMove, asmDragStart, deleteInstance, matePick } from './assembly.js';
+import { AS, asmDragEnd, asmDragMove, asmDragStart, deleteInstance, matePick, triadAt } from './assembly.js';
 import { modelDimAt, modelDimEdit, modelDimHover, overlayPick, setBoxSel, sketchDbl, sketchDown, sketchKey, sketchMove, sketchRight, sketchUp } from './sketcher.js';
 import { closeDialog, editFeature, fieldPick, fieldWants, okDialog, openFeature } from './dialog.js';
 import { kernelAsk } from '../page/kernel.js';
@@ -57,7 +57,7 @@ export function wirePointer() {
     if (e.button === 2 || e.button === 1) { drag = { mode: e.button === 1 || e.shiftKey ? 'pan' : 'orbit', x: sx, y: sy, moved: false, travel: 0, button: e.button }; return; }
     if (app.sketch && sketchDown(e, sx, sy)) { drag = { mode: 'sketch' }; return; }
     // in an assembly a part is dragged about by its own faces (Ctrl: turned about the line of sight)
-    if (app.asm && !AS.mate && !e.shiftKey) { const p0 = pickAt(sx, sy, 'face'); if (p0 && asmDragStart(p0, sx, sy, e.ctrlKey || e.metaKey)) { drag = { mode: 'asm', x: sx, y: sy, add: false }; return; } }
+    if (app.asm && !AS.mate && !e.shiftKey) { const p0 = pickAt(sx, sy, 'face'); if ((p0 || triadAt(sx, sy)) && asmDragStart(p0, sx, sy, e.ctrlKey || e.metaKey)) { drag = { mode: 'asm', x: sx, y: sy, add: false }; return; } }
     drag = { mode: 'pick', x: sx, y: sy, moved: false, add: e.ctrlKey || e.shiftKey || e.metaKey };
   });
   over.addEventListener('pointermove', e => {

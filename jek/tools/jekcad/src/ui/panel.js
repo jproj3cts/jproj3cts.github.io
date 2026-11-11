@@ -1,3 +1,4 @@
+import { asmItems } from './assembly.js';
 import { MATERIALS, appliedCount, canMove, featureLabel, newFeature, partLook } from '../core/doc.js';
 import { fmtNum } from '../core/units.js';
 import { h } from '../../../jekray/src/ui/dom.js';
@@ -183,12 +184,12 @@ let measureSeq = 0;
 async function measureShown() {
   const box = document.getElementById('measure');
   if (!box) return;
-  if (app.asm) { box.hidden = true; return; }           // (an assembly's parts are measured in their Part Studios)
   const picks = app.sel.filter(s => s.part && (s.kind === 'part' || s.kind === 'face' || s.kind === 'edge' || s.kind === 'vertex')).slice(0, 2);
   if (!picks.length || app.sketch) { box.hidden = true; return; }
   const seq = ++measureSeq;
   let m;
-  try { m = await kernelAsk('measure', { picks, doc: app.doc }); } catch (err) { box.hidden = true; return; }
+  // (in an assembly each pick is measured where its part is placed)
+  try { m = app.asm ? await kernelAsk('asmMeasure', { picks: picks.map(s => Object.assign({}, asmItems([s.part])[0], { kind: s.kind, index: s.index })) }) : await kernelAsk('measure', { picks, doc: app.doc }); } catch (err) { box.hidden = true; return; }
   if (seq !== measureSeq) return;
   const L = [], mm = v => fmtNum(v, 3) + ' mm', mm2 = v => fmtNum(v, 3) + ' mm²';
   for (const it of m.items) {

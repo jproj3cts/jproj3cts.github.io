@@ -25,6 +25,9 @@ export function cadRun(K, kind, a) {
   if (kind === 'project') return K.project(a.picks, a.frame);
   if (kind === 'section') return K.section(a.picks, a.frame);
   if (kind === 'pierce') return K.pierce(a.picks, a.frame);
+  if (kind === 'asmStep' || kind === 'asmStl') return K.asmExport(kind === 'asmStl' ? 'stl' : 'step', a.items, a.fine);
+  if (kind === 'asmMeasure') return K.asmMeasure(a.picks);
+  if (kind === 'asmClash') return K.asmClash(a.items);
   if (kind === 'ping') return true;
   throw new Error('no such request: ' + kind);
 }

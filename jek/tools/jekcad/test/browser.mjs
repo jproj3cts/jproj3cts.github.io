@@ -733,6 +733,74 @@ export async function check(pw, base, shots) {
       ok('Insert puts two parts in (the first fixed); the other is dragged in the view; a Fastened mate sets it on the first', rows.length === 2 && inst0.join() === 'true,false' && dragged && mates === 'fastened' && sat, JSON.stringify([rows.length, inst0, dragged, mates, b0, b1, b2]));
       ok('The Part Studio changed (the plate 14 thick): its tab shows its features again, and back in the assembly the mate has followed; the file keeps its tabs and opens the same', inStudio.parts === 2 && inStudio.bar && followed && file.version === 2 && file.tabs.length === 2 && back.name === 'Stack' && back.tabs === 'studio,assembly' && back.asm && back.n === 2 && JSON.stringify(b4) === JSON.stringify(b3) && !qe.length, JSON.stringify([inStudio, followed, b3, file.version, back, qe]));
     }
+    // more of an assembly: the handle on a part (an arrow slides it, an arc turns it); a mate with an offset, changed
+    // from its row; a connector on an edge; measuring two parts where they are placed; parts found running into each
+    // other; the assembly exported as one STEP file
+    {
+      const q = await b.newPage({ viewport: { width: 1400, height: 880 }, acceptDownloads: true }), qe = [];
+      q.on('pageerror', e => qe.push(e.message));
+      await q.goto(base + '/jek/tools/jekcad.html?test');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      const settle = async () => { await q.waitForTimeout(250); await q.waitForFunction(() => !window.JEKcad.app.busy, null, { timeout: 20000 }).catch(() => {}); await q.waitForTimeout(150); };
+      const at = async w => { const r = await q.evaluate(w2 => window.JEKcad.project(w2), w); const box = await q.locator('#over').boundingBox(); return [box.x + r[0], box.y + r[1]]; };
+      const boxes = () => q.evaluate(() => window.JEKcad.app.result.parts.map(x => x.bbox.map(v => v.map(z => +z.toFixed(3)))));
+      const inst = () => q.evaluate(() => window.JEKcad.app.asm.instances.map(I => ({ p: I.p.map(v => +v.toFixed(4)), q: I.q.map(v => +v.toFixed(5)) })));
+      const d = newDoc(); d.name = 'Stack'; const s1 = rectSketch(d, 40, 20), s2 = rectSketch(d, 10, 10, null, [60, 0]);
+      d.features.push(s1, newFeature(d, 'extrude', { sketch: s1.id, regions: [[1, 1]], depth: '10', op: 'new' }), s2, newFeature(d, 'extrude', { sketch: s2.id, regions: [[61, 1]], depth: '15', op: 'new' }));
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d)); await settle();
+      await q.click('#tabAdd'); await q.click('.cad-tabmenu button:nth-child(2)'); await settle();
+      await q.click('[data-asm="insert"]'); await q.waitForSelector('.cad-insrow', { timeout: 15000 }).catch(() => {});
+      const rows = await q.$$('.cad-insrow');
+      if (rows.length === 2) { await rows[0].click(); await settle(); await rows[1].click(); await settle(); }
+      await q.click('#asmInsertClose'); await settle();
+      await q.evaluate(() => { window.JEKcad.viewFrom('iso'); window.JEKcad.fit(); }); await q.waitForTimeout(400);
+      // the second part picked in the list: its handle shows; its x arrow dragged slides it along x alone
+      await q.locator('#instList .cad-irow').nth(1).click(); await q.waitForTimeout(200);
+      const ob = await q.locator('#over').boundingBox(), i0 = await inst();
+      const tp = await q.evaluate(() => window.JEKcad.triadPoints());
+      if (tp) { const t = tp.tips[0], ux = t[0] - tp.o[0], uy = t[1] - tp.o[1], n = Math.hypot(ux, uy) || 1; await q.mouse.move(ob.x + t[0], ob.y + t[1]); await q.mouse.down(); await q.mouse.move(ob.x + t[0] + ux / n * 50, ob.y + t[1] + uy / n * 50, { steps: 6 }); await q.mouse.up(); await settle(); }
+      const i1 = await inst();
+      const slid = !!tp && i1[1].p[0] - i0[1].p[0] > 3 && near(i1[1].p[1], i0[1].p[1], 1e-3) && near(i1[1].p[2], i0[1].p[2], 1e-3) && JSON.stringify(i1[1].q) === JSON.stringify(i0[1].q);
+      // its z arc dragged round turns it about z: still upright, its middle where it was
+      const b1 = await boxes(), tp2 = await q.evaluate(() => window.JEKcad.triadPoints());
+      if (tp2) { const m = tp2.arcs[2], rx = m[0] - tp2.o[0], ry = m[1] - tp2.o[1]; await q.mouse.move(ob.x + m[0], ob.y + m[1]); await q.mouse.down(); await q.mouse.move(ob.x + tp2.o[0] + rx * 0.8 - ry * 0.6, ob.y + tp2.o[1] + ry * 0.8 + rx * 0.6, { steps: 8 }); await q.mouse.up(); await settle(); }
+      const i2 = await inst(), b2 = await boxes();
+      const turnedZ = !!tp2 && Math.abs(i2[1].q[2]) > 0.05 && near(i2[1].q[0], 0, 1e-4) && near(i2[1].q[1], 0, 1e-4) && near((b2[1][0][0] + b2[1][1][0]) / 2, (b1[1][0][0] + b1[1][1][0]) / 2, 0.01) && near(b2[1][0][2], b1[1][0][2], 1e-3);
+      // Fastened with an offset of 3: the small part's top onto the big part's top, 3 clear of it
+      await q.click('[data-asm="fastened"]'); await q.waitForSelector('#matePanel');
+      const c1 = await at([(b2[1][0][0] + b2[1][1][0]) / 2, (b2[1][0][1] + b2[1][1][1]) / 2, b2[1][1][2]]); await q.mouse.click(c1[0], c1[1]); await q.waitForTimeout(150);
+      const c2 = await at([8, 14, 10]); await q.mouse.click(c2[0], c2[1]); await q.waitForTimeout(150);
+      await q.fill('#mate-off', '3'); await q.click('#mateOk'); await settle();
+      const b3 = await boxes();
+      // the mate's row double-clicked: its offset made 0
+      await q.locator('#mateList .cad-irow').first().dblclick(); await q.waitForSelector('#mate-off', { timeout: 4000 }).catch(() => {});
+      const editing = await q.evaluate(() => ({ off: (document.getElementById('mate-off') || {}).value, btn: (document.getElementById('mateOk') || {}).textContent }));
+      if (await q.$('#mate-off')) { await q.fill('#mate-off', '0'); await q.click('#mateOk'); await settle(); }
+      const b4 = await boxes(), nm = await q.evaluate(() => window.JEKcad.app.asm.mates.length);
+      ok('The handle on a part: its x arrow slides it along x alone, its z arc turns it about z where it stands', slid && turnedZ && !qe.length, JSON.stringify([tp && tp.tips[0], i0[1], i1[1], i2[1], qe]));
+      ok('A Fastened mate with an offset of 3 holds the part 3 clear; its row double-clicked opens it again, and the offset made 0 sets the part down', near(b3[1][0][2], 13, 1e-3) && near(b3[1][1][2], 28, 1e-3) && editing.off === '3' && /Change/.test(editing.btn || '') && nm === 1 && near(b4[1][0][2], 10, 1e-3), JSON.stringify([b3[1], editing, nm, b4[1]]));
+      // a mate's connector on an edge: the big part's top front edge clicked
+      await q.click('[data-asm="revolute"]'); await q.waitForSelector('#matePanel');
+      const e1 = await at([20, 0, 10]); await q.mouse.move(e1[0], e1[1], { steps: 3 }); await q.waitForTimeout(80); await q.mouse.click(e1[0], e1[1]); await q.waitForTimeout(150);
+      const onEdge = await q.evaluate(() => { const m = window.JEKcad.as.mate; return m && m.a && { on: m.a.on, o: m.a.o.map(v => +v.toFixed(3)), z: m.a.z.map(v => +Math.abs(v).toFixed(3)) }; });
+      await q.click('#mateCancel'); await q.waitForTimeout(100);
+      // the two parts selected: measured where the assembly has them (the small one sits on the big one: 0 apart)
+      await q.evaluate(() => { const J = window.JEKcad, A = J.app.asm; J.app.sel = A.instances.map(I => ({ part: I.id, kind: 'part' })); J.selectPick && 0; });
+      await q.locator('#instList .cad-irow').nth(0).click(); await q.waitForTimeout(100);
+      await q.evaluate(() => { const J = window.JEKcad, A = J.app.asm; J.app.sel = A.instances.map(I => ({ part: I.id, kind: 'part' })); J.overlayPick && 0; });
+      await q.evaluate(() => window.JEKcad.selectPick(null, true)); await q.waitForTimeout(600);
+      const meas = await q.evaluate(() => { const m = document.getElementById('measure'); return m.hidden ? '' : m.textContent; });
+      // the mate taken off and the small part pushed into the big one: Interference finds the pair
+      await q.evaluate(() => { const J = window.JEKcad, A = J.app.asm; J.checkpoint(); A.mates = []; J.poseInstance(A.instances[1].id, [-50, 5, 5], [0, 0, 0, 1]); }); await settle();
+      await q.click('[data-asm="clash"]'); await q.waitForSelector('#clashList', { timeout: 15000 }).catch(() => {});
+      const clash = await q.evaluate(() => ({ rows: document.querySelectorAll('#clashList .cad-irow').length, text: (document.querySelector('#clashList .cad-irow') || {}).textContent, n: (window.JEKcad.as.clash || []).length, v: window.JEKcad.as.clash && window.JEKcad.as.clash[0] && window.JEKcad.as.clash[0].volume }));
+      // the assembly as one STEP file
+      const [dl] = await Promise.all([q.waitForEvent('download', { timeout: 20000 }).catch(() => null), q.evaluate(() => window.JEKcad.exportParts('step'))]);
+      const stepText = dl ? readFileSync(await dl.path(), 'utf8') : '';
+      await q.close();
+      ok('A mate’s connector on an edge is the edge’s middle, along it; two parts are measured where the assembly has them', !!onEdge && onEdge.on === 'edge' && near(onEdge.o[0], 20, 1e-2) && near(onEdge.z[0], 1, 1e-3) && /Distance/.test(meas) && /Volume/.test(meas), JSON.stringify([onEdge, meas]));
+      ok('Interference lists the pair of parts that run into each other with the volume they share; the assembly exports as one STEP file', clash.rows === 1 && clash.n === 1 && near(clash.v, 10 * 10 * 5, 1e-3) && /^ISO-10303-21/.test(stepText) && /Stack|Assembly/.test(dl ? dl.suggestedFilename() : '') && !qe.length, JSON.stringify([clash, stepText.slice(0, 20), dl && dl.suggestedFilename(), qe]));
+    }
     // signed out for sure: looking is free, changing is not (Sketch asks for an account and nothing is started)
     {
       const q = await b.newPage({ viewport: { width: 1200, height: 800 } });

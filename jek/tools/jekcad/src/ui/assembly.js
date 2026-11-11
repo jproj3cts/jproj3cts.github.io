@@ -1,12 +1,12 @@
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { h } from '../../../jekray/src/ui/dom.js';
-import { MATE_KINDS, MATE_NAMES, faceConnector, normAsm, placed, qFromEuler, qToEuler, qabout, qnormal, qtimes, solveMates, turned3 } from '../core/assembly.js';
+import { MATE_KINDS, MATE_NAMES, edgeConnector, faceConnector, normAsm, pickConnector, placed, qFromEuler, qToEuler, qabout, qnormal, qtimes, solveMates, turned3 } from '../core/assembly.js';
 import { normDoc, partLook } from '../core/doc.js';
 import { sketchId } from '../core/sketch.js';
 import { evalExpr, fmtNum } from '../core/units.js';
 import { kernelAsk } from '../page/kernel.js';
 import { app, bindTab, changed, checkpoint, editGate, emit, on, regenNow, toast } from './app.js';
-import { V, camAxes, fit } from './view3d.js';
+import { V, camAxes, fit, project } from './view3d.js';
 
 /* ==========================================================================
    Tabs and assemblies. The document's tabs run along the bottom: Part Studios and Assemblies, one open at a time.
@@ -18,7 +18,7 @@ import { V, camAxes, fit } from './view3d.js';
    ========================================================================== */
 const STUDIO = new Map();       // a studio's tab id → { key, parts } (its parts' meshes, as the kernel sent them)
 const BAKED = new Map();        // an instance's id → { key, part } (its mesh where the instance puts it)
-export const AS = { mate: null, drag: null, insertBusy: false };
+export const AS = { mate: null, drag: null, insertBusy: false, clash: null };
 const tabOf = id => app.file.tabs.find(t => t.id === id);
 const studios = () => app.file.tabs.filter(t => t.kind === 'studio');
 /* a studio's parts, regenerated if it has changed since they were last made */
@@ -29,6 +29,11 @@ async function studioParts(t) {
   if (!out) return null;                       // replaced by a newer request
   STUDIO.set(t.id, { key, parts: out.parts });
   return out.parts;
+}
+/* the instances as the kernel is asked about them: each its studio, its part, its place and turn (ids: only those) */
+export function asmItems(ids) {
+  const A = app.asm;
+  return A ? A.instances.filter(I => (ids ? ids.includes(I.id) : !I.hidden)).map(I => ({ doc: tabOf(I.studio), part: I.part, id: I.id, p: I.p, q: I.q, name: instName(I) })) : [];
 }
 /* the mesh of a studio's part as last made (for a connector, which is in the part's own coordinates) */
 function localMesh(I) { const s = STUDIO.get(I.studio); return s ? s.parts.find(p => p.id === I.part) : null; }
@@ -52,6 +57,13 @@ export async function asmRegen() {
   let moved = false;
   for (const m of A.mates) for (const c of [m.a, m.b]) {
     const I = A.instances.find(x => x.id === c.inst), M = I && localMesh(I);
+    if (M && c.on === 'edge' && M.edgeGroups) {
+      // (an edge has no name to be found by: the edge of the same kind nearest where the connector was)
+      let be = null, bd2 = Infinity;
+      for (let j = 0; j < M.edgeGroups.length / 2; j++) { const k = edgeConnector(M, j); if (!k || !!k.round !== !!c.round) continue; const d = Math.hypot(k.o[0] - c.o[0], k.o[1] - c.o[1], k.o[2] - c.o[2]) + 5 * (1 - Math.abs(k.z[0] * c.z[0] + k.z[1] * c.z[1] + k.z[2] * c.z[2])); if (d < bd2) { bd2 = d; be = k; } }
+      if (be && bd2 > 1e-9) { const sg = be.z[0] * c.z[0] + be.z[1] * c.z[1] + be.z[2] * c.z[2] < 0 ? -1 : 1; Object.assign(c, { o: be.o, z: be.z.map(v => v * sg), x: be.x }); moved = true; }
+      continue;
+    }
     if (!M || !c.face || !M.faceNames) continue;
     let best = -1, bd = Infinity;
     M.faceNames.forEach((nm, i) => { if (nm !== c.face) return; const k = faceConnector(M, i); if (!k) return; const d = Math.hypot(k.o[0] - c.o[0], k.o[1] - c.o[1], k.o[2] - c.o[2]); if (d < bd) { bd = d; best = i; } });
@@ -261,7 +273,7 @@ async function openInsert() {
 export function mateOpen(t) {
   if (!app.asm || !editGate()) return;
   if (app.asm.instances.length < 2) { toast('A mate joins two parts: insert another first'); return; }
-  AS.mate = { t, a: null, b: null, flip: false, field: 'a' };
+  AS.mate = { t, a: null, b: null, flip: false, field: 'a', off: '0', lo: '', hi: '' };
   app.sel = []; emit('sel');
   matePanel();
 }
@@ -270,47 +282,69 @@ export function mateClose() { AS.mate = null; const p = document.getElementById(
 export function matePick(p) {
   const M0 = AS.mate, A = app.asm;
   if (!M0 || !A) return false;
-  if (!p || p.kind !== 'face') { toast('Click a face of a part: a flat one, or the wall of a hole or a pin'); return true; }
-  const I = A.instances.find(x => x.id === p.part), M = I && localMesh(I), c = M && faceConnector(M, p.index);
+  if (!p || !(p.kind === 'face' || p.kind === 'edge' || p.kind === 'vertex')) { toast('Click a face, an edge or a corner of a part'); return true; }
+  const I = A.instances.find(x => x.id === p.part), M = I && localMesh(I), c = M && pickConnector(M, p);
   if (!c) return true;
   const other = M0.field === 'a' ? M0.b : M0.a;
   if (other && other.inst === I.id) { toast('The two faces are on two different parts'); return true; }
   M0[M0.field] = Object.assign({ inst: I.id, pick: p }, c);
   M0.field = M0.field === 'a' && !M0.b ? 'b' : M0.field === 'b' && !M0.a ? 'a' : M0.field;
-  app.sel = [M0.a, M0.b].filter(Boolean).map(x => x.pick); emit('sel');
+  app.sel = [M0.a, M0.b].filter(Boolean).map(x => x.pick).filter(Boolean); emit('sel');
   matePanel();
   return true;
 }
 export function mateApply() {
   const M0 = AS.mate, A = app.asm;
-  if (!M0 || !A || !M0.a || !M0.b) { toast('Click a face on each of two parts first'); return false; }
+  if (!M0 || !A || !M0.a || !M0.b) { toast('Click a face, an edge or a corner on each of two parts first'); return false; }
+  // the offset, and the limits (a length, or for a revolute an angle); an empty limit is no limit
+  const val = {}, ang = M0.t === 'revolute';
+  try { for (const k of ['off', 'lo', 'hi']) if (String(M0[k] || '').trim()) val[k] = evalExpr(M0[k], {}, k === 'off' ? 'len' : ang ? 'ang' : 'len'); } catch (err) { toast('That value: ' + err.message, true); return false; }
+  if (val.lo !== undefined && val.hi !== undefined && val.lo > val.hi) { toast('The lower limit is above the upper one', true); return false; }
   checkpoint();
   const strip = c => { const { pick, ...rest } = c; void pick; return rest; };
-  const before = JSON.stringify(A.instances);
-  const m = { id: sketchId('m'), t: M0.t, name: MATE_NAMES[M0.t] + ' ' + (A.mates.filter(x => x.t === M0.t).length + 1), a: strip(M0.a), b: strip(M0.b) };
+  const before = JSON.stringify(A.instances), was = JSON.stringify(A.mates);
+  const old = M0.edit ? A.mates.find(x => x.id === M0.edit) : null;
+  const m = { id: old ? old.id : sketchId('m'), t: M0.t, name: old && old.t === M0.t ? old.name : MATE_NAMES[M0.t] + ' ' + (A.mates.filter(x => x.t === M0.t).length + 1), a: strip(M0.a), b: strip(M0.b) };
   if (M0.flip) m.flip = true;
-  A.mates.push(m);
+  if (old && old.suppressed) m.suppressed = true;
+  Object.assign(m, val);
+  if (old) A.mates[A.mates.indexOf(old)] = m; else A.mates.push(m);
+  A.mates = normAsm(A).mates;
   // (the first face's part goes to the second's, unless it is the one that is fixed)
-  const r = solveMates(A, A.instances.find(I => I.id === m.b.inst).fixed ? [] : [{ inst: m.b.inst, p: A.instances.find(I => I.id === m.b.inst).p, w: 0.2 }]);
-  if (!r.ok) { A.mates.pop(); A.instances = JSON.parse(before); app.history.pop(); toast('That mate cannot hold with the others: nothing was changed', true); showAsm(); return false; }
+  const Ib = A.instances.find(I => I.id === m.b.inst);
+  const r = solveMates(A, Ib.fixed ? [] : [{ inst: m.b.inst, p: Ib.p, w: 0.2 }]);
+  if (!r.ok) { A.mates = JSON.parse(was); A.instances = JSON.parse(before); app.history.pop(); toast('That mate cannot hold with the others: nothing was changed', true); showAsm(); return false; }
   mateClose(); app.sel = []; emit('sel');
   changed();
   return true;
 }
+/* a mate opened again from its row: its kind, its two connectors, its offset and limits, to change */
+export function mateEdit(id) {
+  const A = app.asm, m = A && A.mates.find(x => x.id === id);
+  if (!m || !editGate()) return;
+  const s2 = v => (v === undefined ? '' : String(+(+v).toFixed(6)));
+  AS.mate = { edit: id, t: m.t, a: Object.assign({}, m.a), b: Object.assign({}, m.b), flip: !!m.flip, field: null, off: s2(m.off) || '0', lo: s2(m.lo), hi: s2(m.hi) };
+  app.sel = []; emit('sel');
+  matePanel();
+}
 function matePanel() {
   const M0 = AS.mate, old = document.getElementById('matePanel');
   if (!M0) { if (old) old.remove(); return; }
-  const nameOf = c => (c ? instName(app.asm.instances.find(I => I.id === c.inst)) + (c.round ? ': a round face’s axis' : ': a flat face') : null);
+  const nameOf = c => (c ? instName(app.asm.instances.find(I => I.id === c.inst)) + (c.on === 'vertex' ? ': a corner' : c.on === 'edge' ? (c.round ? ': a round edge’s centre' : ': an edge’s middle') : c.round ? ': a round face’s axis' : ': a flat face’s middle') : null);
+  const num = (key, label) => h('div', { class: 'cad-frow' }, h('label', { for: 'mate-' + key }, label), h('input', { type: 'text', id: 'mate-' + key, value: M0[key], spellcheck: 'false', oninput: e => { M0[key] = e.target.value; }, onkeydown: e => { e.stopPropagation(); if (e.key === 'Enter') mateApply(); } }));
+  const extra = M0.t === 'fastened' || M0.t === 'revolute' || M0.t === 'planar' ? [num('off', 'Offset (a gap between them)')] : [];
+  if (M0.t === 'slider' || M0.t === 'cylindrical') extra.push(num('lo', 'Least along the axis (empty: no limit)'), num('hi', 'Most along the axis'));
+  if (M0.t === 'revolute') extra.push(num('lo', 'Least turn, degrees (empty: no limit)'), num('hi', 'Most turn, degrees'));
   const box = (key, label) => h('div', { class: 'cad-frow sel' }, h('label', null, label), h('div', { class: 'cad-selwrap' },
-    h('div', { class: 'cad-selbox' + (M0.field === key ? ' on' : '') + (M0[key] ? '' : ' empty'), role: 'button', tabindex: '0', 'data-mate': key, onclick: () => { M0.field = key; matePanel(); } }, nameOf(M0[key]) || (M0.field === key ? 'Click a face in the view' : 'Nothing chosen')),
-    M0[key] ? h('button', { type: 'button', class: 'cad-selclear', title: 'Clear', 'aria-label': 'Clear ' + label, onclick: () => { M0[key] = null; M0.field = key; app.sel = [M0.a, M0.b].filter(Boolean).map(x => x.pick); emit('sel'); matePanel(); } }, '×') : null));
+    h('div', { class: 'cad-selbox' + (M0.field === key ? ' on' : '') + (M0[key] ? '' : ' empty'), role: 'button', tabindex: '0', 'data-mate': key, onclick: () => { M0.field = key; matePanel(); } }, nameOf(M0[key]) || (M0.field === key ? 'Click a face, an edge or a corner in the view' : 'Nothing chosen')),
+    M0[key] ? h('button', { type: 'button', class: 'cad-selclear', title: 'Clear', 'aria-label': 'Clear ' + label, onclick: () => { M0[key] = null; M0.field = key; app.sel = [M0.a, M0.b].filter(Boolean).map(x => x.pick).filter(Boolean); emit('sel'); matePanel(); } }, '×') : null));
   const kinds = h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': 'Kind of mate' }, ...MATE_KINDS.map(k => h('button', { type: 'button', role: 'radio', 'aria-checked': String(M0.t === k), class: M0.t === k ? 'on' : '', 'data-matekind': k, onclick: () => { M0.t = k; matePanel(); } }, MATE_NAMES[k])));
   const FREE = { fastened: 'Leaves nothing free.', revolute: 'Leaves the part turning about the axis.', slider: 'Leaves the part sliding along the axis.', cylindrical: 'Leaves the part turning about the axis and sliding along it.', planar: 'Leaves the part sliding on the face and turning on it.' };
   const panel = h('div', { class: 'cad-dialog', id: 'matePanel', role: 'group', 'aria-label': 'Mate' },
     h('div', { class: 'cad-fhead' }, h('span', { class: 'cad-fkind', 'data-icon': 'mate' }, 'Mate')),
-    h('div', { class: 'cad-fbody' }, kinds, h('p', { class: 'cad-fstatus' }, FREE[M0.t]), box('a', 'This part’s face'), box('b', 'goes to this face'),
+    h('div', { class: 'cad-fbody' }, kinds, h('p', { class: 'cad-fstatus' }, FREE[M0.t]), box('a', 'This part’s face, edge or corner'), box('b', 'goes to this one'), ...extra,
       h('label', { class: 'cad-check' }, h('input', Object.assign({ type: 'checkbox', id: 'mateFlip', onchange: e => { M0.flip = e.target.checked; } }, M0.flip ? { checked: '' } : {})), ' Flip (the other way round)')),
-    h('div', { class: 'cad-factions' }, h('button', { type: 'button', class: 'rt-btn', id: 'mateCancel', onclick: () => { mateClose(); app.sel = []; emit('sel'); } }, 'Cancel'), h('button', Object.assign({ type: 'button', class: 'rt-btn primary', id: 'mateOk', onclick: mateApply }, M0.a && M0.b ? {} : { disabled: '' }), '✓ Mate')));
+    h('div', { class: 'cad-factions' }, h('button', { type: 'button', class: 'rt-btn', id: 'mateCancel', onclick: () => { mateClose(); app.sel = []; emit('sel'); } }, 'Cancel'), h('button', Object.assign({ type: 'button', class: 'rt-btn primary', id: 'mateOk', onclick: mateApply }, M0.a && M0.b ? {} : { disabled: '' }), M0.edit ? '✓ Change' : '✓ Mate')));
   if (old) old.replaceWith(panel); else document.getElementById('stage').append(panel);
   emit('icons', panel);
 }
@@ -338,7 +372,7 @@ export function renderAsm() {
     ib('pin', I.fixed ? 'Let this part move' : 'Fix this part where it is', () => { if (!editGate()) return; checkpoint(); if (I.fixed) delete I.fixed; else I.fixed = true; changed(); }, !I.fixed),
     ib(I.hidden ? 'eyeoff' : 'eye', I.hidden ? 'Show' : 'Hide', () => { if (!editGate()) return; checkpoint(); if (I.hidden) delete I.hidden; else I.hidden = true; changed(); }, I.hidden),
     ib('trash', 'Take this part out of the assembly', () => deleteInstance(I.id))));
-  const mates = A.mates.map(m => { const a = A.instances.find(I => I.id === m.a.inst), b = A.instances.find(I => I.id === m.b.inst); return h('li', { class: 'cad-irow' + (m.suppressed ? ' hid' : ''), 'data-mateid': m.id, title: MATE_NAMES[m.t] + ': ' + (a ? instName(a) : '?') + ' to ' + (b ? instName(b) : '?') },
+  const mates = A.mates.map(m => { const a = A.instances.find(I => I.id === m.a.inst), b = A.instances.find(I => I.id === m.b.inst); return h('li', { class: 'cad-irow' + (m.suppressed ? ' hid' : ''), 'data-mateid': m.id, title: MATE_NAMES[m.t] + ': ' + (a ? instName(a) : '?') + ' to ' + (b ? instName(b) : '?') + (m.off ? ', ' + fmtNum(m.off, 3) + ' mm apart' : '') + (m.lo !== undefined || m.hi !== undefined ? ', limited' : '') + '. Double-click to change it.', ondblclick: e => { if (!e.target.closest('button')) mateEdit(m.id); } },
     h('span', { class: 'ic2', 'data-icon': 'mate' }), h('span', { class: 'nm' }, m.name + ' · ' + (a ? instName(a) : '?') + ' → ' + (b ? instName(b) : '?')),
     ib('flip', 'Flip: the other way round', () => toggleMate(m.id, 'flip'), !m.flip),
     ib(m.suppressed ? 'eyeoff' : 'eye', m.suppressed ? 'Unsuppress' : 'Suppress', () => toggleMate(m.id, 'suppressed'), m.suppressed),
@@ -361,11 +395,62 @@ export function renderAsm() {
     A.instances.length ? h('ul', { class: 'cad-plist', id: 'instList' }, ...inst) : h('p', { class: 'cad-empty' }, 'Nothing yet. Click Insert and pick parts from the Part Studios.'),
     h('h2', { class: 'cad-shead' }, 'Mates (' + A.mates.length + ')'),
     A.mates.length ? h('ul', { class: 'cad-plist', id: 'mateList' }, ...mates) : h('p', { class: 'cad-empty' }, 'A mate joins a face of one part to a face of another: Fastened leaves nothing free, Revolute a turn, Slider a slide.'),
-    ...rows);
+    ...rows,
+    ...(AS.clash ? [h('h2', { class: 'cad-shead' }, 'Parts that run into each other (' + AS.clash.length + ')'), AS.clash.length ? h('ul', { class: 'cad-plist', id: 'clashList' }, ...AS.clash.map(c => { const a = A.instances.find(I => I.id === c.a), b = A.instances.find(I => I.id === c.b); return h('li', { class: 'cad-irow', onclick: () => { app.sel = [{ part: c.a, kind: 'part' }, { part: c.b, kind: 'part' }]; emit('sel'); } }, h('span', { class: 'nm' }, (a ? instName(a) : '?') + ' and ' + (b ? instName(b) : '?') + ': ' + fmtNum(c.volume, 3) + ' mm³ shared')); })) : h('p', { class: 'cad-empty' }, 'None: no two parts share any volume.')] : []));
   emit('icons', box);
+}
+/* which parts run into each other, as they are placed now: listed in the side panel, and selected */
+export async function checkClash() {
+  if (!app.asm) return null;
+  const items = asmItems();
+  if (items.length < 2) { toast('Two parts or more are needed to run into each other'); return []; }
+  app.busy = true; emit('busy');
+  let out;
+  try { out = await kernelAsk('asmClash', { items }); } catch (err) { app.busy = false; emit('busy'); toast('Could not check: ' + err.message, true); return null; }
+  app.busy = false; emit('busy');
+  AS.clash = out;
+  app.sel = [...new Set(out.flatMap(c => [c.a, c.b]))].map(id => ({ part: id, kind: 'part' })); emit('sel');
+  toast(out.length ? out.length + (out.length === 1 ? ' pair of parts runs' : ' pairs of parts run') + ' into each other: listed on the left, and selected' : 'No two parts run into each other');
+  renderAsm();
+  return out;
+}
+/* ---------- the handle on the part selected: an arrow along each axis to slide it, an arc about each to turn it ---------- */
+const TRIAD_PX = 64, AXES = [[1, 0, 0], [0, 1, 0], [0, 0, 1]], AXIS_COL = ['#d9534f', '#3fa35a', '#3b82d6'];
+function triad() {
+  const A = app.asm, one = A && !AS.mate && selInst().length === 1 ? selInst()[0] : null, b = one && BAKED.get(one.id);
+  if (!one || one.fixed || one.hidden || !b || !b.part.bbox) return null;
+  const o = b.part.bbox[0].map((v, i) => (v + b.part.bbox[1][i]) / 2), L = TRIAD_PX * 2 * V.hh / V.h, o2 = project(o);
+  const tips = AXES.map(e => project([o[0] + e[0] * L, o[1] + e[1] * L, o[2] + e[2] * L]));
+  // each arc goes from one axis to the next, about the third; its handle is at its middle
+  const arcs = [0, 1, 2].map(k => { const i = (k + 1) % 3, j = (k + 2) % 3, pts = []; for (let s = 0; s <= 10; s++) { const t = s / 10 * Math.PI / 2, c = Math.cos(t) * 0.72 * L, d = Math.sin(t) * 0.72 * L; pts.push(project([0, 1, 2].map(x => o[x] + AXES[i][x] * c + AXES[j][x] * d))); } return pts; });
+  return { one, o, o2, L, tips, arcs };
+}
+export function drawTriad(c) {
+  const T0 = triad(); if (!T0) return;
+  c.save(); c.lineCap = 'round';
+  T0.arcs.forEach((pts, k) => { c.beginPath(); pts.forEach((p, i) => (i ? c.lineTo(p[0], p[1]) : c.moveTo(p[0], p[1]))); c.strokeStyle = AXIS_COL[k]; c.globalAlpha = 0.75; c.lineWidth = 2; c.stroke(); const m = pts[5]; c.globalAlpha = 1; c.beginPath(); c.arc(m[0], m[1], 4.5, 0, 2 * Math.PI); c.fillStyle = AXIS_COL[k]; c.fill(); });
+  T0.tips.forEach((t, k) => {
+    const dx = t[0] - T0.o2[0], dy = t[1] - T0.o2[1], n = Math.hypot(dx, dy);
+    c.globalAlpha = 1; c.strokeStyle = AXIS_COL[k]; c.fillStyle = AXIS_COL[k]; c.lineWidth = 2.5;
+    c.beginPath(); c.moveTo(T0.o2[0], T0.o2[1]); c.lineTo(t[0], t[1]); c.stroke();
+    if (n > 6) { const ux = dx / n, uy = dy / n; c.beginPath(); c.moveTo(t[0] + ux * 9, t[1] + uy * 9); c.lineTo(t[0] - uy * 5, t[1] + ux * 5); c.lineTo(t[0] + uy * 5, t[1] - ux * 5); c.closePath(); c.fill(); }
+    else { c.beginPath(); c.arc(t[0], t[1], 5, 0, 2 * Math.PI); c.fill(); }
+  });
+  c.beginPath(); c.arc(T0.o2[0], T0.o2[1], 3, 0, 2 * Math.PI); c.fillStyle = '#fff'; c.fill();
+  c.restore();
+}
+/* which of the handle's arrows or arcs is under the pointer */
+export function triadAt(sx, sy) {
+  const T0 = triad(); if (!T0) return null;
+  for (let k = 0; k < 3; k++) { const t = T0.tips[k]; if (Math.hypot(t[0] - sx, t[1] - sy) < 11) return { type: 'slide', k, T0 }; }
+  for (let k = 0; k < 3; k++) { const m = T0.arcs[k][5]; if (Math.hypot(m[0] - sx, m[1] - sy) < 10) return { type: 'turn', k, T0 }; }
+  return null;
 }
 /* ---------- dragging a part in the view ---------- */
 export function asmDragStart(p, sx, sy, turn) {
+  // the handle first: an arrow slides the part along its axis, an arc turns it about its own
+  const hd = triadAt(sx, sy);
+  if (hd) { AS.drag = { id: hd.T0.one.id, x: sx, y: sy, moved: false, fixed: false, handle: hd.type, k: hd.k, o: hd.T0.o.slice(), o2: hd.T0.o2.slice(), tip: hd.T0.tips[hd.k].slice(), L: hd.T0.L }; return true; }
   const A = app.asm, I = A && p && A.instances.find(x => x.id === p.part);
   if (!I || AS.mate) return false;
   AS.drag = { id: I.id, x: sx, y: sy, turn, moved: false, fixed: !!I.fixed };
@@ -377,21 +462,40 @@ export function asmDragMove(sx, sy) {
   if (!d.moved) { if (Math.hypot(dx, dy) < 4) return; if (d.fixed) { toast('That part is fixed: unpin it in the list to move it'); AS.drag = null; return; } if (!editGate()) { AS.drag = null; return; } checkpoint(); d.moved = true; }
   d.x = sx; d.y = sy;
   const I = A.instances.find(x => x.id === d.id), a = camAxes(), s = 2 * V.hh / V.h;
-  if (d.turn) {
+  if (d.handle === 'slide') {
+    // as far along the axis as the pointer went along the arrow on the screen
+    const ax = [d.tip[0] - d.o2[0], d.tip[1] - d.o2[1]], n2 = ax[0] * ax[0] + ax[1] * ax[1];
+    if (n2 < 4) return;
+    const t = (dx * ax[0] + dy * ax[1]) / n2 * d.L, e = AXES[d.k];
+    d.o = [d.o[0] + e[0] * t, d.o[1] + e[1] * t, d.o[2] + e[2] * t]; d.o2 = project(d.o); d.tip = project([d.o[0] + e[0] * d.L, d.o[1] + e[1] * d.L, d.o[2] + e[2] * d.L]);
+    poseInstance(I.id, [I.p[0] + e[0] * t, I.p[1] + e[1] * t, I.p[2] + e[2] * t], null, true);
+  } else if (d.handle === 'turn') {
+    // about the axis, through the part's middle, by the angle the pointer went round it on the screen
+    const a0 = Math.atan2(sy - dy - d.o2[1], sx - dx - d.o2[0]), a1 = Math.atan2(sy - d.o2[1], sx - d.o2[0]);
+    let da = a1 - a0; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI;
+    const e = AXES[d.k], toward = e[0] * a.z[0] + e[1] * a.z[1] + e[2] * a.z[2], r = qabout(e, -da * (toward < 0 ? -1 : 1));
+    const rel = [I.p[0] - d.o[0], I.p[1] - d.o[1], I.p[2] - d.o[2]], t = turned3({ q: r }, rel);
+    poseInstance(I.id, [d.o[0] + t[0], d.o[1] + t[1], d.o[2] + t[2]], qtimes(r, I.q), true);
+  } else if (d.turn) {
     // about the line of sight, through the part's middle
     const b = BAKED.get(I.id), c = b && b.part.bbox ? b.part.bbox[0].map((v, i) => (v + b.part.bbox[1][i]) / 2) : I.p, r = qabout(a.z, -dx * 0.01), rel = [I.p[0] - c[0], I.p[1] - c[1], I.p[2] - c[2]], t = turned3({ q: r }, rel);
     poseInstance(I.id, [c[0] + t[0], c[1] + t[1], c[2] + t[2]], qtimes(r, I.q), true);
   } else poseInstance(I.id, [0, 1, 2].map(i => I.p[i] + a.x[i] * dx * s - a.y[i] * dy * s), null, true);
 }
-export function asmDragEnd() { const d = AS.drag; AS.drag = null; if (d && d.moved) { changed(); return true; } return false; }
+export function asmDragEnd() { const d = AS.drag; AS.drag = null; if (d && d.moved) { changed(); return true; } return !!(d && d.handle); }
+/* where the handle's arrows end and its arcs' handles are, on the screen (for the tests) */
+export const triadPoints = () => { const T0 = triad(); return T0 ? { o: T0.o2, tips: T0.tips, arcs: T0.arcs.map(a => a[5]) } : null; };
 export function wireAssembly() {
   hooks.cadAsmRegen = asmRegen;
+  hooks.cadOverlay = c => { if (app.asm) drawTriad(c); };
   on('tab', renderTabs); on('doc', renderTabs); on('history', renderTabs); on('sketch', renderTabs);
   on('sel', () => { if (app.asm) renderAsm(); });
   document.addEventListener('pointerdown', e => { if (tabMenu && !tabMenu.contains(e.target) && !e.target.closest('#tabAdd')) closeTabMenu(); }, true);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeTabMenu(); if (AS.mate) { mateClose(); app.sel = []; emit('sel'); } } });
   const bar = document.getElementById('asmBar');
-  if (bar) bar.addEventListener('click', e => { const b = e.target.closest('[data-asm]'); if (!b) return; if (b.dataset.asm === 'insert') openInsert(); else mateOpen(b.dataset.asm); });
+  if (bar) bar.addEventListener('click', e => { const b = e.target.closest('[data-asm]'); if (!b) return; if (b.dataset.asm === 'insert') openInsert(); else if (b.dataset.asm === 'clash') checkClash(); else mateOpen(b.dataset.asm); });
+  // (a list of parts that ran into each other is of the assembly as it was: gone when anything changes)
+  on('doc', () => { AS.clash = null; });
   const dlg = document.getElementById('asmInsert');
   if (dlg) document.getElementById('asmInsertClose').addEventListener('click', () => dlg.close());
   renderTabs();

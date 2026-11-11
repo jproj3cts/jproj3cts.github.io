@@ -26,6 +26,7 @@ The first part put in is fixed where its Part Studio has it. The others are set 
 |---|---|
 | Move a part | Drag it in the view. It moves across the screen. |
 | Turn a part | Hold Ctrl and drag it. It turns about the line of sight. |
+| Slide or turn a part along an axis | Click it and drag its handle. |
 | Place a part by numbers | Click it, then type X, Y, Z and the three turns in the panel under the list. |
 | Fix a part, or let it move | Click the pin on its row. |
 | Hide a part | Click the eye on its row. |
@@ -36,9 +37,9 @@ A part in an assembly is the part in its Part Studio. Change the Part Studio and
 
 ## Mates
 
-A mate joins a face of one part to a face of another. Click a mate in the bar, click a face on the part that should move, then a face on the part it goes to, and click **✓ Mate**.
+A mate joins a face, an edge or a corner of one part to one of another. Click a mate in the bar, click on the part that should move, then on the part it goes to, and click **✓ Mate**.
 
-A flat face gives a point at its middle and its normal. A round face, such as the wall of a hole or the side of a pin, gives its axis.
+A flat face gives a point at its middle and its normal. A round face, such as the wall of a hole or the side of a pin, gives its axis. A straight edge gives its middle and its direction, a round edge its centre and its axis, and a corner gives the corner.
 
 | Mate | What it leaves free |
 |---|---|
@@ -54,9 +55,28 @@ Mates are solved again whenever a part moves, so a dragged part goes only where 
 
 Each mate has a row in the list, with buttons to flip it, suppress it and delete it. A mate remembers its faces: when the part changes in its Part Studio, the mate follows the face.
 
+## Offsets and limits
+
+A Fastened, Revolute or Planar mate takes an **Offset**: a gap between the two connectors, along the second one's axis. A negative offset sinks the part in.
+
+A Slider or Cylindrical mate takes a least and a most distance along the axis. A Revolute mate takes a least and a most turn in degrees. Leave a limit empty for none. A part dragged past a limit stops at it.
+
+Double-click a mate's row to open it again and change its kind, its faces, its offset or its limits.
+
+## The handle on a part
+
+Click a part that is not fixed and a handle appears at its middle. Drag an arrow to slide the part along that axis. Drag the dot on an arc to turn the part about the axis of the same colour. Red is X, green is Y and blue is Z.
+
+## Measuring, interference and export
+
+Select one or two parts, faces, edges or corners and the measure panel shows them where the assembly has them, with the distance between two.
+
+**Interference** checks every pair of parts that show. Each pair that shares some volume is listed with that volume, and selected in the view. The list clears when the assembly changes.
+
+**File › Export STEP** and **Export STL** write the assembly's parts, where they are placed, as one file. With parts selected only those are written. A hidden part is left out.
+
 ## What an assembly does not do yet
 
-- Parts are exported from their Part Studio. An assembly has no STEP or STL export.
-- Measuring is done in the Part Studio.
-- A connector is the middle of a flat face or the axis of a round one. Edges and corners cannot be picked for a mate.
-- There are no mate limits, no offsets on a mate, and no check for parts running into each other.
+- A corner gives a point with no direction of its own, so a mate to a corner lines the part up with the part's own Z.
+- There are no gear, rack or screw relations between mates, and no animation of a mate through its limits.
+- An exported STEP file holds the parts as separate solids in one file, not as a named assembly tree.

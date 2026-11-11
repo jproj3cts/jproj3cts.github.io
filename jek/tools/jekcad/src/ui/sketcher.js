@@ -1,3 +1,4 @@
+import { hooks } from '../../../jekray/src/core/hooks.js';
 import { STD_PLANES, appliedCount } from '../core/doc.js';
 import { curveIsClosed, definedEnts, dimMeasure, entKeys, hpt, lineDir, sketchId, solveNear, solveSketch } from '../core/sketch.js';
 import { alignedRectEnts, arc3, arcSweep, carryRegions, centreArc, chamferCorner, circularPattern, distToEnt, dxfEnts, entOutline, extendEnt, filletCorner, imageCorners, linearPattern, mirrorEnts, offsetEnts, polygonEnts, rectEnts, regionAt, regionsOf, slotEnts, silhouetteOf, splitEnt, tangentArc, textFonts, textRings, transformEnts, trimEnt } from '../core/sketch-tools.js';
@@ -1004,6 +1005,8 @@ export function drawOverlay() {
   V.overlays = [];
   for (const { f, F } of shownSketches()) for (const e of f.ents) for (const p of entOutline(e, 45)) V.overlays.push(toWorld(F, p));
   if (app.sketch && app.sketch.F) for (const e of ents()) for (const p of entOutline(e, 45)) V.overlays.push(toWorld(app.sketch.F, p));
+  // (what an assembly draws over the view: the handle on the part selected)
+  if (hooks.cadOverlay) hooks.cadOverlay(c);
 }
 /* ---------- dimensions on the model: a sketch's, shown without opening it, and changed by a double-click ---------- */
 const DIMS_KEY = 'jekcad-dims';

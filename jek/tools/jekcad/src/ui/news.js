@@ -3,8 +3,14 @@ import { h } from '../../../jekray/src/ui/dom.js';
 /* ==========================================================================
    The version, and what is new in it (Help › What’s new)
    ========================================================================== */
-export const APP_VERSION = '0.7.0';
+export const APP_VERSION = '0.8.0';
 export const NEWS = [
+  { v: '0.8.0', date: '11 Nov 2026', items: [
+    '<b>Assemblies</b>: a handle on the selected part slides it along an axis or turns it about one.',
+    'Mates take an <b>offset</b> and <b>limits</b>, join edges and corners as well as faces, and open again from their row to change.',
+    '<b>Interference</b> lists the parts that run into each other. Measuring works in an assembly, and Export writes it as one STEP or STL file.',
+    'Going from one tab to another no longer makes the Part Studio again.',
+  ] },
   { v: '0.7.0', date: '11 Nov 2026', items: [
     '<b>Tabs</b>: a document now holds several Part Studios and Assemblies, at the foot of the view, as JEKray’s are. The + adds one.',
     '<b>Assemblies</b>: insert parts from the Part Studios, drag them into place, and join them with mates (Fastened, Revolute, Slider, Cylindrical, Planar).',

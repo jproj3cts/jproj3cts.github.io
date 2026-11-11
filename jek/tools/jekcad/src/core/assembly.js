@@ -43,7 +43,7 @@ function asmConn(c) {
   const z = asmUnit(asmFin3(c.z, [0, 0, 1]));
   let x = asmFin3(c.x, [1, 0, 0]); x = [0, 1, 2].map(i => x[i] - z[i] * asmDot(x, z));
   if (Math.hypot(...x) < 1e-9) x = Math.abs(z[2]) < 0.9 ? asmCross([0, 0, 1], z) : [1, 0, 0];
-  return Object.assign({ inst: c.inst, o: asmFin3(c.o, [0, 0, 0]), z, x: asmUnit(x) }, asmStr(c.face, 160) ? { face: c.face } : {}, c.round ? { round: true } : {});
+  return Object.assign({ inst: c.inst, o: asmFin3(c.o, [0, 0, 0]), z, x: asmUnit(x) }, asmStr(c.face, 160) ? { face: c.face } : {}, c.round ? { round: true } : {}, c.on === 'edge' || c.on === 'vertex' ? { on: c.on } : {});
 }
 export function normAsm(a, n) {
   a = a && typeof a === 'object' ? a : {};
@@ -60,7 +60,10 @@ export function normAsm(a, n) {
     const A = asmConn(m.a), B = asmConn(m.b);
     if (!A || !B || A.inst === B.inst || !ids.has(A.inst) || !ids.has(B.inst)) continue;
     const id = asmStr(m.id, 40) && !mids.has(m.id) ? m.id : sketchId('m'); mids.add(id);
-    mates.push(Object.assign({ id, t: m.t, name: asmStr(m.name, 80) ? m.name : MATE_NAMES[m.t] + ' ' + (mates.filter(x => x.t === m.t).length + 1), a: A, b: B }, m.flip ? { flip: true } : {}, m.suppressed ? { suppressed: true } : {}));
+    mates.push(Object.assign({ id, t: m.t, name: asmStr(m.name, 80) ? m.name : MATE_NAMES[m.t] + ' ' + (mates.filter(x => x.t === m.t).length + 1), a: A, b: B }, m.flip ? { flip: true } : {}, m.suppressed ? { suppressed: true } : {},
+      // an offset between the two connectors (along the second's axis), and limits on what the mate leaves free
+      Number.isFinite(m.off) && m.off !== 0 && (m.t === 'fastened' || m.t === 'revolute' || m.t === 'planar') ? { off: +m.off } : {},
+      Number.isFinite(m.lo) && (m.t === 'slider' || m.t === 'cylindrical' || m.t === 'revolute') ? { lo: +m.lo } : {}, Number.isFinite(m.hi) && (m.t === 'slider' || m.t === 'cylindrical' || m.t === 'revolute') ? { hi: +m.hi } : {}));
   }
   return { id: asmStr(a.id, 40) ? a.id : sketchId('t'), kind: 'assembly', name: asmStr(a.name, 120) && a.name.trim() ? a.name : 'Assembly ' + (n || 1), instances, mates };
 }
@@ -104,13 +107,60 @@ export function faceConnector(M, face) {
   return frame([0, 1, 2].map(i => u[i] * cu + w[i] * cw + ax[i] * hgt), zz, true);
 }
 
+/* a connector on an edge: a straight one's middle, z along it; a round one's centre, z its axis; and on a corner:
+   the corner itself, z the part's own z. M.seg holds each edge's steps (edgeGroups: where each edge's begin, and how many) */
+export function edgeConnector(M, edge) {
+  const from = M.edgeGroups[2 * edge], cnt = M.edgeGroups[2 * edge + 1];
+  if (!(cnt >= 1)) return null;
+  const P = [[M.seg[from * 6], M.seg[from * 6 + 1], M.seg[from * 6 + 2]]];
+  for (let k = from; k < from + cnt; k++) P.push([M.seg[k * 6 + 3], M.seg[k * 6 + 4], M.seg[k * 6 + 5]]);
+  const a = P[0], b = P[P.length - 1], sub = (p, q) => [p[0] - q[0], p[1] - q[1], p[2] - q[2]];
+  const frame = (o, z, round) => { z = asmUnit(z); const x = asmUnit(Math.abs(z[2]) < 0.9 ? asmCross([0, 0, 1], z) : [1, 0, 0]); return Object.assign({ o, z, x, on: 'edge' }, round ? { round: true } : {}); };
+  const kind = M.edgeKinds ? M.edgeKinds[edge] : 'line';
+  if (kind === 'circle' && P.length >= 4) {
+    // the circle through three of its points: its centre, and its axis square to them
+    const p0 = P[0], p1 = P[Math.floor((P.length - 1) / 3)], p2 = P[Math.floor(2 * (P.length - 1) / 3)], u = sub(p1, p0), v = sub(p2, p0), n = asmCross(u, v), n2 = asmDot(n, n);
+    if (n2 > 1e-18) {
+      const c = asmCross(n, u).map((x, i) => (x * asmDot(v, v) + asmCross(v, n)[i] * asmDot(u, u)) / (2 * n2));
+      const zz = (Math.abs(n[2]) > 1e-9 ? n[2] : Math.abs(n[1]) > 1e-9 ? n[1] : n[0]) < 0 ? n.map(x => -x) : n;
+      return frame([p0[0] + c[0], p0[1] + c[1], p0[2] + c[2]], zz, true);
+    }
+  }
+  if (kind === 'line' || P.length === 2) return frame([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2], sub(b, a), false);
+  const m = Math.floor(P.length / 2);
+  return frame(P[m], sub(P[Math.min(P.length - 1, m + 1)], P[Math.max(0, m - 1)]), false);
+}
+export function vertexConnector(M, v) {
+  if (!(3 * v + 2 < M.verts.length)) return null;
+  return { o: [M.verts[3 * v], M.verts[3 * v + 1], M.verts[3 * v + 2]], z: [0, 0, 1], x: [1, 0, 0], on: 'vertex' };
+}
+/* the connector a pick of a part's mesh gives (a face, an edge or a corner) */
+export const pickConnector = (M, p) => (p.kind === 'face' ? faceConnector(M, p.index) : p.kind === 'edge' ? edgeConnector(M, p.index) : p.kind === 'vertex' ? vertexConnector(M, p.index) : null);
+
 /* ---------- the mates as equations, and their solving ---------- */
-function mateEqs(m, IA, IB, out) {
+/* what a limit is on: how far the first connector is along the second's axis (a slider, a cylindrical), or its turn
+   about it (a revolute, degrees) */
+function limited(m, IA, IB) {
+  const zb0 = turned3(IB, m.b.z);
+  if (m.t === 'revolute') { const xa = turned3(IA, m.a.x), xb = turned3(IB, m.b.x); return Math.atan2(asmDot(asmCross(xb, xa), zb0), asmDot(xb, xa)) * 180 / Math.PI; }
+  const oa = placed(IA, m.a.o), ob = placed(IB, m.b.o);
+  return asmDot([oa[0] - ob[0], oa[1] - ob[1], oa[2] - ob[2]], zb0);
+}
+/* which limit, if either, a mate is past: the value to hold it at, or undefined */
+function limitPin(m, IA, IB) {
+  if (m.lo === undefined && m.hi === undefined) return undefined;
+  const v = limited(m, IA, IB);
+  return m.lo !== undefined && v < m.lo - 1e-9 ? m.lo : m.hi !== undefined && v > m.hi + 1e-9 ? m.hi : undefined;
+}
+function mateEqs(m, IA, IB, out, pin) {
   const oa = placed(IA, m.a.o), ob = placed(IB, m.b.o), za = turned3(IA, m.a.z), zb0 = turned3(IB, m.b.z), xa = turned3(IA, m.a.x), xb = turned3(IB, m.b.x);
   // head on (a face laid on a face), or the same way; two round faces' axes run the same way unless flipped
   const same = !!(m.a.round && m.b.round) !== !!m.flip, zb = same ? zb0 : zb0.map(v => -v), W = 20;
-  const d = [oa[0] - ob[0], oa[1] - ob[1], oa[2] - ob[2]], along = asmDot(d, zb);
+  // (an offset is along the second connector's own axis: a gap between two faces laid one on the other)
+  const off = m.off || 0, d = [oa[0] - ob[0] - off * zb0[0], oa[1] - ob[1] - off * zb0[1], oa[2] - ob[2] - off * zb0[2]], along = asmDot(d, zb);
   for (let i = 0; i < 3; i++) out.push((za[i] - zb[i]) * W);
+  // a limit that is being run into: what the mate leaves free is held at the limit (pin: see solveMates)
+  if (pin !== undefined) out.push((limited(m, IA, IB) - pin) * (m.t === 'revolute' ? 0.2 : 1));
   if (m.t === 'fastened' || m.t === 'slider') for (let i = 0; i < 3; i++) out.push((xa[i] - xb[i]) * W);
   if (m.t === 'fastened' || m.t === 'revolute') out.push(d[0], d[1], d[2]);
   else if (m.t === 'slider' || m.t === 'cylindrical') for (let i = 0; i < 3; i++) out.push(d[i] - along * zb[i]);
@@ -120,22 +170,28 @@ function mateEqs(m, IA, IB, out) {
    part being dragged). Changes the instances' p and q in place; { ok, err } */
 export function solveMates(asm, hold) {
   // (a pull is weighed against the mates, which leaves them a little out: so the mates are then solved alone, from there)
-  if (hold && hold.length) { solveMatesOnce(asm, hold); return solveMatesOnce(asm, null); }
-  return solveMatesOnce(asm, null);
+  // A limit holds nothing while the part is inside it; a part found past one is brought back to it, and held there
+  // for that solve. So the solve is done again while anything is still past a limit.
+  if (hold && hold.length) solveMatesOnce(asm, hold);
+  let r = solveMatesOnce(asm, null);
+  const byId = new Map(asm.instances.map(I => [I.id, I]));
+  for (let k = 0; k < 4 && asm.mates.some(m => !m.suppressed && byId.has(m.a.inst) && byId.has(m.b.inst) && limitPin(m, byId.get(m.a.inst), byId.get(m.b.inst)) !== undefined); k++) r = solveMatesOnce(asm, null);
+  return r;
 }
 function solveMatesOnce(asm, hold) {
   const byId = new Map(asm.instances.map(I => [I.id, I])), mates = asm.mates.filter(m => !m.suppressed && byId.has(m.a.inst) && byId.has(m.b.inst));
   const pulls = (hold || []).filter(hd => byId.has(hd.inst));
   if (!mates.length) return { ok: true, err: 0 };
+  const pins = new Map(mates.map(m => [m.id, limitPin(m, byId.get(m.a.inst), byId.get(m.b.inst))]));
   // what moves: the instances a mate (or a pull) reaches that are not fixed; if none of a group is fixed, its first is held
   const touched = new Set(mates.flatMap(m => [m.a.inst, m.b.inst]));
   let free = asm.instances.filter(I => touched.has(I.id) && !I.fixed);
   if (!asm.instances.some(I => touched.has(I.id) && I.fixed) && !pulls.length) free = free.filter(I => I.id !== mates[0].b.inst);
   const n = free.length * 6;
-  if (!n) { const F0 = []; for (const m of mates) mateEqs(m, byId.get(m.a.inst), byId.get(m.b.inst), F0); const e0 = Math.max(0, ...F0.map(Math.abs)); return { ok: e0 < 1e-6, err: e0 }; }
+  if (!n) { const F0 = []; for (const m of mates) mateEqs(m, byId.get(m.a.inst), byId.get(m.b.inst), F0, pins.get(m.id)); const e0 = Math.max(0, ...F0.map(Math.abs)); return { ok: e0 < 1e-6, err: e0 }; }
   const base = free.map(I => ({ p: I.p.slice(), q: I.q.slice() }));
   const put = x => free.forEach((I, k) => { const b = base[k]; I.p = [b.p[0] + x[6 * k], b.p[1] + x[6 * k + 1], b.p[2] + x[6 * k + 2]]; I.q = qnormal(qtimes(asmQvec([x[6 * k + 3], x[6 * k + 4], x[6 * k + 5]]), b.q)); });
-  const evalF = x => { put(x); const F = []; for (const m of mates) mateEqs(m, byId.get(m.a.inst), byId.get(m.b.inst), F); for (const hd of pulls) { const I = byId.get(hd.inst); for (let i = 0; i < 3; i++) F.push((I.p[i] - hd.p[i]) * (hd.w || 0.05)); } return F; };
+  const evalF = x => { put(x); const F = []; for (const m of mates) mateEqs(m, byId.get(m.a.inst), byId.get(m.b.inst), F, pins.get(m.id)); for (const hd of pulls) { const I = byId.get(hd.inst); for (let i = 0; i < 3; i++) F.push((I.p[i] - hd.p[i]) * (hd.w || 0.05)); } return F; };
   const maxAbs = F => F.reduce((s, v) => Math.max(s, Math.abs(v)), 0);
   let x = new Float64Array(n), F = evalF(x), err = maxAbs(F), lam = 1e-6;
   for (let it = 0; it < 80 && err > 1e-10; it++) {
@@ -158,7 +214,7 @@ function solveMatesOnce(asm, hold) {
     put(x); free.forEach((I, k) => { base[k] = { p: I.p.slice(), q: I.q.slice() }; }); x = new Float64Array(n);
   }
   put(x);
-  const Fm = []; for (const m of mates) mateEqs(m, byId.get(m.a.inst), byId.get(m.b.inst), Fm);
+  const Fm = []; for (const m of mates) mateEqs(m, byId.get(m.a.inst), byId.get(m.b.inst), Fm, pins.get(m.id));
   const em = maxAbs(Fm);
   return { ok: em < 1e-6, err: em };
 }

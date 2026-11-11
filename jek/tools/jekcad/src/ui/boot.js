@@ -3,7 +3,7 @@ import { hooks, installHooks } from '../../../jekray/src/core/hooks.js';
 import { needsShown } from '../../../jekray/src/ui/pro.js';
 import { usageDrawn, usageStart, wireUsage } from '../../../jekray/src/io/usage.js';
 import { accountLoaded } from '../../../jekray/src/io/account.js';
-import { AS, addInstance, addTab, deleteTab, mateApply, mateOpen, matePick, poseInstance, renameTab, switchTab, wireAssembly } from './assembly.js';
+import { AS, addInstance, addTab, checkClash, deleteTab, mateApply, mateEdit, mateOpen, matePick, poseInstance, renameTab, switchTab, triadPoints, wireAssembly } from './assembly.js';
 import { STD_PLANES, normDoc } from '../core/doc.js';
 import { app, cadIcons, cadTheme, changed, checkpoint, closeMenus, emit, fileText, on, redo, regenDone, regenNow, setCadTheme, setFile, themeNow, toast, undo, wireMenus } from './app.js';
 import { V, cubePart, fit, flyStart, flyStop, flyTurn, turnStep, initView, pickAt, project, setMode, setSection, viewFrom, viewPng, wireCube, wireFly } from './view3d.js';
@@ -125,6 +125,6 @@ window.JEKcad = {
   deleteFeature, moveFeature, setRollback, exportParts, importStep, saveFile, kernel: kernelAsk, cloudPush,
   pickAt, pickHere, overlayPick, selectPick, project, toScreen, fit, viewFrom, setMode, png: viewPng, sketchOn: () => !!app.sketch,
   share: cadShare, shareHash: cadShareHash, readShare: cadReadShare, openShare: cadOpenShare,
-  as: AS, addTab, switchTab, renameTab, deleteTab, addInstance, poseInstance, mateOpen, matePick, mateApply,
+  as: AS, addTab, switchTab, renameTab, deleteTab, addInstance, poseInstance, mateOpen, matePick, mateApply, mateEdit, checkClash, triadPoints,
   flyStart, flyStop, flyTurn, cubePart, turnStep, deletePart, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
 };

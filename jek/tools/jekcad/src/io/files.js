@@ -1,6 +1,7 @@
 import { EMBED, TEST_MODE } from '../../../jekray/src/core/constants.js';
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { accountGate } from '../../../jekray/src/ui/pro.js';
+import { asmItems } from '../ui/assembly.js';
 import { editGate } from '../ui/app.js';
 import { track } from '../../../jekray/src/io/usage.js';
 import { CAD_FORMAT, CAD_STORE_KEY, appliedCount, newDoc, newFeature, partLook } from '../core/doc.js';
@@ -80,13 +81,14 @@ export async function importStep(file) {
 /* ---------- exports: STEP and STL, of every part or one ---------- */
 export async function exportParts(fmt, ids) {
   if (!accountGate('export ' + (fmt === 'stl' ? 'STL' : 'STEP') + ' files')) return false;
-  if (app.asm) { toast('Export parts from a Part Studio: open one from the tabs below', true); return false; }
-  const parts = app.result ? app.result.parts : [];
+  // an assembly: its parts where they are placed (the ones selected, or all that show), as one file
+  const items = app.asm ? asmItems(ids && ids.length ? ids : null) : null;
+  const parts = app.asm ? items : app.result ? app.result.parts : [];
   if (!parts.length) { toast('There are no parts to export yet', true); return false; }
-  const one = ids && ids.length === 1 ? parts.findIndex(p => p.id === ids[0]) : -1;
-  const base = safeName(one >= 0 ? partLook(app.doc, ids[0], one).name : app.file.name);
+  const one = !app.asm && ids && ids.length === 1 ? parts.findIndex(p => p.id === ids[0]) : -1;
+  const base = safeName(app.asm ? app.asm.name || app.file.name : one >= 0 ? partLook(app.doc, ids[0], one).name : app.file.name);
   try {
-    const bytes = await kernelAsk(fmt === 'stl' ? 'stl' : 'step', { parts: ids || [] });
+    const bytes = app.asm ? await kernelAsk(fmt === 'stl' ? 'asmStl' : 'asmStep', { items }) : await kernelAsk(fmt === 'stl' ? 'stl' : 'step', { parts: ids || [] });
     downloadFile(base + (fmt === 'stl' ? '.stl' : '.step'), bytes, fmt === 'stl' ? 'model/stl' : 'model/step');
     track('export', 'cad-' + fmt);
     toast('Exported ' + base + (fmt === 'stl' ? '.stl' : '.step'));

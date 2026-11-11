@@ -126,7 +126,8 @@
       "colourAuto": true,
       "width": 2,
       "divergence": 0,
-      "rays": 15,
+      "rays": 5,
+      "pattern": "hex",
       "power": 2e-08,
       "sweeps": {}
     },

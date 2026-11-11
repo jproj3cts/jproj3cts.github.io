@@ -103,12 +103,12 @@ export function renderPanel() {
   const bar = () => h('li', { class: 'cad-rollbar', id: 'rollbar', draggable: 'false', title: 'The rollback bar: drag it to see the model as it was there; new features go in at it', role: 'separator', 'aria-label': 'Rollback bar' });
   doc.features.forEach((f, i) => {
     if (i === n) rows.push(bar());
-    const st = statusOf(f.id), err = st && st.ok === false, rolled = i >= n, editing = (app.editing && !app.editing.isNew && app.editing.at === i) || (app.sketch && !app.sketch.isNew && app.sketch.at === i);
+    const st = statusOf(f.id), err = st && st.ok === false, skip = st && st.ok && st.info && st.info.skipped ? st.info.skipped : 0, rolled = i >= n, editing = (app.editing && !app.editing.isNew && app.editing.at === i) || (app.sketch && !app.sketch.isNew && app.sketch.at === i);
     const chosen = wantsFeatures && app.editing.f.items.includes(f.id);
     const solid = f.type !== 'sketch' && f.type !== 'plane', off = isHidden(f), parts = solid ? madeParts(f) : [];
     const li = h('li', { class: 'cad-frow-f' + (err ? ' err' : '') + (rolled ? ' rolled' : '') + (f.suppressed ? ' supp' : '') + (editing ? ' editing' : '') + (chosen ? ' chosen' : '') + (off && !f.suppressed ? ' hid' : '') + (app.picked === f.id ? ' picked' : ''), 'data-i': String(i), 'data-id': f.id, draggable: 'true', tabindex: '0',
-      title: err ? featureLabel(f.type) + ' failed: ' + st.error : featureLabel(f.type) + (f.suppressed ? ' (suppressed)' : rolled ? ' (after the rollback bar)' : '') },
-    h('span', { class: 'ic2', 'data-icon': ICON_OF[f.type] || 'cube' }), h('span', { class: 'nm' }, f.name),
+      title: err ? featureLabel(f.type) + ' failed: ' + st.error : featureLabel(f.type) + (f.suppressed ? ' (suppressed)' : rolled ? ' (after the rollback bar)' : skip ? ': ' + skip + (skip === 1 ? ' edge does' : ' edges do') + ' not fit this size and ' + (skip === 1 ? 'is' : 'are') + ' left square' : '') },
+    h('span', { class: 'ic2', 'data-icon': ICON_OF[f.type] || 'cube' }), h('span', { class: 'nm' }, f.name), skip ? h('span', { class: 'cad-fwarn', 'aria-label': skip + ' edges left square' }, '⚠ ' + skip) : null,
     eyeBtn(off, !solid ? f.name : parts.length ? (parts.length === 1 ? 'the part ' : 'the parts ') + f.name + ' made' : f.name + ' (suppress it: the model without it)', () => toggleFeatureShown(i)),
     h('button', { type: 'button', class: 'cad-more', 'aria-label': 'More for ' + f.name, title: 'More', onclick: e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); featureMenu(i, r.left, r.bottom + 2); } }, '⋯'),
     err ? h('span', { class: 'cad-ferr' }, st.error) : null);

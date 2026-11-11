@@ -883,22 +883,55 @@ export function makeKernel(oc) {
       if (r.kind === 'face') { const { b, i } = findFace(S, r); edgesOf(b); const L = by.get(b) || new Set(); b.edgeFaces.forEach((fs, j) => { if (fs.includes(i)) L.add(j); }); by.set(b, L); }
       else { const { b, j } = findEdge(S, r); const L = by.get(b) || new Set(); L.add(j); by.set(b, L); }
     }
+    let used = 0, skipped = 0;
     for (const [b, js] of by) {
-      const mk = T(kind === 'fillet' ? new oc.BRepFilletAPI_MakeFillet(b.shape, oc.ChFi3d_FilletShape.ChFi3d_Rational) : new oc.BRepFilletAPI_MakeChamfer(b.shape));
-      const gen = [];
       // each new face named after the edge it rounds: by the two faces that met there (and, where two edges lie
       // between one pair of faces, their order along x, y, z), not by the order the kernel happens to list edges in,
       // which is not the same from one visit to the next
-      const keyOf = j => b.edgeFaces[j].map(i => b.names[i][0]).sort().join('|'), seen = new Map();
-      const ordered = [...js].sort((p, q) => { const kp = keyOf(p), kq = keyOf(q); if (kp !== kq) return kp < kq ? -1 : 1; const mp = midOf(b, p), mq = midOf(b, q); for (let i = 0; i < 3; i++) if (Math.abs(mp[i] - mq[i]) > 1e-7) return mp[i] - mq[i]; return 0; });
-      for (const j of ordered) { const key = keyOf(j), n = seen.get(key) || 0; seen.set(key, n + 1); mk.Add(size, b.edges[j]); gen.push([b.edges[j], f.id + '.r' + hashText([2166136261, 1], key)[0].toString(36) + (n ? '.' + n : '')]); }
-      let shape;
-      try { mk.Build(prog()); shape = mk.Shape(); } catch (err) { throw new Error('the ' + kind + ' could not be made: the ' + (kind === 'fillet' ? 'radius' : 'distance') + ' may be too big for the edges chosen'); }
-      if (!mk.IsDone()) throw new Error('the ' + kind + ' could not be made');
-      const c = carried(mk, [b], shape, f.id, gen);
-      replacePart(S, b, mkBody(b.id, shape, c.faces, c.names));
+      const keyOf = j => b.edgeFaces[j].map(i => b.names[i][0]).sort().join('|');
+      const ordered = [...js].sort((p, q) => { const kp = keyOf(p), kq = keyOf(q); if (kp !== kq) return kp < kq ? -1 : 1; const mp = midOf(b, p), mq = midOf(b, q); for (let i = 0; i < 3; i++) if (Math.abs(mp[i] - mq[i]) > 1e-7) return mp[i] - mq[i]; return p - q; });
+      const names = new Map(), seen = new Map();
+      for (const j of ordered) { const key = keyOf(j), n = seen.get(key) || 0; seen.set(key, n + 1); names.set(j, f.id + '.r' + hashText([2166136261, 1], key)[0].toString(36) + (n ? '.' + n : '')); }
+      const v0 = props(b.shape, 'v').m;
+      // the edges rounded together; null if the kernel cannot, or makes of them a solid that is not one (faces
+      // missing, turned inside out: what a radius too big for an edge gives)
+      const build = list => {
+        if (!list.length) return null;
+        try {
+          const mk = T(kind === 'fillet' ? new oc.BRepFilletAPI_MakeFillet(b.shape, oc.ChFi3d_FilletShape.ChFi3d_Rational) : new oc.BRepFilletAPI_MakeChamfer(b.shape));
+          for (const j of list) mk.Add(size, b.edges[j]);
+          mk.Build(prog());
+          if (!mk.IsDone()) return null;
+          const shape = mk.Shape();
+          if (!soundSolid(shape, v0)) return null;
+          return { mk, shape, gen: list.map(j => [b.edges[j], names.get(j)]) };
+        } catch (err) { return null; }
+      };
+      let got = build(ordered), kept = ordered;
+      if (!got && ordered.length > 1) {
+        // not all of them together: those that can be rounded on their own, taken one more at a time while the
+        // solid stays sound (a whole face chosen has edges the radius fits and edges it does not: small holes, thin walls)
+        const alone = ordered.filter(j => build([j]));
+        kept = [];
+        for (const j of alone) { const tryIt = build(kept.concat([j])); if (tryIt) { kept = kept.concat([j]); got = tryIt; } }
+      }
+      if (!got) throw new Error('the ' + kind + ' could not be made: the ' + (kind === 'fillet' ? 'radius' : 'distance') + ' may be too big for the edges chosen');
+      used += kept.length; skipped += ordered.length - kept.length;
+      const c = carried(got.mk, [b], got.shape, f.id, got.gen);
+      replacePart(S, b, mkBody(b.id, got.shape, c.faces, c.names));
     }
-    return { edges: [...by.values()].reduce((s, L) => s + L.size, 0) };
+    return Object.assign({ edges: used }, skipped ? { skipped } : {});
+  }
+  /* is this a solid a feature may leave: what the kernel's own check passes, with a volume, and not far from the
+     volume it was made from (v0; a fillet or a chamfer takes a little off, or puts a little on) */
+  function soundSolid(shape, v0) {
+    try {
+      if (!solidsOf(shape).length) return false;
+      const v = props(shape, 'v').m;
+      if (!(v > 1e-9) || (v0 > 0 && (v < 0.2 * v0 || v > 5 * v0))) return false;
+      let an; try { an = T(new oc.BRepCheck_Analyzer(shape, true, false)); } catch (err) { an = T(new oc.BRepCheck_Analyzer(shape, true)); }
+      return an.IsValid();
+    } catch (err) { return false; }
   }
   /* a path sketch's shapes as one wire, in order end to end */
   function chainWire(sk) {

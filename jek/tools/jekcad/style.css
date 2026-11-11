@@ -6,6 +6,7 @@
   /* the feature bar and the sketch bar */
   .cad-fbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem; padding: 0.2rem 0.3rem; background: var(--rt-surface); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); border-top: 3px solid transparent; border-image: linear-gradient(90deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%) 3 0 0 0; }
   .cad-fbar[hidden] { display: none; }
+  .cad-fwarn { font-size: 0.7rem; color: var(--jek-amber, #c98a00); white-space: nowrap; } .cad-fstatus.warn { color: var(--jek-amber, #c98a00); }
   /* (right across the window: out over the toolbar's padding, with no ends of its own) */
   .cad-app .rt-toolbar .cad-fbar { margin: 0 -0.75rem -0.2rem; padding-left: 0.75rem; padding-right: 0.75rem; border-left: 0; border-right: 0; border-bottom: 0; border-radius: 0; }
   .cad-fbtn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.5rem; font-size: 0.8rem; }

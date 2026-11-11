@@ -1954,6 +1954,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   /* the feature bar and the sketch bar */
   .cad-fbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem; padding: 0.2rem 0.3rem; background: var(--rt-surface); border: 1px solid var(--jek-line); border-radius: var(--jek-radius); border-top: 3px solid transparent; border-image: linear-gradient(90deg, var(--jek-amber) 0 20%, var(--jek-orange) 20% 40%, var(--jek-red) 40% 60%, var(--jek-sky) 60% 80%, var(--jek-cyan) 80% 100%) 3 0 0 0; }
   .cad-fbar[hidden] { display: none; }
+  .cad-fwarn { font-size: 0.7rem; color: var(--jek-amber, #c98a00); white-space: nowrap; } .cad-fstatus.warn { color: var(--jek-amber, #c98a00); }
   /* (right across the window: out over the toolbar's padding, with no ends of its own) */
   .cad-app .rt-toolbar .cad-fbar { margin: 0 -0.75rem -0.2rem; padding-left: 0.75rem; padding-right: 0.75rem; border-left: 0; border-right: 0; border-bottom: 0; border-radius: 0; }
   .cad-fbtn { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.25rem 0.5rem; font-size: 0.8rem; }
@@ -5378,22 +5379,55 @@ function makeKernel(oc) {
       if (r.kind === 'face') { const { b, i } = findFace(S, r); edgesOf(b); const L = by.get(b) || new Set(); b.edgeFaces.forEach((fs, j) => { if (fs.includes(i)) L.add(j); }); by.set(b, L); }
       else { const { b, j } = findEdge(S, r); const L = by.get(b) || new Set(); L.add(j); by.set(b, L); }
     }
+    let used = 0, skipped = 0;
     for (const [b, js] of by) {
-      const mk = T(kind === 'fillet' ? new oc.BRepFilletAPI_MakeFillet(b.shape, oc.ChFi3d_FilletShape.ChFi3d_Rational) : new oc.BRepFilletAPI_MakeChamfer(b.shape));
-      const gen = [];
       // each new face named after the edge it rounds: by the two faces that met there (and, where two edges lie
       // between one pair of faces, their order along x, y, z), not by the order the kernel happens to list edges in,
       // which is not the same from one visit to the next
-      const keyOf = j => b.edgeFaces[j].map(i => b.names[i][0]).sort().join('|'), seen = new Map();
-      const ordered = [...js].sort((p, q) => { const kp = keyOf(p), kq = keyOf(q); if (kp !== kq) return kp < kq ? -1 : 1; const mp = midOf(b, p), mq = midOf(b, q); for (let i = 0; i < 3; i++) if (Math.abs(mp[i] - mq[i]) > 1e-7) return mp[i] - mq[i]; return 0; });
-      for (const j of ordered) { const key = keyOf(j), n = seen.get(key) || 0; seen.set(key, n + 1); mk.Add(size, b.edges[j]); gen.push([b.edges[j], f.id + '.r' + hashText([2166136261, 1], key)[0].toString(36) + (n ? '.' + n : '')]); }
-      let shape;
-      try { mk.Build(prog()); shape = mk.Shape(); } catch (err) { throw new Error('the ' + kind + ' could not be made: the ' + (kind === 'fillet' ? 'radius' : 'distance') + ' may be too big for the edges chosen'); }
-      if (!mk.IsDone()) throw new Error('the ' + kind + ' could not be made');
-      const c = carried(mk, [b], shape, f.id, gen);
-      replacePart(S, b, mkBody(b.id, shape, c.faces, c.names));
+      const keyOf = j => b.edgeFaces[j].map(i => b.names[i][0]).sort().join('|');
+      const ordered = [...js].sort((p, q) => { const kp = keyOf(p), kq = keyOf(q); if (kp !== kq) return kp < kq ? -1 : 1; const mp = midOf(b, p), mq = midOf(b, q); for (let i = 0; i < 3; i++) if (Math.abs(mp[i] - mq[i]) > 1e-7) return mp[i] - mq[i]; return p - q; });
+      const names = new Map(), seen = new Map();
+      for (const j of ordered) { const key = keyOf(j), n = seen.get(key) || 0; seen.set(key, n + 1); names.set(j, f.id + '.r' + hashText([2166136261, 1], key)[0].toString(36) + (n ? '.' + n : '')); }
+      const v0 = props(b.shape, 'v').m;
+      // the edges rounded together; null if the kernel cannot, or makes of them a solid that is not one (faces
+      // missing, turned inside out: what a radius too big for an edge gives)
+      const build = list => {
+        if (!list.length) return null;
+        try {
+          const mk = T(kind === 'fillet' ? new oc.BRepFilletAPI_MakeFillet(b.shape, oc.ChFi3d_FilletShape.ChFi3d_Rational) : new oc.BRepFilletAPI_MakeChamfer(b.shape));
+          for (const j of list) mk.Add(size, b.edges[j]);
+          mk.Build(prog());
+          if (!mk.IsDone()) return null;
+          const shape = mk.Shape();
+          if (!soundSolid(shape, v0)) return null;
+          return { mk, shape, gen: list.map(j => [b.edges[j], names.get(j)]) };
+        } catch (err) { return null; }
+      };
+      let got = build(ordered), kept = ordered;
+      if (!got && ordered.length > 1) {
+        // not all of them together: those that can be rounded on their own, taken one more at a time while the
+        // solid stays sound (a whole face chosen has edges the radius fits and edges it does not: small holes, thin walls)
+        const alone = ordered.filter(j => build([j]));
+        kept = [];
+        for (const j of alone) { const tryIt = build(kept.concat([j])); if (tryIt) { kept = kept.concat([j]); got = tryIt; } }
+      }
+      if (!got) throw new Error('the ' + kind + ' could not be made: the ' + (kind === 'fillet' ? 'radius' : 'distance') + ' may be too big for the edges chosen');
+      used += kept.length; skipped += ordered.length - kept.length;
+      const c = carried(got.mk, [b], got.shape, f.id, got.gen);
+      replacePart(S, b, mkBody(b.id, got.shape, c.faces, c.names));
     }
-    return { edges: [...by.values()].reduce((s, L) => s + L.size, 0) };
+    return Object.assign({ edges: used }, skipped ? { skipped } : {});
+  }
+  /* is this a solid a feature may leave: what the kernel's own check passes, with a volume, and not far from the
+     volume it was made from (v0; a fillet or a chamfer takes a little off, or puts a little on) */
+  function soundSolid(shape, v0) {
+    try {
+      if (!solidsOf(shape).length) return false;
+      const v = props(shape, 'v').m;
+      if (!(v > 1e-9) || (v0 > 0 && (v < 0.2 * v0 || v > 5 * v0))) return false;
+      let an; try { an = T(new oc.BRepCheck_Analyzer(shape, true, false)); } catch (err) { an = T(new oc.BRepCheck_Analyzer(shape, true)); }
+      return an.IsValid();
+    } catch (err) { return false; }
   }
   /* a path sketch's shapes as one wire, in order end to end */
   function chainWire(sk) {
@@ -8718,7 +8752,7 @@ function setPartLook(id, k, v) {
   changed();
 }
 function wireDialog() {
-  on('model', () => { if (app.editing) { const st = document.getElementById('featureStatus'), rep = app.result.preview && app.result.preview.rep; if (st && rep) { st.textContent = rep.ok ? (rep.info && rep.info.made && rep.info.made.length ? 'Makes ' + rep.info.made.length + ' part' + (rep.info.made.length === 1 ? '' : 's') : 'Ready') : rep.error; st.classList.toggle('bad', !rep.ok); } } });
+  on('model', () => { if (app.editing) { const st = document.getElementById('featureStatus'), rep = app.result.preview && app.result.preview.rep; if (st && rep) { st.textContent = rep.ok ? (rep.info && rep.info.skipped ? rep.info.skipped + (rep.info.skipped === 1 ? ' edge does' : ' edges do') + ' not fit this size and ' + (rep.info.skipped === 1 ? 'is' : 'are') + ' left square; ' + rep.info.edges + ' done' : rep.info && rep.info.made && rep.info.made.length ? 'Makes ' + rep.info.made.length + ' part' + (rep.info.made.length === 1 ? '' : 's') : 'Ready') : rep.error; st.classList.toggle('bad', !rep.ok); st.classList.toggle('warn', !!(rep.ok && rep.info && rep.info.skipped)); } } });
   document.getElementById('varsClose').addEventListener('click', () => document.getElementById('varsDialog').close());
   void FEATURE_KINDS;
 }
@@ -8819,12 +8853,12 @@ function renderPanel() {
   const bar = () => h('li', { class: 'cad-rollbar', id: 'rollbar', draggable: 'false', title: 'The rollback bar: drag it to see the model as it was there; new features go in at it', role: 'separator', 'aria-label': 'Rollback bar' });
   doc.features.forEach((f, i) => {
     if (i === n) rows.push(bar());
-    const st = statusOf(f.id), err = st && st.ok === false, rolled = i >= n, editing = (app.editing && !app.editing.isNew && app.editing.at === i) || (app.sketch && !app.sketch.isNew && app.sketch.at === i);
+    const st = statusOf(f.id), err = st && st.ok === false, skip = st && st.ok && st.info && st.info.skipped ? st.info.skipped : 0, rolled = i >= n, editing = (app.editing && !app.editing.isNew && app.editing.at === i) || (app.sketch && !app.sketch.isNew && app.sketch.at === i);
     const chosen = wantsFeatures && app.editing.f.items.includes(f.id);
     const solid = f.type !== 'sketch' && f.type !== 'plane', off = isHidden(f), parts = solid ? madeParts(f) : [];
     const li = h('li', { class: 'cad-frow-f' + (err ? ' err' : '') + (rolled ? ' rolled' : '') + (f.suppressed ? ' supp' : '') + (editing ? ' editing' : '') + (chosen ? ' chosen' : '') + (off && !f.suppressed ? ' hid' : '') + (app.picked === f.id ? ' picked' : ''), 'data-i': String(i), 'data-id': f.id, draggable: 'true', tabindex: '0',
-      title: err ? featureLabel(f.type) + ' failed: ' + st.error : featureLabel(f.type) + (f.suppressed ? ' (suppressed)' : rolled ? ' (after the rollback bar)' : '') },
-    h('span', { class: 'ic2', 'data-icon': ICON_OF[f.type] || 'cube' }), h('span', { class: 'nm' }, f.name),
+      title: err ? featureLabel(f.type) + ' failed: ' + st.error : featureLabel(f.type) + (f.suppressed ? ' (suppressed)' : rolled ? ' (after the rollback bar)' : skip ? ': ' + skip + (skip === 1 ? ' edge does' : ' edges do') + ' not fit this size and ' + (skip === 1 ? 'is' : 'are') + ' left square' : '') },
+    h('span', { class: 'ic2', 'data-icon': ICON_OF[f.type] || 'cube' }), h('span', { class: 'nm' }, f.name), skip ? h('span', { class: 'cad-fwarn', 'aria-label': skip + ' edges left square' }, '⚠ ' + skip) : null,
     eyeBtn(off, !solid ? f.name : parts.length ? (parts.length === 1 ? 'the part ' : 'the parts ') + f.name + ' made' : f.name + ' (suppress it: the model without it)', () => toggleFeatureShown(i)),
     h('button', { type: 'button', class: 'cad-more', 'aria-label': 'More for ' + f.name, title: 'More', onclick: e => { e.stopPropagation(); const r = e.target.getBoundingClientRect(); featureMenu(i, r.left, r.bottom + 2); } }, '⋯'),
     err ? h('span', { class: 'cad-ferr' }, st.error) : null);
@@ -9588,6 +9622,7 @@ async function normalToSel() {
 const APP_VERSION = '0.8.0';
 const NEWS = [
   { v: '0.8.0', date: '11 Nov 2026', items: [
+    'Fixed: a fillet or chamfer on a whole face could leave a broken part where the size did not fit every edge. The edges it fits are now done, the rest are left square, and the feature says how many.',
     '<b>Regions understand the model</b>: a sketched shape that runs over the edge of a face, or over a part the sketch’s plane passes through, is cut there, so each piece is picked separately. For Extrude, Revolve, Sweep and Loft.',
     '<b>Measure readout</b> at the bottom right: select two parallel faces and it shows how far apart they are; a hole shows its diameter, two holes their centre distance. Its tab opens the full list, and a value clicked is copied.',
     '<b>Assemblies</b>: a handle on the selected part slides it along an axis or turns it about one.',

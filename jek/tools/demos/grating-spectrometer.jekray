@@ -55,7 +55,8 @@
         577,
         579.1
       ],
-      "rays": 9,
+      "rays": 5,
+      "pattern": "hex",
       "power": 1,
       "coh": 0,
       "splitFrom": null,

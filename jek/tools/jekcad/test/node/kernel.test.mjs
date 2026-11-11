@@ -526,6 +526,25 @@ test('pierce: the point where an edge goes through a sketch’s plane, following
   near(xs[0], -15, 2e-3, 'left'); near(xs[1], 15, 2e-3, 'right');
 });
 
+test('a fillet on every edge of a face, where the radius does not fit them all: those it fits are rounded, the rest left square, and the solid stays sound', async () => {
+  // a plate with a small hole and two slots 3 apart: the rib between the slots is too thin for a 2 mm round on both its edges
+  const K = await kernel(), doc = newDoc(), sk = rectSketch(doc, 40, 20);
+  sk.ents.push({ id: 'h1', t: 'circle', c: [8, 10], r: 1.2 });
+  for (const [k, x] of [['s', 20], ['t', 26]]) sk.ents.push({ id: k + '1', t: 'line', a: [x, 5], b: [x + 3, 5] }, { id: k + '2', t: 'line', a: [x + 3, 5], b: [x + 3, 15] }, { id: k + '3', t: 'line', a: [x + 3, 15], b: [x, 15] }, { id: k + '4', t: 'line', a: [x, 15], b: [x, 5] });
+  doc.features.push(sk, newFeature(doc, 'extrude', { sketch: sk.id, regions: [[1, 1]], depth: '10', op: 'new' }));
+  let out = K.regen(doc);
+  const v0 = vol(out), top = K.refs([faceNear(out, [16, 10, 10], K)])[0];
+  const fil = r => { const d = JSON.parse(JSON.stringify(doc)); d.features.push(newFeature(d, 'fillet', { edges: [top], radius: r })); const o = K.regen(d); return { o, rep: o.features[o.features.length - 1] }; };
+  // a radius that fits every edge: all 13 rounded, none skipped
+  let r = fil('1'); assert.ok(r.rep.ok, r.rep.error); assert.equal(r.rep.info.edges, 13); assert.equal(r.rep.info.skipped, undefined);
+  // 2 mm: not all of them together; the feature still succeeds, says how many it left, and the part is one sound solid
+  r = fil('2');
+  assert.ok(r.rep.ok, r.rep.error); assert.ok(r.rep.info.skipped >= 1, 'some left square'); assert.equal(r.rep.info.edges + r.rep.info.skipped, 13);
+  assert.equal(r.o.parts.length, 1); assert.ok(vol(r.o) < v0 && vol(r.o) > 0.9 * v0, 'a little taken off: ' + vol(r.o));
+  // a radius no edge can take: refused, the part as it was
+  r = fil('30'); assert.equal(r.rep.ok, false); near(vol(r.o), v0, 1e-6, 'untouched');
+});
+
 test('an extrude’s regions cut by the model’s edges: the part of a circle on a face, and the part that hangs over its edge', async () => {
   const K = await kernel(), doc = block(40, 20, 10);
   // a circle of radius 5 half over the block's end, in the plane of its bottom face

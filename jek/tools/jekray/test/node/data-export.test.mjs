@@ -31,7 +31,7 @@ test('a Michelson: its two screens’ readouts, ray hits and field maps, its bea
     'Input port hits', 'Input port field', 'Input port field along', 'Input port field up', 'beams', 'sweeps', 'parts', 'bench']);
   const R = rowsOf(byName(items, 'readouts'));
   const read = (part, what) => R.find(r => r.part === part && r.reading === what);
-  assert.deepEqual([read('Output port', 'Rays hitting').value, read('Output port', 'RMS spot').unit, read('Output port', 'Power received').unit], [6, 'mm', '%']);
+  assert.deepEqual([read('Output port', 'Rays hitting').value, read('Output port', 'RMS spot').unit, read('Output port', 'Power received').unit], [14, 'mm', '%']);   // 7 hexapolar rays from each arm
   // the same figures the panel and J.stats give
   const st = B.screen('Output port');
   assert.ok(Math.abs(read('Output port', 'RMS spot').value - st.rms) <= 1e-5 * st.rms && Math.abs(read('Output port', 'Power received').value - st.powerPct) < 1e-3);
@@ -39,7 +39,7 @@ test('a Michelson: its two screens’ readouts, ray hits and field maps, its bea
   assert.ok(R.every(r => typeof r.unit === 'string' && r.type === 'Screen' && r.tab === 'Bench 1'));
   // the hits: a row for each ray, every column with its unit
   const H = byName(items, 'Output port hits');
-  assert.equal(H.cols[0].values.length, 6);
+  assert.equal(H.cols[0].values.length, 14);
   for (const [n, u] of [['across', 'mm'], ['up', 'mm'], ['angle from the normal', '°'], ['power', '% of its source'], ['wavelength', 'nm'], ['optical path', 'mm']]) assert.equal(colOf(H, n).unit, u, n);
   assert.ok(colOf(H, 'wavelength').values.every(v => v === 633) && colOf(H, 'source').values.every(v => v === 'Laser'));
   const pw = colOf(H, 'power').values.reduce((a, b) => a + b, 0);

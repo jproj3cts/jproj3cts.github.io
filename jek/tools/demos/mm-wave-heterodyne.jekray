@@ -34,6 +34,7 @@
    "y": 0,
    "angle": 0,
    "rays": 3,
+   "pattern": "hex",
    "mmw": {
     "kind": "corrugated",
     "ghz": 150,

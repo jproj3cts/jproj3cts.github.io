@@ -156,7 +156,7 @@ function benchPanel() {
   const F = project.fly;
   box.append(section('Flying', 'bench.fly', [rows(param('Time limit (µs)', F, 'tMax', { min: 1e-6 }), param('Step (grid cells)', F, 'quality', { min: 0.05, max: 2 }), param('Points kept a path', F, 'maxPts', { min: 200, max: 20000, fmt: v => String(Math.round(v)) }), param('Random seed', F, 'seed', { min: 1, fmt: v => String(Math.round(v)) }),
     checkField('Space charge (Coulomb repulsion)', () => F.spaceCharge, v => { F.spaceCharge = v; }, { wide: true }), checkField('Fly after every change', () => F.auto, v => { F.auto = v; }, { wide: true, rebuild: false })),
-    h('div', { class: 'rt-actions', style: 'margin-top:0.5rem' }, h('button', { type: 'button', class: 'rt-btn primary', onclick: () => flyNow() }, 'Fly the ions')),
+    h('div', { class: 'rt-actions', style: 'margin-top:0.5rem' }, h('button', { type: 'button', class: 'rt-btn primary', onclick: () => flyNow(true) }, 'Fly the ions')),
     helpLine('An adaptive Runge–Kutta step, never longer than the chosen fraction of a grid cell, nor a fortieth of an RF period.', 'The step is Dormand–Prince 5(4); its error estimate shortens the step where the field changes quickly. With space charge on, every particle flies on one clock and feels the Coulomb field of the others, each standing for its group’s weight in real charges; softened within half a cell.')]));
   // the species and analysis point
   const sp = project.species;

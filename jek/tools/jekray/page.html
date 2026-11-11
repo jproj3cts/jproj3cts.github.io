@@ -71,7 +71,7 @@
             <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
             <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every cloud bench, of every app, on JEKsuite (in its own tab)">My benches on JEKsuite…</button>
             <div class="sep"></div>
-            <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekray<span class="k">Ctrl+S</span></button>
+            <button type="button" role="menuitem" data-icon="save" data-click="btnSave" data-need="account" data-what="save the bench as a file">Save as .jekray<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" id="btnCloudSave" class="rt-cloud" data-icon="upload" hidden>Save to cloud</button>
             <button type="button" role="menuitem" id="btnCloudFork" data-icon="fork" hidden title="Carry on in a new cloud bench, leaving this one as it is">Fork this bench…</button>
             <button type="button" role="menuitem" data-icon="link" data-click="btnShare" data-need="pro" data-what="share a link">Copy a share link</button>
@@ -226,7 +226,7 @@
         <div class="rt-group rt-right">
           <button class="rt-btn rt-tbl rt-getpro" id="btnGetPro" type="button" hidden title="JEKrayPro: plans and prices">Get Pro</button>
           <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro)">Share</button>
-          <button class="rt-btn rt-tbl" id="btnSave" data-icon="save" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save</button>
+          <button class="rt-btn rt-tbl" id="btnSave" data-icon="save" data-need="account" data-what="save the bench as a file" title="Save the bench as a .jekray file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save</button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>
           <a class="rt-btn rt-icon rt-cartbtn quiet rt-tbi" id="btnCart" href="/jek/cart.html" target="_blank" rel="noopener" data-icon="cart" title="Your quote cart, on the JEK Systems site, in a new tab" aria-label="Quote cart"><span class="rt-cartcount" id="cartCount" hidden>0</span></a>
           <div class="rt-more rt-phonegone" id="acct" hidden>

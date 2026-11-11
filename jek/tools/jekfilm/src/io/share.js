@@ -89,6 +89,10 @@ export async function openFilmShort(id) {
   return openFilmHash(r.data);
 }
 export function wireShare() {
-  document.getElementById('btnShare').addEventListener('click', () => { shareFilm().catch(err => toast('Could not make a link: ' + err.message, true)); });
-  if (TEST_MODE) document.getElementById('btnShare').dataset.test = '1';
+  // the bar's Share (top right, as in the other apps; hidden on a narrow screen) and File › Copy a share link…
+  for (const id of ['btnShare', 'btnShareMenu']) {
+    const b = document.getElementById(id);
+    b.addEventListener('click', () => { shareFilm().catch(err => toast('Could not make a link: ' + err.message, true)); });
+    if (TEST_MODE) b.dataset.test = '1';
+  }
 }

@@ -824,7 +824,7 @@ function appHead(a) {
 /* ---------- the apps ----------
    Opened from New (its Open group) and the rail, each in its own tab; signed out, under the sign-in panel. */
 export function appLinks() {
-  return h('div', { class: 'rt-happlinks', 'aria-label': 'Apps' }, h('span', null, 'The apps need no account to use:'),
+  return h('div', { class: 'rt-happlinks', 'aria-label': 'Apps' }, h('span', null, 'The apps open without an account:'),
     ...APPS.map(a => h('button', { type: 'button', class: 'rt-btn', title: a.line, onclick: () => { track('cloud', 'app.' + a.id); openApp(a.id); } }, 'Open ' + a.name)),
     ...APPS.filter(a => a.about).map(a => h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + a.name)));
 }
@@ -904,7 +904,7 @@ export function signedOutView() {
     document.getElementById('homeCrumbs').replaceChildren(appPage.name);
     document.getElementById('homeWhere').textContent = appPage.name;
     box.replaceChildren(appHead(appPage), h('div', { class: 'rt-hsignin rt-hsigninline' },
-      h('p', null, 'Sign in to see your ' + appPage.name + ' benches here. ' + appPage.name + ' itself needs no account to use.'),
+      h('p', null, 'Sign in to see your ' + appPage.name + ' benches here. ' + appPage.name + ' itself opens without an account.'),
       h('div', { class: 'rt-actions', style: 'justify-content:flex-start' }, h('button', { type: 'button', class: 'rt-btn primary', id: 'homeSignIn', onclick: openAccountMenu }, 'Sign in or create an account'))));
     return;
   }

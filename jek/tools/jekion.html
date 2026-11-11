@@ -2021,7 +2021,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekion file…</button>
             <button type="button" role="menuitem" data-icon="gallery" data-click="btnExamples">Open an example…</button>
             <div class="sep"></div>
-            <button type="button" role="menuitem" data-icon="save" data-click="btnSave">Save as .jekion<span class="k">Ctrl+S</span></button>
+            <button type="button" role="menuitem" data-icon="save" data-click="btnSave" data-need="account" data-what="save the bench as a file">Save as .jekion<span class="k">Ctrl+S</span></button>
             <button type="button" role="menuitem" data-icon="link" data-click="btnShare" data-need="pro" data-what="share a link">Copy a share link</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every bench in the cloud, JEKion’s and JEKray’s, on JEKsuite (it opens in its own tab)">My benches on JEKsuite…</button>
@@ -2094,7 +2094,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnTools" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="toolsMenu">Tools</button>
           <div class="rt-menu rt-imenu" id="toolsMenu" role="menu" hidden>
-            <button type="button" role="menuitem" id="btnFly" data-icon="play" title="Solve the fields if they have changed, then fly every ion group (Space)">Fly the ions<span class="k">Space</span></button>
+            <button type="button" role="menuitem" id="btnFly" data-icon="play" data-need="account" data-what="fly the ions" title="Solve the fields if they have changed, then fly every ion group (Space)">Fly the ions<span class="k">Space</span></button>
             <button type="button" role="menuitem" id="btnStop" data-icon="pause">Stop</button>
             <button type="button" role="menuitemcheckbox" id="btnAuto" aria-checked="true" data-icon="check" title="Solve and fly again after every change; off, press Fly">Fly after every change</button>
             <div class="sep"></div>
@@ -2134,7 +2134,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         </div>
         <div class="rt-group rt-right">
           <button class="rt-btn rt-tbl" id="btnShare" data-icon="share" data-need="pro" data-what="share a link" title="Copy a short link that opens this bench as it is now (JEKrayPro; a free account keeps three)">Share</button>
-          <button class="rt-btn rt-tbl" id="btnSave" data-icon="save" title="Save the bench as a .jekion file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save</button>
+          <button class="rt-btn rt-tbl" id="btnSave" data-icon="save" data-need="account" data-what="save the bench as a file" title="Save the bench as a .jekion file (Ctrl+S)"><span class="rt-savedot" id="saveDot" title="Changed since it was opened or saved" hidden></span>Save</button>
           <button class="rt-btn rt-icon quiet rt-tbi" id="btnExamples" type="button" data-icon="gallery" aria-haspopup="dialog" title="Examples: benches to open and learn from" aria-label="Examples"></button>
           <div class="rt-more rt-phonegone" id="acct" hidden>
             <button class="rt-btn rt-acct quiet" id="btnAcct" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu">Sign in</button>
@@ -5422,10 +5422,27 @@ function progress(p) {
   if (p.phase === 'solve') say('Solving the fields: electrode ' + Math.min(p.k + 1, p.n) + ' of ' + p.n + (p.cycle ? ', cycle ' + p.cycle : '') + '…', true);
   else if (p.phase === 'fly') say('Flying: ' + p.done + ' of ' + p.n + ' ions' + (p.t ? ', t = ' + nf(p.t, 3) + ' µs' : '') + '…', true);
 }
-/* solve and fly now */
-async function flyNow() {
+/* Flying needs a free account. 'no': signed out for sure; 'wait': accounts are on here and the account is still being
+   looked up (a moment after the page opens); '': it may fly (signed in, no accounts here, or the API not answering) */
+function flyBar() {
+  if (TEST_MODE) return '';
+  const a = hooks.account ? hooks.account() : null;
+  if (!a || !a.on || a.signedIn) return '';
+  return a.known ? 'no' : performance.now() < 8000 ? 'wait' : '';
+}
+/* solve and fly now (asked: the person pressed Fly, so signed out they are told what it needs) */
+async function flyNow(asked) {
   clearTimeout(timer);
   if (!project) return;
+  const held = flyBar();
+  if (held === 'wait') { timer = setTimeout(() => flyNow(asked), 250); return; }
+  if (held) {
+    SIM.result = null; SIM.stale = true;
+    say('Flying the ions needs a free account: sign in, top right. The fields are solved and drawn without one.', false);
+    hooks.requestRender(); hooks.ionResults();
+    if (asked) accountGate('fly the ions');
+    return;
+  }
   const gk = geometryKey(project), vk = voltageKey(project), t0 = performance.now();
   if (!project.ions.some(g => g.on !== false)) { SIM.result = null; SIM.stale = false; say(project.electrodes.length ? 'No ion group to fly: Insert › Ion group' : '', false); hooks.requestRender(); hooks.ionResults(); return; }
   say(gk !== SIM.gkey ? 'Solving the fields…' : 'Flying…', true);
@@ -5467,7 +5484,8 @@ function stopFly() {
 function wireSim() {
   document.getElementById('simStop').addEventListener('click', stopFly);
   document.getElementById('btnStop').addEventListener('click', stopFly);
-  document.getElementById('btnFly').addEventListener('click', () => flyNow());
+  document.getElementById('btnFly').addEventListener('click', () => flyNow(true));
+  hooks.ionFlyAllowed = () => { if (project && SIM.stale !== false && (project.fly.auto || !SIM.result)) flyNow(); };
   if (TEST_MODE) say('', false);
 }
 /* ==========================================================================
@@ -6037,7 +6055,7 @@ function wireActions() {
     if (mod) return;
     if (e.key === 'Delete' || e.key === 'Backspace') { if (selectedId) { e.preventDefault(); removeSel(); } return; }
     if (e.key === 'Escape') { if (hooks.ionBusy()) hooks.ionStop(); else { setSelectedId(null); renderPanel(); requestRender(); } return; }
-    if (e.key === ' ') { e.preventDefault(); flyNow(); return; }
+    if (e.key === ' ') { e.preventDefault(); flyNow(true); return; }
     if (e.key === 'f' || e.key === 'F') { fitAny(); return; }
     if (e.key === 'a' || e.key === 'A') { document.getElementById('btnAdd').click(); return; }
     if (e.key === '?') { document.getElementById('btnHelp').click(); return; }
@@ -6461,7 +6479,7 @@ function benchPanel() {
   const F = project.fly;
   box.append(section('Flying', 'bench.fly', [rows(param('Time limit (µs)', F, 'tMax', { min: 1e-6 }), param('Step (grid cells)', F, 'quality', { min: 0.05, max: 2 }), param('Points kept a path', F, 'maxPts', { min: 200, max: 20000, fmt: v => String(Math.round(v)) }), param('Random seed', F, 'seed', { min: 1, fmt: v => String(Math.round(v)) }),
     checkField('Space charge (Coulomb repulsion)', () => F.spaceCharge, v => { F.spaceCharge = v; }, { wide: true }), checkField('Fly after every change', () => F.auto, v => { F.auto = v; }, { wide: true, rebuild: false })),
-    h('div', { class: 'rt-actions', style: 'margin-top:0.5rem' }, h('button', { type: 'button', class: 'rt-btn primary', onclick: () => flyNow() }, 'Fly the ions')),
+    h('div', { class: 'rt-actions', style: 'margin-top:0.5rem' }, h('button', { type: 'button', class: 'rt-btn primary', onclick: () => flyNow(true) }, 'Fly the ions')),
     helpLine('An adaptive Runge–Kutta step, never longer than the chosen fraction of a grid cell, nor a fortieth of an RF period.', 'The step is Dormand–Prince 5(4); its error estimate shortens the step where the field changes quickly. With space charge on, every particle flies on one clock and feels the Coulomb field of the others, each standing for its group’s weight in real charges; softened within half a cell.')]));
   // the species and analysis point
   const sp = project.species;
@@ -6641,6 +6659,7 @@ function restoreSaved() {
   return null;
 }
 function saveFile() {
+  if (!accountGate('save the bench as a file')) return;
   const name = safeFileName(project.name) + '.jekion';
   downloadFile(name, new Blob([JSON.stringify(serialize(), null, 2)], { type: 'application/json' }));
   toast('Saved ' + name); markUnsaved(false); goal('save');
@@ -6755,6 +6774,7 @@ async function importCad(file, at) {
 const APP_VERSION = '1.0', APP_DATE = '12 November 2026';
 const NEWS = [
   ['1.0', APP_DATE, [
+    '<b>Flying the ions and saving the .jekion file need a free account</b>. Drawing electrodes and seeing their fields need none. A <b>Free account</b> badge marks each until you are signed in.',
     '<b>JEKsuite</b>, the JEK hub: File \u203a My benches on JEKsuite opens <a href="/jek/tools/jeksuite.html" target="_blank">JEKsuite</a> in its own tab, with every cloud bench of every JEK app, JEKion\u2019s among them, labelled and filtered by app; a JEKion bench chosen there opens here. New there starts a JEKion bench, in the cloud when you can save there. Your account, plan and teams are there too.',
     '<b>JEKion 1.0, released</b>: a charged-particle trap simulator in the browser, alongside JEKray. Electrodes from the bodies of a STEP or STL file, the potential solved by multigrid in planar, cylindrical or three-dimensional symmetry, ions and electrons flown relativistically through it and a uniform magnetic field, with RF voltages, a background gas and space charge; detectors, splats, time-of-flight and energy spectra; a trap analysis giving Mathieu a and q, secular and Penning frequencies.',
     'Examples: an einzel lens, a quadrupole deflector, a linear time-of-flight, a reflectron, a quadrupole mass filter, a Paul trap and a Penning trap.',
@@ -7906,8 +7926,8 @@ function showSignIn(kind, what) {
   track('prompt', (kind === 'export' ? 'export' : kind === 'cloud' ? 'cloud' : 'pro') + '.shown');
   const dlg = ionPrompt('ionSignIn'), close = () => dlg.close();
   const pro = kind === 'pro' && account;
-  dlg.replaceChildren(h('h2', { id: 'ionSignInTitle' }, kind === 'export' ? 'Exporting needs a free account' : kind === 'cloud' ? 'The cloud needs an account' : pro ? 'JEKrayPro is needed' : 'Sign in first'),
-    h('p', null, kind === 'export' ? 'Sign in to ' + what + '. Saving the bench as a .jekion file needs no account.' : kind === 'cloud' ? 'Sign in to ' + what + '. A free account opens your cloud benches; saving there needs JEKrayPro. The .jekion file on your computer needs no account.' : pro ? 'To ' + what + ', JEKrayPro is needed, or a place in a team with a plan.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan.'),
+  dlg.replaceChildren(h('h2', { id: 'ionSignInTitle' }, kind === 'export' ? (/^fly/.test(what) ? 'Flying the ions needs a free account' : /^save the bench/.test(what) ? 'Saving the file needs a free account' : 'Exporting needs a free account') : kind === 'cloud' ? 'The cloud needs an account' : pro ? 'JEKrayPro is needed' : 'Sign in first'),
+    h('p', null, kind === 'export' ? 'Sign in to ' + what + '. Drawing electrodes and seeing their fields need no account.' : kind === 'cloud' ? 'Sign in to ' + what + '. A free account opens your cloud benches and saves the .jekion file on your computer; saving to the cloud needs JEKrayPro.' : pro ? 'To ' + what + ', JEKrayPro is needed, or a place in a team with a plan.' : 'To ' + what + ', JEKrayPro is needed: sign in first (a free account), then choose a plan.'),
     h('p', null, h('b', null, 'One account for every JEK app.'), ' Your bench stays here while you sign in.'),
     pro ? null : h('div', { class: 'rt-actions rt-signrow' }, ...signInRow(kind, close)),
     h('div', { class: 'rt-actions' }, pro ? h('button', { class: 'rt-btn primary', type: 'button', onclick: () => { track('prompt', kind + '.pro'); close(); showSubscribe(); } }, 'See the plans') : null,
@@ -7933,6 +7953,8 @@ function wireIonAccount() {
     accountChanged: () => {
       const mi = document.getElementById('moreAcct'); if (mi) mi.querySelector('.lbl').textContent = account ? 'Your account…' : 'Sign in…';
       hooks.needsShown(); if (hooks.ionAccountChanged) hooks.ionAccountChanged();
+      // signed in: the ions fly (flying needs an account)
+      if (account && hooks.ionFlyAllowed) hooks.ionFlyAllowed();
     },
   });
   wireAccount();

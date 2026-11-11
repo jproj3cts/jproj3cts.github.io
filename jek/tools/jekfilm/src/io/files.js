@@ -111,7 +111,7 @@ function examplesDialog() {
   dlg.showModal();
 }
 export function wireFiles() {
-  document.getElementById('btnExamples').addEventListener('click', examplesDialog);
+  document.getElementById('btnFilmExamples').addEventListener('click', examplesDialog);
   const fi = document.getElementById('fileFilm');
   document.getElementById('btnOpen').addEventListener('click', () => fi.click());
   fi.addEventListener('change', () => { if (fi.files[0]) openFilmFile(fi.files[0]); fi.value = ''; });

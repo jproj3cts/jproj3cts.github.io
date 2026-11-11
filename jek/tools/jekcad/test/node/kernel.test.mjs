@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { kernel, rectSketch, circleSketch, pointsSketch, newDoc, newFeature, okAll, errorsOf } from './helpers.mjs';
-import { slotEnts, regionsOf, defaultRegionPts } from '../../src/core/sketch-tools.js';
+import { slotEnts, regionsOf, defaultRegionPts, silhouetteOf } from '../../src/core/sketch-tools.js';
 
 const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, (what || '') + ' ' + a + ' is not ' + b);
 /* a 40 × 20 block, 10 high, on the Top plane from the origin */
@@ -425,4 +425,90 @@ test('Delete part: a feature that takes whole parts away; suppressed, they are b
   assert.equal(K.regen(doc).parts.length, 2);
   delete del.suppressed; del.targets = ['nothing'];
   assert.match(K.regen(doc).features[4].error, /not there/);
+});
+
+test('extrude from a face of the model: the top of the block pushed out, a side pushed out, the top cut in; a round face refused', async () => {
+  const K = await kernel(), doc = block();
+  let out = await K.regen(doc);
+  const top = K.refs([faceNear(out, [20, 10, 10], K)])[0], side = K.refs([faceNear(out, [40, 10, 5], K)])[0];
+  // the top, 5 further up: 40 × 20 × 15, still one part
+  doc.features.push(newFeature(doc, 'extrude', { faces: [top], depth: '5' }));
+  out = await K.regen(doc); okAll(out);
+  assert.equal(out.parts.length, 1); near(vol(out), 12000, 1e-6, 'top out');
+  // a side, 4 out along its own way: x from 0 to 44
+  doc.features.push(newFeature(doc, 'extrude', { faces: [side], depth: '4' }));
+  out = await K.regen(doc); okAll(out);
+  near(vol(out), 12000 + 4 * 20 * 15, 1e-6, 'side out (the side is 15 high by now)'); near(out.parts[0].bbox[1][0], 44, 1e-6, 'x');
+  // Remove goes into the part: the new top, 3 down, over all of it
+  const top2 = K.refs([faceNear(out, [10, 10, 15], K)])[0];
+  doc.features.push(newFeature(doc, 'extrude', { faces: [top2], op: 'remove', depth: '3' }));
+  out = await K.regen(doc); okAll(out);
+  near(out.parts[0].bbox[1][2], 12, 1e-6, 'cut top');
+  // a cylinder's round face cannot be pushed
+  const d2 = newDoc(), c = circleSketch(d2, [0, 0], 10);
+  d2.features.push(c, newFeature(d2, 'extrude', { sketch: c.id, regions: [[0, 0]], depth: '10' }));
+  let o2 = await K.regen(d2);
+  const round = K.refs([faceNear(o2, [10, 0, 5], K)])[0];
+  d2.features.push(newFeature(d2, 'extrude', { faces: [round], depth: '5' }));
+  o2 = await K.regen(d2);
+  assert.match(errorsOf(o2).join(' '), /flat face/);
+});
+
+test('sketch text: the letters are regions (an o is a ring), extruded as solids of the letters’ area; a conic’s region too', async () => {
+  const K = await kernel(), doc = newDoc();
+  const sk = newFeature(doc, 'sketch', { plane: { std: 'top' }, ents: [{ id: 't1', t: 'text', c: [0, 0], s: 'Jo8', h: 10, rot: 0 }], cons: [], dims: [] });
+  const R = regionsOf(sk.ents), pts = defaultRegionPts(sk.ents);
+  // J: one region; o: a ring and its hole; 8: a ring and two holes
+  assert.equal(R.length, 6); assert.equal(pts.length, 3);
+  const area = pts.reduce((s, q) => s + Math.abs(R.find(x => Math.hypot(x.pt[0] - q[0], x.pt[1] - q[1]) < 1e-5).area), 0);
+  doc.features.push(sk, newFeature(doc, 'extrude', { sketch: sk.id, regions: pts, depth: '2', op: 'new' }));
+  let out = K.regen(doc);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  assert.ok(area > 50 && area < 200, 'area ' + area);
+  near(vol(out), area * 2, area * 2 * 1e-6, 'letters');
+  // the capitals are h high: the J's top is at 10
+  near(Math.max(...out.parts.map(p => p.bbox[1][1])), 10, 0.25, 'cap height');
+  // a conic closed by a line: the area under a parabola (rho 0.5) is two thirds of its triangle
+  const d2 = newDoc(), s2 = newFeature(d2, 'sketch', { plane: { std: 'top' }, ents: [{ id: 'c1', t: 'spline', pts: [[0, 0], [10, 12], [20, 0]], cn: 0.5 }, { id: 'l1', t: 'line', a: [20, 0], b: [0, 0] }], cons: [], dims: [] });
+  assert.equal(s2.ents[0].cn, 0.5);
+  d2.features.push(s2, newFeature(d2, 'extrude', { sketch: s2.id, regions: [[10, 2]], depth: '3', op: 'new' }));
+  out = K.regen(d2);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  near(vol(out), 2 / 3 * (20 * 12 / 2) * 3, 0.5, 'parabola');
+});
+
+test('pierce: the point where an edge goes through a sketch’s plane, following the edge; silhouette: a cylinder’s side as two lines, a sphere’s as a circle', async () => {
+  const K = await kernel(), doc = newDoc(), sk0 = rectSketch(doc, 40, 20, null, [-20, -10]);
+  doc.features.push(sk0, newFeature(doc, 'extrude', { sketch: sk0.id, regions: [[0, 0]], depth: '10' }));
+  let out = K.regen(doc);
+  // the block spans x −35 to 5, y −15 to 5: its long edge at y = 5, z = 10 goes through the Right plane (x = 0) at (5, 10) there
+  const F = { o: [0, 0, 0], x: [0, 1, 0], y: [0, 0, 1], n: [1, 0, 0] };
+  const pts = K.pierce([edgeNear(out, [-15, 5, 10])], F);
+  assert.equal(pts.length, 1); near(pts[0].c[0], 5, 1e-5, 'u'); near(pts[0].c[1], 10, 1e-5, 'v');
+  assert.ok(pts[0].src && pts[0].src.kind === 'edge');
+  // an edge that lies along the plane's normal's side but never crosses: none
+  assert.equal(K.pierce([edgeNear(out, [5, -5, 10])], F).length, 0);
+  // in a sketch on Right, held there: the block made 16 high, the point is at (5, 16)
+  const p = Object.assign(pts[0], { id: 'pp', ref: true });
+  const sk = newFeature(doc, 'sketch', { plane: { std: 'right' }, ents: [p], cons: [{ id: 'cf', t: 'fix', r: [{ e: 'pp', k: 'c' }], at: p.c.slice() }], dims: [] });
+  assert.ok(sk.ents[0].src, 'the point keeps its edge');
+  doc.features.push(sk);
+  out = K.regen(doc); assert.ok(okAll(out), errorsOf(out).join('; '));
+  doc.features[1].depth = '16';
+  out = K.regen(doc); assert.ok(okAll(out), errorsOf(out).join('; '));
+  const info = out.features.find(x => x.id === sk.id);
+  const moved = ((info.info || {}).ents || []).find(e => e.id === 'pp');
+  assert.ok(moved, 'the sketch was sent back moved');
+  near(moved.c[0], 5, 1e-5, 'u after'); near(moved.c[1], 16, 1e-5, 'v after');
+  // silhouettes, from the meshes the page is sent
+  const d2 = newDoc(), c = circleSketch(d2, [0, 0], 10);
+  d2.features.push(c, newFeature(d2, 'extrude', { sketch: c.id, regions: [[0, 0]], depth: '20' }));
+  const o2 = K.regen(d2), M = o2.parts[0], Ff = { o: [0, 0, 0], x: [1, 0, 0], y: [0, 0, 1], n: [0, -1, 0] };
+  const round = M.faceKinds.findIndex(k => k !== 'plane');
+  const sil = silhouetteOf(M, round, Ff);
+  assert.equal(sil.length, 2); assert.ok(sil.every(e => e.t === 'line'));
+  for (const l of sil) { near(Math.abs(l.a[0]), 10, 1e-3, 'at the radius'); near(Math.abs(l.b[0]), 10, 1e-3); near(Math.abs(l.a[1] - l.b[1]), 20, 1e-6, 'as tall as the cylinder'); }
+  assert.ok(sil[0].a[0] * sil[1].a[0] < 0, 'one each side');
+  // a flat face has none
+  assert.equal(silhouetteOf(M, M.faceKinds.findIndex(k => k === 'plane'), Ff).length, 0);
 });

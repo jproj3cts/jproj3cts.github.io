@@ -2101,7 +2101,7 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-qsw button { font: inherit; font-size: 0.8rem; padding: 0.25rem 0.75rem; background: none; border: 0; color: var(--jek-ink-soft); cursor: pointer; }
 .film-qsw button + button { border-left: 1px solid var(--jek-line-2); }
 .film-qsw button.on { background: var(--jek-line); color: var(--jek-ink); font-weight: 600; }
-.film-head .film-save { display: inline-flex; align-items: center; gap: 0.35rem; }
+.film-head .film-save, .film-head .film-share { display: inline-flex; align-items: center; gap: 0.35rem; }
 </style>
 </head>
 <body class="film-app">
@@ -2117,12 +2117,12 @@ html, body { margin: 0; background: var(--jek-well); }
         <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
           <button type="button" role="menuitem" id="btnNew" data-icon="new">New coating</button>
           <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekfilm file…</button>
-          <button type="button" role="menuitem" id="btnExamples" data-icon="book">Open an example…</button>
+          <button type="button" role="menuitem" id="btnFilmExamples" data-icon="book">Open an example…</button>
           <div class="sep"></div>
           <button type="button" role="menuitem" id="btnSaveFile" data-icon="save" data-need="pro" data-what="save a coating file">Save as .jekfilm<span class="k">Ctrl+S</span></button>
           <div class="sep" id="cloudSep"></div>
           <button type="button" role="menuitem" id="btnCloudSave" data-icon="upload" data-need="pro" data-what="save to the cloud" title="Keep this coating in the cloud, with its history, beside the benches that use it"><span class="lbl">Save to cloud…</span></button>
-          <button type="button" role="menuitem" id="btnShare" data-icon="link" data-need="pro" data-what="share a link" title="A short link that opens this coating as it is now, for anyone">Copy a share link…</button>
+          <button type="button" role="menuitem" id="btnShareMenu" data-icon="link" data-need="pro" data-what="share a link" title="A short link that opens this coating as it is now, for anyone">Copy a share link…</button>
           <div class="sep"></div>
           <button type="button" role="menuitem" id="btnExportCsv" data-icon="export" data-need="account" data-what="export the curves" title="The reflectance across the band and against the angle, as a CSV file">Export the curves (CSV)</button>
           <button type="button" role="menuitem" id="btnExportData" data-icon="export" title="The curves and the layers as CSV, JSON, Excel, NumPy or MATLAB files">Export data…</button>
@@ -2138,6 +2138,7 @@ html, body { margin: 0; background: var(--jek-well); }
         <div class="rt-menu rt-menu-right rt-imenu" id="themeMenu" role="menu" hidden></div>
       </div>
       <button class="rt-btn rt-getpro" id="btnGetPro" type="button" hidden title="JEKrayPro: plans and prices">Get Pro</button>
+      <button class="rt-btn film-share" id="btnShare" type="button" data-icon="link" data-need="pro" data-what="share a link" title="Copy a short link that opens this coating as it is now, for anyone (JEKrayPro)">Share</button>
       <div class="rt-more" id="acct" hidden>
         <button class="rt-btn rt-acct quiet" id="btnAcct" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="acctMenu">Sign in</button>
         <div class="rt-menu rt-menu-right rt-imenu rt-acctmenu" id="acctMenu" role="menu" hidden></div>
@@ -5664,7 +5665,7 @@ function examplesDialog() {
   dlg.showModal();
 }
 function wireFiles() {
-  document.getElementById('btnExamples').addEventListener('click', examplesDialog);
+  document.getElementById('btnFilmExamples').addEventListener('click', examplesDialog);
   const fi = document.getElementById('fileFilm');
   document.getElementById('btnOpen').addEventListener('click', () => fi.click());
   fi.addEventListener('change', () => { if (fi.files[0]) openFilmFile(fi.files[0]); fi.value = ''; });
@@ -6102,8 +6103,12 @@ async function openFilmShort(id) {
   return openFilmHash(r.data);
 }
 function wireShare() {
-  document.getElementById('btnShare').addEventListener('click', () => { shareFilm().catch(err => toast('Could not make a link: ' + err.message, true)); });
-  if (TEST_MODE) document.getElementById('btnShare').dataset.test = '1';
+  // the bar's Share (top right, as in the other apps; hidden on a narrow screen) and File › Copy a share link…
+  for (const id of ['btnShare', 'btnShareMenu']) {
+    const b = document.getElementById(id);
+    b.addEventListener('click', () => { shareFilm().catch(err => toast('Could not make a link: ' + err.message, true)); });
+    if (TEST_MODE) b.dataset.test = '1';
+  }
 }
 /* ==========================================================================
    File › Export data…: the coating's numbers (the reflectance across the band, against the angle, and the layers) as

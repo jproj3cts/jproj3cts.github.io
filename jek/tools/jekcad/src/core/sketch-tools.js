@@ -1,4 +1,5 @@
-import { ENT_KINDS, hpt, inRegion, inside, lineDir, sketchId, sketchRegions } from './sketch.js';
+import { TEXT_FONT } from './font-data.js';
+import { ENT_KINDS, curvePts, hpt, inRegion, inside, lineDir, sketchId, sketchRegions } from './sketch.js';
 
 /* ==========================================================================
    A sketch's shapes checked as a file is read, their outlines, the regions found for features, and the sketch
@@ -20,7 +21,9 @@ export function normEnts(ents) {
     else if (e.t === 'arc') { n.c = pt2(e.c, [0, 0]); n.r = Math.abs(fin(e.r, 5)) || 5; n.a0 = fin(e.a0, 0); n.a1 = fin(e.a1, 90); }
     else if (e.t === 'circle') { n.c = pt2(e.c, [0, 0]); n.r = Math.abs(fin(e.r, 5)) || 5; }
     else if (e.t === 'ellipse') { n.c = pt2(e.c, [0, 0]); n.rx = Math.abs(fin(e.rx, 10)) || 10; n.ry = Math.abs(fin(e.ry, 5)) || 5; n.rot = fin(e.rot, 0); }
-    else if (e.t === 'spline') { n.pts = (Array.isArray(e.pts) ? e.pts : []).slice(0, 200).map(q => pt2(q, [0, 0])); if (n.pts.length < 2) continue; if (e.cv) n.cv = true; if (e.closed) n.closed = true; }
+    else if (e.t === 'spline') { n.pts = (Array.isArray(e.pts) ? e.pts : []).slice(0, 200).map(q => pt2(q, [0, 0])); if (n.pts.length < 2) continue; if (e.cv) n.cv = true; if (e.closed) n.closed = true; if (n.pts.length === 3 && Number.isFinite(+e.cn) && +e.cn > 0) { n.cn = Math.max(0.05, Math.min(0.95, +e.cn)); delete n.cv; delete n.closed; } }
+    else if (e.t === 'text') { n.c = pt2(e.c, [0, 0]); n.s = typeof e.s === 'string' ? e.s.slice(0, 200) : ''; n.h = Math.max(0.01, Math.abs(fin(e.h, 10)) || 10); n.rot = fin(e.rot, 0); if (!n.s.trim()) continue; }
+    else if (e.t === 'image') { if (typeof e.data !== 'string' || !/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(e.data) || e.data.length > 3e6) continue; n.c = pt2(e.c, [0, 0]); n.w = Math.max(0.01, Math.abs(fin(e.w, 50)) || 50); n.ar = Math.max(1e-3, Math.min(1e3, fin(e.ar, 1))); n.rot = fin(e.rot, 0); n.data = e.data; n.k = true; }
     else n.c = pt2(e.c, [0, 0]);
     if (e.k) n.k = true;            // construction
     if (e.ref) n.ref = true;        // projected from the model (Use)
@@ -34,39 +37,57 @@ export function normEnts(ents) {
 }
 /* an arc's sweep, degrees, in (0, 360] */
 export const arcSweep = e => { let s = (e.a1 - e.a0) % 360; if (s < 0) s += 360; if (s <= 1e-9) s += 360; return s; };
-/* an ellipse or a spline as points along it (an ellipse all the way round, its first point not said again; a
-   spline from its first point to its last, or round to its first again when it is closed). A spline goes through
-   its points, each stretch a cubic that leaves a point the way the points either side of it lie (Catmull and
-   Rom's); with cv its points are one Bézier curve's control points. step, degrees, sets how fine. */
-export function curvePts(e, step) {
-  const fine = Math.max(1, Math.min(8, Math.round(6 / (step || 6) * 2)));
-  if (e.t === 'ellipse') {
-    const n = 48 * fine, a = e.rot * DEG, ca = Math.cos(a), sa = Math.sin(a), out = [];
-    for (let i = 0; i < n; i++) { const t = 2 * Math.PI * i / n, x = e.rx * Math.cos(t), y = e.ry * Math.sin(t); out.push([e.c[0] + x * ca - y * sa, e.c[1] + x * sa + y * ca]); }
-    return out;
+const isCurve = e => e.t === 'ellipse' || e.t === 'spline';
+/* ---------- text and pictures: shapes that are placed, each by one point ---------- */
+const isBox = e => e.t === 'text' || e.t === 'image';
+const turned = (e, x, y) => { const a = (e.rot || 0) * DEG, ca = Math.cos(a), sa = Math.sin(a); return [e.c[0] + x * ca - y * sa, e.c[1] + x * sa + y * ca]; };
+/* a picture's four corners, from its bottom left round */
+export const imageCorners = e => { const hh = e.w * e.ar; return [turned(e, 0, 0), turned(e, e.w, 0), turned(e, e.w, hh), turned(e, 0, hh)]; };
+/* a text's letters as closed outlines (rings of points), in the sketch's millimetres: the font's outlines, its
+   capitals h high, set from the text's point along its baseline; a curve of a letter in short straight steps */
+let textMemo = null;
+export function textRings(e) {
+  const key = e.s + '|' + e.h + '|' + e.rot + '|' + e.c[0] + '|' + e.c[1];
+  if (textMemo && textMemo.key === key) return textMemo.rings;
+  const k = e.h / TEXT_FONT.cap, rings = [];
+  let x = 0;
+  for (const ch of e.s) {
+    const g = TEXT_FONT.glyphs[ch] || TEXT_FONT.glyphs['?'];
+    const tok = g[1] ? g[1].split(' ') : [];
+    let ring = null, at = [0, 0], i = 0;
+    const P = (ux, uy) => turned(e, (x + ux) * k, uy * k), num = () => +tok[i++];
+    const shut = () => { if (ring && ring.length >= 3) { const a = ring[0], b = ring[ring.length - 1]; if (Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-9) ring.pop(); if (ring.length >= 3) rings.push(ring); } ring = null; };
+    while (i < tok.length) {
+      const op = tok[i++];
+      if (op === 'M') { shut(); at = [num(), num()]; ring = [P(at[0], at[1])]; }
+      else if (op === 'L') { at = [num(), num()]; ring.push(P(at[0], at[1])); }
+      else if (op === 'Q') { const c = [num(), num()], q = [num(), num()]; for (let s = 1; s <= 5; s++) { const t = s / 5, u = 1 - t; ring.push(P(u * u * at[0] + 2 * u * t * c[0] + t * t * q[0], u * u * at[1] + 2 * u * t * c[1] + t * t * q[1])); } at = q; }
+      else if (op === 'C') { const c1 = [num(), num()], c2 = [num(), num()], q = [num(), num()]; for (let s = 1; s <= 8; s++) { const t = s / 8, u = 1 - t; ring.push(P(u * u * u * at[0] + 3 * u * u * t * c1[0] + 3 * u * t * t * c2[0] + t * t * t * q[0], u * u * u * at[1] + 3 * u * u * t * c1[1] + 3 * u * t * t * c2[1] + t * t * t * q[1])); } at = q; }
+      else if (op === 'Z') shut();
+    }
+    shut();
+    x += g[0];
   }
-  const P = e.pts, out = [];
-  if (e.cv) {
-    // de Casteljau's steps down the control points
-    const n = 16 * fine * Math.max(1, P.length - 1);
-    for (let i = 0; i <= n; i++) { const t = i / n; let Q = P.map(q => q.slice()); while (Q.length > 1) Q = Q.slice(1).map((q, j) => [Q[j][0] + (q[0] - Q[j][0]) * t, Q[j][1] + (q[1] - Q[j][1]) * t]); out.push(Q[0]); }
-    return out;
-  }
-  const m = P.length, cl = !!e.closed && m > 2, at = i => (cl ? P[((i % m) + m) % m] : P[Math.max(0, Math.min(m - 1, i))]), per = 8 * fine, spans = cl ? m : m - 1;
-  for (let s = 0; s < spans; s++) {
-    const p0 = at(s - 1), p1 = at(s), p2 = at(s + 1), p3 = at(s + 2);
-    for (let i = 0; i < per; i++) { const t = i / per, t2 = t * t, t3 = t2 * t; out.push([0, 1].map(k => 0.5 * (2 * p1[k] + (-p0[k] + p2[k]) * t + (2 * p0[k] - 5 * p1[k] + 4 * p2[k] - p3[k]) * t2 + (-p0[k] + 3 * p1[k] - 3 * p2[k] + p3[k]) * t3))); }
-  }
-  if (!cl) out.push(P[m - 1].slice());
+  textMemo = { key, rings, width: x * k };
+  return rings;
+}
+/* how long a text runs along its baseline, mm */
+export const textWidth = e => { textRings(e); return textMemo.width; };
+/* a text as the straight lines round its letters, for the regions (each line knows the text it is of) */
+function textLines(e) {
+  const out = [];
+  textRings(e).forEach((r, j) => r.forEach((p, i) => out.push({ id: e.id + ':' + j + ':' + i, t: 'line', a: p, b: r[(i + 1) % r.length], of: e.id })));
   return out;
 }
-const isCurve = e => e.t === 'ellipse' || e.t === 'spline';
+const segDist = (a, b, q) => { const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1e-12, t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / L2)); return Math.hypot(a[0] + dx * t - q[0], a[1] + dy * t - q[1]); };
+const ringsOfBox = e => (e.t === 'image' ? [imageCorners(e)] : textRings(e));
 const curveClosed = e => e.t === 'ellipse' || (e.t === 'spline' && !!e.closed);
 /* a shape's outline as points: arcs and circles in steps of at most `step` degrees */
 export function entOutline(e, step) {
   step = step || 6;
   if (e.t === 'line') return [e.a, e.b];
   if (e.t === 'point') return [e.c];
+  if (isBox(e)) return ringsOfBox(e).flat();
   if (e.t === 'ellipse' || e.t === 'spline') return curvePts(e, step);
   const circ = e.t === 'circle', sw = circ ? 360 : arcSweep(e), a0 = circ ? 0 : e.a0, n = Math.max(circ ? 24 : 2, Math.ceil(sw / step));
   const out = [];
@@ -175,7 +196,8 @@ function roundOutline(e, all, tol) {
   return out;
 }
 export function regionsOf(ents) {
-  const W = weldEnts(ents.filter(e => !e.k && e.t !== 'point'));
+  // (a text's letters go in as the lines round them, as they are: they are exact already, and are not welded)
+  const live = ents.filter(e => !e.k && e.t !== 'point'), W = weldEnts(live.filter(e => e.t !== 'text')).concat(live.filter(e => e.t === 'text').flatMap(textLines));
   return sketchRegions(W, e => (e.t === 'circle' || e.t === 'arc' ? roundOutline(e, W, WELD) : entOutline(e, 3))).filter(r => { const A = Math.abs(r.area); if (A < 1e-3) return false; let P = 0; for (let i = 0; i < r.outer.length; i++) { const p = r.outer[i], q = r.outer[(i + 1) % r.outer.length]; P += Math.hypot(q[0] - p[0], q[1] - p[1]); } return !(A < 0.2 && A / (P * P || 1) < 0.002); });
 }
 /* the regions an extrude takes by default: those not inside another (a ring's hole stays a hole), by their points */
@@ -191,9 +213,11 @@ export function defaultRegionPts(ents, fill) {
    region when its shapes move */
 export function carryPt(was, now, q) {
   let best = null, bd = Infinity;
-  for (const e of was) { if (e.t === 'point' || e.k || isCurve(e)) continue; const d = distToEnt(e, q); if (d < bd) { bd = d; best = e; } }
+  for (const e of was) { if (e.t === 'point' || e.k || isCurve(e) || e.t === 'image') continue; const d = distToEnt(e, q); if (d < bd) { bd = d; best = e; } }
   const n = best && now.find(x => x.id === best.id && x.t === best.t);
   if (!n) return q;
+  // (a point in a letter goes with its text: moved, turned and sized as the text is)
+  if (best.t === 'text') { const a = -(best.rot || 0) * DEG, dx = q[0] - best.c[0], dy = q[1] - best.c[1], s = n.h / best.h; return turned(n, (dx * Math.cos(a) - dy * Math.sin(a)) * s, (dx * Math.sin(a) + dy * Math.cos(a)) * s); }
   if (best.t === 'line') {
     const d = lineDir(best), L = Math.hypot(d[0], d[1]) || 1e-12, u = ((q[0] - best.a[0]) * d[0] + (q[1] - best.a[1]) * d[1]) / (L * L), v = ((q[0] - best.a[0]) * -d[1] + (q[1] - best.a[1]) * d[0]) / L;
     const d2 = lineDir(n), L2 = Math.hypot(d2[0], d2[1]) || 1e-12;
@@ -222,6 +246,7 @@ const endOf = (e, k) => hpt(new Map([[e.id, e]]), { e: e.id, k });
 /* how far a point is from a shape (for picking and inference) */
 export function distToEnt(e, q) {
   if (e.t === 'point') return Math.hypot(q[0] - e.c[0], q[1] - e.c[1]);
+  if (isBox(e)) { let bd = Infinity; for (const r of ringsOfBox(e)) for (let i = 0; i < r.length; i++) bd = Math.min(bd, segDist(r[i], r[(i + 1) % r.length], q)); return bd; }
   if (isCurve(e)) { const P = curvePts(e, 3), n = P.length, last = curveClosed(e) ? n : n - 1; let bd = Infinity; for (let i = 0; i < last; i++) { const a = P[i], b = P[(i + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1e-12, t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / L2)); bd = Math.min(bd, Math.hypot(a[0] + dx * t - q[0], a[1] + dy * t - q[1])); } return bd; }
   if (e.t === 'line') { const d = lineDir(e), L2 = d[0] * d[0] + d[1] * d[1] || 1e-12, t = Math.max(0, Math.min(1, ((q[0] - e.a[0]) * d[0] + (q[1] - e.a[1]) * d[1]) / L2)); return Math.hypot(e.a[0] + d[0] * t - q[0], e.a[1] + d[1] * t - q[1]); }
   const rr = Math.hypot(q[0] - e.c[0], q[1] - e.c[1]);
@@ -231,7 +256,7 @@ export function distToEnt(e, q) {
 /* where two shapes cross: points */
 export function entCross(e1, e2) {
   const out = [];
-  if (e1.t === 'point' || e2.t === 'point') return out;
+  if (e1.t === 'point' || e2.t === 'point' || isBox(e1) || isBox(e2)) return out;
   // an ellipse or a spline: where the short steps it is drawn in cross the other shape's
   if (isCurve(e1) || isCurve(e2)) {
     const segs = e => { const P = isCurve(e) ? curvePts(e, 2) : entOutline(e, 2), n = P.length, cl = isCurve(e) ? curveClosed(e) : e.t === 'circle', S = []; for (let i = 0; i < (cl ? n : n - 1); i++) S.push([P[i], P[(i + 1) % n]]); return S; };
@@ -269,10 +294,31 @@ export function entCross(e1, e2) {
    refs that no longer mean anything go. Returns false when there is nothing to trim. */
 export function trimEnt(sk, id, q) {
   const e = sk.ents.find(x => x.id === id);
-  if (!e || e.t === 'point') return false;
+  if (!e || e.t === 'point' || isBox(e)) return false;
   const cuts = [];
   for (const o of sk.ents) if (o !== e) for (const p of entCross(e, o)) cuts.push(p);
   const ents = sk.ents.filter(x => x !== e);
+  if (isCurve(e)) {
+    // an ellipse or a spline: the stretch clicked goes, and what is left of it is a spline through points taken
+    // along the curve as it was (its cut ends exactly where it was cut). It keeps its shape to within a hair, but
+    // is no longer the ellipse or the curve it was: the constraints and dimensions on it go with it.
+    const P = curvePts(e, 1), cl = curveClosed(e), n = P.length, segs = cl ? n : n - 1;
+    const at = p => { let bd = Infinity, bt = 0; for (let i = 0; i < segs; i++) { const a = P[i], b = P[(i + 1) % n], dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1e-12, t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2)), d = Math.hypot(a[0] + dx * t - p[0], a[1] + dy * t - p[1]); if (d < bd) { bd = d; bt = i + t; } } return bt; };
+    const pos = u => { const i = Math.min(segs - 1, Math.floor(u)), t = u - i, a = P[i], b = P[(i + 1) % n]; return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; };
+    const tq = at(q), ts = cuts.map(at).filter(t => cl || (t > 1e-6 && t < segs - 1e-6)).sort((x, y) => x - y);
+    // a stretch from u0 on to u1 (round past the start, on a closed curve), as a spline through points along it
+    const piece = (u0, u1) => { const len = u1 > u0 ? u1 - u0 : u1 + segs - u0, m = Math.max(2, Math.min(40, Math.ceil(len / 6) + 1)), pts = []; for (let i = 0; i <= m; i++) pts.push(pos((u0 + len * i / m) % segs === 0 && i === m && !cl ? segs : (u0 + len * i / m) % (cl ? segs : Infinity))); return Object.assign({ id: sketchId('s'), t: 'spline', pts }, e.k ? { k: true } : {}); };
+    if (cl) {
+      if (ts.length >= 2) { const hi = ts.find(t => t > tq), lo = [...ts].reverse().find(t => t < tq); ents.push(piece(hi === undefined ? ts[0] : hi, lo === undefined ? ts[ts.length - 1] : lo)); }
+    } else {
+      const lo = Math.max(0, ...ts.filter(t => t < tq)), hi = Math.min(segs, ...ts.filter(t => t > tq));
+      if (lo > 1e-6) ents.push(piece(0, lo));
+      if (hi < segs - 1e-6) ents.push(piece(hi, segs));
+    }
+    sk.ents = ents;
+    sk.cons = sk.cons.filter(c => c.r.every(r => r.e !== e.id)); sk.dims = sk.dims.filter(d => d.r.every(r => r.e !== e.id));
+    return true;
+  }
   const keepRefs = (ok, move) => {
     for (const list of [sk.cons, sk.dims]) for (const c of list) c.r = c.r.map(move);
     sk.cons = sk.cons.filter(c => c.r.every(ok)); sk.dims = sk.dims.filter(d => d.r.every(ok));
@@ -355,7 +401,21 @@ export function filletCorner(sk, q, r, tol) {
 }
 /* ---------- offset: copies of shapes a distance d to one side (lines' copies joined where their shapes met) ---------- */
 export function offsetEnts(sk, ids, d) {
-  ids = ids.filter(id => { const e = sk.ents.find(x => x.id === id); return e && !isCurve(e); });      // (an ellipse or a spline is not offset)
+  ids = ids.filter(id => { const e = sk.ents.find(x => x.id === id); return e && !isBox(e); });
+  // an ellipse or a spline: a spline through points set d off the curve (a closed one: outwards, as a circle's is)
+  const loose = [];
+  for (const e of sk.ents.filter(x => ids.includes(x.id) && isCurve(x))) {
+    const P = curvePts(e, 3), cl = curveClosed(e), n = P.length;
+    let A = 0; if (cl) for (let i = 0; i < n; i++) { const a = P[i], b = P[(i + 1) % n]; A += a[0] * b[1] - b[0] * a[1]; }
+    const sg = cl ? (A > 0 ? -1 : 1) : 1, m = Math.max(3, Math.min(48, cl ? Math.round(n / 4) : Math.round(n / 4) + 1)), pts = [];
+    for (let j = 0; j < (cl ? m : m + 1); j++) {
+      const i = cl ? Math.round(j * n / m) % n : Math.min(n - 1, Math.round(j * (n - 1) / m)), a = P[cl ? (i - 1 + n) % n : Math.max(0, i - 1)], b = P[cl ? (i + 1) % n : Math.min(n - 1, i + 1)], L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+      pts.push([P[i][0] - (b[1] - a[1]) / L * d * sg, P[i][1] + (b[0] - a[0]) / L * d * sg]);
+    }
+    const s = Object.assign({ id: sketchId('s'), t: 'spline', pts }, cl ? { closed: true } : {}, e.k ? { k: true } : {});
+    sk.ents.push(s); loose.push(s);
+  }
+  ids = ids.filter(id => !isCurve(sk.ents.find(x => x.id === id)));
   const src = sk.ents.filter(e => ids.includes(e.id) && e.t !== 'point'), made = new Map();
   for (const e of src) {
     if (e.t === 'line') { const v = lineDir(e), L = Math.hypot(...v) || 1, n = [-v[1] / L * d, v[0] / L * d]; made.set(e.id, { id: sketchId('l'), t: 'line', a: [e.a[0] + n[0], e.a[1] + n[1]], b: [e.b[0] + n[0], e.b[1] + n[1]] }); }
@@ -373,7 +433,7 @@ export function offsetEnts(sk, ids, d) {
     sk.cons.push({ id: sketchId('c'), t: 'coincident', r: [{ e: m1.id, k: ka }, { e: m2.id, k: kb }] });
   }
   for (const [from, m] of made) { sk.ents.push(m); const o = src.find(e => e.id === from); sk.cons.push({ id: sketchId('c'), t: o.t === 'line' ? 'parallel' : 'concentric', r: [{ e: from }, { e: m.id }] }); }
-  return [...made.values()];
+  return [...made.values(), ...loose];
 }
 /* ---------- mirror: copies of shapes reflected in a line, each point held symmetric to its original ---------- */
 export function mirrorEnts(sk, ids, lineId) {
@@ -384,11 +444,12 @@ export function mirrorEnts(sk, ids, lineId) {
   const out = [];
   for (const e of sk.ents.filter(x => ids.includes(x.id) && x.id !== lineId)) {
     let m;
+    if (isBox(e)) continue;                  // (a text or a picture mirrored would read backwards: left as it is)
     if (e.t === 'line') m = { id: sketchId('l'), t: 'line', a: ref(e.a), b: ref(e.b) };
     else if (e.t === 'point') m = { id: sketchId('p'), t: 'point', c: ref(e.c) };
     else if (e.t === 'circle') m = { id: sketchId('c'), t: 'circle', c: ref(e.c), r: e.r };
     else if (e.t === 'ellipse') m = { id: sketchId('e'), t: 'ellipse', c: ref(e.c), rx: e.rx, ry: e.ry, rot: 2 * la - e.rot };
-    else if (e.t === 'spline') m = Object.assign({ id: sketchId('s'), t: 'spline', pts: e.pts.map(ref) }, e.cv ? { cv: true } : {}, e.closed ? { closed: true } : {});
+    else if (e.t === 'spline') m = Object.assign({ id: sketchId('s'), t: 'spline', pts: e.pts.map(ref) }, e.cn ? { cn: e.cn } : {}, e.cv ? { cv: true } : {}, e.closed ? { closed: true } : {});
     else m = { id: sketchId('a'), t: 'arc', c: ref(e.c), r: e.r, a0: 2 * la - e.a1, a1: 2 * la - e.a0 };
     if (e.k) m.k = true;
     out.push(m);
@@ -552,7 +613,7 @@ function mapEnt(e, f, rot, scale, fresh) {
   delete m.ref; delete m.src;
   if (m.t === 'line') { m.a = f(e.a); m.b = f(e.b); }
   else if (m.t === 'spline') m.pts = e.pts.map(f);
-  else { m.c = f(e.c); if (m.t === 'arc') { m.a0 = e.a0 + rot; m.a1 = e.a1 + rot; } if (m.t === 'ellipse') { m.rx = e.rx * scale; m.ry = e.ry * scale; m.rot = e.rot + rot; } else if (m.r !== undefined) m.r = e.r * scale; }
+  else { m.c = f(e.c); if (m.t === 'arc') { m.a0 = e.a0 + rot; m.a1 = e.a1 + rot; } if (m.t === 'ellipse') { m.rx = e.rx * scale; m.ry = e.ry * scale; m.rot = e.rot + rot; } else if (isBox(m)) { m.rot = (e.rot || 0) + rot; if (m.t === 'text') m.h = e.h * scale; else m.w = e.w * scale; } else if (m.r !== undefined) m.r = e.r * scale; }
   return m;
 }
 /* copies in a row: count in all, each a step [dx, dy] on from the last; the constraints among the shapes copied with them */
@@ -600,19 +661,46 @@ export function dxfEnts(text) {
   let i = pairs.findIndex((p, k) => p[0] === 2 && p[1] === 'ENTITIES' && k > 0 && pairs[k - 1][1] === 'SECTION');
   if (i < 0) i = 0;
   const num = v => (Number.isFinite(parseFloat(v)) ? parseFloat(v) : 0);
+  // the drawing's units, where its header says ($INSUNITS): inches, feet, centimetres and metres become millimetres
+  const iu = pairs.findIndex(q => q[0] === 9 && q[1] === '$INSUNITS'), unit = iu >= 0 && iu < i && pairs[iu + 1] ? ({ 1: 25.4, 2: 304.8, 5: 10, 6: 1000 })[parseInt(pairs[iu + 1][1], 10)] || 1 : 1;
+  let poly = null;
   for (i++; i < pairs.length; i++) {
     if (pairs[i][0] !== 0) continue;
     const kind = pairs[i][1];
     if (kind === 'ENDSEC' || kind === 'EOF') break;
-    const g = {}, vs = [];
+    const g = {}, vs = [], sp = { cp: [], fit: [], knots: [], w: [] };
     let j = i + 1;
-    for (; j < pairs.length && pairs[j][0] !== 0; j++) { const [c, v] = pairs[j]; if (kind === 'LWPOLYLINE' && (c === 10 || c === 20 || c === 42)) { if (c === 10) vs.push({ x: num(v), y: 0, b: 0 }); else if (c === 20 && vs.length) vs[vs.length - 1].y = num(v); else if (vs.length) vs[vs.length - 1].b = num(v); } else if (!(c in g)) g[c] = v; }
+    for (; j < pairs.length && pairs[j][0] !== 0; j++) { const [c, v] = pairs[j]; if (kind === 'LWPOLYLINE' && (c === 10 || c === 20 || c === 42)) { if (c === 10) vs.push({ x: num(v), y: 0, b: 0 }); else if (c === 20 && vs.length) vs[vs.length - 1].y = num(v); else if (vs.length) vs[vs.length - 1].b = num(v); } else if (kind === 'SPLINE' && (c === 10 || c === 20 || c === 11 || c === 21 || c === 40 || c === 41)) { if (c === 10) sp.cp.push([num(v), 0]); else if (c === 20 && sp.cp.length) sp.cp[sp.cp.length - 1][1] = num(v); else if (c === 11) sp.fit.push([num(v), 0]); else if (c === 21 && sp.fit.length) sp.fit[sp.fit.length - 1][1] = num(v); else if (c === 40) sp.knots.push(num(v)); else if (c === 41) sp.w.push(num(v)); } else if (!(c in g)) g[c] = v; }
     if (kind === 'LINE') out.push({ t: 'line', a: [num(g[10]), num(g[20])], b: [num(g[11]), num(g[21])] });
     else if (kind === 'CIRCLE') out.push({ t: 'circle', c: [num(g[10]), num(g[20])], r: num(g[40]) });
     else if (kind === 'ARC') out.push({ t: 'arc', c: [num(g[10]), num(g[20])], r: num(g[40]), a0: num(g[50]), a1: num(g[51]) });
     else if (kind === 'POINT') out.push({ t: 'point', c: [num(g[10]), num(g[20])] });
-    else if (kind === 'ELLIPSE') { const mx = num(g[11]), my = num(g[21]), rx = Math.hypot(mx, my); if (rx > 0 && Math.abs(num(g[42]) - num(g[41]) - 2 * Math.PI) < 1e-6) out.push({ t: 'ellipse', c: [num(g[10]), num(g[20])], rx, ry: rx * num(g[40]), rot: Math.atan2(my, mx) / DEG }); }
-    else if (kind === 'LWPOLYLINE') {
+    else if (kind === 'ELLIPSE') { const mx = num(g[11]), my = num(g[21]), rx = Math.hypot(mx, my); if (rx > 0 && Math.abs(num(g[42]) - num(g[41]) - 2 * Math.PI) >= 1e-6) { /* part of an ellipse: a spline through points along it */ const t0 = num(g[41]), t1 = num(g[42]) > t0 ? num(g[42]) : num(g[42]) + 2 * Math.PI, ry = rx * num(g[40]), ux = mx / rx, uy = my / rx, pts = []; for (let q = 0; q <= 16; q++) { const t = t0 + (t1 - t0) * q / 16, x = rx * Math.cos(t), y = ry * Math.sin(t); pts.push([num(g[10]) + x * ux - y * uy, num(g[20]) + x * uy + y * ux]); } out.push({ t: 'spline', pts }); } else if (rx > 0) out.push({ t: 'ellipse', c: [num(g[10]), num(g[20])], rx, ry: rx * num(g[40]), rot: Math.atan2(my, mx) / DEG }); }
+    else if (kind === 'SPLINE') {
+      // its fit points, where the file has them: a spline through those. Else the curve its control points and
+      // knots make (a NURBS), walked along, and a spline put through the points found.
+      const closed = !!((parseInt(g[70], 10) || 0) & 1), deg = parseInt(g[71], 10) || 3;
+      let pts = sp.fit.length >= 2 ? sp.fit : null;
+      if (!pts && sp.cp.length > deg && sp.knots.length >= sp.cp.length + deg + 1) {
+        const P = sp.cp, U = sp.knots, w = sp.w.length === P.length ? sp.w : P.map(() => 1), u0 = U[deg], u1 = U[P.length], m = Math.max(8, Math.min(40, P.length * 4));
+        const at = u => {
+          let k = deg; while (k < P.length - 1 && u >= U[k + 1]) k++;
+          const d = []; for (let q = 0; q <= deg; q++) { const c = P[k - deg + q], ww = w[k - deg + q]; d.push([c[0] * ww, c[1] * ww, ww]); }
+          for (let r = 1; r <= deg; r++) for (let q = deg; q >= r; q--) { const den = U[q + 1 + k - r] - U[q + k - deg], a = den > 1e-12 ? (u - U[q + k - deg]) / den : 0; d[q] = d[q].map((v, x) => (1 - a) * d[q - 1][x] + a * v); }
+          return [d[deg][0] / d[deg][2], d[deg][1] / d[deg][2]];
+        };
+        pts = []; for (let q = 0; q <= m; q++) pts.push(at(u0 + (u1 - u0) * (q === m ? 1 - 1e-12 : q / m)));
+        if (closed && pts.length > 3) pts.pop();
+      }
+      if (pts && pts.length >= 2) {
+        if (closed && pts.length > 3 && Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]) < 1e-9) pts = pts.slice(0, -1);
+        out.push(Object.assign({ t: 'spline', pts: pts.slice(0, 200) }, closed && pts.length > 2 ? { closed: true } : {}));
+      }
+    }
+    else if (kind === 'POLYLINE') poly = { closed: (parseInt(g[70], 10) || 0) & 1, vs: [] };
+    else if (kind === 'VERTEX' && poly) poly.vs.push({ x: num(g[10]), y: num(g[20]), b: num(g[42]) });
+    else if (kind === 'LWPOLYLINE' || (kind === 'SEQEND' && poly)) {
+      if (kind === 'SEQEND') { vs.push(...poly.vs); g[70] = String(poly.closed); poly = null; }
       const closed = (parseInt(g[70], 10) || 0) & 1, n = vs.length;
       for (let k = 0; k < (closed ? n : n - 1); k++) {
         const p = vs[k], q = vs[(k + 1) % n], a = [p.x, p.y], b = [q.x, q.y], ch = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -626,5 +714,58 @@ export function dxfEnts(text) {
     }
     i = j - 1;
   }
+  if (unit !== 1) for (const e of out) for (const k of ['a', 'b', 'c']) if (e[k]) e[k] = e[k].map(v => v * unit);
+  if (unit !== 1) for (const e of out) { for (const k of ['r', 'rx', 'ry']) if (e[k] !== undefined) e[k] *= unit; if (e.pts) e.pts = e.pts.map(q => q.map(v => v * unit)); }
   return out.filter(e => (e.r === undefined || e.r > 0)).map(e => Object.assign({ id: sketchId(e.t[0]) }, e));
+}
+
+/* ---------- a curved face's silhouette on a sketch's plane ----------
+   Where a face turns from facing the plane to facing away, seen square on to the plane: found on the face's mesh
+   (M: pos, nrm, idx, faceGroups as the kernel sends them), in each triangle from where the normals at its corners
+   tip over, then joined up. A straight run is a line, a round one a circle, anything else a spline through it.
+   F: the plane's frame. A flat face has none (its edges are brought in with Use). */
+export function silhouetteOf(M, face, F) {
+  const from = M.faceGroups[2 * face], cnt = M.faceGroups[2 * face + 1], n = F.n, segs = [];
+  const V = i => [M.pos[3 * i], M.pos[3 * i + 1], M.pos[3 * i + 2]], N = i => [M.nrm[3 * i], M.nrm[3 * i + 1], M.nrm[3 * i + 2]], G = i => M.nrm[3 * i] * n[0] + M.nrm[3 * i + 1] * n[1] + M.nrm[3 * i + 2] * n[2];
+  const flat = p => { const d = [p[0] - F.o[0], p[1] - F.o[1], p[2] - F.o[2]]; return [d[0] * F.x[0] + d[1] * F.x[1] + d[2] * F.x[2], d[0] * F.y[0] + d[1] * F.y[1] + d[2] * F.y[2]]; };
+  for (let k = from; k + 2 < from + cnt; k += 3) {
+    // (a corner whose normal lies in the plane is on the silhouette itself: a mesh often has a row of them)
+    const t = [M.idx[k], M.idx[k + 1], M.idx[k + 2]], g = t.map(i => { const v = G(i); return Math.abs(v) < 1e-9 ? 0 : v; }), pts = [];
+    for (let e = 0; e < 3; e++) {
+      const a = e, b = (e + 1) % 3;
+      if (g[a] === 0) pts.push(flat(V(t[a])));
+      else if (g[b] !== 0 && (g[a] > 0) !== (g[b] > 0)) {
+        // along the mesh's edge to where the normal tips over, then out from the flat triangle to the curved face
+        // it stands for: by the bulge the two corners' normals say the face has between them
+        const s = g[a] / (g[a] - g[b]), A = V(t[a]), B = V(t[b]), nA = N(t[a]), nB = N(t[b]);
+        const nm = [0, 1, 2].map(i => nA[i] + (nB[i] - nA[i]) * s), L = Math.hypot(nm[0], nm[1], nm[2]) || 1;
+        const bulge = s * (1 - s) / 2 * ((B[0] - A[0]) * (nB[0] - nA[0]) + (B[1] - A[1]) * (nB[1] - nA[1]) + (B[2] - A[2]) * (nB[2] - nA[2]));
+        pts.push(flat([0, 1, 2].map(i => A[i] + (B[i] - A[i]) * s + nm[i] / L * bulge)));
+      }
+    }
+    if (pts.length === 2 && g.some(v => v !== 0) && Math.hypot(pts[0][0] - pts[1][0], pts[0][1] - pts[1][1]) > 1e-9) segs.push(pts);
+  }
+  // joined end to end
+  const key = p => Math.round(p[0] * 1e5) + ',' + Math.round(p[1] * 1e5), ends = new Map();
+  { const seen = new Set(); for (let i = segs.length - 1; i >= 0; i--) { const k = [key(segs[i][0]), key(segs[i][1])].sort().join('|'); if (seen.has(k)) segs.splice(i, 1); else seen.add(k); } }
+  segs.forEach((s, i) => { for (const p of s) { const k = key(p); if (!ends.has(k)) ends.set(k, []); ends.get(k).push(i); } });
+  const used = new Set(), chains = [];
+  const grow = (chain, tail) => { for (;;) { const p = tail ? chain[chain.length - 1] : chain[0], nx = (ends.get(key(p)) || []).find(i => !used.has(i)); if (nx === undefined) return; used.add(nx); const s = segs[nx], q = key(s[0]) === key(p) ? s[1] : s[0]; if (tail) chain.push(q); else chain.unshift(q); } };
+  segs.forEach((s, i) => { if (used.has(i)) return; used.add(i); const c = [s[0], s[1]]; grow(c, true); grow(c, false); chains.push(c); });
+  const out = [];
+  for (const c of chains) {
+    const a = c[0], b = c[c.length - 1], len = c.reduce((s, p, i) => (i ? s + Math.hypot(p[0] - c[i - 1][0], p[1] - c[i - 1][1]) : 0), 0);
+    if (len < 1e-6) continue;
+    const closed = c.length > 3 && Math.hypot(a[0] - b[0], a[1] - b[1]) < 1e-4, L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (!closed && c.every(p => segDist(a, b, p) < 1e-5 * (1 + L))) { out.push({ t: 'line', a: a.slice(), b: b.slice() }); continue; }
+    const P = closed ? c.slice(0, -1) : c;
+    if (closed) {
+      const m = [P.reduce((s, p) => s + p[0], 0) / P.length, P.reduce((s, p) => s + p[1], 0) / P.length], rs = P.map(p => Math.hypot(p[0] - m[0], p[1] - m[1])), r = rs.reduce((s, v) => s + v, 0) / rs.length;
+      if (rs.every(v => Math.abs(v - r) < 2e-3 * r + 1e-4)) { out.push({ t: 'circle', c: m, r }); continue; }
+    }
+    const m = Math.max(3, Math.min(40, P.length)), pts = [];
+    for (let j = 0; j < (closed ? m : m); j++) pts.push(P[closed ? Math.floor(j * P.length / m) : Math.round(j * (P.length - 1) / (m - 1))].slice());
+    out.push(Object.assign({ t: 'spline', pts }, closed ? { closed: true } : {}));
+  }
+  return out;
 }

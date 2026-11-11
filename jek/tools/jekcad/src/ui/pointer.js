@@ -17,6 +17,8 @@ const MODEL_KINDS = { edges: 'any', faces: 'face', face: 'face', edge: 'edge', p
 /* what is under the pointer, for what is wanted now */
 export function pickHere(sx, sy) {
   const want = fieldWants();
+  // (an extrude takes a sketch's region or, where there is none under the pointer, a face of the model)
+  if (want === 'regions' && app.editing && app.editing.f.type === 'extrude') return overlayPick(sx, sy, 'regions') || pickAt(sx, sy, 'face');
   if (want === 'regions' || want === 'sections') return overlayPick(sx, sy, 'regions');
   if (want === 'sketchLine') return overlayPick(sx, sy, 'sketchLine');
   if (want === 'sketch') return overlayPick(sx, sy, 'sketch') || overlayPick(sx, sy, 'regions');
@@ -92,6 +94,8 @@ export function wirePointer() {
     // a plane lies behind most of the view: with other things chosen, a click that lands only on a plane is a click on
     // nothing, and empties the selection (a plane joins a selection from its row in the list)
     if (p && p.kind === 'plane' && app.sel.some(x => x.kind !== 'plane')) p = null;
+    // (a click on nothing also lets go of the feature picked in the list, unless it is on one of its dimensions)
+    if (!p && !d.add && app.picked && !modelDimAt(sx, sy)) { app.picked = null; emit('picked'); }
     selectPick(p, d.add);
   });
   over.addEventListener('pointerleave', () => { if (app.hover) { app.hover = null; emit('hover'); emit('sel'); } });

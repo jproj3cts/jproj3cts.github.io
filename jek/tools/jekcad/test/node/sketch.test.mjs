@@ -2,8 +2,8 @@
 // the document model (core/doc.js): pure, no kernel.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { definedEnts, solveSketch, solveNear, dimMeasure, sketchId, normDims } from '../../src/core/sketch.js';
-import { rectEnts, regionsOf, defaultRegionPts, trimEnt, filletCorner, offsetEnts, mirrorEnts, slotEnts, polygonEnts, arc3, tangentArc, entCross, carryPt, carryRegions, alignedRectEnts, centreArc, chamferCorner, extendEnt, splitEnt, linearPattern, circularPattern, transformEnts, dxfEnts, normEnts, curvePts, distToEnt } from '../../src/core/sketch-tools.js';
+import { definedEnts, solveSketch, solveNear, dimMeasure, sketchId, normDims, curvePts, splineEnd } from '../../src/core/sketch.js';
+import { rectEnts, regionsOf, defaultRegionPts, trimEnt, filletCorner, offsetEnts, mirrorEnts, slotEnts, polygonEnts, arc3, tangentArc, entCross, carryPt, carryRegions, alignedRectEnts, centreArc, chamferCorner, extendEnt, splitEnt, linearPattern, circularPattern, transformEnts, dxfEnts, normEnts, distToEnt } from '../../src/core/sketch-tools.js';
 import { evalExpr, evalVars } from '../../src/core/units.js';
 import { normDoc, newDoc, newFeature, prepareDoc, canMove, CAD_FORMAT } from '../../src/core/doc.js';
 
@@ -231,4 +231,96 @@ test('sketch edits: chamfer, extend, split, patterns, transform; a line normal t
   const d = dxfEnts(dxf);
   assert.equal(d.map(e => e.t).join(), 'line,circle,arc,arc');
   near(regionsOf(d.slice(2))[0].area, Math.PI * 25, 0.05);
+});
+
+test('constraints on curves: a point held on an ellipse and on a spline, a line touching an ellipse, a spline’s end leaving along a line and bending as an arc does; a conic', () => {
+  const fix = (e, k, at) => ({ id: sketchId('c'), t: 'fix', r: [{ e, k }], at });
+  // a point on an ellipse (20 × 10 about the origin)
+  let ents = [{ id: 'e', t: 'ellipse', c: [0, 0], rx: 20, ry: 10, rot: 0 }, { id: 'p', t: 'point', c: [15, 9] }];
+  let cons = [fix('e', 'c', [0, 0]), fix('e', 'pa', [20, 0]), fix('e', 'pb', [0, 10]), { id: 'c1', t: 'oncurve', r: [{ e: 'p', k: 'c' }, { e: 'e' }] }];
+  let r = solveSketch(ents, cons, []);
+  assert.ok(r.ok, 'on an ellipse'); let p = ents[1].c;
+  assert.ok(Math.abs((p[0] / 20) ** 2 + (p[1] / 10) ** 2 - 1) < 1e-6, 'on the ellipse: ' + p);
+  // a horizontal line touching it: at y = ±10
+  ents = [{ id: 'e', t: 'ellipse', c: [0, 0], rx: 20, ry: 10, rot: 0 }, { id: 'l', t: 'line', a: [-5, 12.5], b: [8, 12.5] }];
+  cons = [fix('e', 'c', [0, 0]), fix('e', 'pa', [20, 0]), fix('e', 'pb', [0, 10]), { id: 'h', t: 'horizontal', r: [{ e: 'l' }] }, { id: 't', t: 'tangent', r: [{ e: 'l' }, { e: 'e' }] }];
+  r = solveSketch(ents, cons, []);
+  assert.ok(r.ok && Math.abs(ents[1].a[1] - 10) < 1e-6 && Math.abs(ents[1].b[1] - 10) < 1e-6, 'touching: ' + JSON.stringify(ents[1]));
+  // a point on a spline
+  const sp = () => ({ id: 's', t: 'spline', pts: [[0, 0], [10, 8], [20, 3], [30, 10]] });
+  ents = [sp(), { id: 'p', t: 'point', c: [14, 9] }];
+  cons = [0, 1, 2, 3].map(i => fix('s', 'q' + i, ents[0].pts[i].slice())).concat({ id: 'c1', t: 'oncurve', r: [{ e: 'p', k: 'c' }, { e: 's' }] });
+  r = solveSketch(ents, cons, []);
+  const dmin = Math.min(...curvePts(ents[0], 1).map(q => Math.hypot(q[0] - ents[1].c[0], q[1] - ents[1].c[1])));
+  assert.ok(r.ok && dmin < 0.05, 'on the spline: ' + dmin);
+  // a spline's first end leaving along a line that ends there
+  ents = [sp(), { id: 'l', t: 'line', a: [-10, -10], b: [0, 0] }];
+  cons = [fix('l', 'a', [-10, -10]), fix('l', 'b', [0, 0]), fix('s', 'q0', [0, 0]), fix('s', 'q3', [30, 10]), { id: 't', t: 'tangent', r: [{ e: 's', k: 'q0' }, { e: 'l' }] }];
+  r = solveSketch(ents, cons, []);
+  let A = splineEnd(ents[0], true);
+  assert.ok(r.ok && Math.abs(A.t[0] - A.t[1]) < 1e-6, 'leaves at 45°: ' + A.t);
+  // a Bézier curve's last end running into an arc of radius 10: leaving the same way, bending the same
+  ents = [{ id: 'b', t: 'spline', cv: true, pts: [[-30, 5], [-20, 12], [-8, 14], [0, 10]] }, { id: 'a', t: 'arc', c: [0, 0], r: 10, a0: 0, a1: 90 }];
+  cons = [fix('a', 'c', [0, 0]), fix('a', 'p0', [10, 0]), fix('a', 'p1', [0, 10]), fix('b', 'q0', [-30, 5]), fix('b', 'q3', [0, 10]), { id: 't', t: 'tangent', r: [{ e: 'b', k: 'q3' }, { e: 'a' }] }, { id: 'k', t: 'curvature', r: [{ e: 'b', k: 'q3' }, { e: 'a' }] }];
+  r = solveSketch(ents, cons, [], null, { iters: 200 });
+  A = splineEnd(ents[0], false);
+  assert.ok(r.ok, 'curvature solves');
+  assert.ok(Math.abs(A.t[1]) < 1e-5 && Math.abs(Math.abs(A.k) - 0.1) < 1e-5, 'arrives level, bending 1/10: ' + JSON.stringify(A));
+  // the curve bends towards the arc's centre (downwards as it travels +x): to the right, so negative
+  assert.ok(A.k < 0, 'the same way as the arc');
+  // a conic with rho 0.5 is a parabola: its middle is half way from the chord to the steering point
+  const cn = normEnts([{ id: 'c', t: 'spline', pts: [[0, 0], [10, 12], [20, 0]], cn: 0.5 }])[0], Q = curvePts(cn, 1), mid = Q[(Q.length - 1) / 2];
+  assert.ok(Math.abs(mid[0] - 10) < 1e-9 && Math.abs(mid[1] - 6) < 1e-9, 'parabola: ' + mid);
+  // and rho 0.75 comes three quarters of the way
+  const c2 = normEnts([{ id: 'c', t: 'spline', pts: [[0, 0], [10, 12], [20, 0]], cn: 0.75 }])[0], Q2 = curvePts(c2, 1), m2 = Q2[(Q2.length - 1) / 2];
+  assert.ok(Math.abs(m2[1] - 9) < 1e-9, 'rho 0.75: ' + m2);
+  // its ends leave towards the steering point
+  const e0 = splineEnd(cn, true); assert.ok(Math.abs(e0.t[0] * 12 - e0.t[1] * 10) < 1e-9);
+});
+
+test('trim and offset on an ellipse and a spline: what is left is a spline that keeps the shape', () => {
+  // an ellipse 20 × 10 cut by a vertical line at x = 5: the right-hand part clicked away
+  const sk = { ents: [{ id: 'e', t: 'ellipse', c: [0, 0], rx: 20, ry: 10, rot: 0 }, { id: 'l', t: 'line', a: [5, -30], b: [5, 30] }], cons: [], dims: [] };
+  assert.ok(trimEnt(sk, 'e', [20, 0]));
+  const s = sk.ents.find(x => x.t === 'spline');
+  assert.ok(s && !sk.ents.some(x => x.t === 'ellipse'), 'a spline in its place');
+  const y5 = 10 * Math.sqrt(1 - 25 / 400), ends = [s.pts[0], s.pts[s.pts.length - 1]];
+  for (const p of ends) assert.ok(Math.abs(p[0] - 5) < 0.02 && Math.abs(Math.abs(p[1]) - y5) < 0.02, 'ends on the line: ' + p);
+  let worst = 0; for (const p of curvePts(s, 1)) { worst = Math.max(worst, Math.abs(Math.hypot(p[0] / 20, p[1] / 10) - 1) * 10); assert.ok(p[0] < 5.02); }
+  assert.ok(worst < 0.05, 'on the ellipse to within 0.05 mm: ' + worst);
+  // the region between it and the line: the ellipse's area left of x = 5
+  const R = regionsOf(sk.ents);
+  const whole = Math.PI * 200, right = 200 * (Math.acos(0.25) - 0.25 * Math.sqrt(1 - 0.0625));
+  assert.equal(R.length, 1); assert.ok(Math.abs(Math.abs(R[0].area) - (whole - right)) < 0.6, 'area ' + R[0].area + ' for ' + (whole - right));
+  // an open spline cut by a line: the end beyond it goes
+  const s2 = { ents: [{ id: 's', t: 'spline', pts: [[0, 0], [10, 8], [20, 3], [30, 10]] }, { id: 'l', t: 'line', a: [15, -10], b: [15, 20] }], cons: [], dims: [] };
+  assert.ok(trimEnt(s2, 's', [28, 9]));
+  const k = s2.ents.filter(x => x.t === 'spline'); assert.equal(k.length, 1);
+  assert.ok(Math.abs(k[0].pts[0][0]) < 1e-9 && Math.abs(k[0].pts[k[0].pts.length - 1][0] - 15) < 0.02, JSON.stringify(k[0].pts.slice(-1)));
+  // offsets: an ellipse 2 out is everywhere 2 from it; a spline's offset 2 to its left
+  const o = { ents: [{ id: 'e', t: 'ellipse', c: [0, 0], rx: 20, ry: 10, rot: 0 }, { id: 's', t: 'spline', pts: [[0, 30], [10, 38], [20, 33], [30, 40]] }], cons: [], dims: [] };
+  const made = offsetEnts(o, ['e', 's'], 2);
+  assert.equal(made.length, 2); assert.ok(made[0].closed && !made[1].closed);
+  for (const m of made) { const base = o.ents.find(x => x.id === (m.closed ? 'e' : 's')); for (const p of m.pts) assert.ok(Math.abs(distToEnt(base, p) - 2) < 0.05, 'off by 2: ' + distToEnt(base, p)); }
+  assert.ok(made[0].pts.every(p => Math.hypot(p[0] / 20, p[1] / 10) > 1), 'outwards');
+});
+
+test('DXF: a spline by its fit points and by its control points and knots, an old POLYLINE, part of an ellipse, a drawing in inches', () => {
+  const dxf = rows => rows.flat().join('\n');
+  const head = unit => ['0', 'SECTION', '2', 'HEADER', '9', '$INSUNITS', '70', String(unit), '0', 'ENDSEC', '0', 'SECTION', '2', 'ENTITIES'];
+  // a quarter circle of radius 10 as a rational quadratic (control points (10,0), (10,10), (0,10); the middle weight √½)
+  const nurbs = ['0', 'SPLINE', '70', '4', '71', '2', '40', '0', '40', '0', '40', '0', '40', '1', '40', '1', '40', '1', '41', '1', '41', String(Math.SQRT1_2), '41', '1', '10', '10', '20', '0', '10', '10', '20', '10', '10', '0', '20', '10'];
+  const fit = ['0', 'SPLINE', '70', '0', '71', '3', '11', '0', '21', '0', '11', '5', '21', '4', '11', '10', '21', '0'];
+  const poly = ['0', 'POLYLINE', '70', '1', '0', 'VERTEX', '10', '0', '20', '0', '0', 'VERTEX', '10', '4', '20', '0', '0', 'VERTEX', '10', '4', '20', '3', '0', 'SEQEND'];
+  const ell = ['0', 'ELLIPSE', '10', '0', '20', '0', '11', '20', '21', '0', '40', '0.5', '41', '0', '42', String(Math.PI)];
+  const es = dxfEnts(dxf([head(4), nurbs, fit, poly, ell, ['0', 'ENDSEC', '0', 'EOF']]));
+  const sp = es.filter(e => e.t === 'spline');
+  assert.equal(sp.length, 3);
+  for (const q of sp[0].pts) assert.ok(Math.abs(Math.hypot(q[0], q[1]) - 10) < 1e-9, 'on the circle: ' + q);
+  assert.deepEqual(sp[1].pts, [[0, 0], [5, 4], [10, 0]]);
+  assert.equal(es.filter(e => e.t === 'line').length, 3, 'the closed polyline’s three sides');
+  for (const q of sp[2].pts) assert.ok(Math.abs((q[0] / 20) ** 2 + (q[1] / 10) ** 2 - 1) < 1e-9 && q[1] > -1e-9, 'the upper half of the ellipse');
+  // inches
+  const inch = dxfEnts(dxf([head(1), ['0', 'CIRCLE', '10', '1', '20', '2', '40', '0.5', '0', 'ENDSEC', '0', 'EOF']]));
+  assert.ok(Math.abs(inch[0].c[0] - 25.4) < 1e-9 && Math.abs(inch[0].c[1] - 50.8) < 1e-9 && Math.abs(inch[0].r - 12.7) < 1e-9);
 });

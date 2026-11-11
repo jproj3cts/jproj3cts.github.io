@@ -169,4 +169,4 @@ html, body { margin: 0; background: var(--jek-well); }
 .film-qsw button { font: inherit; font-size: 0.8rem; padding: 0.25rem 0.75rem; background: none; border: 0; color: var(--jek-ink-soft); cursor: pointer; }
 .film-qsw button + button { border-left: 1px solid var(--jek-line-2); }
 .film-qsw button.on { background: var(--jek-line); color: var(--jek-ink); font-weight: 600; }
-.film-head .film-save { display: inline-flex; align-items: center; gap: 0.35rem; }
+.film-head .film-save, .film-head .film-share { display: inline-flex; align-items: center; gap: 0.35rem; }

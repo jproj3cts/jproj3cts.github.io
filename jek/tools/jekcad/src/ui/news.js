@@ -6,7 +6,7 @@ import { h } from '../../../jekray/src/ui/dom.js';
 export const APP_VERSION = '0.7.0';
 export const NEWS = [
   { v: '0.7.0', date: '11 Nov 2026', items: [
-    '<b>Tabs</b>: a document now holds several Part Studios and Assemblies, at the foot of the view, as JEKray's are. The + adds one.',
+    '<b>Tabs</b>: a document now holds several Part Studios and Assemblies, at the foot of the view, as JEKray’s are. The + adds one.',
     '<b>Assemblies</b>: insert parts from the Part Studios, drag them into place, and join them with mates (Fastened, Revolute, Slider, Cylindrical, Planar).',
     'A part changed in its Part Studio changes in every assembly, and its mates follow.',
   ] },

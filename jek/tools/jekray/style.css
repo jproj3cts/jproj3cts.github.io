@@ -1926,3 +1926,9 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
    sign's second half only where the bar has room for it) */
 .rt-btn.rt-keepsign + #btnSave.rt-acctneed::after { content: none; }
 @media (max-width: 1799px) { .rt-btn.rt-keepsign span { display: none; } }
+
+/* a narrow bar, signed out: the badges on the bar's own buttons (Share, Save, the camera) rest, their reason
+   staying in the tooltip, so that Sign in is not pushed off the end */
+@media (max-width: 1500px) { .rt-toolbar .rt-btn.rt-acctneed::after, .rt-toolbar .rt-btn.rt-proneed::after { content: none; } }
+/* (narrower still, Get Pro leaves the bar: the plans are in the account menu) */
+@media (max-width: 1340px) { .rt-toolbar #btnGetPro { display: none; } }

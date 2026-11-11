@@ -296,21 +296,23 @@ test('a script’s save() files and its Save as… are made on the page behind t
   assert.ok(!has(fnOf('ui/scripts.js', 'stopScript'), n => n.type === 'Identifier' && n.name === 'saves'), 'Stop carries no saves');
 });
 
-test('a free account\u2019s tasters: every piece of JEKrayPro work that runs in the browser has one, the same list as the API\u2019s, and share links are a free account\u2019s few', async () => {
+test('share links are a free account\u2019s few, counted by the API; the work in the browser has no count at all', async () => {
   const { TASTER_NAMES, tasterOf } = await import('../../src/core/tasters.js');
+  const { freeWork } = await import('../../src/ui/pro.js');
   const api = readFileSync(new URL('../../../../../jek-api/src/tasters.js', import.meta.url), 'utf8');
-  const keys = [...api.match(/TASTERS = \{([^}]*)\}/)[1].matchAll(/(\w+):/g)].map(m => m[1]);
-  assert.deepEqual(Object.keys(TASTER_NAMES).filter(k => k !== 'share').sort(), keys.sort());
-  assert.match(api, /left\.share = /, 'the API reports a free account\u2019s share links left as its taster');
+  assert.match(api, /TASTERS = \{\}/, 'the API keeps no month\u2019s uses');
+  assert.match(api, /left\.share = /, 'the API reports a free account\u2019s share links left');
+  assert.deepEqual(Object.keys(TASTER_NAMES), ['share']);
   const whats = new Set();
   for (const file of srcFiles(fileURLToPath(srcUrl('.')))) {
     if (/^(main|worker-main)\.js$/.test(file)) continue;
     for (const m of readSrc(file).matchAll(/designPro\('([^']+)'/g)) whats.add(m[1]);
   }
   const data = readSrc('io/data-export.js').match(/PRO_FMT_WHAT = '([^']+)', PRO_MANY_WHAT = '([^']+)', PRO_ALL_WHAT = '([^']+)'/).slice(1);
+  // every piece of work the page gates by name is a free account's, or a share link: nothing else is JEKrayPro's here
   for (const w of [...whats, ...data, 'run scripts', 'search for designs', 'substitute glasses']) {
     if (/share a link|QR code/.test(w)) assert.equal(tasterOf(w), 'share', w + ': a free account\u2019s share links');
-    else assert.ok(TASTER_NAMES[tasterOf(w)], w + ' has a taster');
+    else { assert.ok(freeWork(w), w + ' is a free account\u2019s'); assert.equal(tasterOf(w), '', w + ' is not counted'); }
   }
 });
 

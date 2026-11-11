@@ -32,6 +32,13 @@ test('JEKray: the autosave, the earlier versions and Open recent each ask before
   assert.ok(recent.indexOf('keepHere()') >= 0 && recent.indexOf('keepHere()') < recent.indexOf('localStorage.setItem('), 'noteRecent');
 });
 
+test('JEKray signed out: Open recent lists no kept files, and Earlier versions asks for an account', () => {
+  const fill = fnBody(src('jekray/src/io/recent.js'), 'fillRecent');
+  assert.match(fill, /out = !keepHere\(\), list = readRecent\(\)\.filter\(r => !out \|\| r\.kind === 'example'\)/);
+  assert.match(src('jekray/src/ui/news.js'), /getElementById\('btnSnaps'\)\.addEventListener\('click', \(\) => \{ if \(!accountGate\(/);
+  assert.match(src('jekray/page.html'), /id="btnSnaps"[^>]*data-need="account"/);
+});
+
 test('JEKion, JEKfilm and JEKcad: each autosave asks before it writes; the work handed to a sign-in is still written', () => {
   const ion = src('jekion/src/io/open.js'), ionSave = fnBody(ion, 'scheduleSave');
   assert.ok(ionSave.indexOf('keepHere()') >= 0 && ionSave.indexOf('keepHere()') < ionSave.indexOf('localStorage.setItem('), 'JEKion scheduleSave');

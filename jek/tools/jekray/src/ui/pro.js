@@ -27,20 +27,14 @@ export function designWhy(what) {
   // a free account's share links, where the app keeps no count of them: the API says when they are used up
   return why && shareWork(what) && a.signedIn && hooks.tasterLeft(what) === null ? '' : why;
 }
-/* see the result, pay to keep it: signed in without a plan and this month's free uses of the work spent, it may still
-   run as a preview, its result shown, kept only with JEKrayPro (the designers' optimisers) */
-export function previewOK(what) {
-  const why = designWhy(what);
-  return !!why && !/^Sign in/.test(why) && hooks.tasterLeft(what) === 0;
-}
 /* before the work is done: true when it may be; otherwise it says why and offers the way (sign in, or subscribe) */
 export function designPro(what) {
   if (freeWork(what) || (shareWork(what) && !hooks.account().signedIn)) return accountGate(what);
   const why = designWhy(what);
   if (!why) return true;
-  // signed in without a plan: a free use of it this month, while there are any (io/tasters.js)
+  // a free account's share links, while it has any left (io/tasters.js)
   if (!/^Sign in/.test(why) && hooks.tasterUse(what)) return true;
-  // signed out, the sign-in card says what is needed (cloud.js proFix); signed in, why, and the plans (or the tasters' card)
+  // signed out, the sign-in card says what is needed (cloud.js proFix); signed in, why, and the plans (or the card for share links all in use)
   if (!/^Sign in/.test(why) && !(hooks.tasterLeft(what) === 0)) hooks.toast(why, true);
   if (hooks.proFix) hooks.proFix(what);
   return false;
@@ -72,7 +66,7 @@ function needShow(el) {
   // (work marked Pro that a free account does, and a share link asked for signed out, carry the Free account badge)
   const what = el.dataset.what, pro = el.dataset.need === 'pro' && !freeWork(what) && !(shareWork(what) && !hooks.account().signedIn), why = el.dataset.need === 'pro' ? designWhy(what) : acctWhy(what);
   el.classList.toggle('rt-proneed', pro && !!why); el.classList.toggle('rt-acctneed', !pro && !!why);
-  // a free account's free uses of it this month, on its badge ("4 free"; none left: Pro again)
+  // a free account's share links left, on the badge ("3 free"; none left: Pro again)
   const left = pro && why && !/^Sign in/.test(why) ? hooks.tasterLeft(el.dataset.what) : null;
   if (left > 0) el.dataset.free = String(left); else delete el.dataset.free;
   // the reason in the title: the control's own, or, for a group with one badge, each button's in it

@@ -1971,6 +1971,12 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
    sign's second half only where the bar has room for it) */
 .rt-btn.rt-keepsign + #btnSave.rt-acctneed::after { content: none; }
 @media (max-width: 1799px) { .rt-btn.rt-keepsign span { display: none; } }
+
+/* a narrow bar, signed out: the badges on the bar's own buttons (Share, Save, the camera) rest, their reason
+   staying in the tooltip, so that Sign in is not pushed off the end */
+@media (max-width: 1500px) { .rt-toolbar .rt-btn.rt-acctneed::after, .rt-toolbar .rt-btn.rt-proneed::after { content: none; } }
+/* (narrower still, Get Pro leaves the bar: the plans are in the account menu) */
+@media (max-width: 1340px) { .rt-toolbar #btnGetPro { display: none; } }
 </style>
 </head>
 <body>
@@ -1995,7 +2001,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
               <div class="rt-menu rt-imenu" role="menu" id="recentMenu"></div>
             </div>
             <button type="button" role="menuitem" data-icon="gallery" data-click="btnExamples">Open an example…</button>
-            <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
+            <button type="button" role="menuitem" id="btnSnaps" data-icon="history" data-need="account" data-what="see the earlier versions kept in this browser" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
             <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every cloud bench, of every app, on JEKsuite (in its own tab)">My benches on JEKsuite…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave" data-need="account" data-what="save the bench as a file">Save as .jekray<span class="k">Ctrl+S</span></button>
@@ -6919,17 +6925,12 @@ function fibreBendDb(F, nm) {
   const n = F.turns > 0 ? F.turns : 1;
   return Math.min(300, n * bendDbPerTurn(F.bendR, nm));
 }
-/* The tasters (io/tasters.js; jek-api src/tasters.js keeps the count): the JEKrayPro work a free account may try a
-   few times a month, by the name its gate gives it (ui/pro.js designPro, ui/scripts.js), and what each is called. Share
-   links ('share') are not a month's uses but a free account's links kept at once (jek-api src/links.js FREE_LINKS). */
-const TASTER_NAMES = { optimise: 'optimiser runs', tolerance: 'tolerance runs', script: 'script runs', report: 'design reports', drawing: 'drawing saves',
-  design: 'design exports', data: 'Excel, NumPy or MATLAB exports', share: 'share links' };
+/* A free account's share links (io/tasters.js; jek-api src/links.js FREE_LINKS, reported by GET /v1/tasters as
+   'share'): kept at once, not a month's uses. Everything else that was once a taster of JEKrayPro's work (the
+   optimiser, tolerancing, scripts, reports, drawings, exports) is a free account's outright now (ui/pro.js freeWork). */
+const TASTER_NAMES = { share: 'share links' };
 // the work, as the gates name it, to its taster
-function tasterOf(what) {
-  const w = String(what || '');
-  return /share a link|QR code/.test(w) ? 'share' : /optimise a design|search for designs|substitute glasses/.test(w) ? 'optimise' : /tolerance a design/.test(w) ? 'tolerance' : /run scripts/.test(w) ? 'script'
-    : /design report/.test(w) ? 'report' : /drawings/.test(w) ? 'drawing' : /export a design/.test(w) ? 'design' : /export (data as|several kinds|everything)/.test(w) ? 'data' : '';
-}
+const tasterOf = what => (/share a link|QR code/.test(String(what || '')) ? 'share' : '');
 /* ---------- RF: millimetre-wave and terahertz quasi-optics ----------
    Above about 30 GHz a beam through lenses, mirrors and horns is a Gaussian beam that
    diffracts strongly, which the field engine already follows. What RF adds is its sources and
@@ -30068,20 +30069,14 @@ function designWhy(what) {
   // a free account's share links, where the app keeps no count of them: the API says when they are used up
   return why && shareWork(what) && a.signedIn && hooks.tasterLeft(what) === null ? '' : why;
 }
-/* see the result, pay to keep it: signed in without a plan and this month's free uses of the work spent, it may still
-   run as a preview, its result shown, kept only with JEKrayPro (the designers' optimisers) */
-function previewOK(what) {
-  const why = designWhy(what);
-  return !!why && !/^Sign in/.test(why) && hooks.tasterLeft(what) === 0;
-}
 /* before the work is done: true when it may be; otherwise it says why and offers the way (sign in, or subscribe) */
 function designPro(what) {
   if (freeWork(what) || (shareWork(what) && !hooks.account().signedIn)) return accountGate(what);
   const why = designWhy(what);
   if (!why) return true;
-  // signed in without a plan: a free use of it this month, while there are any (io/tasters.js)
+  // a free account's share links, while it has any left (io/tasters.js)
   if (!/^Sign in/.test(why) && hooks.tasterUse(what)) return true;
-  // signed out, the sign-in card says what is needed (cloud.js proFix); signed in, why, and the plans (or the tasters' card)
+  // signed out, the sign-in card says what is needed (cloud.js proFix); signed in, why, and the plans (or the card for share links all in use)
   if (!/^Sign in/.test(why) && !(hooks.tasterLeft(what) === 0)) hooks.toast(why, true);
   if (hooks.proFix) hooks.proFix(what);
   return false;
@@ -30113,7 +30108,7 @@ function needShow(el) {
   // (work marked Pro that a free account does, and a share link asked for signed out, carry the Free account badge)
   const what = el.dataset.what, pro = el.dataset.need === 'pro' && !freeWork(what) && !(shareWork(what) && !hooks.account().signedIn), why = el.dataset.need === 'pro' ? designWhy(what) : acctWhy(what);
   el.classList.toggle('rt-proneed', pro && !!why); el.classList.toggle('rt-acctneed', !pro && !!why);
-  // a free account's free uses of it this month, on its badge ("4 free"; none left: Pro again)
+  // a free account's share links left, on the badge ("3 free"; none left: Pro again)
   const left = pro && why && !/^Sign in/.test(why) ? hooks.tasterLeft(el.dataset.what) : null;
   if (left > 0) el.dataset.free = String(left); else delete el.dataset.free;
   // the reason in the title: the control's own, or, for a group with one badge, each button's in it
@@ -33317,27 +33312,19 @@ function rwOptCard(asm, P) {
   card.append(h('div', { class: 'rt-lchips' }, btn));
   if (RW_OPT && RW_OPT.asm === asm) {
     const S = RW_OPT.st;
-    card.append(h('p', { class: 'rt-lnote' + (RW_OPT.running ? '' : ' good'), role: 'status' }, (RW_OPT.preview ? 'A preview: ' : '') + (RW_OPT.running ? 'Optimising… ' : RW_OPT.note + ' ') + S.iter + ' step' + (S.iter === 1 ? '' : 's') + '; mean efficiency over the band ' + rwPct(RW_OPT.mean0) + ' → ' + rwPct(S.mean) + (RW_OPT.running || RW_OPT.pending ? '' : '. Undo takes it back.')));
-    // a preview that found better: the choice, keep it (JEKrayPro) or leave the design as it is
-    if (RW_OPT.pending) card.append(h('div', { class: 'rt-lnote rt-preview', role: 'status' },
-      h('p', null, h('b', null, 'A better design: '), 'mean efficiency ' + rwPct(RW_OPT.mean0) + ' \u2192 ' + rwPct(S.mean) + '. This month\u2019s free runs are used: keep it with JEKrayPro, or leave the design as it is.'),
-      h('div', { class: 'rt-lbar' }, h('button', { class: 'rt-btn primary', type: 'button', onclick: rwOptKeep }, 'Keep this design'),
-        h('button', { class: 'rt-btn', type: 'button', onclick: () => { RW_OPT.pending = false; RW_OPT.note = 'Left as it was.'; rwRender(); } }, 'Leave it'))));
+    card.append(h('p', { class: 'rt-lnote' + (RW_OPT.running ? '' : ' good'), role: 'status' }, (RW_OPT.running ? 'Optimising… ' : RW_OPT.note + ' ') + S.iter + ' step' + (S.iter === 1 ? '' : 's') + '; mean efficiency over the band ' + rwPct(RW_OPT.mean0) + ' → ' + rwPct(S.mean) + (RW_OPT.running || RW_OPT.pending ? '' : '. Undo takes it back.')));
   }
   return card;
 }
 // while a run goes on, the RF designer redrawn a few times a second, so its Stop button stays put
 const rwLive = throttle(() => rwRender(), 200);
 function rwOptGo(asm) {
-  // signed in without a plan, this month's free runs spent: a preview, its values kept only with JEKrayPro
-  const preview = previewOK('optimise a design');
-  if (!preview && !designPro('optimise a design')) return;
+  if (!designPro('optimise a design')) return;
   track('optimise', 'rf');
   const P = designPrescription(asm), o = asm.rfOpt;
   const prob = rfOptProblem(asm, P, { keys: o.keys, flat: o.flat, edgeMin: o.edgeMin, tMax: o.tMax, ops: o.ops });
   const st = rfOptStart(prob);
-  RW_OPT = { asm, prob, st, running: true, mean0: st.mean, note: '', preview };
-  if (preview) toast('A preview: see what the optimiser finds, then keep it with JEKrayPro');
+  RW_OPT = { asm, prob, st, running: true, mean0: st.mean, note: '' };
   rwRender();
   const tick = () => {
     if (!RW_OPT || !RW_OPT.running) return;
@@ -33352,14 +33339,6 @@ function rwOptGo(asm) {
 function rwOptStop(note) {
   if (!RW_OPT || !RW_OPT.running) return;
   const R = RW_OPT; R.running = false; R.note = note;
-  if (R.preview && R.st.mean > R.mean0) { R.pending = true; if (RW) rwRender(); return; }   // shown, kept only with JEKrayPro (rwOptKeep)
-  rwOptApply(R);
-}
-/* a preview's values kept: with JEKrayPro (or, signed in without a plan, the card saying so) */
-function rwOptKeep() {
-  const R = RW_OPT;
-  if (!R || !R.pending || !designPro('optimise a design')) return;
-  R.pending = false; R.preview = false; track('taster', 'optimise.kept');
   rwOptApply(R);
 }
 /* the run's values into the design, as one change, if better */
@@ -33776,7 +33755,6 @@ function closeLensDesign() {
   if (!WS) return;
   optStop('Stopped: the workspace was closed.');
   tolStop('Stopped: the workspace was closed.');
-  previewBack();                                       // a preview not kept: the design as it was
   const asm = WS.asm;
   WS = null;
   // designed: its parts' fields on the bench are locked against a stray edit (the padlock in their panel opens them)
@@ -34677,30 +34655,9 @@ function lensTolRun(mode, sync) { if (!WS) return null; tolStart(mode, { asm: WS
 const lensOptState = () => OPT && { running: OPT.running, mode: OPT.mode, start: OPT.start, now: OPT.now, cycles: OPT.cycles, trials: OPT.trials, better: OPT.better, note: OPT.note, subs: OPT.sub ? OPT.sub.log.map(l => ({ gi: l.gi, from: l.from, to: l.to, merit: l.merit, tried: l.tried.length })) : null };
 const liveRender = throttle(() => renderWs(), 200);
 function optStop(note) { if (OPT && OPT.running) { OPT.running = false; OPT.note = note || 'Stopped.'; if (WS) renderWs(); } }
-/* see the result, pay to keep it: a preview run's design kept (with JEKrayPro), or put back as it was */
-const previewPending = () => !!(OPT && OPT.preview && !OPT.preview.done && !OPT.running);
-function previewBack() {
-  if (!OPT || !OPT.preview || OPT.preview.done) return;
-  optStop('Stopped.');
-  const S = JSON.parse(OPT.preview.was), asm = (project.assemblies || []).find(a => a.id === OPT.id);
-  for (const e of S.els) { const cur = getEl(e.id); if (cur) { for (const k of Object.keys(cur)) delete cur[k]; Object.assign(cur, e); } }
-  if (asm) { if (S.design) asm.design = S.design; else delete asm.design; }
-  OPT.preview.done = true; OPT.now = OPT.start; OPT.note = 'Put back: the design is as it was.';
-  changed(true);
-  if (WS) renderWs();
-}
-function previewKeep() {
-  if (!OPT || !OPT.preview || !designPro(OPT.preview.what)) return;
-  OPT.preview.done = true; OPT.note = 'Kept.';
-  track('taster', 'optimise.kept');
-  if (WS) renderWs();
-}
 function optStart(mode, opts) {
   if (!WS) return false;
-  // signed in without a plan, this month's free runs spent: a preview, its result shown, kept only with JEKrayPro
-  const what = mode === 'subst' ? 'substitute glasses' : mode === 'search' || mode === 'global' ? 'search for designs' : 'optimise a design', preview = previewOK(what);
-  if (!preview && !designPro(what)) return false;
-  previewBack();
+  if (!designPro(mode === 'subst' ? 'substitute glasses' : mode === 'search' || mode === 'global' ? 'search for designs' : 'optimise a design')) return false;
   const asm = WS.asm, P = designPrescription(asm), prob = optProblem(asm, P), V = optVars(prob);
   if (mode === 'subst' && !substIndices(prob).length) { toast('No glass to substitute: mark a lens\u2019s glass V in the element data first.', true); return false; }
   if (mode !== 'subst' && !V.length) { toast('Nothing to vary: mark values V in the element data first.', true); return false; }
@@ -34708,10 +34665,7 @@ function optStart(mode, opts) {
   checkpoint();
   const R = meritReport(prob);
   OPT = { id: asm.id, mode, running: true, start: R.merit, now: R.merit, cycles: 0, trials: 0, better: 0, seed: (opts && opts.seed) || 1, lambda: undefined, t0: performance.now(), note: '',
-    maxTrials: (opts && opts.trials) || 200, sync: !!(opts && opts.sync),
-    // a preview: the design as it was, to put back unless it is kept
-    preview: preview ? { what, was: JSON.stringify({ els: asmMembers(asm), design: asm.design || null }), done: false } : null };
-  if (preview) toast('A preview: see what the optimiser finds, then keep it with JEKrayPro or put the design back');
+    maxTrials: (opts && opts.trials) || 200, sync: !!(opts && opts.sync) };
   if (mode === 'subst') {
     const S = WS.subst || (WS.subst = { makers: GLASS_MAKERS.slice(), n: 12 });
     OPT.sub = { list: substIndices(prob), li: 0, pass: 0, moved: false, cands: null, ci: 0, tried: [], base: null, log: [], makers: (opts && opts.makers) || S.makers, n: (opts && opts.n) || S.n };
@@ -34879,14 +34833,7 @@ function optCard(asm, P) {
   const rows = O ? [['Merit at the start', wsFmt(O.start, 5)], ['Merit now', wsFmt(O.now, 5) + (O.start > 0 ? ' (' + (100 * (1 - O.now / O.start)).toFixed(1) + '% lower)' : '')],
     O.mode === 'subst' ? ['Glasses tried', String(O.sub.log.reduce((a, l) => a + l.tried.length, 0) + (O.sub.cands ? O.sub.tried.length : 0))] : [O.mode === 'global' ? 'Trials' : 'Cycles', O.mode === 'global' ? O.trials + ' (' + O.better + ' better)' : String(O.cycles)]] : [['Merit now', wsFmt(R.merit, 5)]];
   card.append(h('div', { class: 'rt-readout' }, h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', { class: 'mono' }, b)]))));
-  if (O && (O.note || running) && !previewPending()) card.append(h('div', { class: 'rt-lnote', role: 'status' }, (O.preview && running ? 'A preview: ' : '') + (running ? (O.mode === 'global' ? 'Searching… it carries on until you stop it.' : O.mode === 'subst' ? (O.trying || 'Substituting…') + '…' : 'Optimising…') : O.note)));
-  // a preview run ended: what it found, and the choice: keep it (JEKrayPro) or put the design back
-  if (O && previewPending()) card.append(h('div', { class: 'rt-lnote rt-preview', role: 'status' },
-    h('p', null, h('b', null, O.now < O.start ? 'The optimiser found a better design: ' : 'The optimiser found nothing better. '),
-      O.now < O.start ? 'the merit fell from ' + wsFmt(O.start, 4) + ' to ' + wsFmt(O.now, 4) + (O.start > 0 ? ' (' + (100 * (1 - O.now / O.start)).toFixed(0) + '% lower)' : '') + '. ' : '',
-      'This month\u2019s free runs are used: keep it with JEKrayPro, or put the design back as it was.'),
-    h('div', { class: 'rt-lbar' }, h('button', { class: 'rt-btn primary', type: 'button', onclick: previewKeep }, 'Keep this design'),
-      h('button', { class: 'rt-btn', type: 'button', onclick: previewBack }, 'Put it back'))));
+  if (O && (O.note || running)) card.append(h('div', { class: 'rt-lnote', role: 'status' }, (running ? (O.mode === 'global' ? 'Searching… it carries on until you stop it.' : O.mode === 'subst' ? (O.trying || 'Substituting…') + '…' : 'Optimising…') : O.note)));
   if (O && O.mode === 'subst' && O.sub.log.length) {
     const tb = h('tbody');
     for (const L of O.sub.log) tb.append(h('tr', null, h('td', null, 'After surface ' + (L.gi + 1)), h('td', null, L.from), h('td', null, L.to || 'kept'), h('td', { class: 'mono' }, wsFmt(L.merit, 5)),
@@ -49233,13 +49180,12 @@ function wireFigure() {
   const b = document.getElementById('btnExportFigure');
   if (b) b.addEventListener('click', () => openFigure());
 }
-/* ---------- Tasters ----------
-   So that someone on a free account can try JEKrayPro's work before paying, a few uses a month of each part of it
-   that runs in their own browser (jek-api src/tasters.js keeps the count): the designers' optimiser, tolerancing,
-   scripts, design reports, drawings, design exports and the data export's Pro formats. The balance is read when the
-   account is (cloud.js cloudGates), shown on the Pro badges ("4 free"), and spent as the work starts (ui/pro.js
-   designPro, ui/scripts.js); once spent, a card says what is used and what JEKrayPro costs. Counted as 'taster'
-   <feature>.used and <feature>.out. */
+/* ---------- A free account's share links ----------
+   A free account keeps a few share links at once (jek-api src/links.js FREE_LINKS; JEKrayPro any number). How many
+   it has left is read when the account is (cloud.js cloudGates), from GET /v1/tasters, and shown on the Share
+   badges ("3 free"); with none left a card says so and what JEKrayPro adds. Counted as 'taster' share.out and
+   share.plans. (The name is from when a free account also had a month's free uses of the designers' work, which is
+   a free account's outright now.) */
 let tasterState = null;                     // { month, limits, left } for the account signed in without a plan; null otherwise
 let tasterFor = null;                       // whose it is
 /* the balance, for someone signed in without a plan (noPlan); dropped otherwise */
@@ -49250,33 +49196,21 @@ async function loadTasters(noPlan) {
   try { tasterState = await api('/v1/tasters'); } catch (err) { tasterState = null; tasterFor = null; return; }
   needsShown();
 }
-/* how many free uses of the work named are left this month: a number, or null (no taster for it, or none to count) */
+/* how many share links a free account has left: a number, or null (not share links, or none to count) */
 function tasterLeft(what) {
   const f = tasterOf(what);
   return f && tasterState && tasterState.left[f] !== undefined ? tasterState.left[f] : null;
 }
-/* one free use of the work named, if there is one left: true when it may go ahead */
-function tasterUse(what) {
-  const f = tasterOf(what), left = tasterLeft(what);
-  if (!(left > 0)) return false;
-  // a share link is counted by the link itself, once made (the same bench again makes none): read again then (tasterRefresh)
-  if (f === 'share') return true;
-  tasterState.left[f] = left - 1;
-  track('taster', f + '.used');
-  api('/v1/tasters/' + f, { method: 'POST' }).then(r => { if (tasterState && r && typeof r.left === 'number') tasterState.left[f] = r.left; needsShown(); })
-    .catch(err => { if (tasterState && err && err.code === 'taster_used') { tasterState.left[f] = 0; needsShown(); } });
-  needsShown();
-  const n = tasterState.left[f], lim = tasterState.limits[f];
-  toast('Free with your account: ' + n + ' of ' + lim + ' ' + TASTER_NAMES[f] + ' left this month');
-  return true;
-}
-/* the month's free uses spent: what was used, and what JEKrayPro costs (the founding price, and the student one);
-   false when the work named has no taster (the plans are offered as before) */
+/* may a share link be made on the free account: true while it has one left (the link itself is the count, read
+   again once it is made: tasterRefresh) */
+function tasterUse(what) { return tasterLeft(what) > 0; }
+/* a free account's share links all in use: what to do, and what JEKrayPro costs (the founding price, and the
+   student one); false when the work named is not share links (the plans are offered as before) */
 function tasterOut(what) {
   const f = tasterOf(what);
   if (!f || !tasterState) return false;
   track('taster', f + '.out');
-  const lim = tasterState.limits[f], share = f === 'share';
+  const lim = tasterState.limits[f];
   let dlg = document.getElementById('tasterOut');
   if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'tasterOut', 'aria-labelledby': 'tasterOutTitle' }); document.body.append(dlg); }
   const close = () => dlg.close();
@@ -49286,9 +49220,8 @@ function tasterOut(what) {
     const m = (q) => P && P[q] ? new Intl.NumberFormat('en-GB', { style: 'currency', currency: (P[q].currency || 'gbp').toUpperCase() }).format(P[q].amount / 100).replace(/\.00$/, '') : '';
     if (m('academic_monthly')) price.replaceChildren(h('b', null, 'Students and university staff: '), 'JEKrayPro is ' + m('academic_monthly') + ' a month' + (m('academic_yearly') ? ' or ' + m('academic_yearly') + ' a year' : '') + ' with your university email' + (m('pro_monthly') ? ' (' + m('pro_monthly') + ' a month otherwise)' : '') + '.');
   }).catch(() => { /* the line as it is */ });
-  dlg.replaceChildren(h('h2', { id: 'tasterOutTitle' }, share ? 'Your free share links are all in use' : 'This month’s free ' + TASTER_NAMES[f] + ' are used'),
-    h('p', null, share ? 'A free account keeps ' + lim + ' share links at once: delete an old one in My benches, under My links, to make another. JEKrayPro has them without a limit, with saving to the cloud and the design work.'
-      : 'Your free account has ' + lim + ' ' + TASTER_NAMES[f] + ' a month, and they are back on the 1st. JEKrayPro has them without a limit, with the rest of the design work and saving to the cloud.'),
+  dlg.replaceChildren(h('h2', { id: 'tasterOutTitle' }, 'Your free share links are all in use'),
+    h('p', null, 'A free account keeps ' + lim + ' share links at once: delete an old one in My benches, under My links, to make another. JEKrayPro has them without a limit, with saving to the cloud.'),
     price,
     h('p', null, h('b', null, 'Founding members: '), 'subscribe during the open beta and keep that price for as long as you stay subscribed.'),
     h('div', { class: 'rt-actions' },
@@ -55240,7 +55173,7 @@ function wireNews() {
           catch (err) { toast('Could not open that version (' + err.message + ').', true); }
         } }, 'Open'))) : [h('p', null, 'Nothing kept yet. Copies appear here once you have been working for a few minutes.')]));
     };
-    document.getElementById('btnSnaps').addEventListener('click', () => { fill(); dlg.showModal(); });
+    document.getElementById('btnSnaps').addEventListener('click', () => { if (!accountGate('see the earlier versions kept in this browser')) return; fill(); dlg.showModal(); });
     document.getElementById('snapsClose').addEventListener('click', () => dlg.close());
   }
 
@@ -57177,10 +57110,12 @@ const KIND = { file: 'file', example: 'example', cloud: 'cloud' };
 function fillRecent() {
   const menu = document.getElementById('recentMenu');
   if (!menu) return;
-  const list = readRecent();
+  // signed out, nothing is kept (ui/pro.js keepHere): what was kept before is not listed either, but the examples opened
+  const out = !keepHere(), list = readRecent().filter(r => !out || r.kind === 'example');
   menu.replaceChildren(...(list.length ? list.map(r => h('button', { type: 'button', role: 'menuitem', title: r.label, onclick: () => openRecent(r) },
-    h('span', { class: 'rt-recentname' }, r.label), h('span', { class: 'k' }, KIND[r.kind] || ''))) : [h('span', { class: 'rt-menunote' }, 'Nothing opened yet: a file, an example or a cloud bench you open is kept here.')]),
-    ...(list.length ? [h('div', { class: 'sep' }), h('button', { type: 'button', role: 'menuitem', onclick: () => { try { localStorage.removeItem(OPENED_KEY); } catch (err) { /* none */ } fillRecent(); } }, 'Clear this list')] : []));
+    h('span', { class: 'rt-recentname' }, r.label), h('span', { class: 'k' }, KIND[r.kind] || ''))) : [h('span', { class: 'rt-menunote' }, out ? 'Signed out, the files you open are not kept here: a free account keeps them.' : 'Nothing opened yet: a file, an example or a cloud bench you open is kept here.')]),
+    ...(out && list.length ? [h('span', { class: 'rt-menunote' }, 'A free account keeps the files you open here too.')] : []),
+    ...(list.length && !out ? [h('div', { class: 'sep' }), h('button', { type: 'button', role: 'menuitem', onclick: () => { try { localStorage.removeItem(OPENED_KEY); } catch (err) { /* none */ } fillRecent(); } }, 'Clear this list')] : []));
 }
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */

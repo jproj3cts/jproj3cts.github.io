@@ -6,7 +6,7 @@
 // it, compressed (the same text an old long link carried after #p=), and the
 // app reads it as it reads any shared bench: nothing here runs it or trusts
 // it. JEKion's benches and JEKfilm's coatings are kept the same way, each with its own prefix, and open
-// at /i/<id> and /f/<id> (the site's 404 page forwards each to its tool). The person who made a link can list and delete theirs, and their links
+// at /i/<id> and /f/<id> (the site's 404 page forwards each to its tool); JEKcad's Part Studios the same, at /c/<id>. The person who made a link can list and delete theirs, and their links
 // go with their account.
 
 import { cleanName, readJson, workspaceAccess } from './benches.js';
@@ -16,7 +16,7 @@ export const MAX_LINK = 1024 * 1024;       // the compressed bench, as text
 export const MAX_LINKS = 1000;             // links one person may keep
 const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const ID = /^[A-Z2-7]{10}$/;
-const DATA = /^[zjikfg][A-Za-z0-9_-]+$/;       // z, j: a JEKray bench (deflated, plain); i, k: a JEKion one; f, g: a JEKfilm coating
+const DATA = /^[zjikfgcd][A-Za-z0-9_-]+$/;     // z, j: a JEKray bench (deflated, plain); i, k: a JEKion one; f, g: a JEKfilm coating; c, d: a JEKcad Part Studio
 
 // 10 base-32 capitals (50 random bits): short, read aloud or typed without
 // mistaking 0 for O, and all in a QR code's alphanumeric set
@@ -51,7 +51,7 @@ export async function create(req, env, user) {
   }
   const body = await readJson(req);
   const data = body.data;
-  if (typeof data !== 'string' || !DATA.test(data)) throw new ApiError(400, 'bad_link', 'That is not a bench from JEKray or JEKion, or a JEKfilm coating.');
+  if (typeof data !== 'string' || !DATA.test(data)) throw new ApiError(400, 'bad_link', 'That is not a bench from JEKray or JEKion, a JEKfilm coating or a JEKcad Part Studio.');
   if (data.length > MAX_LINK) throw new ApiError(413, 'too_large', 'A shared bench can be at most 1 MB compressed: save it as a .jekray file instead.');
   const name = cleanName(body.name, 'Untitled bench');
   const n = await linkCount(env, user);

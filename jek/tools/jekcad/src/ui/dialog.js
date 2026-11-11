@@ -3,7 +3,7 @@ import { defaultRegionPts, regionAt } from '../core/sketch-tools.js';
 import { evalExpr, exprIsFormula, fmtNum } from '../core/units.js';
 import { h } from '../../../jekray/src/ui/dom.js';
 import { app, changed, checkpoint, editGate, emit, on, regenNow, regenSoon, toast } from './app.js';
-import { regionsCached, startSketch } from './sketcher.js';
+import { regionsCached, regionsShown, splitDefaultPts, splitPts, startSketch } from './sketcher.js';
 import { kernelAsk } from '../page/kernel.js';
 
 /* ==========================================================================
@@ -48,6 +48,7 @@ export const FEATURE_FORMS = {
 const pickOf = (fd, f) => (typeof fd[3].pick === 'function' ? fd[3].pick(f) : fd[3].pick);
 /* ---------- opening ---------- */
 export function openFeature(type, opts) {
+  if (app.asm) { toast('Features are made in a Part Studio: open one from the tabs below'); return; }
   if (!editGate()) return;
   if (app.sketch) { toast('Finish the sketch first'); return; }
   if (app.editing) closeDialog(false);
@@ -88,6 +89,14 @@ export function editFeature(i) {
   app.editing = { f: JSON.parse(JSON.stringify(f)), at: i, isNew: false, field: null };
   // an extrude to a depth, ticked Opposite direction (from before a depth could be below 0): the same as a negative depth
   { const g = app.editing.f; if (g.type === 'extrude' && g.flip && (g.end === 'blind' || g.end === 'symmetric')) { g.flip = false; if (g.end === 'blind') g.depth = /^\s*-/.test(g.depth) ? g.depth.replace(/^\s*-\s*/, '') : '-(' + g.depth + ')'; } }
+  // one made before regions were cut by the model's edges: its regions as the pieces they are cut into, so any of
+  // them can be clicked out (nothing is changed unless OK is pressed, and what it makes is the same until then)
+  { const g = app.editing.f, skOf = id => app.doc.features.find(x => x.id === id && x.type === 'sketch');
+    if (!g.split && ('regions' in g || 'sections' in g)) {
+      if ('regions' in g && g.sketch && skOf(g.sketch) && g.regions.length) g.regions = splitPts(skOf(g.sketch), g.regions, g.type === 'extrude' && g.op === 'remove');
+      if (g.sections) for (const s of g.sections) if (skOf(s.sketch) && s.regions && s.regions.length) s.regions = splitPts(skOf(s.sketch), s.regions, false);
+      g.split = true;
+    } }
   showDialog();
   // (its regions ready to be clicked in the view, as they are when the feature is new)
   if ((FEATURE_FORMS[f.type] || []).some(fd => fd[0] === 'regions')) activate('regions');
@@ -99,21 +108,23 @@ function prefill(f, at) {
   const sel = app.sel;
   const regions = sel.filter(s => s.kind === 'region');
   if (('regions' in f) && regions.length) { f.sketch = regions[0].sketch; f.regions = regions.filter(r => r.sketch === f.sketch).map(r => r.pt); }
+  // (a new extrude takes the pieces the model's edges cut its sketch's regions into, each for itself)
+  if ('regions' in f || 'sections' in f) f.split = true;
   if (f.type === 'loft' && regions.length) { const by = new Map(); for (const r of regions) { if (!by.has(r.sketch)) by.set(r.sketch, []); by.get(r.sketch).push(r.pt); } f.sections = [...by].map(([sketch, regs]) => ({ sketch, regions: regs })); }
   // nothing chosen: the last sketch before the bar, all its regions that are not holes
   if (('regions' in f) && f.type !== 'sweep' && !f.sketch) {
     // (one no feature has used yet: a sketch already extruded is not offered again, with the same regions, to the next)
     const taken = new Set(app.doc.features.flatMap(x => [x.sketch, x.path, ...(x.sections || []).map(s2 => s2.sketch)]));
     const sk = app.doc.features.slice(0, at).reverse().find(x => x.type === 'sketch' && !x.suppressed && !taken.has(x.id) && regionsCached(x).length);
-    if (sk) { f.sketch = sk.id; f.regions = defaultRegionPts(sk.ents, f.op === 'remove'); f.autoRegions = true; }
+    if (sk) { f.sketch = sk.id; f.regions = splitDefaultPts(sk, f.type === 'extrude' && f.op === 'remove'); f.autoRegions = true; }
   }
   // a loft or a sweep with nothing chosen: the sketches no feature has used yet (a loft's profiles in order; a
   // sweep's profile the last with a region, its path the last without one)
   if ((f.type === 'loft' && !f.sections.length) || (f.type === 'sweep' && !f.sketch)) {
     const used = new Set(app.doc.features.flatMap(x => [x.sketch, x.path, ...(x.sections || []).map(s2 => s2.sketch)]));
     const free = app.doc.features.slice(0, at).filter(x => x.type === 'sketch' && !x.suppressed && !used.has(x.id)), closed = free.filter(x => regionsCached(x).length), open = free.filter(x => !regionsCached(x).length && x.ents.some(e => !e.k && e.t !== 'point'));
-    if (f.type === 'loft' && closed.length >= 2) f.sections = closed.map(x => ({ sketch: x.id, regions: defaultRegionPts(x.ents) }));
-    if (f.type === 'sweep' && closed.length) { const pr = closed[closed.length - 1]; f.sketch = pr.id; f.regions = defaultRegionPts(pr.ents); if (open.length && !f.path) f.path = open[open.length - 1].id; }
+    if (f.type === 'loft' && closed.length >= 2) f.sections = closed.map(x => ({ sketch: x.id, regions: splitDefaultPts(x) }));
+    if (f.type === 'sweep' && closed.length) { const pr = closed[closed.length - 1]; f.sketch = pr.id; f.regions = splitDefaultPts(pr); if (open.length && !f.path) f.path = open[open.length - 1].id; }
   }
   // a revolve about the sketch's centre line: its one construction line, if it has just one
   if (f.type === 'revolve' && f.sketch && !f.axis) { const sk = app.doc.features.find(x => x.id === f.sketch), ls = sk ? sk.ents.filter(e => e.t === 'line' && e.k && !e.ref) : []; if (ls.length === 1) f.axis = { e: ls[0].id }; }
@@ -164,7 +175,7 @@ export async function fieldPick(p) {
     if (p.kind !== 'region') return false;
     E.auto = false; if (f.faces) f.faces = [];
     if (f.sketch !== p.sketch) { f.sketch = p.sketch; f.regions = [p.pt]; }
-    else { const R = regionsCached(app.doc.features.find(x => x.id === p.sketch)), mine = regionAt(R, p.pt), i = f.regions.findIndex(q => regionAt(R, q) === mine); if (i >= 0) f.regions.splice(i, 1); else f.regions.push(p.pt); }
+    else { const R = regionsShown(app.doc.features.find(x => x.id === p.sketch)), mine = regionAt(R, p.pt), i = f.regions.findIndex(q => regionAt(R, q) === mine); if (i >= 0) f.regions.splice(i, 1); else f.regions.push(p.pt); }
     if (f.axis && typeof f.axis === 'object' && f.axis.sketch && f.axis.sketch !== f.sketch) f.axis = null;
   } else if (kind === 'sections') {
     if (p.kind !== 'region') return false;
@@ -264,7 +275,7 @@ export function showDialog() {
     else if (kind === 'sel') rows.push(selField(E, fd));
     else if (kind === 'check') rows.push(h('label', { class: 'cad-frow check' }, h('input', { type: 'checkbox', 'data-key': key, id: 'fd-' + key, checked: f[key] ? true : null, onchange: e => { f[key] = e.target.checked; showDialog(); regenSoon(0); } }), label));
     else if (kind === 'select') { const s = h('select', { 'data-key': key, id: 'fd-' + key, onchange: e => { f[key] = e.target.value; showDialog(); regenSoon(0); } }, ...more.options.map(([v, t]) => h('option', { value: v, selected: f[key] === v ? true : null }, t))); rows.push(h('div', { class: 'cad-frow' }, h('label', { for: 'fd-' + key }, label), s)); }
-    else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; if (key === 'op' && E.auto) { const sk = app.doc.features.find(x => x.id === f.sketch); if (sk) f.regions = defaultRegionPts(sk.ents, v === 'remove'); } if (E.field) activate(E.field.key); else showDialog(); regenSoon(0); } }, t))));
+    else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; if (key === 'op' && E.auto) { const sk = app.doc.features.find(x => x.id === f.sketch); if (sk) f.regions = f.split ? splitDefaultPts(sk, f.type === 'extrude' && v === 'remove') : defaultRegionPts(sk.ents, v === 'remove'); } if (E.field) activate(E.field.key); else showDialog(); regenSoon(0); } }, t))));
     else if (kind === 'file') rows.push(h('div', { class: 'cad-frow' }, h('label', null, label), h('div', null, f.file || 'No file', ' ', h('button', { type: 'button', class: 'rt-btn', onclick: () => { const inp = h('input', { type: 'file', accept: '.step,.stp' }); inp.addEventListener('change', async () => { const fl = inp.files[0]; if (!fl) return; f.file = fl.name; f.data = await fl.text(); f.name = 'Import ' + fl.name.replace(/\.(step|stp)$/i, ''); showDialog(); regenSoon(0); }); inp.click(); } }, 'Choose…'))));
   }
   const rep = app.result && app.result.preview && app.result.preview.rep;

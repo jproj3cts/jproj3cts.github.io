@@ -1,6 +1,6 @@
 import { STD_PLANES, TOOL_FEATURES, appliedCount, fieldValue, normDoc, partLook, prepareDoc } from '../core/doc.js';
-import { WELD, arcSweep, carryPt, distToEnt, entCross, regionAt, regionsOf, weldEnts } from '../core/sketch-tools.js';
-import { curvePts, entKeys, hpt, inside, solveSketch } from '../core/sketch.js';
+import { WELD, arcSweep, carryPt, distToEnt, entCross, regionAt, regionsOf, silhouetteOf, weldEnts } from '../core/sketch-tools.js';
+import { curveIsClosed, curvePts, entKeys, hpt, inside, solveSketch } from '../core/sketch.js';
 
 /* ==========================================================================
    The kernel: the feature list regenerated with OpenCascade (the vendored replicad-opencascadejs build), in the
@@ -253,7 +253,7 @@ export function makeKernel(oc) {
     const out = [];
     for (const e of ents) {
       if (e.k || e.t === 'point' || e.t === 'text' || e.t === 'image') continue;
-      if (e.t === 'ellipse' || e.t === 'spline') { const P = curvePts(e, 1.5); if (e.t === 'ellipse' || e.closed) P.push(P[0]); try { for (const edge of curveEdges(F, P)) out.push({ e, edge }); } catch (err) { /* left out */ } continue; }
+      if (e.t === 'ellipse' || e.t === 'spline') { const P = curvePts(e, 1.5); if (curveIsClosed(e)) P.push(P[0]); try { for (const edge of curveEdges(F, P)) out.push({ e, edge }); } catch (err) { /* left out */ } continue; }
       let edge;
       if (e.t === 'line') { if (Math.hypot(e.b[0] - e.a[0], e.b[1] - e.a[1]) < 1e-9) continue; edge = T(new oc.BRepBuilderAPI_MakeEdge(pnt(toWorld(F, e.a)), pnt(toWorld(F, e.b)))).Edge(); }
       else {
@@ -403,17 +403,24 @@ export function makeKernel(oc) {
     if (!sk) throw new Error(id ? 'its sketch is not there (it failed, or is after the rollback bar)' : 'no sketch chosen');
     return sk;
   }
-  function pickRegions(sk, pts) {
-    const faces = regionFaces(sk);
+  function pickRegions(sk0, pts, split) {
+    let sk = sk0, faces = regionFaces(sk0), parents = null;
     if (!faces.length) throw new Error('the sketch has no closed regions');
     if (!pts || !pts.length) throw new Error('no region of the sketch is chosen');
+    // split: the sketch's regions cut by the model's edges in its plane, each piece a region of its own (a piece is
+    // of the sketch only inside one of the sketch's own regions: the rest of a face is not)
+    if (split && sk0.extra && sk0.extra.length && sk0.regions) {
+      if (!sk0.cut) sk0.cut = { frame: sk0.frame, ents: sk0.ents.concat(sk0.extra), was: sk0.was };
+      const f2 = regionFaces(sk0.cut);
+      if (f2.length && sk0.cut.regions) { sk = sk0.cut; faces = f2; parents = sk0.regions; }
+    }
     const out = [];
     // (where the faces are the page's regions, the region a point is in is found as the page finds it: its point for a
     // sliver beside a circle can be a hair inside the true circle, the page's circle being drawn in short steps)
-    const at = q => { if (sk.regions) { const r = regionAt(sk.regions, q); return r ? faces[sk.regions.indexOf(r)] : undefined; } const v = vertexAt(toWorld(sk.frame, q)); return faces.find(ff => distance(v, ff).d < 1e-6); };
+    const at = q => { if (sk.regions) { const r = regionAt(sk.regions, q); return r && (!parents || regionAt(parents, r.pt)) ? faces[sk.regions.indexOf(r)] : undefined; } const v = vertexAt(toWorld(sk.frame, q)); return faces.find(ff => distance(v, ff).d < 1e-6); };
     for (const pt of pts) {
       // a sketch that has just followed the model: the point as it follows its shape, else where it was
-      const f = (sk.was && at(carryPt(sk.was, sk.ents, pt))) || at(pt);
+      const f = (sk0.was && at(carryPt(sk0.was, sk0.ents, pt))) || at(pt);
       if (!f) throw new Error('a chosen region of the sketch is no longer there: choose the regions again');
       if (!out.includes(f)) out.push(f);
     }
@@ -521,8 +528,27 @@ export function makeKernel(oc) {
   function followRefs(S, f, F) {
     let moved = false;
     const far = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-7;
+    // silhouettes: each face's found again once, on its mesh as it is now; each shape takes the nearest of its kind
+    const sils = new Map(), mid = g => (g.t === 'line' ? [(g.a[0] + g.b[0]) / 2, (g.a[1] + g.b[1]) / 2] : g.t === 'spline' ? g.pts[Math.floor(g.pts.length / 2)] : g.c);
     for (const e of f.ents) {
-      if (!e.ref || !e.src) continue;
+      if (!e.ref || !e.src || e.src.kind !== 'silh') continue;
+      const key = e.src.names.join('|') + '@' + e.src.pt.join(',');
+      if (!sils.has(key)) { let got = []; try { const hit = findFace(S, { kind: 'face', part: e.src.part, names: e.src.names, pt: e.src.pt }); if (hit) got = silhouetteOf(meshBody(hit.b, hit.b.id), hit.i, F); } catch (err) { got = []; } sils.set(key, got.map(g => ({ g, used: false }))); }
+      let best = null, bd = Infinity; const m0 = mid(e);
+      for (const c of sils.get(key)) { if (c.used || c.g.t !== e.t || (e.t === 'spline' && (c.g.pts.length !== e.pts.length || !!c.g.closed !== !!e.closed))) continue; const m1 = mid(c.g), d = Math.hypot(m1[0] - m0[0], m1[1] - m0[1]); if (d < bd) { bd = d; best = c; } }
+      if (!best) continue;
+      best.used = true;
+      const g = best.g;
+      if (e.t === 'line') { if (Math.hypot(g.a[0] - e.a[0], g.a[1] - e.a[1]) + Math.hypot(g.b[0] - e.b[0], g.b[1] - e.b[1]) > Math.hypot(g.b[0] - e.a[0], g.b[1] - e.a[1]) + Math.hypot(g.a[0] - e.b[0], g.a[1] - e.b[1])) [g.a, g.b] = [g.b, g.a]; if (!far(g.a, e.a) && !far(g.b, e.b)) continue; e.a = g.a; e.b = g.b; }
+      else if (e.t === 'circle') { if (!far(g.c, e.c) && Math.abs(g.r - e.r) < 1e-7) continue; e.c = g.c; e.r = g.r; for (const d of f.dims) if ((d.t === 'rad' || d.t === 'dia') && d.r[0].e === e.id) { d.v = d.t === 'dia' ? 2 * e.r : e.r; d.x = String(+d.v.toFixed(6)); } }
+      else if (e.t === 'spline') { if (g.pts.every((q, i) => !far(q, e.pts[i]))) continue; e.pts = g.pts; }
+      else continue;
+      const Em = new Map([[e.id, e]]);
+      for (const c of f.cons) if (c.t === 'fix' && c.r[0].e === e.id && entKeys(e).includes(c.r[0].k)) c.at = hpt(Em, c.r[0]).slice();
+      moved = true;
+    }
+    for (const e of f.ents) {
+      if (!e.ref || !e.src || e.src.kind === 'silh') continue;
       if (e.src.kind === 'vertex') {
         if (e.t !== 'point') continue;
         let q; try { q = toPlane(F, findVertex(S, e.src)); } catch (err) { continue; }
@@ -560,14 +586,44 @@ export function makeKernel(oc) {
     if (moved) solveSketch(f.ents, f.cons, f.dims, null, { iters: 80 });
     return moved;
   }
+  /* the model's edges that lie in a plane, as sketch shapes: where a sketch's regions are cut by the faces they are
+     drawn on (the part of a circle that is on a face, and the part that hangs over its edge, are two regions) */
+  function planeEdges(S, F) {
+    const out = [];
+    for (const b of S.parts) for (const e of edgesOf(b)) {
+      const c = T(new oc.BRepAdaptor_Curve(e)), t0 = c.FirstParameter(), t1 = c.LastParameter();
+      if (![t0, t0 + (t1 - t0) * 0.31, (t0 + t1) / 2, t1].every(t => Math.abs(v3.dot(v3.sub(xyz(T(c.Value(t))), F.o), F.n)) < 1e-6)) continue;
+      for (const g of edgeShapes(e, F)) out.push(Object.assign(g, { id: 'mdl' + out.length, mdl: true }));
+      if (out.length > 600) return [];                // (a model this busy in the plane: its sketch's regions are left whole)
+    }
+    // and where a part that passes through the plane is cut by it: the outline of the part there
+    const pln = T(new oc.gp_Pln(T(new oc.gp_Ax3(pnt(F.o), gdir(F.n), gdir(F.x)))));
+    for (const b of S.parts) {
+      const bb = bbox(b.shape);
+      if (!bb) continue;
+      // (only a part with some of itself on each side of the plane)
+      let lo = Infinity, hi = -Infinity;
+      for (const x of [bb[0][0], bb[1][0]]) for (const y of [bb[0][1], bb[1][1]]) for (const z of [bb[0][2], bb[1][2]]) { const hgt = v3.dot(v3.sub([x, y, z], F.o), F.n); lo = Math.min(lo, hgt); hi = Math.max(hi, hgt); }
+      if (!(lo < -1e-6 && hi > 1e-6)) continue;
+      try {
+        const sc = T(new oc.BRepAlgoAPI_Section(b.shape, pln, false));
+        sc.Build(prog());
+        if (!sc.IsDone()) continue;
+        for (const e of subShapes(sc.Shape(), TA.TopAbs_EDGE)) for (const g of edgeShapes(e, F)) out.push(Object.assign(g, { id: 'mdl' + out.length, mdl: true }));
+      } catch (err) { /* that part's outline is left out */ }
+      if (out.length > 600) return [];
+    }
+    return out;
+  }
   /* ---------- the features ---------- */
   const FEAT = {
     sketch(S, f) {
       const frame = planeFrame(S, f.plane);
       const was = f.ents.some(e => e.ref && e.src) ? JSON.parse(JSON.stringify(f.ents)) : null, moved = followRefs(S, f, frame);
-      S.sketches[f.id] = { frame, ents: f.ents, was: moved ? was : null };
+      let extra = []; try { extra = planeEdges(S, frame); } catch (err) { extra = []; }
+      S.sketches[f.id] = { frame, ents: f.ents, was: moved ? was : null, extra };
       S.frames[f.id] = frame;
-      return Object.assign({ frame, regions: regionFaces(S.sketches[f.id]).length }, moved ? { ents: f.ents, cons: f.cons, dims: f.dims, was } : {});
+      return Object.assign({ frame, regions: regionFaces(S.sketches[f.id]).length, extra }, moved ? { ents: f.ents, cons: f.cons, dims: f.dims, was } : {});
     },
     plane(S, f, V) {
       const base = planeFrame(S, f.ref), off = fieldValue(f, 'offset', V, 'len') * (f.flip ? -1 : 1);
@@ -602,7 +658,8 @@ export function makeKernel(oc) {
         return pieces;
       };
       // (a cut takes in the holes of the model that lie in what it takes, where they are empty already)
-      const faces = onFaces ? bases : pickRegions(sk, f.op === 'remove' ? withEmptyHoles(S, sk, f.regions, f.targets, piecesOf) : f.regions);
+      // (split: each piece the model's edges cut the sketch into is chosen for itself, the model's holes among them)
+      const faces = onFaces ? bases : f.split ? pickRegions(sk, f.regions, true) : pickRegions(sk, f.op === 'remove' ? withEmptyHoles(S, sk, f.regions, f.targets, piecesOf) : f.regions);
       let tool = fuseAll(piecesOf(faces), f.id, f.id);
       const draft = fieldValue(f, 'draft', V, 'ang');
       if (Math.abs(draft) > 1e-9) tool = drafted(tool, sk.frame, n0, draft, f.id);
@@ -612,7 +669,7 @@ export function makeKernel(oc) {
       return { made: r.made };
     },
     revolve(S, f, V) {
-      const sk = sketchOf(S, f.sketch), faces = pickRegions(sk, f.regions);
+      const sk = sketchOf(S, f.sketch), faces = pickRegions(sk, f.regions, f.split);
       let p, d;
       if (f.axis && typeof f.axis === 'string' && /^[xyz]$/.test(f.axis)) { p = [0, 0, 0]; d = { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] }[f.axis]; }
       else {
@@ -640,7 +697,7 @@ export function makeKernel(oc) {
       return { made: r.made };
     },
     sweep(S, f) {
-      const sk = sketchOf(S, f.sketch), faces = pickRegions(sk, f.regions), path = sketchOf(S, f.path);
+      const sk = sketchOf(S, f.sketch), faces = pickRegions(sk, f.regions, f.split), path = sketchOf(S, f.path);
       const spine = chainWire(path);
       const pieces = faces.map(face => {
         const mk = T(new oc.BRepOffsetAPI_MakePipeShell(spine));
@@ -659,7 +716,7 @@ export function makeKernel(oc) {
     loft(S, f) {
       if ((f.sections || []).length < 2) throw new Error('choose two profiles or more');
       const mk = T(new oc.BRepOffsetAPI_ThruSections(true, !!f.ruled, 1e-6));
-      for (const s of f.sections) { const sk = sketchOf(S, s.sketch), fs = pickRegions(sk, s.regions && s.regions.length ? s.regions : null); mk.AddWire(oc.BRepTools.OuterWire(fs[0])); }
+      for (const s of f.sections) { const sk = sketchOf(S, s.sketch), fs = pickRegions(sk, s.regions && s.regions.length ? s.regions : null, f.split); mk.AddWire(oc.BRepTools.OuterWire(fs[0])); }
       mk.CheckCompatibility(false);
       mk.Build(prog());
       if (!mk.IsDone()) throw new Error('the profiles could not be lofted');
@@ -895,7 +952,9 @@ export function makeKernel(oc) {
   void TOOL_FEATURES;
 
   /* ---------- the regeneration, kept by the feature list up to each feature ---------- */
-  let cache = new Map();
+  // (what each Part Studio's features made is kept by the studio's tab, so going from one tab to another, or showing
+  // an assembly of several, does not make any of them again)
+  const caches = new Map();
   const hashText = (h, s) => { let a = h[0], b = h[1]; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b + c, 2246822519) >>> 0; } return [a, b]; };
   const EMPTY = () => ({ parts: [], frames: {}, tools: {}, sketches: {} });
   let last = { S: EMPTY(), doc: null, vars: {} };
@@ -915,6 +974,7 @@ export function makeKernel(oc) {
     opts = opts || {};
     const doc = normDoc(JSON.parse(JSON.stringify(doc0))), { vars, errors } = prepareDoc(doc);
     const upto = Math.min(doc.features.length, opts.upto != null ? opts.upto : appliedCount(doc));
+    const cid = typeof doc0.id === 'string' ? doc0.id : '', cache = caches.get(cid) || new Map();
     const fresh2 = new Map(), reports = [];
     let S = EMPTY(), h = hashText([2166136261, 1], JSON.stringify(vars));
     for (let i = 0; i < upto; i++) {
@@ -932,7 +992,9 @@ export function makeKernel(oc) {
     const keep = new Set();
     for (const v of fresh2.values()) for (const p of v.S.parts) keep.add(p.shape);
     for (const v of cache.values()) for (const p of v.S.parts) if (!keep.has(p.shape)) { try { p.shape.delete(); } catch (err) { /* shared */ } keep.add(p.shape); }
-    cache = fresh2;
+    caches.delete(cid); caches.set(cid, fresh2);
+    // (the studios longest unused are let go, with their shapes)
+    while (caches.size > 8) { const old = caches.keys().next().value, gone = caches.get(old); caches.delete(old); const held = new Set(); for (const c of caches.values()) for (const v of c.values()) for (const p of v.S.parts) held.add(p.shape); for (const v of gone.values()) for (const p of v.S.parts) if (!held.has(p.shape)) { try { p.shape.delete(); } catch (err) { /* shared */ } held.add(p.shape); } }
     last = { S, doc, vars };
     let preview = null;
     if (opts.preview && opts.preview.feature) {
@@ -999,18 +1061,25 @@ export function makeKernel(oc) {
       const shapes = picks.map(p => {
         const b = S.parts.find(x => x.id === p.part);
         if (!b) throw new Error('that part is not there');
-        if (p.kind === 'part') return { b, s: b.shape, kind: 'part' };
-        if (p.kind === 'face') return { b, s: b.faces[p.index], kind: 'face' };
-        if (p.kind === 'edge') return { b, s: edgesOf(b)[p.index], kind: 'edge' };
-        return { b, s: vertsOf(b)[p.index], kind: 'vertex' };
+        const look = partLook(doc || last.doc, b.id, S.parts.indexOf(b));
+        if (p.kind === 'part') return { b, s: b.shape, kind: 'part', look };
+        if (p.kind === 'face') return { b, s: b.faces[p.index], kind: 'face', look };
+        if (p.kind === 'edge') return { b, s: edgesOf(b)[p.index], kind: 'edge', look };
+        return { b, s: vertsOf(b)[p.index], kind: 'vertex', look };
       });
+      measureInto(shapes, out);
+    } finally { flush(); }
+    return out;
+  }
+  function measureInto(shapes, out) {
+    {
       for (const x of shapes) {
-        const it = { kind: x.kind, part: x.b.id };
+        const it = { kind: x.kind, part: x.id || x.b.id };
         if (x.kind === 'part') {
-          const v = props(x.s, 'v'), a = props(x.s, 'a'), i = S.parts.indexOf(x.b), look = partLook(doc || last.doc, x.b.id, i);
+          const v = props(x.s, 'v'), a = props(x.s, 'a'), look = x.look;
           Object.assign(it, { volume: v.m, area: a.m, centroid: v.c, density: look.density, mass: look.density ? v.m / 1000 * look.density : null, name: look.name, bbox: bbox(x.s) });
-        } else if (x.kind === 'face') { const a = props(x.s, 'a'); Object.assign(it, { area: a.m, centroid: a.c, type: surfType(x.s) }); if (it.type === 'cylinder') { const s = T(new oc.BRepAdaptor_Surface(x.s, true)); it.radius = T(s.Cylinder()).Radius(); } if (it.type === 'plane') it.normal = faceFrame(x.s).n; }
-        else if (x.kind === 'edge') { const l = props(x.s, 'l'); Object.assign(it, { length: l.m, type: curveType(x.s) }); if (it.type === 'circle') { const c = T(new oc.BRepAdaptor_Curve(x.s)); it.radius = T(c.Circle()).Radius(); } if (it.type === 'line') it.dir = lineOfEdge(x.s).d; }
+        } else if (x.kind === 'face') { const a = props(x.s, 'a'); Object.assign(it, { area: a.m, centroid: a.c, type: surfType(x.s) }); if (it.type === 'cylinder') { const s = T(new oc.BRepAdaptor_Surface(x.s, true)), cy = T(s.Cylinder()), ax = T(cy.Axis()); it.radius = cy.Radius(); it.axis = { p: xyz(T(ax.Location())), d: xyz(T(ax.Direction())) }; } if (it.type === 'plane') it.normal = faceFrame(x.s).n; }
+        else if (x.kind === 'edge') { const l = props(x.s, 'l'); Object.assign(it, { length: l.m, type: curveType(x.s) }); if (it.type === 'circle') { const c = T(new oc.BRepAdaptor_Curve(x.s)); it.radius = T(c.Circle()).Radius(); } if (it.type === 'line') { const ln = lineOfEdge(x.s); it.dir = ln.d; it.at = ln.p; } else if (it.type === 'circle') it.axis = lineOfEdge(x.s); }
         else it.pt = xyz(T(oc.BRep_Tool.Pnt(x.s)));
         out.items.push(it);
       }
@@ -1019,6 +1088,63 @@ export function makeKernel(oc) {
         out.distance = d.d; out.from = d.p; out.to = d.q;
         const [a, b] = out.items, da = a.normal || a.dir, db = b.normal || b.dir;
         if (da && db) { const c = Math.abs(v3.dot(da, db)); out.angle = Math.acos(Math.min(1, a.normal && b.normal ? v3.dot(da, db) : c)) / DEGR; if (a.normal && b.normal) out.angle = 180 - out.angle; }
+      }
+    }
+  }
+  /* ---------- an assembly: its instances' parts, each made in its Part Studio and moved to its place ----------
+     items: [{ doc (the studio's tab), part, p, q, id, name }]. The studio the page last regenerated stays the one
+     picks and references are about. */
+  function trsfOf(p, q) {
+    const [x, y, z, w] = q, t = T(new oc.gp_Trsf());
+    t.SetValues(1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w), p[0], 2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w), p[1], 2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y), p[2]);
+    return t;
+  }
+  function asmBodies(items) {
+    const keepLast = last, byDoc = new Map(), out = [];
+    try {
+      // (every studio made first: making one lets go of the kernel's passing objects, a place's transform among them)
+      for (const it of items) if (!byDoc.has(it.doc.id)) { regen(it.doc, {}); byDoc.set(it.doc.id, { S: last.S, doc: last.doc }); }
+      for (const it of items) {
+        const D = byDoc.get(it.doc.id), b = D.S.parts.find(x => x.id === it.part);
+        if (!b) throw new Error('a part of the assembly is not in its Part Studio any more');
+        out.push({ b, it, t: trsfOf(it.p, it.q), look: Object.assign({}, partLook(D.doc, b.id, D.S.parts.indexOf(b)), it.name ? { name: it.name } : {}) });
+      }
+    } finally { last = keepLast; }
+    return out;
+  }
+  function asmExport(fmt, items, fine) {
+    try {
+      const shapes = asmBodies(items).map(x => moved(x.b.shape, x.t));
+      if (!shapes.length) throw new Error('there are no parts to export');
+      return fmt === 'stl' ? writeStl(compound(shapes), fine) : writeStep(compound(shapes));
+    } finally { flush(); }
+  }
+  /* picks: [{ doc, part, p, q, id, kind, index }] (one or two): measured where the assembly has them */
+  function asmMeasure(picks) {
+    const out = { items: [] };
+    try {
+      const shapes = asmBodies(picks).map(x => {
+        const k = x.it.kind, sub = k === 'part' ? x.b.shape : k === 'face' ? x.b.faces[x.it.index] : k === 'edge' ? edgesOf(x.b)[x.it.index] : vertsOf(x.b)[x.it.index];
+        if (!sub) throw new Error('that is not there any more');
+        return { b: x.b, id: x.it.id, s: moved(sub, x.t), kind: k === 'part' || k === 'face' || k === 'edge' ? k : 'vertex', look: x.look };
+      });
+      measureInto(shapes, out);
+    } finally { flush(); }
+    return out;
+  }
+  /* which parts run into each other: each pair that shares some volume, and how much */
+  function asmClash(items) {
+    const out = [];
+    try {
+      const bs = asmBodies(items).map(x => { const s = moved(x.b.shape, x.t); return { id: x.it.id, s, bb: bbox(s) }; });
+      for (let i = 0; i < bs.length; i++) for (let j = i + 1; j < bs.length; j++) {
+        const a = bs[i], b = bs[j];
+        if (!a.bb || !b.bb || [0, 1, 2].some(k => a.bb[0][k] > b.bb[1][k] - 1e-7 || b.bb[0][k] > a.bb[1][k] - 1e-7)) continue;
+        const op = T(new oc.BRepAlgoAPI_Common());
+        op.SetArguments(listFrom([a.s])); op.SetTools(listFrom([b.s])); op.Build(prog());
+        if (!op.IsDone()) continue;
+        const sh = op.Shape(), v = solidsOf(sh).length ? props(sh, 'v').m : 0;
+        if (v > 1e-6) out.push({ a: a.id, b: b.id, volume: v });
       }
     } finally { flush(); }
     return out;
@@ -1029,26 +1155,26 @@ export function makeKernel(oc) {
     if (!bs.length) throw new Error('there are no parts to export');
     return bs.length === 1 ? bs[0].shape : compound(bs.map(b => b.shape));
   }
-  function exportStep(ids) {
-    const shape = exportShapes(ids);
-    try {
+  function exportStep(ids) { try { return writeStep(exportShapes(ids)); } finally { flush(); } }
+  function writeStep(shape) {
+    {
       oc.Interface_Static.SetCVal('write.step.unit', 'MM'); oc.Interface_Static.SetIVal('write.step.schema', 5);
       const w = T(new oc.STEPControl_Writer());
       w.Transfer(shape, oc.STEPControl_StepModelType.STEPControl_AsIs, true, prog());
       if (w.Write('/export.step') !== oc.IFSelect_ReturnStatus.IFSelect_RetDone) throw new Error('the STEP file could not be written');
       const bytes = oc.FS.readFile('/export.step'); oc.FS.unlink('/export.step');
       return bytes;
-    } finally { flush(); }
+    }
   }
-  function exportStl(ids, fine) {
-    const shape = exportShapes(ids);
-    try {
+  function exportStl(ids, fine) { try { return writeStl(exportShapes(ids), fine); } finally { flush(); } }
+  function writeStl(shape, fine) {
+    {
       const bb = bbox(shape), size = bb ? near(bb[0], bb[1]) : 100;
       T(new oc.BRepMesh_IncrementalMesh(shape, Math.max(0.002, size * (fine ? 2e-4 : 1e-3)), false, fine ? 0.1 : 0.3, false));
       if (!oc.StlAPI.Write(shape, '/export.stl', false)) throw new Error('the STL file could not be written');
       const bytes = oc.FS.readFile('/export.stl'); oc.FS.unlink('/export.stl');
       return bytes;
-    } finally { flush(); }
+    }
   }
   function refs(picks) { try { return picks.map(p => refOf(last.S, p)); } finally { flush(); } }
   /* an edge flattened onto a plane, as sketch shapes: a line or a circle where it is, else steps */
@@ -1120,5 +1246,5 @@ export function makeKernel(oc) {
     } finally { flush(); }
     return out;
   }
-  return { regen, refs, measure, exportStep, exportStl, project: projectEdges, section: sectionEdges, pierce: piercePoints, state: () => last.S };
+  return { regen, refs, measure, exportStep, exportStl, project: projectEdges, section: sectionEdges, pierce: piercePoints, asmExport, asmMeasure, asmClash, state: () => last.S };
 }

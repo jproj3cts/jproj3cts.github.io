@@ -6091,10 +6091,10 @@ async function filmShareHash(f) {
   if (typeof CompressionStream !== 'undefined') { try { return 'f' + fb64u(await fstream(json, new CompressionStream('deflate-raw'))); } catch (err) { /* plain below */ } }
   return 'g' + fb64u(json);
 }
-const OTHER_LINKS = { z: 'jekray', j: 'jekray', q: 'jekray', i: 'jekion', k: 'jekion' };
+const OTHER_LINKS = { z: 'jekray', j: 'jekray', q: 'jekray', i: 'jekion', k: 'jekion', c: 'jekcad', d: 'jekcad' };
 async function readFilmHash(hash) {
   const kind = hash[0], body = hash.slice(1);
-  if (OTHER_LINKS[kind]) throw new Error('that is a ' + (OTHER_LINKS[kind] === 'jekion' ? 'JEKion' : 'JEKray') + ' bench: open the link in ' + (OTHER_LINKS[kind] === 'jekion' ? 'JEKion' : 'JEKray'));
+  if (OTHER_LINKS[kind]) { const nm = { jekion: 'JEKion', jekray: 'JEKray', jekcad: 'JEKcad' }[OTHER_LINKS[kind]]; throw new Error('that is a ' + nm + (nm === 'JEKcad' ? ' Part Studio' : ' bench') + ': open the link in ' + nm); }
   if (kind !== 'f' && kind !== 'g') throw new Error('the link is not one of JEKfilm’s');
   let bytes;
   try { bytes = funb64u(body); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }

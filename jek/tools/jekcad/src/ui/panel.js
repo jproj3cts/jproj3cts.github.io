@@ -1,5 +1,6 @@
+import { measureReadout } from '../core/measure.js';
+import { asmItems } from './assembly.js';
 import { MATERIALS, appliedCount, canMove, featureLabel, newFeature, partLook } from '../core/doc.js';
-import { fmtNum } from '../core/units.js';
 import { h } from '../../../jekray/src/ui/dom.js';
 import { app, changed, checkpoint, editGate, emit, on, toast } from './app.js';
 import { editFeature, fieldPick, fieldWants, openFeature, setPartLook } from './dialog.js';
@@ -183,24 +184,30 @@ let measureSeq = 0;
 async function measureShown() {
   const box = document.getElementById('measure');
   if (!box) return;
-  const picks = app.sel.filter(s => s.part && (s.kind === 'part' || s.kind === 'face' || s.kind === 'edge' || s.kind === 'vertex')).slice(0, 2);
+  const picks = app.sel.filter(s => s.part && (s.kind === 'part' || s.kind === 'face' || s.kind === 'edge' || s.kind === 'vertex')).slice(0, 40);
   if (!picks.length || app.sketch) { box.hidden = true; return; }
   const seq = ++measureSeq;
   let m;
-  try { m = await kernelAsk('measure', { picks, doc: app.doc }); } catch (err) { box.hidden = true; return; }
+  // (in an assembly each pick is measured where its part is placed)
+  try { m = app.asm ? await kernelAsk('asmMeasure', { picks: picks.map(s => Object.assign({}, asmItems([s.part])[0], { kind: s.kind, index: s.index })) }) : await kernelAsk('measure', { picks, doc: app.doc }); } catch (err) { box.hidden = true; return; }
   if (seq !== measureSeq) return;
-  const L = [], mm = v => fmtNum(v, 3) + ' mm', mm2 = v => fmtNum(v, 3) + ' mm²';
-  for (const it of m.items) {
-    if (it.kind === 'part') L.push([it.name, ''], ['Volume', fmtNum(it.volume, 3) + ' mm³'], ['Surface area', mm2(it.area)], ['Mass', it.mass !== null ? fmtNum(it.mass, 3) + ' g (' + it.density + ' g/cm³)' : 'choose a material'], ['Centre of mass', it.centroid.map(v => fmtNum(v, 3)).join(', ')]);
-    else if (it.kind === 'face') L.push(['Face (' + it.type + ')', mm2(it.area)], it.radius ? ['Radius', mm(it.radius)] : null);
-    else if (it.kind === 'edge') L.push(['Edge (' + it.type + ')', mm(it.length)], it.radius ? ['Radius', mm(it.radius)] : null);
-    else L.push(['Vertex', it.pt.map(v => fmtNum(v, 3)).join(', ')]);
-  }
-  if (m.distance !== undefined) L.push(['Distance', mm(m.distance)]);
-  if (m.angle !== undefined) L.push(['Angle', fmtNum(m.angle, 3) + '°']);
-  box.replaceChildren(h('dl', null, ...L.filter(Boolean).flatMap(([k, v]) => [h('dt', null, k), h('dd', null, v)])));
+  // the readout: a tab at the foot of the view with the one value most likely wanted (between two parallel faces,
+  // how far apart), opened to every value; a value clicked is copied
+  const R = measureReadout(m);
+  if (!R) { box.hidden = true; return; }
+  const open = measureOpen();
+  const copy = (v, el) => { if (v === undefined || v === null || !navigator.clipboard) return; navigator.clipboard.writeText(String(+(+v).toFixed(6))).then(() => { el.classList.add('copied'); setTimeout(() => el.classList.remove('copied'), 700); }, () => {}); };
+  const body = h('dl', { id: 'measureRows' }, ...R.rows.flatMap(r => (r.length === 1 ? [h('dt', { class: 'grp' }, r[0]), h('dd', { class: 'grp' })] : [h('dt', null, r[0]), h('dd', Object.assign({ onclick: e => copy(r[2], e.currentTarget) }, r[2] !== undefined && r[2] !== null ? { title: 'Click to copy', class: 'num' } : {}), r[1])])));
+  body.hidden = !open;
+  const tab = h('button', { type: 'button', class: 'cad-mtab', id: 'measureTab', 'aria-expanded': String(open), 'aria-controls': 'measureRows', title: open ? 'Hide the other measurements' : 'Show every measurement of the selection' },
+    h('span', { class: 'k' }, R.head[0]), h('span', { class: 'v' }, R.head[1]), h('span', { class: 'car', 'aria-hidden': 'true' }, open ? '▾' : '▴'));
+  tab.addEventListener('click', () => { try { if (measureOpen()) localStorage.setItem(MEASURE_KEY, 'shut'); else localStorage.removeItem(MEASURE_KEY); } catch (err) { /* this visit */ } measureWide = !open; measureShown(); });
+  box.replaceChildren(body, tab);
   box.hidden = false;
 }
+const MEASURE_KEY = 'jekcad-measure';
+let measureWide = null;
+const measureOpen = () => { if (measureWide !== null) return measureWide; try { return localStorage.getItem(MEASURE_KEY) !== 'shut'; } catch (err) { return true; } };
 export function wirePanel() {
   on('model', renderPanel); on('doc', renderPanel); on('history', renderPanel); on('editing', renderPanel); on('sketch', renderPanel);
   on('sel', () => { renderParts(); measureShown(); for (const r of document.querySelectorAll('.cad-frow-p[data-plane]')) r.classList.toggle('picked', app.sel.some(s => s.kind === 'plane' && s.std === r.dataset.plane)); }); on('model', measureShown);

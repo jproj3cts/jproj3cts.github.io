@@ -3,8 +3,30 @@ import { h } from '../../../jekray/src/ui/dom.js';
 /* ==========================================================================
    The version, and what is new in it (Help › What’s new)
    ========================================================================== */
-export const APP_VERSION = '0.5.0';
+export const APP_VERSION = '0.8.0';
 export const NEWS = [
+  { v: '0.8.0', date: '11 Nov 2026', items: [
+    '<b>Regions understand the model</b>: a sketched shape that runs over the edge of a face, or over a part the sketch’s plane passes through, is cut there, so each piece is picked separately. For Extrude, Revolve, Sweep and Loft.',
+    '<b>Measure readout</b> at the bottom right: select two parallel faces and it shows how far apart they are; a hole shows its diameter, two holes their centre distance. Its tab opens the full list, and a value clicked is copied.',
+    '<b>Assemblies</b>: a handle on the selected part slides it along an axis or turns it about one.',
+    'Mates take an <b>offset</b> and <b>limits</b>, join edges and corners as well as faces, and open again from their row to change.',
+    '<b>Interference</b> lists the parts that run into each other. Measuring works in an assembly, and Export writes it as one STEP or STL file.',
+    'Going from one tab to another no longer makes the Part Studio again.',
+  ] },
+  { v: '0.7.0', date: '11 Nov 2026', items: [
+    '<b>Tabs</b>: a document now holds several Part Studios and Assemblies, at the foot of the view, as JEKray’s are. The + adds one.',
+    '<b>Assemblies</b>: insert parts from the Part Studios, drag them into place, and join them with mates (Fastened, Revolute, Slider, Cylindrical, Planar).',
+    'A part changed in its Part Studio changes in every assembly, and its mates follow.',
+  ] },
+  { v: '0.6.0', date: '11 Nov 2026', items: [
+    '<b>Short share links</b>: signed in, Share gives a link of ten letters kept with your account.',
+    '<b>Text in six fonts</b>, and Mirror now mirrors text and pictures.',
+    '<b>Trim keeps the curve</b>: a trimmed ellipse or spline is still that ellipse or spline, with its constraints and dimensions.',
+    '<b>Tangent</b> between an ellipse and a circle, and between a line or circle and a spline part-way along it.',
+    'A silhouette brought into a sketch follows its face when the model changes.',
+    'The offset of an ellipse or a spline follows the curve when it changes. Double-click it to change the distance.',
+    'Insert DXF reads text, blocks and the outlines of hatches.',
+  ] },
   { v: '0.5.0', date: '11 Nov 2026', items: [
     '<b>Sketch text</b>: click where it starts, type the words and the height. Each letter is a region to extrude or cut.',
     '<b>Conic</b> (by its ends, a steering point and rho), and the <b>Curvature</b> constraint for a spline’s end. Tangent and Coincident now work on ellipses and splines, and Trim and Offset work on them too.',

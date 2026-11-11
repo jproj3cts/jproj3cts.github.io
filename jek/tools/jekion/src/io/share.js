@@ -88,7 +88,7 @@ export async function openShortLink(id) {
   let r;
   try { r = await api('/v1/links/' + encodeURIComponent(id)); } catch (err) { toast('Could not open that link: ' + err.message, true); return; }
   // another app's link: opened in that app
-  const other = { z: 'jekray', j: 'jekray', f: 'jekfilm', g: 'jekfilm' }[String(r.data || '')[0]];
+  const other = { z: 'jekray', j: 'jekray', f: 'jekfilm', g: 'jekfilm', c: 'jekcad', d: 'jekcad' }[String(r.data || '')[0]];
   if (other) { location.replace('/jek/tools/' + other + '.html#s=' + encodeURIComponent(id)); return; }
   return openShareHash(r.data);
 }

@@ -66,4 +66,16 @@ A click picks a vertex, edge or face of a part, or a sketch region or plane. The
 
 Whatever is selected when you start a feature goes into it. Select a sketch region and click Extrude, or select edges and click Fillet.
 
-With one or two items selected, the box at the bottom right gives their measurements: a face's area, an edge's length and radius, the distance and angle between two items, and a part's volume, surface area, mass and centre of mass. The mass comes from the material chosen in the parts list.
+Select faces, edges, corners or parts and the readout at the bottom right measures them. Its tab shows the one value most likely wanted, and a click on the tab opens the full list. Click a value in the list to copy it.
+
+| Selected | The tab shows |
+|---|---|
+| Two parallel flat faces, or two parallel straight edges | Parallel distance |
+| A hole's wall, a pin's side or a round edge | Diameter |
+| Two round faces or round edges | Centre distance |
+| A flat face and a corner, or a face and an edge that runs along it | Parallel distance |
+| Two things that are not parallel | Minimum distance |
+| One straight edge, one flat face, one part | Length, area, volume |
+| Three or more edges, or faces | Total length, or total area |
+
+The list adds the least distance with its parts along X, Y and Z, the angle between two things that are not parallel, the totals, and each item's own numbers. A part's own numbers are its volume, surface area, mass and centre of mass. The mass comes from the material chosen in the parts list.

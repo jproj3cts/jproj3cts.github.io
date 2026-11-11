@@ -1,6 +1,7 @@
 import { evalExpr, evalVars, VAR_NAME } from './units.js';
 import { normCons, normDims, sketchId, solveSketch } from './sketch.js';
 import { normEnts } from './sketch-tools.js';
+import { normAsm } from './assembly.js';
 
 /* ==========================================================================
    A Part Studio as a file (.jekcad, JSON): its Variables table, its feature list in order, the rollback bar, and its
@@ -29,10 +30,10 @@ export const PART_COLOURS = ['#9aa7b4', '#e0892e', '#5b8fd1', '#6aa56a', '#c75a5
 export const FEATURE_KINDS = {
   sketch: { label: 'Sketch', defaults: { plane: { std: 'top' }, ents: [], cons: [], dims: [] } },
   plane: { label: 'Plane', defaults: { ref: { std: 'top' }, offset: '10 mm', flip: false } },
-  extrude: { label: 'Extrude', defaults: { sketch: null, regions: [], faces: [], op: 'add', end: 'blind', depth: '10 mm', flip: false, upto: null, second: false, end2: 'blind', depth2: '10 mm', upto2: null, draft: '0 deg', targets: [] } },
-  revolve: { label: 'Revolve', defaults: { sketch: null, regions: [], axis: null, op: 'new', kind: 'full', angle: '360 deg', flip: false, targets: [] } },
-  sweep: { label: 'Sweep', defaults: { sketch: null, regions: [], path: null, op: 'new', targets: [] } },
-  loft: { label: 'Loft', defaults: { sections: [], op: 'new', ruled: false, targets: [] } },
+  extrude: { label: 'Extrude', defaults: { sketch: null, regions: [], split: false, faces: [], op: 'add', end: 'blind', depth: '10 mm', flip: false, upto: null, second: false, end2: 'blind', depth2: '10 mm', upto2: null, draft: '0 deg', targets: [] } },
+  revolve: { label: 'Revolve', defaults: { sketch: null, regions: [], split: false, axis: null, op: 'new', kind: 'full', angle: '360 deg', flip: false, targets: [] } },
+  sweep: { label: 'Sweep', defaults: { sketch: null, regions: [], split: false, path: null, op: 'new', targets: [] } },
+  loft: { label: 'Loft', defaults: { sections: [], split: false, op: 'new', ruled: false, targets: [] } },
   fillet: { label: 'Fillet', defaults: { edges: [], radius: '2 mm' } },
   chamfer: { label: 'Chamfer', defaults: { edges: [], distance: '1 mm' } },
   shell: { label: 'Shell', defaults: { faces: [], thickness: '1 mm', outward: false } },
@@ -106,6 +107,32 @@ export function normDoc(d) {
   return { format: CAD_FORMAT, version: CAD_VERSION, name: isStr(d.name, 120) && d.name.trim() ? d.name : 'Part Studio 1', units: 'mm', variables: vars, features: feats, rollback: rb, parts, hide };
 }
 export const newDoc = () => normDoc({});
+/* ---------- the whole document: tabs, each a Part Studio or an Assembly ----------
+   A .jekcad file with one Part Studio and nothing else is written as that Part Studio (as every file was before
+   there were tabs, so those open as they did); with more, as { version: 2, name, tabs, active }. */
+export const FILE_VERSION = 2;
+export function normFile(d) {
+  d = d && typeof d === 'object' ? d : {};
+  const tabs = [], ids = new Set(), tid = t => { let id = isStr(t.id, 40) && t.id ? t.id : sketchId('t'); while (ids.has(id)) id = sketchId('t'); ids.add(id); return id; };
+  if (Array.isArray(d.tabs)) {
+    for (const t of d.tabs.slice(0, 60)) {
+      if (!t || typeof t !== 'object') continue;
+      if (t.kind === 'assembly') tabs.push(Object.assign(normAsm(t, tabs.filter(x => x.kind === 'assembly').length + 1), { id: tid(t) }));
+      else { const s = normDoc(t); tabs.push(Object.assign(s, { id: tid(t), kind: 'studio', name: isStr(t.name, 120) && t.name.trim() ? t.name : 'Part Studio ' + (tabs.filter(x => x.kind === 'studio').length + 1) })); }
+    }
+  } else { const s = normDoc(d); tabs.push(Object.assign(s, { id: tid({}), kind: 'studio', name: 'Part Studio 1' })); }
+  if (!tabs.some(t => t.kind === 'studio')) tabs.unshift(Object.assign(normDoc({}), { id: tid({}), kind: 'studio', name: 'Part Studio 1' }));
+  // an assembly's instances are of parts of studios that are there
+  const studios = new Set(tabs.filter(t => t.kind === 'studio').map(t => t.id));
+  for (const t of tabs) if (t.kind === 'assembly') { t.instances = t.instances.filter(I => studios.has(I.studio)); const live = new Set(t.instances.map(I => I.id)); t.mates = t.mates.filter(m => live.has(m.a.inst) && live.has(m.b.inst)); }
+  const name = isStr(d.name, 120) && d.name.trim() ? d.name : 'Part Studio 1';
+  return { format: CAD_FORMAT, version: FILE_VERSION, name, tabs, active: tabs.some(t => t.id === d.active) ? d.active : tabs[0].id };
+}
+/* the document as it is written: one Part Studio alone as that Part Studio, anything more as it is */
+export function fileData(file) {
+  if (file.tabs.length === 1 && file.tabs[0].kind === 'studio') { const { id, kind, ...s } = file.tabs[0]; void id; void kind; return Object.assign({}, s, { name: file.name, version: CAD_VERSION }); }
+  return file;
+}
 /* a new feature of a kind, with its defaults, named in sequence */
 export function newFeature(doc, type, over) {
   const n = doc.features.filter(f => f.type === type).length + 1;

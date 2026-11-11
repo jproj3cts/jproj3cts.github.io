@@ -38,7 +38,7 @@ Line, rectangle, circle and arc each have several kinds. The button shows the ki
 | | Spline | Click the points it goes through. Right-click, Enter or a double-click ends it; clicking its first point closes it. |
 | | Bézier curve | Click its start, the points that steer it, and its end; right-click or Enter ends it. |
 | | Conic | Click its two ends, then the point that steers it. Double-click it to set rho: 0.5 is a parabola, less is part of an ellipse, more a hyperbola. |
-| | Text | Click where the text starts, then type the words, the height of a capital and an angle in the panel. Each letter is a region to extrude. Double-click the text to change it. The font is Source Sans 3 Semibold. |
+| | Text | Click where the text starts, then type the words, pick a font, and set the height of a capital and an angle in the panel. Each letter is a region to extrude. Double-click the text to change it. The fonts are Source Sans 3 (semibold, regular, bold and italic), Liberation Serif and IBM Plex Mono. |
 | P | Point | A click. Points mark holes. |
 | Q | Construction | Turns the selected shapes into construction shapes, or back. With nothing selected, the next shapes drawn are construction. Construction shapes are dashed and make no regions. |
 
@@ -61,7 +61,7 @@ Select shapes or points, then click a constraint in the sketch bar:
 | Coincident | Two points, or a point and a curve |
 | Horizontal, Vertical | Lines, or two points |
 | Parallel, Perpendicular | Two lines |
-| Tangent | A line or curve and a circle or arc; a line and an ellipse; a spline and the shape its end meets |
+| Tangent | A line or curve and a circle or arc; an ellipse and a line, circle or arc; a spline and another shape. Where the spline's end meets the other shape it leaves along it. Otherwise a line, circle or arc touches the spline part-way along. |
 | Curvature | A spline and the line, arc or spline its end meets: the spline's end leaves the same way and bends as much |
 | Equal | Lines (their lengths) or circles and arcs (their radii) |
 | Midpoint | A point and a line |
@@ -106,20 +106,20 @@ Select a free point or shape and drag it: the sketch is solved as it moves, keep
 
 | Key | Tool | How |
 |---|---|---|
-| M | Trim | Click a piece of a shape between the places other shapes cross it, and the piece goes. What is left of an ellipse or a spline is a spline through points along it, and the constraints and dimensions on the original go. |
+| M | Trim | Click a piece of a shape between the places other shapes cross it, and the piece goes. A trimmed ellipse or spline is still that ellipse or spline, shown over the stretch that is left, so its points, constraints and dimensions stay. |
 | | Extend | Click a line near an end: the end carries on to the first shape in its way. |
 | | Split | Click a line or an arc where to cut it in two. The halves stay joined. |
 | | Sketch chamfer | Click a corner where two lines meet. The distance back from the corner is in the bar. |
 | | Sketch fillet | Click a corner where two lines meet. The radius is in the bar. Anything that held or measured the corner now holds a construction point left where it was. |
-| O | Offset | Select shapes, set the distance in the bar (negative for the other side), then click Offset. Copies of lines that met are joined. An ellipse's or a spline's copy is a spline set that far off it. |
-| | Mirror | Click Mirror: a small panel opens. Click the shapes to mirror (or drag a box round them), click the Mirror line box and then the line, and press Mirror. Each copy's points are held symmetric to the original. |
+| O | Offset | Select shapes, set the distance in the bar (negative for the other side), then click Offset. Copies of lines that met are joined. An ellipse's or a spline's copy is a spline set that far off it, which follows the curve when it changes. Double-click it to change the distance. |
+| | Mirror | Click Mirror: a small panel opens. Click the shapes to mirror (or drag a box round them), click the Mirror line box and then the line, and press Mirror. Each copy's points are held symmetric to the original. A text or a picture is mirrored too, and reads backwards as a reflection does. |
 | | Linear pattern | Click the shapes into the panel, type the step across and up and how many in all, then Pattern. Copies keep the constraints and dimensions among the shapes copied. |
 | | Circular pattern | The same, about a point (x, y) and over an angle. |
 | | Transform | Click the shapes into the panel, then move them across and up, turn them and scale them (about their middle). What would hold them where they were is let go. |
 | | Intersection | Click a part: where it cuts the sketch's plane comes in as fixed shapes. |
-| | Silhouette | Click a curved face of the model: its outline, seen square on to the sketch, comes in as fixed lines, circles and splines. It does not follow the model, so bring it in again after a change. |
+| | Silhouette | Click a curved face of the model: its outline, seen square on to the sketch, comes in as lines, circles and splines held where they are. They follow the face when the model changes. |
 | | Pierce | Click an edge of the model that goes through the sketch's plane: a point comes in where it does, and follows the edge when the model changes. |
-| | Insert DXF | A DXF file's lines, circles, arcs, ellipses, splines and polylines come in where the file puts them, selected, ready to drag or Transform. A drawing in inches, feet, centimetres or metres is turned into millimetres. Text, hatches and blocks in the file are not read. |
+| | Insert DXF | A DXF file's lines, circles, arcs, ellipses, splines, polylines and text come in where the file puts them, selected, ready to drag or Transform. Blocks are put in where the drawing places them, and a hatch comes in as its outlines. A drawing in inches, feet, centimetres or metres is turned into millimetres. Dimensions and pictures in the file are not read. |
 | | Insert a picture | A PNG, JPEG, WebP or GIF under 2 MB is drawn on the sketch's plane to trace over. Set its width and angle in its panel (double-click it to open the panel again) and drag it by its corner point. It makes no regions and is saved in the file. |
 | U | Use | Click edges of the model to project them into the sketch, fixed where they are. A straight or round edge follows the model when it changes. |
 

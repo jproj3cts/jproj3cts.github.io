@@ -14,6 +14,8 @@ Every number takes units, expressions and `#variables`, as in a sketch's dimensi
 
 **Extrude** pushes sketch regions along their plane's normal. It starts as **Add**: the new solid joins the part it touches, and where it touches none it is a new part. A depth below 0 goes the other way, so **Opposite direction** is only offered for Through all and Up to face. It opens with the regions of the last sketch chosen and the regions box active: click a region in the view to take it out, or one that is not chosen to put it in. Where shapes cross, each piece between them is a region of its own.
 
+The model cuts a sketch's regions, for Extrude, Revolve, Sweep and Loft. A circle drawn half over the edge of a face is two regions: the part on the face and the part that hangs over it. Both start chosen, and a click takes either one out. A hole of the model inside a sketched shape is a region of its own in the same way. A part that passes through the sketch's plane cuts the regions along its outline there.
+
 Extrude also takes flat faces of the model with no sketch. Click a face while the dialog's regions field is active, or select faces first and then click **Extrude**. Each face is pushed along its own outward direction, and **Remove** cuts into the part from it. A curved face is refused.
 
 - **New** makes new parts. **Add** joins them to the parts they touch, **Remove** cuts them away, and **Intersect** keeps only what they share. For Add, Remove and Intersect you can name the parts to change; otherwise every part is.

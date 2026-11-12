@@ -26,7 +26,7 @@ import { dpBend, dpPhase, dpPower, dpSlopeOverR } from '../core/diffractive.js';
 import { GR_REACH, grDelta, grH, grSlopeOverR, grStep } from '../core/gradient.js';
 import { elementSurfaces, meshRay } from '../core/stl.js';
 import {
-  frame, lensEdges, maskMeanSlope, stopExtent, stopMargin, stopSlitLike, toLocal, toLocalDir, toWorld,
+  frame, lensEdges, maskBeamFit, maskMeanSlope, stopExtent, stopMargin, stopSlitLike, toLocal, toLocalDir, toWorld,
   toWorldDir
 } from '../core/mask.js';
 import { fibreNetCached, tipSources } from './fibre.js';
@@ -1333,21 +1333,35 @@ function traceSceneOnce() {
           const smooth = Math.abs(dp) < 0.45 && Math.abs(dm) < 0.45 && Math.abs(dp - dm) < 0.05;
           const A = f0[0];
           let slope = smooth ? (dp + dm) / (2 * hh) * lam : 0;
-          const curv = smooth ? (dp - dm) / (hh * hh) * lam : 0;
           // on a vortex's core (a fork hologram's, where the reference ray usually crosses it)
           // the slope is the mean of those just round it: the vortex's cancel, the carrier's stay
           if (!smooth) slope = maskMeanSlope(s.maskFn, ly, lam) * lam;
-          // and up and down by its slope that way, off the plane (a smooth delay's only)
+          // and up and down by its slope that way, off the plane (a smooth delay's only: on a
+          // vortex's core the delay either side differs by half a turn whichever way it is
+          // crossed, which is no slope, so there it is the mean of those just round it too)
           let slopeV = 0;
           if (anyZ) {
             const fu = mf(ly, hS + hh, lam), fd = mf(ly, hS - hh, lam), du = wrap(fu[1] - f0[1]), dd = wrap(f0[1] - fd[1]);
-            if (Math.abs(du) < 0.45 && Math.abs(dd) < 0.45 && Math.abs(du - dd) < 0.05) slopeV = (du + dd) / (2 * hh) * lam;
+            if (!smooth) slopeV = maskMeanSlope(mf, ly, lam, hS, true, s.maskFn.cell) * lam;
+            else if (Math.abs(du) < 0.45 && Math.abs(dd) < 0.45 && Math.abs(du - dd) < 0.05) slopeV = (du + dd) / (2 * hh) * lam;
+          }
+          // A beam wider than the mask's detail (a grating's lines, a diffuser's grain) is not bent
+          // by the slope its own ray happens to cross, nor focused by the curvature there: it takes
+          // the mean slope over its footprint, which is where the light it sends on is centred, and
+          // the trend of the slope across it (see maskBeamFit). A lens, where the two agree, is left
+          // exactly as it was.
+          let curv = smooth ? (dp - dm) / (hh * hh) * lam : 0, fit = null;
+          if (isQ) {
+            const bw = beamAt(qr, qi, nCur, nm, m2Env(src));
+            fit = bw && bw.w > 0 ? maskBeamFit(mf, ly, hS, bw.w / (Math.abs(cosd) || 1), bw.w, lam) : null;
+            if (fit) { slope = fit.gu * lam; if (anyZ) slopeV = fit.gv * lam; curv = fit.cu * lam; }
           }
           if (isQ) {
             // in a medium the delay's curvature bends the light by 1/n of it, as the rays' slope
             // does: a mask inside water or glass focuses at its focal length there
             const cN = curv / nCur;
             evt = Object.assign(passEv(), { C: cN, mode: 'M' });
+            if (fit) evt.mfit = fit;
             const dr = cN * qr + 1, di = cN * qi, den = dr * dr + di * di;
             const nr = (qr * dr + qi * di) / den, ni = (qi * dr - qr * di) / den;
             qr = nr; qi = ni;

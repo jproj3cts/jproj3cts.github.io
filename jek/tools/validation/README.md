@@ -48,6 +48,7 @@ scripts that made them. The page itself runs JEKray live against these files.
 | `ref/ppln-tuning.json` | `scripts/ppln_tuning.py` | Gayer et al., Appl. Phys. B 91, 343 (2008) and Boyd & Kleinman (1968): the temperature tuning curve of SHG in 20 mm of MgO:PPLN |
 | `ref/cavity-basics.json` | `scripts/cavity_basics.py` | The Airy sum of round trips (Born & Wolf §7.6): free spectral range (group path), finesse, linewidth and build-up of two linear cavities and a ring |
 | `ref/talbot.json` | `scripts/talbot.py` | The Talbot effect (Rayleigh, Phil. Mag. 11, 196 (1881)): a sinusoidal amplitude grating's three orders as tilted Gaussian beams in closed form (Goodman, Introduction to Fourier Optics, ch. 4) |
+| `ref/phase-grating.json` | `scripts/phase_grating.py` | A sinusoidal phase grating (Goodman, Introduction to Fourier Optics, ch. 4): each order's share of the power, J_n(beta)^2 by the Jacobi-Anger expansion, the orders added as tilted Gaussian beams in closed form |
 | `ref/embedded-gaussian.json` | `scripts/embedded_gaussian.py` | Siegman's embedded Gaussian (Lasers, ch. 17; Proc. SPIE 1224, 2 (1990)): an M² = 4 beam's width in free space and through a lens, by the embedded q and by the second-moment matrix law |
 | `ref/fibre-coupling.json` | `scripts/fibre_coupling.py` | Joyce & DeLoach, Appl. Opt. 23, 4187 (1984): a Gaussian beam's overlap with a single-mode fibre's mode (Marcuse's) against offset, tilt, waist and axial offset, in closed form |
 | `ref/fibre-mfd.json` | `scripts/fibre_mfd.py` | Marcuse, Bell Syst. Tech. J. 56, 703 (1977): the mode-field radius against V, and the exact LP01 mode's best Gaussian, solved independently |
@@ -106,6 +107,7 @@ numpy instead.
     python scripts/ppln_tuning.py
     python scripts/cavity_basics.py
     python scripts/talbot.py
+    python scripts/phase_grating.py
     python scripts/embedded_gaussian.py
     python scripts/fibre_coupling.py
     python scripts/fibre_mfd.py

@@ -720,6 +720,34 @@ const ALL_CASES = [
     },
   },
   {
+    id: 'phase-grating', area: 'Diffraction', title: 'A sinusoidal phase grating: the power in each order',
+    kind: 'Textbook: closed forms', ref: 'phase-grating.json', script: 'phase_grating.py',
+    cite: 'J. W. Goodman, Introduction to Fourier Optics, chapter 4 (the sinusoidal phase grating); the Jacobi–Anger expansion, exp(iβ sin u) = Σ Jₙ(β) e^{inu}.',
+    what: 'A grating that only delays the light, by a phase β sin(2πx/d), sends it into orders at angles nλ/d, each with the share Jₙ(β)² of the power: at β = 1 most stays in the zeroth order, at β = 2.405 the zeroth order vanishes and at β = 3.832 the first orders do. The bench: a Gaussian beam at 633 nm, waist 0.5 mm on the grating (a mask whose delay is β/2π · sin(2πx/d) waves), d = 0.2 mm, and the light 1000 mm on, where neighbouring orders are 3.17 mm apart and each 0.64 mm in radius. The reference adds the orders as tilted Gaussian beams in closed form and integrates the irradiance across the bench plane within each order’s stretch, half way to its neighbours, over the same integral for the beam without the grating. JEKray’s propagated field is read across the beam at that distance and integrated the same way.',
+    tolerance: 'Each order’s share of the power, from n = −5 to 5, within 0.003.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [], sep = R.sep_mm, z = R.z_mm;
+      const wz = R.w0_mm * Math.sqrt(1 + (z / (Math.PI * R.w0_mm ** 2 / (R.lambda_nm * 1e-6))) ** 2);
+      const norm = Math.sqrt(2 / Math.PI) / wz;              // the free beam's irradiance integrated across the plane, per mW (1 mW here)
+      for (const C of R.cases) {
+        const data = bench('Sinusoidal phase grating, β = ' + fmt(C.beta, 4) + ', d = 0.2 mm, 633 nm (Goodman)', [
+          { type: 'source', name: 'Laser', x: -50, y: 0, angle: 0, wavelength: 633, width: 1, gauss: true, w0: R.w0_mm, z0: 50, popN: 1024, pol: 's', rays: 1, power: 1 },
+          { type: 'mask', name: 'Phase grating', x: 0, y: 0, angle: 0, length: 25.4, amp: '1', delay: (C.beta / (2 * Math.PI)).toFixed(10) + '*sin(2*pi*x/' + R.d_mm + ')', preset: 'custom' },
+          { type: 'screen', name: 'Screen', x: z + 100, y: 0, angle: 180, length: 60 }], { minPower: 1e-6 });
+        J.load(data); benches.push(['β = ' + fmt(C.beta, 4), data]);
+        const S = J.popSegments().find(s => s.el === 'Phase grating'), tag = 'β = ' + fmt(C.beta, 4);
+        if (!S) { checks.push(check(tag + ': a field behind the grating', 1, NaN, { abs: 0 })); continue; }
+        const pr = S.profile(z), xs = Array.from(pr.r), I = Array.from(pr.I), h = xs[1] - xs[0];
+        const got = C.orders.map(o => { let s = 0; xs.forEach((x, i) => { if (x >= (o.n - 0.5) * sep && x < (o.n + 0.5) * sep) s += I[i]; }); return s * h / norm; });
+        C.orders.forEach((o, i) => checks.push(check(tag + ': order ' + o.n + ', share of the power', o.share, got[i], { abs: 0.003 })));
+        plots.push(plot({ title: 'β = ' + fmt(C.beta, 4) + (C.why ? ': ' + C.why : '') + ' (each order’s share)', xlabel: 'order n', ylabel: 'share of the power', yMin: 0,
+          series: [{ name: 'Jₙ(β)², as the light spreads to the plane', x: C.orders.map(o => o.n), y: C.orders.map(o => o.share), colour: REF_C, width: 2 }, { name: 'JEKray', x: C.orders.map(o => o.n), y: got, colour: GOT_C, dots: true }] }));
+        await idle();
+      }
+      return { checks, benches, plots, notes: 'The first run of this case failed. At β = 1 every share came out one order over (the zeroth read 0.194 against 0.586), and at β = 2.405 and 3.832 most of the light was missing from the plane, with no warning. Two things were wrong. The beam’s axis was bent by the grating’s slope where the beam’s own ray crossed it, βλ/d, which is one line of the grating and not the beam: JEKray now bends a beam by the mean slope across its footprint, where the light it sends on is centred, and that is zero here. And the grid the field is carried on grew with distance only behind an edge that cut the beam, so the orders ran off its sides and came back in at the other: behind a mask that only delays the light, the field’s spread is now measured as it is behind an edge, and the grid grows with it. The tolerance is the one set before the first run. The shares are Jₙ(β)² less a few parts in a million that spill past each order’s stretch; the reference keeps that. The field is read from JEKray’s propagated field, not a screen: a screen’s cut is centred on its brightest point, which at β = 2.405 is a first order, not the axis.' };
+    },
+  },
+  {
     id: 'lenses', area: 'Rays and lenses', title: 'Real rays through a singlet and a Cooke triplet',
     kind: 'Independent code', ref: 'lenses-optiland.json', script: 'lenses_optiland.py',
     cite: 'An independent open-source real-ray tracer: its real-ray trace, and its Cooke triplet sample.',

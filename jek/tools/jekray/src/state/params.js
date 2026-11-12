@@ -95,7 +95,10 @@ export function setParam(el, path, v) {
     case 'emitRays': v = Math.round(clamp(v, 0, 51)); break;
     case 'm2': v = clamp(v, 1, 50); break;
     case 'hm': case 'hn': case 'lp': v = Math.round(clamp(v, 0, 10)); break;
-    case 'trapR': case 'trapRho': v = Math.max(1, v); break;
+    case 'trapR': case 'trapRho': case 'trapLen': v = Math.max(1, v); break;
+    case 'trapTilt': v = clamp(v, -90, 90); break;
+    case 'scatDip': v = Math.round(clamp(v, 0, 64)); break;
+    case 'scatNA': v = clamp(v, 0.001, 4); break;
     case 'trapP': v = Math.max(1e-12, v); break;
     case 'trapT': v = Math.max(0.001, v); break;
     case 'll': v = Math.round(clamp(v, -10, 10)); break;

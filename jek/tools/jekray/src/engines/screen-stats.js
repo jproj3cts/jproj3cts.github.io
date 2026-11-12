@@ -1,6 +1,6 @@
 import { refIndex } from '../core/glass.js';
 import { C_SI, HPL, KB } from '../core/cells.js';
-import { EPS0, HBAR, TRAP_ATOMS, gasDamping, waterDamping } from '../core/traps.js';
+import { EPS0, HBAR, TRAP_ATOMS, gasDamping, particleOf, waterDamping } from '../core/traps.js';
 import { cohGamma, lagOf, splitRoot } from '../core/coherence.js';
 import { beamAt, isHigherMode, m2Env, modeM2 } from '../core/beams-hom.js';
 import { getEl } from '../state/elements.js';
@@ -247,11 +247,12 @@ export function trapReport(el, T) {
     out.kT = -T.U / (KB * el.trapT);
     out.Psc = S.sigma * I;                                                // W scattered
     out.Fscat = T.nMed * S.sigma * I / C_SI;                              // N, one beam's worth
-    out.np = S.np; out.m = S.m; out.ka = S.ka;
+    out.np = S.np; out.kap = S.kap || 0; out.m = S.m; out.ka = S.ka;
+    const rEq = particleOf(el).rEq;
     // damping by the medium, and each direction's quality factor
     const water = Math.abs(T.nMed - refIndex({ glass: 'Water' }, lastTraceNm(el))) < 0.01;
-    if (el.trapMed === 'air') { const g = gasDamping(el.trapR, T.mass, el.trapP, el.trapT); out.G = g.G; out.mfp = g.l; out.Kn = g.Kn; out.dampBy = 'air'; }
-    else if (el.trapMed === 'bench' && water) { out.G = waterDamping(el.trapR, T.mass, el.trapT); out.dampBy = 'water'; }
+    if (el.trapMed === 'air') { const g = gasDamping(rEq, T.mass, el.trapP, el.trapT); out.G = g.G; out.mfp = g.l; out.Kn = g.Kn; out.dampBy = 'air'; }
+    else if ((el.trapMed === 'bench' || el.trapMed === 'water') && water) { out.G = waterDamping(rEq, T.mass, el.trapT); out.dampBy = 'water'; }
     else { out.G = 0; out.dampBy = el.trapMed === 'vacuum' ? 'vacuum' : 'none'; }
     out.Q = [T.fx, T.fy, T.fz].map(f => f && out.G > 0 ? 2 * Math.PI * f / out.G : null);
   }

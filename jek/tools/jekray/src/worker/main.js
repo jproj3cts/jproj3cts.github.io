@@ -10,6 +10,7 @@ import { legAlong, popKeyOf, popRun, popSources } from '../engines/beam-tree.js'
 import { closeupImage } from '../engines/closeup.js';
 import { volData, volLightBox } from '../engines/volume.js';
 import { popDiffraction, popScreenPrep } from '../engines/diffraction.js';
+import { scatterGen, scatterPrep } from '../engines/scatter.js';
 import { detectorField } from '../engines/pd-cavity.js';
 import { antennaJob } from '../engines/antenna-field.js';
 import { optRun } from '../engines/lens-opt.js';
@@ -41,6 +42,16 @@ export function workerMain() {
       } else if (kind === 'screen') {
         const el = getEl(args.id), J = el && popScreenPrep(el);
         out = J ? { key: J.key, D: fwPackD(popDiffraction(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }))) } : { key: null, D: null };
+      } else if (kind === 'scatter') {
+        // a particle's scattering (the Scattering tab's own worker): its progress as it goes, then the answer
+        const el = getEl(args.id), J = el && scatterPrep(el);
+        if (!J) out = { key: null, S: null };
+        else {
+          const g = scatterGen(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }));
+          let r = g.next(), t = 0;
+          while (!r.done) { const now = Date.now(); if (now - t > 100) { t = now; self.postMessage({ id, prog: r.value }); } r = g.next(); }
+          out = { key: J.key, S: r.value };
+        }
       } else if (kind === 'detector') {
         const el = getEl(args.id), J = el && popScreenPrep(el);
         out = J ? { key: J.key + '|' + el.length, r: detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })) } : null;

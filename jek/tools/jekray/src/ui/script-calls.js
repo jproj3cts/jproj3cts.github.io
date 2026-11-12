@@ -13,6 +13,8 @@ import { antennaNow } from '../engines/antenna-field.js';
 import { metricRaw } from './optimise.js';
 import { diffraction, viaCavity } from '../engines/pd-cavity.js';
 import { screenStats } from '../engines/screen-stats.js';
+import { scatterNow, scatterPlain } from '../engines/scatter.js';
+import { mieCoeffs, mieQ, mieS } from '../core/mie.js';
 import { zmxExport } from '../io/zmx-export.js';
 import { asmParaxial, asmPrescription, assemblies } from '../core/assembly.js';
 import { lensSystem } from '../engines/lens-engine.js';
@@ -147,6 +149,14 @@ export function scriptCalls() {
     setParam(name, path, v) { setParam(this.byName(name), path, v); },
     getParam(name, path) { return getPath(this.byName(name), path); },
     diffraction(name) { const el = this.byName(name); return el ? diffraction(el) : null; },
+    /* the light a screen's particle scatters (its Scattering tab), worked out now: the model used, the cross-sections
+       (m²), efficiencies and asymmetry, the powers in the light as it is (W), the shares forward, back and collected,
+       the pattern on its two cuts and over the sphere (W/sr) and the far field's amplitude; null where the screen has
+       no particle or no beam. opts: { nMax, tol, maxIter } for a dipole array */
+    /* Lorenz-Mie for a sphere of size parameter x = k a and relative index mr + i mi: Qext, Qsca, Qabs, Qback, g, and S
+       (each [S1 re, S1 im, S2 re, S2 im]) at the angles given (degrees), as Bohren and Huffman write them */
+    mie(x, mr, mi, angles) { const C = mieCoeffs(+x, +mr, +mi || 0); return Object.assign(mieQ(C), { terms: C.n, S: (angles || []).map(a => mieS(C, Math.cos(a * Math.PI / 180))) }); },
+    scatter(name, opts) { traceScene(); const el = this.byName(name); if (!el) throw new Error('No part called ' + name); const S = scatterNow(el, opts); return S ? scatterPlain(S) : null; },
     asmPrescription(name) { const a = assemblies().find(x => x.name === name); return a ? JSON.parse(JSON.stringify(asmPrescription(a))) : null; },
     // (the lens engine's first order: it follows folds and mirrored faces, which the bench's paraxial helper does not)
     asmEfl(name) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = asmPrescription(a), nm = a.cond.waves[a.cond.primary].nm; return P.folded ? lensSystem(P, nm, {}).par.efl : asmParaxial(P, nm, paraxial).efl; },

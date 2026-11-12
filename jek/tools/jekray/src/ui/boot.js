@@ -98,7 +98,8 @@ import { wireTasters } from '../io/tasters.js';
 import { gatherData } from '../engines/data-export.js';
 import { endTour, nameInput, openDemo, startNewBench, startTour, tour, TOURS, tourTick, wireTours } from './tours.js';
 import { modAsk, modLoad, modPrepare, modReset, wireMods } from '../io/mods.js';
-import { FW, TW, WORKERS_OK, fieldWorker, fwMismatch, fwRequest, newAppWorker } from '../page/workers.js';
+import { FW, TW, WORKERS_OK, fieldWorker, fwMismatch, fwProject, fwRequest, newAppWorker } from '../page/workers.js';
+import { scatterPlain, scatterPrep } from '../engines/scatter.js';
 import { drawingSvgText, drawingsPdfBlob, lensDrawings } from './lens-drawing.js';
 import { partFiles } from './lens-make.js';
 import { reportPdfBlob } from './lens-report.js';
@@ -399,6 +400,25 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
         w.onerror = e => { e.preventDefault(); done({ ok: false, err: e.message }); };
         w.onmessage = e => done(e.data.ok ? { ok: true, rays: e.data.out.rays.length } : { ok: false, err: e.data.err });
         w.postMessage({ id: 1, kind: 'trace', proj: JSON.stringify(serialize()), args: { key: 'probe' } });
+      });
+    },
+    // a particle's scattering run in a worker of its own, as the Scattering tab runs it (ui/scatter.js): the progress it
+    // sends and its answer (same: worked out for the bench as the page has it); stop: end it at the first progress of that stage
+    scatterProbe(name, opts) {
+      return new Promise(resolve => {
+        const el = this.byName(name), J = el && scatterPrep(el);
+        if (!WORKERS_OK || !J) { resolve({ ok: false, err: J ? 'no worker here' : 'no particle, or no beam' }); return; }
+        const w = newAppWorker(), prog = [];
+        let timer = null;
+        const done = r => { clearTimeout(timer); w.terminate(); resolve(Object.assign({ prog }, r)); };
+        timer = setTimeout(() => done({ ok: false, err: 'no answer' }), 120000);
+        w.onerror = e => { e.preventDefault(); done({ ok: false, err: e.message }); };
+        w.onmessage = e => {
+          const m = e.data;
+          if (m.prog) { prog.push(m.prog); if (opts && opts.stop === m.prog.stage) done({ ok: true, stopped: true }); return; }
+          done(m.ok ? { ok: true, same: m.out.key === J.key, S: m.out.S && scatterPlain(m.out.S) } : { ok: false, err: m.err });
+        };
+        w.postMessage({ id: 1, kind: 'scatter', proj: fwProject(), args: { id: el.id } });
       });
     },
     // the bench's field as drawn: each drawn stretch's half-width where it starts and ends

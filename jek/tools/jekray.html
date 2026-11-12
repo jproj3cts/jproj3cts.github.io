@@ -6111,6 +6111,536 @@ const ATOMS = {
   K41: { name: 'Potassium 41, enriched', el: 'K', iso: [['K41', 1]] },
 };
 const KB = 1.380649e-23, AMU = 1.66053906660e-27, HPL = 6.62607015e-34, C_SI = 299792458;
+/* ==========================================================================
+   Lorenz-Mie scattering by a homogeneous sphere in a plane wave
+   The notation and the sign of time are Bohren and Huffman's (Absorption and Scattering of
+   Light by Small Particles, 1983, chapter 4): fields go as exp(-i w t), the relative index is
+   m = n + i kappa with kappa >= 0 for an absorber, the size parameter x = k a with k the wave
+   number in the medium. The coefficients
+     a_n = ((D_n/m + n/x) psi_n - psi_{n-1}) / ((D_n/m + n/x) xi_n - xi_{n-1}),
+     b_n = ((m D_n + n/x) psi_n - psi_{n-1}) / ((m D_n + n/x) xi_n - xi_{n-1}),
+   are summed to Wiscombe's cutoff (Appl. Opt. 19, 1505 (1980)). The logarithmic derivative
+   D_n(m x) is carried downward from well above the cutoff and |m x|, where any start is forgotten; the
+   Riccati-Bessel psi_n(x) likewise downward (Miller's way) and scaled to psi_0 or psi_1, so
+   nothing is lost for a tiny sphere; chi_n upward, the way it grows.
+   Pure: nothing of the bench here.
+   ========================================================================== */
+
+/* how many terms: Wiscombe's criterion */
+function mieTerms(x) {
+  const c = Math.cbrt(x);
+  return Math.max(1, Math.ceil(x < 8 ? x + 4 * c + 1 : x < 4200 ? x + 4.05 * c + 2 : x + 4 * c + 2));
+}
+/* the coefficients of a sphere of size parameter x and relative index mr + i mi:
+   { n, x, ar, ai, br, bi }, the arrays indexed 1..n */
+function mieCoeffs(x, mr, mi = 0) {
+  if (!(x > 0)) throw new Error('mieCoeffs: the size parameter must be positive');
+  const n = mieTerms(x), zr = mr * x, zi = mi * x;
+  // D_n(z) downward: D_{n-1} = n/z - 1/(D_n + n/z). The start's error dies away only while the order is above |z|,
+  // and slowly just above it (by exp(-(4 sqrt 2 / 3) |z| e^1.5) over orders up to |z| (1 + e)): starting 8 |z|^(1/3) + 16
+  // orders up leaves none of it. (Bohren and Huffman's 15 orders leave 1e-6 to 1e-4 of the efficiencies for a large
+  // sphere that absorbs little, which the validation's independent reference showed.)
+  const za = Math.hypot(zr, zi), nmx = Math.ceil(Math.max(n, za) + 8 * Math.cbrt(za)) + 16, z2 = zr * zr + zi * zi;
+  const Dr = new Float64Array(n + 1), Di = new Float64Array(n + 1);
+  let dr = 0, di = 0;
+  for (let j = nmx; j >= 1; j--) {
+    const qr = j * zr / z2, qi = -j * zi / z2;                // j / z
+    const sr = dr + qr, si = di + qi, s2 = sr * sr + si * si;
+    dr = qr - sr / s2; di = qi + si / s2;
+    if (j - 1 <= n) { Dr[j - 1] = dr; Di[j - 1] = di; }
+  }
+  // psi_n(x) downward, unnormalised, then scaled by whichever of psi_0, psi_1 is the larger
+  const N = n + 16 + Math.ceil(x), psi = new Float64Array(n + 1);
+  {
+    let p1 = 0, p0 = 1e-200;                                  // p_{j+1}, p_j
+    const raw = new Float64Array(n + 2);
+    for (let j = N; j >= 1; j--) {
+      const pm = (2 * j + 1) / x * p0 - p1;                   // p_{j-1}
+      p1 = p0; p0 = pm;
+      if (Math.abs(p0) > 1e250) { p0 *= 1e-250; p1 *= 1e-250; for (let q = j; q <= n + 1; q++) raw[q] *= 1e-250; }
+      if (j - 1 <= n + 1) raw[j - 1] = p0;
+    }
+    const s0 = Math.sin(x), s1 = Math.sin(x) / x - Math.cos(x);
+    const sc = Math.abs(raw[0]) >= Math.abs(raw[1]) ? s0 / raw[0] : s1 / raw[1];
+    for (let j = 0; j <= n; j++) psi[j] = raw[j] * sc;
+  }
+  // chi_n(x) = -x y_n(x) upward; xi_n = psi_n - i chi_n
+  const chi = new Float64Array(n + 1);
+  chi[0] = Math.cos(x);
+  if (n >= 1) chi[1] = Math.cos(x) / x + Math.sin(x);
+  for (let j = 2; j <= n; j++) chi[j] = (2 * j - 1) / x * chi[j - 1] - chi[j - 2];
+  const ar = new Float64Array(n + 1), ai = new Float64Array(n + 1), br = new Float64Array(n + 1), bi = new Float64Array(n + 1);
+  const m2 = mr * mr + mi * mi;
+  for (let j = 1; j <= n; j++) {
+    // D/m + j/x and m D + j/x
+    const ur = (Dr[j] * mr + Di[j] * mi) / m2 + j / x, ui = (Di[j] * mr - Dr[j] * mi) / m2;
+    const vr = mr * Dr[j] - mi * Di[j] + j / x, vi = mr * Di[j] + mi * Dr[j];
+    const p = psi[j], p0 = psi[j - 1], c = -chi[j], c0 = -chi[j - 1];   // xi = p + i c
+    const one = (wr, wi) => {
+      const nr = wr * p - p0, ni = wi * p;
+      const er = wr * p - wi * c - p0, ei = wr * c + wi * p - c0, e2 = er * er + ei * ei;
+      return [(nr * er + ni * ei) / e2, (ni * er - nr * ei) / e2];
+    };
+    const A = one(ur, ui), B = one(vr, vi);
+    ar[j] = A[0]; ai[j] = A[1]; br[j] = B[0]; bi[j] = B[1];
+  }
+  return { n, x, ar, ai, br, bi };
+}
+/* the efficiencies (cross-sections over pi a^2) and the asymmetry g = <cos theta>.
+   back is Bohren and Huffman's backscattering efficiency, 4 pi dC/dOmega(180) / (pi a^2) */
+function mieQ(C) {
+  const { n, x, ar, ai, br, bi } = C;
+  let ext = 0, sca = 0, gs = 0, bkr = 0, bki = 0;
+  for (let j = 1; j <= n; j++) {
+    const f = 2 * j + 1;
+    ext += f * (ar[j] + br[j]);
+    sca += f * (ar[j] * ar[j] + ai[j] * ai[j] + br[j] * br[j] + bi[j] * bi[j]);
+    gs += f / (j * (j + 1)) * (ar[j] * br[j] + ai[j] * bi[j]);
+    if (j < n) gs += j * (j + 2) / (j + 1) * (ar[j] * ar[j + 1] + ai[j] * ai[j + 1] + br[j] * br[j + 1] + bi[j] * bi[j + 1]);
+    const s = j % 2 ? -1 : 1;
+    bkr += s * f * (ar[j] - br[j]); bki += s * f * (ai[j] - bi[j]);
+  }
+  const q = 2 / (x * x), Qsca = q * sca, Qext = q * ext;
+  return { Qext, Qsca, Qabs: Qext - Qsca, Qback: (bkr * bkr + bki * bki) / (x * x), g: Qsca > 0 ? 2 * q * gs / Qsca : 0 };
+}
+/* the amplitude functions at cos(theta) = mu: [S1 re, S1 im, S2 re, S2 im] */
+function mieS(C, mu, out) {
+  const { n, ar, ai, br, bi } = C;
+  let s1r = 0, s1i = 0, s2r = 0, s2i = 0, pi0 = 0, pi1 = 1;
+  for (let j = 1; j <= n; j++) {
+    const tau = j * mu * pi1 - (j + 1) * pi0, f = (2 * j + 1) / (j * (j + 1));
+    s1r += f * (ar[j] * pi1 + br[j] * tau); s1i += f * (ai[j] * pi1 + bi[j] * tau);
+    s2r += f * (ar[j] * tau + br[j] * pi1); s2i += f * (ai[j] * tau + bi[j] * pi1);
+    const pn = ((2 * j + 1) * mu * pi1 - (j + 1) * pi0) / j;
+    pi0 = pi1; pi1 = pn;
+  }
+  const o = out || [0, 0, 0, 0];
+  o[0] = s1r; o[1] = s1i; o[2] = s2r; o[3] = s2i;
+  return o;
+}
+/* S1 and S2 on an even grid of the angle, for sums over many plane waves: { n, d, t } with
+   t[4 i] the four numbers at theta = i d */
+function mieTable(C, nAng) {
+  const n = nAng || Math.max(2881, 96 * C.n + 1), d = Math.PI / (n - 1), t = new Float64Array(4 * n), o = [0, 0, 0, 0];
+  for (let i = 0; i < n; i++) { mieS(C, Math.cos(i * d), o); t[4 * i] = o[0]; t[4 * i + 1] = o[1]; t[4 * i + 2] = o[2]; t[4 * i + 3] = o[3]; }
+  return { n, d, t };
+}
+/* ==========================================================================
+   The discrete dipole approximation: a particle of any shape as point dipoles on a cubic
+   lattice, each polarised by the incident field and by every other dipole's field
+   (Purcell and Pennypacker 1973; Draine, Astrophys. J. 333, 848 (1988)).
+   Fields go as exp(-i w t); lengths in metres; k is the wave number in the medium and
+   m = n + i kappa the particle's index relative to it. Units are the Gaussian ones the
+   method is written in: a dipole p = alpha E with alpha a volume, its field
+     E(r) = e^{ikr}/r [ k^2 (r^ x p) x r^ + (1 - ikr)/r^2 (3 r^ (r^.p) - p) ],
+   so with E in V/m a far field is F e^{ikr}/r with F = k^2 (1 - r^r^) sum p_j e^{-ik r^.r_j}
+   in volts, and cross-sections come out in m^2 whatever the unit of E.
+   The polarisability is the lattice dispersion relation's (Draine and Goodman, Astrophys. J.
+   405, 685 (1993)): the Clausius-Mossotti value corrected to order (kd)^2 so that an infinite
+   lattice of these dipoles carries a wave of the material's own index, with the radiative
+   reaction -(2/3) i (kd)^3. The equations (1/alpha) p_j - sum_{k != j} G_jk p_k = E_inc,j
+   are solved by BiCGStab; the product is the direct one, O(N^2), each pair's tensor read from
+   a table by the pair's lattice offset.
+   Pure: nothing of the bench here.
+   ========================================================================== */
+
+const DDA_SHAPES = ['sphere', 'cylinder', 'capsule', 'spheroid'];
+/* a shape's volume (m^3): D its diameter, L its whole length along its axis (a sphere has only D) */
+function ddaVolume(shape, D, L) {
+  if (shape === 'cylinder') return Math.PI / 4 * D * D * L;
+  if (shape === 'capsule') { const c = Math.max(0, L - D); return Math.PI / 4 * D * D * c + Math.PI / 6 * D * D * D; }
+  if (shape === 'spheroid') return Math.PI / 6 * D * D * L;
+  return Math.PI / 6 * D * D * D;
+}
+/* whether a point of the body frame (z along the axis, the origin at the centre) is inside */
+function ddaInside(shape, D, L, x, y, z) {
+  const a = D / 2, r2 = x * x + y * y;
+  if (shape === 'cylinder') return r2 <= a * a && Math.abs(z) <= L / 2;
+  if (shape === 'capsule') { const c = Math.max(0, L - D) / 2, dz = Math.max(0, Math.abs(z) - c); return r2 + dz * dz <= a * a; }
+  if (shape === 'spheroid') return r2 / (a * a) + z * z / (L * L / 4) <= 1;
+  return r2 + z * z <= a * a;
+}
+/* The lattice. The spacing asked for is d; the sites inside the shape are kept, and the
+   spacing then set so that N d^3 is the shape's true volume (the shape's outline is the
+   lattice's, a little jagged; its volume is exact). Returns { N, d, nx, ny, nz, ix, iy, iz }
+   with the sites' whole-number places, and x, y, z their body-frame positions (m). */
+function ddaLattice(shape, D, L, d0) {
+  const Lz = shape === 'sphere' ? D : L;
+  const nx = Math.max(1, Math.round(D / d0)), nz = Math.max(1, Math.round(Lz / d0));
+  // the lattice is centred on the body: sites at (i + 1/2 - n/2) d, d fitted to each extent
+  const dx = D / nx, dz = Lz / nz, ix = [], iy = [], iz = [];
+  for (let k = 0; k < nz; k++) for (let j = 0; j < nx; j++) for (let i = 0; i < nx; i++) {
+    const x = (i + 0.5 - nx / 2) * dx, y = (j + 0.5 - nx / 2) * dx, z = (k + 0.5 - nz / 2) * dz;
+    // (dx and dz differ by a rounding only: the test is made on the shape as drawn, the lattice then made cubic)
+    if (ddaInside(shape, D, Lz, x, y, z)) { ix.push(i); iy.push(j); iz.push(k); }
+  }
+  const N = ix.length;
+  if (!N) return { N: 1, d: Math.cbrt(ddaVolume(shape, D, Lz)), nx: 1, ny: 1, nz: 1, ix: Int32Array.of(0), iy: Int32Array.of(0), iz: Int32Array.of(0), x: Float64Array.of(0), y: Float64Array.of(0), z: Float64Array.of(0) };
+  const d = Math.cbrt(ddaVolume(shape, D, Lz) / N);
+  const X = new Float64Array(N), Y = new Float64Array(N), Z = new Float64Array(N);
+  for (let q = 0; q < N; q++) { X[q] = (ix[q] + 0.5 - nx / 2) * d; Y[q] = (iy[q] + 0.5 - nx / 2) * d; Z[q] = (iz[q] + 0.5 - nz / 2) * d; }
+  return { N, d, nx, ny: nx, nz, ix: Int32Array.from(ix), iy: Int32Array.from(iy), iz: Int32Array.from(iz), x: X, y: Y, z: Z };
+}
+/* The spacing for a run: |m| k d <= 0.5 (the phase across a cell, inside the material), and
+   at least `across` dipoles over the smallest dimension so that its outline is drawn; no
+   more than nMax dipoles, the spacing opened out to hold that. Returns the lattice with
+   mkd, across (as made), coarse (|m| k d above 0.5, or fewer than 6 across) and capped. */
+function ddaPlan(shape, D, L, k, mAbs, opts) {
+  const o = opts || {}, across = o.across || 12, nMax = o.nMax || 12000;
+  const small = Math.min(D, shape === 'sphere' ? D : L), V = ddaVolume(shape, D, shape === 'sphere' ? D : L);
+  let d = Math.min(0.5 / (mAbs * k), small / across), capped = false;
+  if (V / (d * d * d) > nMax) { d = Math.cbrt(V / nMax); capped = true; }
+  let lat = ddaLattice(shape, D, L, d);
+  // (rounding the extents to whole cells can overshoot the cap a little: open out once more)
+  for (let it = 0; it < 4 && lat.N > nMax * 1.05; it++) { d *= Math.cbrt(lat.N / nMax) * 1.01; lat = ddaLattice(shape, D, L, d); capped = true; }
+  const mkd = mAbs * k * lat.d, got = small / lat.d;
+  return Object.assign(lat, { mkd, across: got, capped, coarse: mkd > 0.5 + 1e-9 || got < 5.5 });
+}
+/* The polarisability of one cell, [re, im] (m^3). how: 'ldr' the lattice dispersion relation
+   (dir the light's direction and pol its polarisation, unit vectors of the body frame; pol
+   may be complex, [xr, xi, yr, yi, zr, zi]), 'cm' Clausius-Mossotti with the radiative
+   reaction alone */
+function ddaAlpha(mr, mi, k, d, how, dir, pol) {
+  const er = mr * mr - mi * mi, ei = 2 * mr * mi;                       // eps = m^2
+  // (eps - 1) / (eps + 2)
+  const nr = er - 1, ni = ei, dr = er + 2, di = ei, d2 = dr * dr + di * di;
+  const cr = (nr * dr + ni * di) / d2, ci = (ni * dr - nr * di) / d2;
+  const f = 3 * d * d * d / (4 * Math.PI), a0r = f * cr, a0i = f * ci;
+  const kd = k * d;
+  let qr = 0, qi = -(2 / 3) * kd * kd * kd;                              // the bracket's correction
+  if (how !== 'cm') {
+    let S = 0;
+    if (dir && pol) for (let c = 0; c < 3; c++) S += dir[c] * dir[c] * (pol.length === 6 ? pol[2 * c] * pol[2 * c] + pol[2 * c + 1] * pol[2 * c + 1] : pol[c] * pol[c]);
+    const b1 = -1.8915316, b2 = 0.1648469, b3 = -1.7700004;
+    qr += (b1 + er * (b2 + b3 * S)) * kd * kd; qi += ei * (b2 + b3 * S) * kd * kd;
+  }
+  // alpha = a0 / (1 + (a0 / d^3) q)
+  const sr = a0r / (d * d * d), si = a0i / (d * d * d);
+  const br = 1 + sr * qr - si * qi, bi = sr * qi + si * qr, b2n = br * br + bi * bi;
+  return [(a0r * br + a0i * bi) / b2n, (a0i * br - a0r * bi) / b2n];
+}
+/* every pair's tensor by lattice offset: 12 numbers an offset (xx, xy, xz, yy, yz, zz, each
+   re and im), the offset (a, b, c) at ((c + nz - 1) sy + (b + ny - 1)) sx + (a + nx - 1) */
+function ddaTable(lat, k) {
+  const { nx, ny, nz, d } = lat, sx = 2 * nx - 1, sy = 2 * ny - 1, sz = 2 * nz - 1;
+  const T = new Float64Array(12 * sx * sy * sz);
+  let o = 0;
+  for (let c = 1 - nz; c < nz; c++) for (let b = 1 - ny; b < ny; b++) for (let a = 1 - nx; a < nx; a++, o += 12) {
+    if (!a && !b && !c) continue;
+    const x = a * d, y = b * d, z = c * d, r = Math.sqrt(x * x + y * y + z * z), ux = x / r, uy = y / r, uz = z / r;
+    const kr = k * r, er = Math.cos(kr) / r, ei = Math.sin(kr) / r;
+    // e^{ikr}/r [ A (1 - uu) + B (3 uu - 1) ],  A = k^2,  B = (1 - ikr) / r^2
+    const A = k * k, Br = 1 / (r * r), Bi = -kr / (r * r);
+    const put = (q, uu, same) => {
+      const tr = (same ? A * (1 - uu) : -A * uu) + Br * (3 * uu - (same ? 1 : 0)), ti = Bi * (3 * uu - (same ? 1 : 0));
+      T[o + 2 * q] = er * tr - ei * ti; T[o + 2 * q + 1] = er * ti + ei * tr;
+    };
+    put(0, ux * ux, true); put(1, ux * uy, false); put(2, ux * uz, false); put(3, uy * uy, true); put(4, uy * uz, false); put(5, uz * uz, true);
+  }
+  return { T, sx, sy, sz };
+}
+/* A solver for one lattice: { lat, solve*(E, opts), apply(p, out) }.
+   solve is a generator (so a long run can report and be stopped between steps): it yields
+   { iter, resid } each iteration and returns { p, iters, resid, converged }. E and p are
+   Float64Array(6 N): each dipole's x, y, z, re then im, in the body frame. */
+function ddaSolver(lat, k, alpha) {
+  const N = lat.N, { T, sx, sy } = ddaTable(lat, k);
+  const lin = new Int32Array(N), c0 = ((lat.nz - 1) * sy + (lat.ny - 1)) * sx + (lat.nx - 1);
+  for (let j = 0; j < N; j++) lin[j] = (lat.iz[j] * sy + lat.iy[j]) * sx + lat.ix[j];
+  const a2 = alpha[0] * alpha[0] + alpha[1] * alpha[1], ir = alpha[0] / a2, ii = -alpha[1] / a2;     // 1 / alpha
+  // out = (1/alpha) p - sum G p
+  const apply = (p, out) => {
+    for (let j = 0; j < N; j++) {
+      const lj = lin[j] + c0;
+      let xr = 0, xi = 0, yr = 0, yi = 0, zr = 0, zi = 0;
+      for (let q = 0; q < N; q++) {
+        if (q === j) continue;
+        const o = 12 * (lj - lin[q]), b = 6 * q;
+        const pxr = p[b], pxi = p[b + 1], pyr = p[b + 2], pyi = p[b + 3], pzr = p[b + 4], pzi = p[b + 5];
+        const g0 = T[o], g1 = T[o + 1], g2 = T[o + 2], g3 = T[o + 3], g4 = T[o + 4], g5 = T[o + 5], g6 = T[o + 6], g7 = T[o + 7], g8 = T[o + 8], g9 = T[o + 9], g10 = T[o + 10], g11 = T[o + 11];
+        xr += g0 * pxr - g1 * pxi + g2 * pyr - g3 * pyi + g4 * pzr - g5 * pzi;
+        xi += g0 * pxi + g1 * pxr + g2 * pyi + g3 * pyr + g4 * pzi + g5 * pzr;
+        yr += g2 * pxr - g3 * pxi + g6 * pyr - g7 * pyi + g8 * pzr - g9 * pzi;
+        yi += g2 * pxi + g3 * pxr + g6 * pyi + g7 * pyr + g8 * pzi + g9 * pzr;
+        zr += g4 * pxr - g5 * pxi + g8 * pyr - g9 * pyi + g10 * pzr - g11 * pzi;
+        zi += g4 * pxi + g5 * pxr + g8 * pyi + g9 * pyr + g10 * pzi + g11 * pzr;
+      }
+      const b = 6 * j;
+      out[b] = ir * p[b] - ii * p[b + 1] - xr; out[b + 1] = ir * p[b + 1] + ii * p[b] - xi;
+      out[b + 2] = ir * p[b + 2] - ii * p[b + 3] - yr; out[b + 3] = ir * p[b + 3] + ii * p[b + 2] - yi;
+      out[b + 4] = ir * p[b + 4] - ii * p[b + 5] - zr; out[b + 5] = ir * p[b + 5] + ii * p[b + 4] - zi;
+    }
+    return out;
+  };
+  // <a, b> = sum conj(a) b
+  const dot = (a, b) => { let r = 0, i = 0; for (let q = 0; q < a.length; q += 2) { r += a[q] * b[q] + a[q + 1] * b[q + 1]; i += a[q] * b[q + 1] - a[q + 1] * b[q]; } return [r, i]; };
+  const nrm = a => { let s = 0; for (let q = 0; q < a.length; q++) s += a[q] * a[q]; return Math.sqrt(s); };
+  const axpy = (y, a, x) => { for (let q = 0; q < y.length; q += 2) { y[q] += a[0] * x[q] - a[1] * x[q + 1]; y[q + 1] += a[0] * x[q + 1] + a[1] * x[q]; } };
+  const div = (a, b) => { const d = b[0] * b[0] + b[1] * b[1] || 1e-300; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
+  const mul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+  function* solveGen(E, opts) {
+    const tol = (opts && opts.tol) || 1e-5, maxIter = (opts && opts.maxIter) || 400, M = 6 * N;
+    const x = new Float64Array(M), r = Float64Array.from(E), bn = nrm(E) || 1;
+    // start from each dipole alone in the field: p = alpha E
+    for (let q = 0; q < M; q += 2) { x[q] = alpha[0] * E[q] - alpha[1] * E[q + 1]; x[q + 1] = alpha[0] * E[q + 1] + alpha[1] * E[q]; }
+    const t = new Float64Array(M);
+    apply(x, t);
+    for (let q = 0; q < M; q++) r[q] = E[q] - t[q];
+    const r0 = Float64Array.from(r), pv = new Float64Array(M), v = new Float64Array(M), s = new Float64Array(M);
+    let rho = [1, 0], al = [1, 0], om = [1, 0], resid = nrm(r) / bn, iter = 0;
+    while (resid > tol && iter < maxIter) {
+      iter++;
+      const rho1 = dot(r0, r);
+      if (rho1[0] * rho1[0] + rho1[1] * rho1[1] < 1e-300) break;
+      const beta = mul(div(rho1, rho), div(al, om));
+      // pv = r + beta (pv - om v)
+      for (let q = 0; q < M; q += 2) {
+        const ar = pv[q] - (om[0] * v[q] - om[1] * v[q + 1]), ai = pv[q + 1] - (om[0] * v[q + 1] + om[1] * v[q]);
+        pv[q] = r[q] + beta[0] * ar - beta[1] * ai; pv[q + 1] = r[q + 1] + beta[0] * ai + beta[1] * ar;
+      }
+      apply(pv, v);
+      al = div(rho1, dot(r0, v));
+      s.set(r); axpy(s, [-al[0], -al[1]], v);
+      if (nrm(s) / bn <= tol) { axpy(x, al, pv); r.set(s); resid = nrm(r) / bn; yield { iter, resid }; break; }
+      apply(s, t);
+      const tt = dot(t, t);
+      om = div(dot(t, s), tt);
+      axpy(x, al, pv); axpy(x, om, s);
+      r.set(s); axpy(r, [-om[0], -om[1]], t);
+      rho = rho1;
+      resid = nrm(r) / bn;
+      yield { iter, resid };
+    }
+    return { p: x, iters: iter, resid, converged: resid <= tol };
+  }
+  return { lat, k, alpha, apply, solve: solveGen };
+}
+/* run a solve to its end without stopping */
+function ddaSolveNow(S, E, opts) {
+  const g = S.solve(E, opts);
+  let r = g.next();
+  while (!r.done) r = g.next();
+  return r.value;
+}
+/* A plane wave on the lattice: E(r) = e0 e^{ik dir.r}, e0 = [xr, xi, yr, yi, zr, zi] */
+function ddaPlaneWave(lat, k, dir, e0) {
+  const E = new Float64Array(6 * lat.N);
+  for (let j = 0; j < lat.N; j++) {
+    const ph = k * (dir[0] * lat.x[j] + dir[1] * lat.y[j] + dir[2] * lat.z[j]), c = Math.cos(ph), s = Math.sin(ph);
+    for (let q = 0; q < 3; q++) { E[6 * j + 2 * q] = e0[2 * q] * c - e0[2 * q + 1] * s; E[6 * j + 2 * q + 1] = e0[2 * q] * s + e0[2 * q + 1] * c; }
+  }
+  return E;
+}
+/* The far field's amplitude F (volts for E in V/m) in each direction: dirs = Float64Array(3 n)
+   of unit vectors (body frame), out Float64Array(6 n) */
+function ddaFar(lat, k, p, dirs, out) {
+  const n = dirs.length / 3, F = out || new Float64Array(6 * n), N = lat.N, k2 = k * k;
+  for (let i = 0; i < n; i++) {
+    const ux = dirs[3 * i], uy = dirs[3 * i + 1], uz = dirs[3 * i + 2];
+    let xr = 0, xi = 0, yr = 0, yi = 0, zr = 0, zi = 0;
+    for (let j = 0; j < N; j++) {
+      const ph = -k * (ux * lat.x[j] + uy * lat.y[j] + uz * lat.z[j]), c = Math.cos(ph), s = Math.sin(ph), b = 6 * j;
+      xr += p[b] * c - p[b + 1] * s; xi += p[b] * s + p[b + 1] * c;
+      yr += p[b + 2] * c - p[b + 3] * s; yi += p[b + 2] * s + p[b + 3] * c;
+      zr += p[b + 4] * c - p[b + 5] * s; zi += p[b + 4] * s + p[b + 5] * c;
+    }
+    const dr = ux * xr + uy * yr + uz * zr, di = ux * xi + uy * yi + uz * zi;
+    F[6 * i] = k2 * (xr - ux * dr); F[6 * i + 1] = k2 * (xi - ux * di);
+    F[6 * i + 2] = k2 * (yr - uy * dr); F[6 * i + 3] = k2 * (yi - uy * di);
+    F[6 * i + 4] = k2 * (zr - uz * dr); F[6 * i + 5] = k2 * (zi - uz * di);
+  }
+  return F;
+}
+/* What the dipoles take from the light and what they absorb, as areas times |E|^2 (divide by
+   the incident |E0|^2 for cross-sections; times 1 / (2 Z) for powers):
+     ext = 4 pi k sum Im(conj(E_inc) . p),  abs = 4 pi k sum |p|^2 (-Im(1/alpha) - (2/3) k^3) */
+function ddaExtAbs(k, alpha, E, p) {
+  let ext = 0, p2 = 0;
+  for (let q = 0; q < p.length; q += 2) { ext += E[q] * p[q + 1] - E[q + 1] * p[q]; p2 += p[q] * p[q] + p[q + 1] * p[q + 1]; }
+  const a2 = alpha[0] * alpha[0] + alpha[1] * alpha[1], imInv = -alpha[1] / a2;
+  return { ext: 4 * Math.PI * k * ext, abs: 4 * Math.PI * k * p2 * (-imInv - (2 / 3) * k * k * k) };
+}
+/* ==========================================================================
+   Scattered light in the far field: the pieces the three particle models share
+   A far field is E = F(r^) e^{ikr} / r, F in volts for E in V/m, fields as exp(-i w t);
+   the power into a solid angle is |F|^2 / (2 Z) with Z the medium's impedance.
+   The incident light is a set of plane waves, E_o e^{i k d_o.r} about the particle's centre:
+   one for a wide beam, a pupil's worth for a tight focus (engines/scatter.js makes them).
+   Pure: nothing of the bench here.
+   ========================================================================== */
+
+const Z0_OHM = 376.730313668;
+/* Gauss-Legendre nodes and weights on [-1, 1] */
+function gaussLegendre(n) {
+  const x = new Float64Array(n), w = new Float64Array(n);
+  for (let i = 0; i < (n + 1) >> 1; i++) {
+    let z = Math.cos(Math.PI * (i + 0.75) / (n + 0.5)), dp = 1;
+    for (let it = 0; it < 60; it++) {
+      let p0 = 1, p1 = z;
+      for (let j = 2; j <= n; j++) { const p2 = ((2 * j - 1) * z * p1 - (j - 1) * p0) / j; p0 = p1; p1 = p2; }
+      dp = n * (z * p1 - p0) / (z * z - 1);
+      const dz = p1 / dp; z -= dz;
+      if (Math.abs(dz) < 1e-15) break;
+    }
+    {
+      let p0 = 1, p1 = z;
+      for (let j = 2; j <= n; j++) { const p2 = ((2 * j - 1) * z * p1 - (j - 1) * p0) / j; p0 = p1; p1 = p2; }
+      dp = n * (z * p1 - p0) / (z * z - 1);
+    }
+    x[i] = -z; x[n - 1 - i] = z;
+    w[i] = w[n - 1 - i] = 2 / ((1 - z * z) * dp * dp);
+  }
+  return { x, w };
+}
+/* Directions over the whole sphere for integrals and the map: nT Gauss-Legendre nodes in
+   mu = cos(theta) about ez and nP even steps of phi from ex towards ey (ex, ey, ez a right-
+   handed frame). dirs[3 (iT nP + iP)], and w the solid angle each stands for. */
+function sphereGrid(nT, nP, ex, ey, ez) {
+  const g = gaussLegendre(nT), dirs = new Float64Array(3 * nT * nP), w = new Float64Array(nT * nP), phi = new Float64Array(nP);
+  for (let j = 0; j < nP; j++) phi[j] = 2 * Math.PI * j / nP;
+  for (let i = 0; i < nT; i++) {
+    const mu = g.x[i], s = Math.sqrt(1 - mu * mu);
+    for (let j = 0; j < nP; j++) {
+      const c = Math.cos(phi[j]) * s, sn = Math.sin(phi[j]) * s, o = i * nP + j;
+      for (let q = 0; q < 3; q++) dirs[3 * o + q] = c * ex[q] + sn * ey[q] + mu * ez[q];
+      w[o] = g.w[i] * 2 * Math.PI / nP;
+    }
+  }
+  return { nT, nP, mu: g.x, phi, dirs, w };
+}
+/* Directions over a cone of half-angle `half` about a unit axis, with their solid angles */
+function coneGrid(axis, half, nT = 14, nP = 28) {
+  const g = gaussLegendre(nT), c0 = Math.cos(half), dirs = new Float64Array(3 * nT * nP), w = new Float64Array(nT * nP);
+  const t = Math.abs(axis[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0];
+  let ex = [t[1] * axis[2] - t[2] * axis[1], t[2] * axis[0] - t[0] * axis[2], t[0] * axis[1] - t[1] * axis[0]];
+  const l = Math.hypot(ex[0], ex[1], ex[2]); ex = ex.map(v => v / l);
+  const ey = [axis[1] * ex[2] - axis[2] * ex[1], axis[2] * ex[0] - axis[0] * ex[2], axis[0] * ex[1] - axis[1] * ex[0]];
+  for (let i = 0; i < nT; i++) {
+    const mu = c0 + (1 - c0) * 0.5 * (g.x[i] + 1), s = Math.sqrt(Math.max(0, 1 - mu * mu));
+    for (let j = 0; j < nP; j++) {
+      const ph = 2 * Math.PI * (j + 0.5) / nP, c = Math.cos(ph) * s, sn = Math.sin(ph) * s, o = i * nP + j;
+      for (let q = 0; q < 3; q++) dirs[3 * o + q] = c * ex[q] + sn * ey[q] + mu * axis[q];
+      w[o] = g.w[i] * 0.5 * (1 - c0) * 2 * Math.PI / nP;
+    }
+  }
+  return { dirs, w };
+}
+/* A sphere's far field in a set of plane waves, each wave's Mie field turned to its own
+   direction and polarisation and all added as fields (Bohren and Huffman's eq. 4.74 for one):
+     F(r^) = (i / k) sum_o [ S2 (E_o . e_par,i) e_par,s + S1 (E_o . e_perp) e_perp ],
+   e_perp = r^ x d_o / |r^ x d_o| square to the plane of d_o and r^, e_par,i = d_o x e_perp,
+   e_par,s = r^ x e_perp. A wave's phase at the sphere's centre is in its E_o, so a sphere off
+   the focus needs nothing more. tab: mieTable's S1, S2 by angle. waves: { n, d (3 n), E (6 n) }.
+   dirs: 3 n unit vectors. Returns F, 6 numbers a direction (x, y, z, each re and im). */
+function mieFarWaves(tab, k, waves, dirs, out) {
+  const nd = dirs.length / 3, F = out || new Float64Array(6 * nd), nw = waves.n, D = waves.d, E = waves.E, T = tab.t, inv = 1 / tab.d, last = tab.n - 2;
+  for (let i = 0; i < nd; i++) {
+    const rx = dirs[3 * i], ry = dirs[3 * i + 1], rz = dirs[3 * i + 2];
+    let fxr = 0, fxi = 0, fyr = 0, fyi = 0, fzr = 0, fzi = 0;
+    for (let o = 0; o < nw; o++) {
+      const dx = D[3 * o], dy = D[3 * o + 1], dz = D[3 * o + 2], b = 6 * o;
+      const c = Math.max(-1, Math.min(1, rx * dx + ry * dy + rz * dz));
+      // S1, S2 at this angle, between the table's rows
+      const u = Math.acos(c) * inv, i0 = Math.min(last, u | 0), f = u - i0, q = 4 * i0;
+      const s1r = T[q] + f * (T[q + 4] - T[q]), s1i = T[q + 1] + f * (T[q + 5] - T[q + 1]), s2r = T[q + 2] + f * (T[q + 6] - T[q + 2]), s2i = T[q + 3] + f * (T[q + 7] - T[q + 3]);
+      let px = ry * dz - rz * dy, py = rz * dx - rx * dz, pz = rx * dy - ry * dx;      // r x d
+      const s2 = px * px + py * py + pz * pz;
+      if (s2 < 1e-18) {
+        // straight on or straight back: any e_perp does, and both give S1 E
+        fxr += s1r * E[b] - s1i * E[b + 1]; fxi += s1r * E[b + 1] + s1i * E[b];
+        fyr += s1r * E[b + 2] - s1i * E[b + 3]; fyi += s1r * E[b + 3] + s1i * E[b + 2];
+        fzr += s1r * E[b + 4] - s1i * E[b + 5]; fzi += s1r * E[b + 5] + s1i * E[b + 4];
+        continue;
+      }
+      const is = 1 / Math.sqrt(s2); px *= is; py *= is; pz *= is;
+      const ax = dy * pz - dz * py, ay = dz * px - dx * pz, az = dx * py - dy * px;      // d x e_perp
+      const gx = ry * pz - rz * py, gy = rz * px - rx * pz, gz = rx * py - ry * px;      // r x e_perp
+      const ear = E[b] * ax + E[b + 2] * ay + E[b + 4] * az, eai = E[b + 1] * ax + E[b + 3] * ay + E[b + 5] * az;
+      const epr = E[b] * px + E[b + 2] * py + E[b + 4] * pz, epi = E[b + 1] * px + E[b + 3] * py + E[b + 5] * pz;
+      const ar = s2r * ear - s2i * eai, ai = s2r * eai + s2i * ear, br = s1r * epr - s1i * epi, bi = s1r * epi + s1i * epr;
+      fxr += ar * gx + br * px; fxi += ai * gx + bi * px;
+      fyr += ar * gy + br * py; fyi += ai * gy + bi * py;
+      fzr += ar * gz + br * pz; fzi += ai * gz + bi * pz;
+    }
+    // times i / k
+    F[6 * i] = -fxi / k; F[6 * i + 1] = fxr / k; F[6 * i + 2] = -fyi / k; F[6 * i + 3] = fyr / k; F[6 * i + 4] = -fzi / k; F[6 * i + 5] = fzr / k;
+  }
+  return F;
+}
+/* one plane wave's Mie far field, summed in full at each direction (no table): for checks */
+function mieFarExact(C, k, d, E, dirs) {
+  const n = dirs.length / 3, F = new Float64Array(6 * n), S = [0, 0, 0, 0];
+  for (let i = 0; i < n; i++) {
+    const r = [dirs[3 * i], dirs[3 * i + 1], dirs[3 * i + 2]], c = Math.max(-1, Math.min(1, r[0] * d[0] + r[1] * d[1] + r[2] * d[2]));
+    mieS(C, c, S);
+    let p = [r[1] * d[2] - r[2] * d[1], r[2] * d[0] - r[0] * d[2], r[0] * d[1] - r[1] * d[0]];
+    const l = Math.hypot(p[0], p[1], p[2]);
+    if (l < 1e-9) { const t = Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0]; p = [t[1] * d[2] - t[2] * d[1], t[2] * d[0] - t[0] * d[2], t[0] * d[1] - t[1] * d[0]]; const l2 = Math.hypot(p[0], p[1], p[2]); p = p.map(v => v / l2); }
+    else p = p.map(v => v / l);
+    const a = [d[1] * p[2] - d[2] * p[1], d[2] * p[0] - d[0] * p[2], d[0] * p[1] - d[1] * p[0]], g = [r[1] * p[2] - r[2] * p[1], r[2] * p[0] - r[0] * p[2], r[0] * p[1] - r[1] * p[0]];
+    const ea = [E[0] * a[0] + E[2] * a[1] + E[4] * a[2], E[1] * a[0] + E[3] * a[1] + E[5] * a[2]], ep = [E[0] * p[0] + E[2] * p[1] + E[4] * p[2], E[1] * p[0] + E[3] * p[1] + E[5] * p[2]];
+    const A = [S[2] * ea[0] - S[3] * ea[1], S[2] * ea[1] + S[3] * ea[0]], B = [S[0] * ep[0] - S[1] * ep[1], S[0] * ep[1] + S[1] * ep[0]];
+    for (let q = 0; q < 3; q++) { const re = A[0] * g[q] + B[0] * p[q], im = A[1] * g[q] + B[1] * p[q]; F[6 * i + 2 * q] = -im / k; F[6 * i + 2 * q + 1] = re / k; }
+  }
+  return F;
+}
+/* a point dipole's far field, F = k^2 (p - r^ (r^.p)): p = [xr, xi, yr, yi, zr, zi] in the
+   Gaussian measure of core/dda.js (p = alpha E, alpha a volume) */
+function dipoleFar(k, p, dirs, out) {
+  const n = dirs.length / 3, F = out || new Float64Array(6 * n), k2 = k * k;
+  for (let i = 0; i < n; i++) {
+    const ux = dirs[3 * i], uy = dirs[3 * i + 1], uz = dirs[3 * i + 2];
+    const dr = ux * p[0] + uy * p[2] + uz * p[4], di = ux * p[1] + uy * p[3] + uz * p[5];
+    F[6 * i] = k2 * (p[0] - ux * dr); F[6 * i + 1] = k2 * (p[1] - ux * di);
+    F[6 * i + 2] = k2 * (p[2] - uy * dr); F[6 * i + 3] = k2 * (p[3] - uy * di);
+    F[6 * i + 4] = k2 * (p[4] - uz * dr); F[6 * i + 5] = k2 * (p[5] - uz * di);
+  }
+  return F;
+}
+/* A small particle's polarisability (the Rayleigh level), a volume, along its axis and
+   across it: [[re, im] along, [re, im] across]. A spheroid's is exact in the static limit
+   (its depolarisation factors); a cylinder or capsule is taken as the spheroid of its volume
+   and aspect. Each with the radiative reaction, alpha / (1 - (2/3) i k^3 alpha), which gives
+   it the scattering it must have. V the volume (m^3), aspect = length / diameter. */
+function smallAlpha(V, aspect, mr, mi, k) {
+  let Lz = 1 / 3;
+  if (aspect > 1 + 1e-9) { const e = Math.sqrt(1 - 1 / (aspect * aspect)); Lz = (1 - e * e) / (e * e) * (Math.log((1 + e) / (1 - e)) / (2 * e) - 1); }
+  else if (aspect < 1 - 1e-9) { const e = Math.sqrt(1 - aspect * aspect); Lz = (1 - Math.sqrt(1 - e * e) / e * Math.asin(e)) / (e * e); }
+  const er = mr * mr - mi * mi - 1, ei = 2 * mr * mi;                    // eps - 1
+  const one = L => {
+    // (V / 4 pi) (eps - 1) / (1 + L (eps - 1))
+    const dr = 1 + L * er, di = L * ei, d2 = dr * dr + di * di, f = V / (4 * Math.PI);
+    const ar = f * (er * dr + ei * di) / d2, ai = f * (ei * dr - er * di) / d2;
+    // over 1 - (2/3) i k^3 alpha
+    const g = (2 / 3) * k * k * k, br = 1 + g * ai, bi = -g * ar, b2 = br * br + bi * bi;
+    return [(ar * br + ai * bi) / b2, (ai * br - ar * bi) / b2];
+  };
+  return [one(Lz), one((1 - Lz) / 2)];
+}
+/* a dipole's cross-sections in a plane wave it answers with p = alpha E (alpha [re, im] along the field) */
+const dipoleCross = (k, alpha) => {
+  const sca = 8 * Math.PI / 3 * k ** 4 * (alpha[0] * alpha[0] + alpha[1] * alpha[1]), ext = 4 * Math.PI * k * alpha[1];
+  return { sca, ext, abs: ext - sca };
+};
+/* |F|^2 of each direction, summed over the fields given (launches add as powers) */
+function farPower(Fs, n, out) {
+  const I = out || new Float64Array(n);
+  for (const F of Fs) for (let i = 0; i < n; i++) { const o = 6 * i; I[i] += F[o] * F[o] + F[o + 1] * F[o + 1] + F[o + 2] * F[o + 2] + F[o + 3] * F[o + 3] + F[o + 4] * F[o + 4] + F[o + 5] * F[o + 5]; }
+  return I;
+}
+/* the part of it polarised along a fixed unit vector */
+function farPowerAlong(Fs, n, v) {
+  const I = new Float64Array(n);
+  for (const F of Fs) for (let i = 0; i < n; i++) { const o = 6 * i, re = F[o] * v[0] + F[o + 2] * v[1] + F[o + 4] * v[2], im = F[o + 1] * v[0] + F[o + 3] * v[1] + F[o + 5] * v[2]; I[i] += re * re + im * im; }
+  return I;
+}
+/* Over a sphereGrid: the whole (sum |F|^2 dOmega), the mean cosine about the grid's axis,
+   and the shares forward and back of it */
+function sphereTotals(G, I) {
+  let tot = 0, mu1 = 0, fwd = 0;
+  for (let i = 0; i < G.nT; i++) for (let j = 0; j < G.nP; j++) { const o = i * G.nP + j, v = I[o] * G.w[o]; tot += v; mu1 += v * G.mu[i]; if (G.mu[i] > 0) fwd += v; }
+  return { total: tot, g: tot > 0 ? mu1 / tot : 0, fwd: tot > 0 ? fwd / tot : 0, back: tot > 0 ? 1 - fwd / tot : 0 };
+}
 /* ---------- Dipole traps ----------
    Atoms for a trap readout: their D lines (Steck's data), each as a two-level line of its own
    decay rate, the D2 line holding 2/3 of the strength and D1 1/3 (linear polarisation, the
@@ -6160,10 +6690,33 @@ function trapAlpha(atom, nm, F) {
    F = Re(alpha sum_j E_j grad E_j*) / 2: its real part the gradient force, its imaginary
    part the scattering force (radiation pressure, and none in a standing wave's balance). */
 const EPS0 = 8.8541878128e-12;
-const SPHERE_DENSITY = { 'Fused silica': 2200, 'Polystyrene': 1050, 'N-BK7': 2510, 'Sapphire': 3980, 'CaF2': 3180, 'Silicon': 2330, 'Germanium': 5323, 'ZnSe': 5270, 'MgF2': 3170 };
+const SPHERE_DENSITY = { Au: 19300, Ag: 10490, Al: 2700, 'Fused silica': 2200, 'Polystyrene': 1050, 'N-BK7': 2510, 'Sapphire': 3980, 'CaF2': 3180, 'Silicon': 2330, 'Germanium': 5323, 'ZnSe': 5270, 'MgF2': 3170 };
+/* A particle's material: a glass of the list, or one of the metals the thin films have (Au, Ag,
+   Al), which absorb. particleMat gives the name as kept; particleIndex its index [n, kappa] at
+   nm (n + i kappa as the light is written here, kappa 0 for the glasses). */
+const particleMat = name => (METAL_NK[name] ? name : glassKey(name) || 'Fused silica');
+const particleIndex = (mat, nm) => (METAL_NK[mat] ? metalNK(mat, nm) : [refIndex({ glass: mat }, nm), 0]);
+/* The particle a screen holds (trap: 'sphere'): its shape, its diameter D and whole length L
+   along its axis (m; a sphere's are equal), its volume and the radius of the sphere of that
+   volume (nm), which is what the Trap tab's dipole stands for when it is not a sphere */
+function particleOf(el) {
+  const shape = ['cylinder', 'capsule', 'spheroid'].includes(el.trapShape) ? el.trapShape : 'sphere';
+  const D = 2 * el.trapR * 1e-9, L = shape === 'sphere' ? D : Math.max(shape === 'capsule' ? D : 0, (el.trapLen || 2 * el.trapR) * 1e-9), V = ddaVolume(shape, D, L);
+  return { shape, D, L, V, rEq: shape === 'sphere' ? el.trapR : Math.cbrt(3 * V / (4 * Math.PI)) * 1e9 };
+}
 function sphereAlpha(glass, radiusNm, nm, nMed) {
-  const np = refIndex({ glass }, nm), m = np / nMed, a = radiusNm * 1e-9, cm = (m * m - 1) / (m * m + 2);
-  const a0 = 4 * Math.PI * EPS0 * nMed * nMed * a ** 3 * cm, k = 2 * Math.PI * nMed / (nm * 1e-9);
+  const [np, kap] = particleIndex(glass, nm), a = radiusNm * 1e-9, k = 2 * Math.PI * nMed / (nm * 1e-9);
+  if (kap > 0) {
+    // an absorber: m and Clausius-Mossotti's factor complex
+    const mr = np / nMed, mi = kap / nMed, er = mr * mr - mi * mi, ei = 2 * mr * mi, d2 = (er + 2) ** 2 + ei * ei;
+    const cr = ((er - 1) * (er + 2) + ei * ei) / d2, ci = (ei * (er + 2) - (er - 1) * ei) / d2, f = 4 * Math.PI * EPS0 * nMed * nMed * a ** 3;
+    const a0r = f * cr, a0i = f * ci, q = k ** 3 / (6 * Math.PI * EPS0 * nMed * nMed);
+    // alpha = a0 / (1 - i q a0)
+    const br = 1 + q * a0i, bi = -q * a0r, b2 = br * br + bi * bi;
+    return { re: (a0r * br + a0i * bi) / b2, im: (a0i * br - a0r * bi) / b2, a0: a0r, np, kap, m: mr, cm: cr, sigma: k ** 4 * (a0r * a0r + a0i * a0i) / (EPS0 * nMed * nMed) ** 2 / (6 * Math.PI), ka: k * a };
+  }
+  const m = np / nMed, cm = (m * m - 1) / (m * m + 2);
+  const a0 = 4 * Math.PI * EPS0 * nMed * nMed * a ** 3 * cm;
   const g = k ** 3 * a0 / (6 * Math.PI * EPS0 * nMed * nMed);                     // alpha = a0 / (1 - i g)
   return { re: a0 / (1 + g * g), im: a0 * g / (1 + g * g), a0, np, m, cm, sigma: k ** 4 * (a0 / (EPS0 * nMed * nMed)) ** 2 / (6 * Math.PI), ka: k * a };
 }
@@ -9664,10 +10217,27 @@ const SCREEN = {
       vectorFocus: ['auto', 'on', 'off'].includes(e.vectorFocus) ? e.vectorFocus : 'auto',
       trap: e.trap in TRAP_ATOMS || e.trap === 'sphere' ? e.trap : 'none',   // an atom or a sphere to read an optical trap at this focus for
       trapF: ['lo', 'hi'].includes(e.trapF) ? e.trapF : 'avg',     // atoms: the ground hyperfine level (avg: the centroid)
-      trapMat: glassKey(e.trapMat) || 'Fused silica',              // the sphere's material
-      trapR: Math.max(1, num(e.trapR, 100)),                       // its radius, nm
-      trapRho: Math.max(1, num(e.trapRho, SPHERE_DENSITY[glassKey(e.trapMat) || 'Fused silica'] || 2200)),   // kg/m^3
-      trapMed: ['bench', 'vacuum', 'air'].includes(e.trapMed) ? e.trapMed : 'bench',
+      trapMat: particleMat(e.trapMat),                             // the particle's material: a glass, or Au, Ag, Al
+      trapR: Math.max(1, num(e.trapR, 100)),                       // its radius, nm (half its diameter)
+      trapRho: Math.max(1, num(e.trapRho, SPHERE_DENSITY[particleMat(e.trapMat)] || 2200)),   // kg/m^3
+      trapMed: ['bench', 'vacuum', 'air', 'water'].includes(e.trapMed) ? e.trapMed : 'bench',
+      // the particle's shape (a sphere unless said), its whole length along its axis (nm), and where the axis points:
+      // its direction in the bench plane (degrees, as parts' angles) and its tilt up out of it
+      trapShape: ['cylinder', 'capsule', 'spheroid'].includes(e.trapShape) ? e.trapShape : 'sphere',
+      trapLen: Math.max(1, num(e.trapLen, 1000)),
+      trapAz: num(e.trapAz, 90), trapTilt: clamp(num(e.trapTilt, 0), -90, 90),
+      // the Scattering tab: the model, dipoles across the smallest dimension (0 chooses), where the particle is
+      // ('screen': where the strongest beam meets the screen; 'trap': where the trap holds it) and its offset from
+      // there (µm: across the beam in the plane, out of the plane, along the beam), and the detector's cone
+      scatModel: ['rayleigh', 'mie', 'dda'].includes(e.scatModel) ? e.scatModel : 'auto',
+      scatDip: Math.round(clamp(num(e.scatDip, 0), 0, 64)),
+      scatAt: e.scatAt === 'trap' ? 'trap' : 'screen',
+      scatDx: num(e.scatDx, 0), scatDy: num(e.scatDy, 0), scatDz: num(e.scatDz, 0),
+      scatNA: clamp(num(e.scatNA, 0.5), 0.001, 4),
+      scatDir: ['back', 'side', 'up', 'angle'].includes(e.scatDir) ? e.scatDir : 'fwd',
+      scatAng: num(e.scatAng, 0),
+      scatScale: e.scatScale === 'lin' ? 'lin' : 'log',
+      scatView: ['out', 'map'].includes(e.scatView) ? e.scatView : 'in',
       trapP: Math.max(1e-12, num(e.trapP, 1013.25)),                // mbar, for air
       trapT: Math.max(0.001, num(e.trapT, 295)),                   // K, for the depth in kT
       mtfFreq: Math.max(0, num(e.mtfFreq, 50)),
@@ -9683,7 +10253,7 @@ const SCREEN = {
     angle: 'the direction its face points: towards the light it records.',
     fields: { length: 'mm: the width of its face.', phosphor: 'true: a phosphor screen, whose face glows where the light lands and fades after the light moves on, leaving a trail (from the rays, or the diffracted field when it is shown); its face shows the glow in 3D. Made by the picker\u2019s Phosphor.', decay: 'a phosphor screen\u2019s decay time, s: the glow falls to 1/e of its brightness this long after the light leaves (0.01 to 120).', glow: 'a phosphor screen\u2019s glow colour, "#rrggbb".', absorb: 'true stops the light it records; false lets it pass (to sample a beam).',
     R: 'mm: a curved screen; negative puts its centre of curvature on the side the light comes from (like a retina); null for flat.', binWidth: 'mm for the binned intensity; 0 chooses.', binInterp: 'true interpolates the rays into the bins.',
-    mapScale: '"lin" or "log" irradiance map.', vectorFocus: '"auto", "on" or "off": the vector focus model for steep beams.', trap: '"none", an atom (' + Object.keys(TRAP_ATOMS).map(k => '"' + k + '"').join(', ') + ') or "sphere" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen\u2019s region.', trapF: 'for atoms, the ground hyperfine level they are in: "avg" (the centroid), "lo" or "hi" (F = I \u2213 1/2); it moves the lines by a few GHz, which matters close to them (the tune-out wavelength between D1 and D2 moves by picometres).', trapMat: 'the sphere\u2019s glass ("Fused silica", "Polystyrene" and so on).', trapR: 'the sphere\u2019s radius, nm.', trapRho: 'its density, kg/m\u00b3.', trapMed: '"bench" (the index where the light is: put the focus in a block of "Water" for a liquid), "vacuum" or "air" (with trapP).', trapP: 'air pressure, mbar: sets the gas damping and quality factors.', trapT: 'temperature (K): the depth in kT and the gas.', mtfFreq: 'lp/mm at which the MTF is quoted.', abSrc: 'the id of the fan source the Aberrations tab sweeps across the field ("" for the first reaching the screen).', abAng: 'its largest field angle, degrees, for a collimated source.', abH: 'its largest object height, mm, for a diverging source (a point object).', abN: 'fields across, 3 to 21.', abRays: 'rays in each field\u2019s fan, odd, 11 to 401.' },
+    mapScale: '"lin" or "log" irradiance map.', vectorFocus: '"auto", "on" or "off": the vector focus model for steep beams.', trap: '"none", an atom (' + Object.keys(TRAP_ATOMS).map(k => '"' + k + '"').join(', ') + ') or "sphere" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen\u2019s region.', trapF: 'for atoms, the ground hyperfine level they are in: "avg" (the centroid), "lo" or "hi" (F = I \u2213 1/2); it moves the lines by a few GHz, which matters close to them (the tune-out wavelength between D1 and D2 moves by picometres).', trapMat: 'the particle\u2019s material: a glass ("Fused silica", "Polystyrene" and so on), or "Au", "Ag", "Al" (metals, which absorb: their measured complex index).', trapR: 'the particle\u2019s radius, nm: half its diameter (for a rod or spheroid, half the diameter across its axis).', trapRho: 'its density, kg/m\u00b3.', trapMed: '"bench" (the index where the light is: put the focus in a block of "Water" for a liquid), "vacuum", "air" (with trapP) or "water" (water\u2019s index for the particle, the bench\u2019s focus left as it is).', trapShape: 'the particle\u2019s shape: "sphere", "cylinder" (a rod with flat ends), "capsule" (a rod with round ends) or "spheroid". The Scattering tab takes the shape as it is; the Trap tab takes the sphere of the same volume.', trapLen: 'nm: a rod\u2019s or spheroid\u2019s whole length along its axis (a capsule\u2019s includes its caps; a spheroid shorter than its diameter is oblate).', trapAz: 'degrees: the direction of the particle\u2019s axis in the bench plane, as parts\u2019 angles.', trapTilt: 'degrees: its axis tilted up out of the bench plane (90: straight up).', scatModel: 'the Scattering tab\u2019s model: "auto" (Mie for a sphere, a dipole array for other shapes, one dipole when tiny), "rayleigh", "mie" or "dda".', scatDip: 'dipoles across the particle\u2019s smallest dimension in a dipole-array run; 0 chooses (10, and no spacing above 0.5/(|m|k)).', scatAt: 'where the particle is: "screen" (where the strongest beam meets the screen) or "trap" (where the Trap tab finds it held).', scatDx: '\u00b5m: the particle moved from there across the beam in the bench plane.', scatDy: '\u00b5m: out of the plane.', scatDz: '\u00b5m: along the beam.', scatNA: 'the numerical aperture (in the medium) of the cone the collected fraction is taken over.', scatDir: 'that cone\u2019s direction: "fwd" (along the strongest beam), "back", "side" (across it in the plane), "up" or "angle" (scatAng).', scatAng: 'degrees: the cone\u2019s direction on the bench when scatDir is "angle".', scatScale: '"log" or "lin": the scattering plots\u2019 scale.', scatView: 'the scattering plot shown: "in" (the bench plane), "out" (the plane out of it) or "map".', trapP: 'air pressure, mbar: sets the gas damping and quality factors.', trapT: 'temperature (K): the depth in kT and the gas.', mtfFreq: 'lp/mm at which the MTF is quoted.', abSrc: 'the id of the fan source the Aberrations tab sweeps across the field ("" for the first reaching the screen).', abAng: 'its largest field angle, degrees, for a collimated source.', abH: 'its largest object height, mm, for a diverging source (a point object).', abN: 'fields across, 3 to 21.', abRays: 'rays in each field\u2019s fan, odd, 11 to 401.' },
   },
 };
 /* Waveplate: A waveplate (retardance in waves). */
@@ -18593,7 +19163,10 @@ function setParam(el, path, v) {
     case 'emitRays': v = Math.round(clamp(v, 0, 51)); break;
     case 'm2': v = clamp(v, 1, 50); break;
     case 'hm': case 'hn': case 'lp': v = Math.round(clamp(v, 0, 10)); break;
-    case 'trapR': case 'trapRho': v = Math.max(1, v); break;
+    case 'trapR': case 'trapRho': case 'trapLen': v = Math.max(1, v); break;
+    case 'trapTilt': v = clamp(v, -90, 90); break;
+    case 'scatDip': v = Math.round(clamp(v, 0, 64)); break;
+    case 'scatNA': v = clamp(v, 0.001, 4); break;
     case 'trapP': v = Math.max(1e-12, v); break;
     case 'trapT': v = Math.max(0.001, v); break;
     case 'll': v = Math.round(clamp(v, -10, 10)); break;
@@ -26521,7 +27094,7 @@ function drawGlow(el, f, surf) {
 }
 
 function screenPanel(el) {
-  if (readoutTabs(el, [['params', 'Screen'], ['rays', 'Rays'], ['aber', 'Aberrations'], ['plots', 'Diffraction'], ['pulse', 'Pulse'], ['trap', 'Trap'], ...(modReadouts('screen').length ? [['mods', 'Modules']] : [])])) return;
+  if (readoutTabs(el, [['params', 'Screen'], ['rays', 'Rays'], ['aber', 'Aberrations'], ['plots', 'Diffraction'], ['pulse', 'Pulse'], ['trap', 'Trap'], ['scatter', 'Scattering'], ...(modReadouts('screen').length ? [['mods', 'Modules']] : [])])) return;
   screenParams(el);
 }
 
@@ -29341,13 +29914,12 @@ function trapSection(el) {
   if (el.trap in TRAP_ATOMS) rows0.append(selectField('Ground state', [['avg', 'Hyperfine levels averaged'], ['lo', trapFLabel(el.trap, 'lo')], ['hi', trapFLabel(el.trap, 'hi')]],
     () => el.trapF, v => { el.trapF = v; }, { wide: true }));
   if (el.trap === 'sphere') {
-    const mats = Object.keys(GLASS).filter(g => g !== 'Water');
     rows0.append(
-      selectField('Material', mats.map(g => [g, g]), () => el.trapMat, v => { el.trapMat = v; if (SPHERE_DENSITY[v]) el.trapRho = SPHERE_DENSITY[v]; }),
+      selectField('Material', particleMats(), () => el.trapMat, v => { el.trapMat = v; if (SPHERE_DENSITY[v]) el.trapRho = SPHERE_DENSITY[v]; }),
       param('Radius (nm)', el, 'trapR'),
       param('Density (kg/m³)', el, 'trapRho'),
       param('Temperature (K)', el, 'trapT'),
-      selectField('Medium', [['bench', 'As on the bench'], ['vacuum', 'Vacuum'], ['air', 'Air, at a pressure']], () => el.trapMed, v => { el.trapMed = v; }, { wide: el.trapMed !== 'air' }));
+      selectField('Medium', [['bench', 'As on the bench'], ['vacuum', 'Vacuum'], ['air', 'Air, at a pressure'], ['water', 'Water']], () => el.trapMed, v => { el.trapMed = v; }, { wide: el.trapMed !== 'air' }));
     if (el.trapMed === 'air') rows0.append(param('Pressure (mbar)', el, 'trapP'));
   }
   panel.append(rows0);
@@ -29369,7 +29941,8 @@ function trapSection(el) {
     else {
       const sph = el.trap === 'sphere';
       rows.push(['Light', (T.beams > 1 ? T.beams + ' beams' + (T.launches < T.beams ? ', interfering' : ', from separate lasers') : 'one beam') + ', ' + (T.I >= 1e7 ? (+(T.I / 1e7).toPrecision(4)) + ' kW/cm²' : (+(T.I / 1e4).toPrecision(4)) + ' W/cm²') + ' where it sits']);
-      if (sph) rows.push(['Particle', el.trapMat + ', n = ' + (+T.np.toPrecision(5)) + ', radius ' + fmtLen(el.trapR * 1e-6) + ' in a medium of n = ' + (+T.nMed.toPrecision(5)) + (el.trapMed === 'bench' ? ' (the bench’s, where the light is)' : '') + ', mass ' + (+(T.mass * 1e3).toPrecision(3)) + ' g']);
+      if (sph && el.trapShape !== 'sphere') rows.push(['', 'The particle is ' + ({ cylinder: 'a rod', capsule: 'a rod', spheroid: 'a spheroid' })[el.trapShape] + ' (the Scattering tab has its shape): the trap is read for the sphere of the same volume, ' + fmtLen(particleOf(el).rEq * 1e-6) + ' in radius.']);
+      if (sph) rows.push(['Particle', (METAL_NAMES[el.trapMat] || el.trapMat) + ', n = ' + (+T.np.toPrecision(5)) + (T.kap > 0 ? ' + ' + (+T.kap.toPrecision(4)) + 'i' : '') + ', radius ' + fmtLen(particleOf(el).rEq * 1e-6) + ' in a medium of n = ' + (+T.nMed.toPrecision(5)) + (el.trapMed === 'bench' ? ' (the bench’s, where the light is)' : '') + ', mass ' + (+(T.mass * 1e3).toPrecision(3)) + ' g']);
       if (!T.trap && T.depthK < 0) rows.push(['', 'The particle is repelled by the light (' + (sph ? 'its index is below the medium’s' : 'blue of the D lines') + '): a barrier ' + tK(-T.depthK) + ' high at the brightest point, not a trap.']);
       else if (!T.trap && T.away) rows.push(['', 'No trap near the screen: the light pulls the particle away along the beam (' + off(T.dz, T.dz >= 0 ? 'past the screen' : 'before it') + '), as a collimated beam on its own does. A focus, or a second beam against it for a standing wave, would hold it here.']);
       else if (!T.trap) rows.push(['', 'No stable trap: ' + (sph ? 'radiation pressure outweighs the pull of the focus along the beam (a higher numerical aperture, a smaller particle, or a second beam against it would hold it)' : 'the force does not settle to zero here') + '.']);
@@ -29458,6 +30031,7 @@ function readoutTabs(el, stabs) {
       plots: all.length ? '' : 'Nothing reaches ' + what,
       pulse: ((lastTrace.pulses && lastTrace.pulses[el.id]) || []).length ? '' : 'No pulse reaches ' + what + ' (a source or fibre laser with \u201cPulsed\u201d ticked)',
       trap: all.some(t => t.chief) ? '' : 'No Gaussian beam reaches ' + what + ' (the bench\u2019s Light showing the beams\u2019 envelope or field)',
+      scatter: all.some(t => t.chief) ? '' : 'No Gaussian beam reaches ' + what + ' (the bench\u2019s Light showing the beams\u2019 envelope or field)',
     };
     for (const [k, w] of Object.entries(why)) if (btns[k]) { btns[k].classList.toggle('empty', !!w); btns[k].title = w; }
   });
@@ -29468,6 +30042,7 @@ function readoutTabs(el, stabs) {
   if (tab === 'aber') { aberSection(el); return true; }
   if (tab === 'pulse') { pulseSection(el); return true; }
   if (tab === 'trap') { trapSection(el); return true; }
+  if (tab === 'scatter') { scatterSection(el); return true; }
   if (tab === 'mods') { modReadoutSection(el); return true; }                   // the mods' readouts
   return false;
 }
@@ -36175,6 +36750,312 @@ function flipLens(el) {
   el.materials = el.materials.slice().reverse();
 }
 
+/* ---------- The Scattering tab ----------
+   A screen's particle (the one its Trap tab holds) and the light it scatters: the settings,
+   the run (in a worker of its own, so a dipole array's minutes hold nothing else up and can
+   be stopped), the readouts and the pattern's plots. The physics is engines/scatter.js. */
+
+/* The worker: this app again, asked for kind 'scatter' (worker/main.js), which sends its
+   progress as it goes and the answer at the end. One run at a time; a run whose bench has
+   moved on is let finish if it is nearly instant and stopped otherwise; Stop ends the worker. */
+const SCW = { w: null, failed: false, job: null, want: new Map(), stopped: new Map(), seq: 0, timer: null };
+function scatWorker() {
+  if (SCW.w) return SCW.w;
+  if (SCW.failed || TEST_MODE || !WORKERS_OK) return null;
+  try {
+    const w = newAppWorker();
+    w.onmessage = e => {
+      const m = e.data, J = SCW.job;
+      if (!J || J.id !== m.id) return;
+      if (m.prog) { J.prog = m.prog; syncPanel(); return; }
+      SCW.job = null;
+      if (!m.ok) { console.warn('JEKray scattering worker:', m.err); scatFail(); return; }
+      if (m.out && m.out.S) scatCache.set(J.elId, { key: m.out.key, S: m.out.S });
+      syncPanel(); scatPump();
+    };
+    w.onerror = e => { e.preventDefault(); scatFail(); };
+    SCW.w = w;
+  } catch (err) { SCW.failed = true; return null; }
+  return SCW.w;
+}
+// the worker cannot be relied on: the page does the work itself from here on
+function scatFail() {
+  SCW.failed = true;
+  if (SCW.w) SCW.w.terminate();
+  SCW.w = null; SCW.job = null;
+  syncPanel();
+}
+function scatKill() {
+  if (SCW.w) SCW.w.terminate();
+  SCW.w = null; SCW.job = null;
+}
+function scatPump() {
+  if (SCW.job || !SCW.want.size) return;
+  // (a moment after the last change, so a value being typed or dragged starts one run, not ten)
+  clearTimeout(SCW.timer);
+  SCW.timer = setTimeout(() => {
+    if (SCW.job || !SCW.want.size) return;
+    if (midDrag()) { scatPump(); return; }
+    const [elId, key] = SCW.want.entries().next().value;
+    SCW.want.delete(elId);
+    const el = getEl(elId), J = el && scatterPrep(el), w = J && J.key === key && scatWorker();
+    if (!w) { syncPanel(); return; }
+    SCW.job = { id: ++SCW.seq, elId, key, t0: performance.now(), prog: null };
+    w.postMessage({ id: SCW.job.id, kind: 'scatter', args: { id: elId }, proj: fwProject(), mods: modDelta(w) });
+    syncPanel();
+  }, 120);
+}
+/* A screen's scattering: { S, busy, prog, stopped }. S is the last answer for this screen (stale
+   while busy), null before the first; prog the run's progress. */
+function scatterLater(el) {
+  const J = scatterPrep(el);
+  if (!J) return { S: null, busy: false, none: true };
+  const c = scatCache.get(el.id);
+  if (c && c.key === J.key) return { S: c.S, busy: false };
+  if (TEST_MODE || SCW.failed || !WORKERS_OK) return { S: scatterNow(el), busy: false };
+  if (SCW.stopped.get(el.id) === J.key) return { S: c ? c.S : null, busy: false, stopped: true, stale: !!c };
+  const job = SCW.job;
+  if (job && job.elId === el.id) {
+    if (job.key === J.key) return { S: c ? c.S : null, busy: true, prog: job.prog, t0: job.t0, stale: !!c };
+    // the bench has moved on under a run: a quick one finishes, a long one is stopped
+    if (performance.now() - job.t0 > 1200) scatKill();
+  }
+  SCW.want.set(el.id, J.key);
+  scatPump();
+  return { S: c ? c.S : null, busy: true, prog: null, stale: !!c };
+}
+function scatStop(el) {
+  const J = scatterPrep(el);
+  if (J) SCW.stopped.set(el.id, J.key);
+  SCW.want.delete(el.id);
+  if (SCW.job && SCW.job.elId === el.id) scatKill();
+  syncPanel();
+}
+function scatGo(el) { SCW.stopped.delete(el.id); syncPanel(); }
+
+const PARTICLE_SHAPES = [['sphere', 'A sphere'], ['cylinder', 'A rod with flat ends'], ['capsule', 'A rod with round ends'], ['spheroid', 'A spheroid']];
+const particleMats = () => [...Object.keys(GLASS).filter(g => g !== 'Water').map(g => [g, g]), ...Object.entries(METAL_NAMES).map(([k, n]) => [k, n + ' (absorbing)'])];
+/* the particle's own rows, as the Scattering tab gives them (the Trap tab has the sphere's) */
+function particleRows(el) {
+  const rows = h('div', { class: 'rt-rows' });
+  const isP = el.trap === 'sphere';
+  rows.append(selectField('Particle', [['none', el.trap in TRAP_ATOMS ? 'None (the Trap tab is set for atoms)' : 'None'], ...PARTICLE_SHAPES],
+    () => (isP ? el.trapShape : 'none'), v => { if (v === 'none') el.trap = 'none'; else { el.trap = 'sphere'; el.trapShape = v; } }, { wide: true }));
+  if (!isP) return rows;
+  const sph = el.trapShape === 'sphere';
+  const did = 'rtf' + setFid(fid + 1);
+  rows.append(
+    selectField('Material', particleMats(), () => el.trapMat, v => { el.trapMat = v; if (SPHERE_DENSITY[v]) el.trapRho = SPHERE_DENSITY[v]; }),
+    h('div', { class: 'rt-f' }, h('label', { for: did }, 'Diameter (nm)'), numInput(did, () => 2 * el.trapR, v => { el.trapR = Math.max(1, v / 2); })));
+  if (!sph) rows.append(param('Length (nm)', el, 'trapLen'), param('Axis direction (°)', el, 'trapAz'), param('Axis tilt up (°)', el, 'trapTilt'));
+  rows.append(selectField('Medium', [['bench', 'As on the bench'], ['vacuum', 'Vacuum'], ['air', 'Air, at a pressure'], ['water', 'Water']], () => el.trapMed, v => { el.trapMed = v; }));
+  if (el.trapMed === 'air') rows.append(param('Pressure (mbar)', el, 'trapP'));
+  rows.append(selectField('Model', [['auto', 'Auto'], ['rayleigh', 'Rayleigh (one dipole)'], ['mie', 'Mie (a sphere, exact)'], ['dda', 'Dipole array']], () => el.scatModel, v => { el.scatModel = v; }));
+  if (el.scatModel === 'dda' || (el.scatModel === 'auto' && !sph)) rows.append(param('Dipoles across (0: chosen)', el, 'scatDip', { noSweep: true }));
+  rows.append(selectField('Where it is', [['screen', 'Where the beam meets the screen'], ['trap', 'Where the trap holds it']], () => el.scatAt, v => { el.scatAt = v; }, { wide: true }),
+    param('Moved across (µm)', el, 'scatDx'), param('Moved up (µm)', el, 'scatDy'), param('Moved along the beam (µm)', el, 'scatDz'));
+  rows.append(param('Collecting NA', el, 'scatNA'),
+    selectField('Collected from', [['fwd', 'Ahead (the beam’s way)'], ['back', 'Behind (back along it)'], ['side', 'The side, in the plane'], ['up', 'Above'], ['angle', 'A direction on the bench']], () => el.scatDir, v => { el.scatDir = v; }));
+  if (el.scatDir === 'angle') rows.append(param('Direction (°)', el, 'scatAng'));
+  return rows;
+}
+const scatSig = (v, p = 3) => (v === 0 ? '0' : Math.abs(v) >= 1e4 || Math.abs(v) < 1e-3 ? v.toExponential(p - 1).replace('e', ' × 10^').replace('^+', '^') : String(+v.toPrecision(p)));
+const scatArea = m2 => { const a = Math.abs(m2); return a >= 1e-14 ? scatSig(m2 * 1e12, 4) + ' µm²' : a >= 1e-19 ? scatSig(m2 * 1e18, 4) + ' nm²' : scatSig(m2 * 1e18, 3) + ' nm²'; };
+const scatPw = v => { const a = Math.abs(v); return a >= 1 ? scatSig(v, 3) + ' W' : a >= 1e-3 ? scatSig(v * 1e3, 3) + ' mW' : a >= 1e-6 ? scatSig(v * 1e6, 3) + ' µW' : a >= 1e-9 ? scatSig(v * 1e9, 3) + ' nW' : a >= 1e-12 ? scatSig(v * 1e12, 3) + ' pW' : scatSig(v * 1e15, 3) + ' fW'; };
+const scatPct = v => scatSig(100 * v, 3) + '%';
+const scatCplx = c => (c[1] > 1e-9 ? scatSig(c[0], 4) + ' + ' + scatSig(c[1], 4) + 'i' : String(+c[0].toPrecision(5)));
+const MODEL_NAME = { mie: 'Lorenz–Mie', dda: 'Dipole array', rayleigh: 'Rayleigh (one dipole)' };
+const FLAG_TEXT = {
+  coarse: 'The dipole lattice is coarse for this particle (|m|kd above 0.5, or fewer than 6 dipoles across it): take the figures as rough, or set more dipoles across.',
+  capped: 'The run was held to its limit of dipoles, so the lattice is coarser than asked for.',
+  noconv: 'The dipole array’s solver did not reach its tolerance: the figures are not to be trusted.',
+  highIndex: 'An index this far from the medium’s (|m| above 2.5) is hard for a dipole array: it converges slowly and its error can reach tens of percent. For a sphere, Mie is exact.',
+  rayleighBig: 'This particle is too large for a single dipole (|m|k·size/2 above 0.5): Rayleigh is shown because it was asked for.',
+  mieNotSphere: 'Mie is for a sphere: shown for the sphere of this particle’s volume, not its shape.',
+  medium: 'The medium set here is not the bench’s where the light is: the focus is the bench’s, the wavelength in the medium the one set.',
+  varies: 'The beam changes across the particle but is taken as one plane wave (it is too gently focused for the vector focus model, above NA 0.3): rough for this size.',
+  skipped: 'A beam through here was left out: no field could be taken for it.',
+  notrap: 'No stable trap was found, so the particle is where the beam meets the screen.',
+};
+/* the readout's rows for an answer */
+function scatterRows(el, S) {
+  const rows = [], D = S.dda;
+  const how = S.model === 'mie' ? ', ' + S.mie.terms + ' terms' + (S.shape === 'sphere' ? ', exact for a sphere' : '')
+    : S.model === 'dda' ? ': ' + D.N + ' dipoles ' + scatSig(D.d, 3) + ' nm apart (' + scatSig(D.across, 3) + ' across), |m|kd = ' + scatSig(D.mkd, 2) + ', lattice dispersion relation; ' +
+      (D.converged ? 'solved in ' + D.iters + ' iterations' : 'not converged after ' + D.iters + ' iterations') + ' (residual ' + scatSig(D.resid, 2) + ')'
+      : ', good while the particle is much smaller than the wavelength';
+  rows.push(['Model', MODEL_NAME[S.model] + how + (S.auto ? ' (Auto’s choice)' : '') + '; ' + scatSig(S.ms / 1000, 2) + ' s']);
+  const size = S.shape === 'sphere' ? 'a sphere ' + fmtLen(S.D * 1e-6) + ' across' : ({ cylinder: 'a rod with flat ends', capsule: 'a rod with round ends', spheroid: 'a spheroid' })[S.shape] + ', ' + fmtLen(S.L * 1e-6) + ' × ' + fmtLen(S.D * 1e-6);
+  rows.push(['Particle', (METAL_NAMES[S.mat] || S.mat) + ', n = ' + scatCplx(S.np) + ', ' + size + ', in a medium of n = ' + (+S.nMed.toPrecision(5)) +
+    '; size parameter k·a = ' + scatSig(S.x, 3) + (S.shape === 'sphere' ? '' : ' for the sphere of its volume (k·length/2 = ' + scatSig(S.kL, 3) + ')')]);
+  const I = S.I0, It = I >= 1e7 ? scatSig(I / 1e7, 4) + ' kW/cm²' : scatSig(I / 1e4, 4) + ' W/cm²';
+  rows.push(['Light', (S.beams > 1 ? S.beams + ' beams' + (S.launches < S.beams ? ', interfering' : ', from separate lasers') : 'one beam') + ' at ' + S.nm + ' nm, ' +
+    (S.pupils ? 'the tight focus as ' + S.waves + ' plane waves' : 'taken as a plane wave where the particle is') + '; ' + It + ' at the particle']);
+  rows.push(['Cross-sections', 'scattering ' + scatArea(S.Csca) + ', extinction ' + scatArea(S.Cext) + ', absorption ' + (Math.abs(S.Cabs) < 1e-6 * Math.abs(S.Cext) ? 'none' : scatArea(S.Cabs)) +
+    (S.model === 'mie' && S.shape === 'sphere' ? '' : ' (a plane wave along the beam, polarised as the light at the particle)')]);
+  rows.push(['Efficiencies', 'Q scattering ' + scatSig(S.Qsca, 4) + ', extinction ' + scatSig(S.Qext, 4) + ', absorption ' + (Math.abs(S.Qabs) < 1e-6 * Math.abs(S.Qext) ? '0' : scatSig(S.Qabs, 4)) +
+    ' (over πa²' + (S.shape === 'sphere' ? '' : ', a the radius of the sphere of its volume, ' + scatSig(S.rEq, 4) + ' nm') + ')']);
+  rows.push(['Asymmetry', 'g = ' + scatSig(S.g, 3) + ' (the mean cosine of the scattering angle); back-scattering efficiency ' + scatSig(S.Qback, 3)]);
+  rows.push(['In this light', scatPw(S.Psca) + ' scattered' + (S.Pabs > 1e-4 * S.Psca ? ', ' + scatPw(S.Pabs) + ' absorbed' : '') +
+    (S.I0 > 0 ? ' (' + scatArea(S.Psca / S.I0) + ' of the irradiance at the particle)' : '')]);
+  rows.push(['Forward and back', scatPct(S.fwd) + ' of the scattered power goes ahead of the particle, ' + scatPct(S.back) + ' back: ' + scatSig(S.fwd / (S.back || 1e-300), 3) + ' to 1']);
+  const C = S.collect, where = { fwd: 'ahead', back: 'behind', side: 'to the side', up: 'above', angle: 'at ' + (+(el.scatAng || 0).toFixed(1)) + '°' }[C.dir] || 'ahead';
+  rows.push(['Collected', scatPct(C.frac) + ' of the scattered power, ' + scatPw(C.P) + ', into NA ' + (+C.na.toPrecision(3)) + ' ' + where + ' (a cone of ' + scatSig(C.halfDeg, 3) + '° half-angle)']);
+  if (S.model !== 'rayleigh' && S.rayleigh.Csca > 0) {
+    const off = S.rayleigh.Csca / S.Csca - 1;
+    rows.push(['Rayleigh would give', 'scattering ' + scatArea(S.rayleigh.Csca) + ', ' + (Math.abs(off) < 5e-4 ? 'the same' : scatSig(100 * Math.abs(off), 2) + '% ' + (off > 0 ? 'more' : 'less')) + ', and as much back as forward']);
+  }
+  if (S.model === 'dda' && S.shape === 'sphere') rows.push(['Mie gives', 'scattering ' + scatArea(S.mieEq.Csca) + ': the dipole array is ' + scatSig(100 * (S.Csca / S.mieEq.Csca - 1), 2) + '% from it']);
+  if (S.at.trap) rows.push(['Where', 'where the trap holds it: ' + fmtLen(Math.abs(S.at.z)) + (S.at.z >= 0 ? ' past the screen' : ' before it') + ' along the beam']);
+  for (const f of S.flags) if (FLAG_TEXT[f]) rows.push(['', FLAG_TEXT[f]]);
+  return rows;
+}
+const SCAT_DB = 40;        // a log plot's depth
+/* the pattern on one cut as a polar plot: the angle as on the bench (or from the beam, up), the radius the intensity */
+function drawPolar(cv, el, S, which) {
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, side = Math.min(w, 340), c = cv.getContext('2d');
+  cv.style.height = side + 'px'; cv.width = Math.round(w * dpr); cv.height = Math.round(side * dpr);
+  c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, side);
+  cv._csv = null;
+  if (!S || !S.cutIn) return;
+  const cut = which === 'out' ? S.cutOut : S.cutIn, log = el.scatScale !== 'lin';
+  const cx = w / 2, cy = side / 2, R = side / 2 - 30, n = cut.I.length;
+  let mx = 0; for (const v of cut.I) if (v > mx) mx = v;
+  if (!(mx > 0)) return;
+  const rOf = v => (log ? Math.max(0, 1 + 10 * Math.log10(Math.max(v / mx, 1e-30)) / SCAT_DB) : v / mx) * R;
+  c.font = axisFont(); c.lineWidth = 1;
+  // rings and spokes
+  c.strokeStyle = inkA(0.12); c.fillStyle = getCss('--jek-ink-soft');
+  for (let q = 1; q <= 4; q++) { c.beginPath(); c.arc(cx, cy, R * q / 4, 0, 2 * Math.PI); c.stroke(); }
+  c.beginPath();
+  for (let a = 0; a < 360; a += 30) { c.moveTo(cx, cy); c.lineTo(cx + R * Math.cos(a * deg), cy - R * Math.sin(a * deg)); }
+  c.stroke();
+  c.textAlign = 'left'; c.textBaseline = 'bottom';
+  for (let q = 1; q <= 3; q++) c.fillText(log ? '−' + (SCAT_DB * (4 - q) / 4) + ' dB' : String(q / 4), cx + 3, cy - R * q / 4 - 1);
+  c.textBaseline = 'middle';
+  for (const a of [0, 90, 180, 270]) {
+    const x = cx + (R + 12) * Math.cos(a * deg), y = cy - (R + 12) * Math.sin(a * deg);
+    c.textAlign = a === 0 ? 'right' : a === 180 ? 'left' : 'center';
+    c.fillText(a + '°', a === 0 ? cx + R + 21 : a === 180 ? cx - R - 21 : x, y);
+  }
+  // the detector's cone, where its axis lies in this plane
+  const C = S.collect, d0 = S.dir;
+  const coneAt = which === 'out' ? (C.dir === 'fwd' ? 0 : C.dir === 'back' ? 180 : C.dir === 'up' ? 90 : null) : (Math.abs(C.axis[2]) < 1e-6 ? Math.atan2(C.axis[1], C.axis[0]) / deg : null);
+  if (coneAt !== null && C.halfDeg > 0) {
+    c.fillStyle = inkA(0.07); c.beginPath(); c.moveTo(cx, cy);
+    c.arc(cx, cy, R, -(coneAt + C.halfDeg) * deg, -(coneAt - C.halfDeg) * deg); c.closePath(); c.fill();
+  }
+  // which way the light goes: an arrow in to the particle
+  const bd = which === 'out' ? 0 : Math.atan2(d0[1], d0[0]) / deg;
+  c.strokeStyle = getCss('--jek-orange'); c.fillStyle = getCss('--jek-orange'); c.lineWidth = 1.5;
+  {
+    const ux = Math.cos(bd * deg), uy = -Math.sin(bd * deg), x0 = cx - ux * R, y0 = cy - uy * R, x1 = cx - ux * R * 0.72, y1 = cy - uy * R * 0.72;
+    c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+    c.beginPath(); c.moveTo(x1 + ux * 2, y1 + uy * 2); c.lineTo(x1 - ux * 6 - uy * 4, y1 - uy * 6 + ux * 4); c.lineTo(x1 - ux * 6 + uy * 4, y1 - uy * 6 - ux * 4); c.closePath(); c.fill();
+  }
+  const line = (ys, dash, col, lw) => {
+    c.strokeStyle = col; c.lineWidth = lw; c.setLineDash(dash); c.beginPath();
+    for (let i = 0; i < n; i++) { const a = i * 360 / (n - 1) * deg, r = rOf(ys[i]), x = cx + r * Math.cos(a), y = cy - r * Math.sin(a); if (i) c.lineTo(x, y); else c.moveTo(x, y); }
+    c.stroke(); c.setLineDash([]);
+  };
+  line(cut.Is, [4, 3], inkA(0.55), 1);
+  line(cut.I, [], getCss('--jek-cyan'), 1.8);
+  // the particle, and the key
+  c.fillStyle = getCss('--jek-ink-soft'); c.beginPath(); c.arc(cx, cy, 2, 0, 2 * Math.PI); c.fill();
+  c.textAlign = 'left'; c.textBaseline = 'top';
+  c.fillText(which === 'out' ? '0°: the beam’s way, 90°: up' : 'angles as on the bench', 2, 1);
+  c.textBaseline = 'bottom';
+  c.fillText('dashed: polarised ' + (which === 'out' ? 'in the bench plane' : 'out of the plane'), 2, side - 1);
+  const an = which === 'out' ? 'angle from the beam towards up' : 'bench angle';
+  plotCsv(cv, el.name + ' scattering ' + (which === 'out' ? 'out of the plane' : 'in the bench plane'), [an + ' (deg)', 'intensity (W/sr)', 'polarised ' + (which === 'out' ? 'across the beam in the plane' : 'out of the plane') + ' (W/sr)'],
+    () => Array.from({ length: n }, (_, i) => [i * 360 / (n - 1), cut.I[i], cut.Is[i]]));
+}
+/* the pattern over every direction: the angle from the beam across, the angle round it up */
+function drawScatMap(cv, el, S) {
+  const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = Math.min(260, Math.round(w * 0.8)), c = cv.getContext('2d');
+  cv.style.height = hgt + 'px'; cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr);
+  c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
+  cv._csv = null;
+  if (!S || !S.map) return;
+  const M = S.map, log = el.scatScale !== 'lin';
+  const sxA = { kind: 'plain', title: 'angle from the beam (°)' }, syA = { kind: 'plain', title: 'round the beam (°): 0 across in the plane, 90 up' };
+  const A = plotArea(c, w, hgt, [0, 360], syA);
+  let mx = 0; for (const v of M.I) if (v > mx) mx = v;
+  if (!(mx > 0)) return;
+  // an image a pixel a degree-and-a-bit, each from the grid's values either side
+  const W2 = 180, H2 = 180, img = c.createImageData(W2, H2), th = M.theta, nT = M.nT, nP = M.nP;
+  for (let i = 0; i < W2; i++) {
+    const t = (i + 0.5) / W2 * 180;
+    let a = 0; while (a < nT - 1 && th[a + 1] > t) a++;           // theta falls along the grid
+    const b = Math.min(nT - 1, a + 1), f = th[a] === th[b] ? 0 : Math.min(1, Math.max(0, (th[a] - t) / (th[a] - th[b])));
+    for (let j = 0; j < H2; j++) {
+      const p = (1 - (j + 0.5) / H2) * nP, p0 = Math.floor(p) % nP, p1 = (p0 + 1) % nP, g = p - Math.floor(p);
+      const v = (1 - f) * ((1 - g) * M.I[a * nP + p0] + g * M.I[a * nP + p1]) + f * ((1 - g) * M.I[b * nP + p0] + g * M.I[b * nP + p1]);
+      const u = log ? 1 + 10 * Math.log10(Math.max(v / mx, 1e-30)) / SCAT_DB : v / mx, rgb = magma(u), o = 4 * (j * W2 + i);
+      img.data[o] = rgb[0]; img.data[o + 1] = rgb[1]; img.data[o + 2] = rgb[2]; img.data[o + 3] = 255;
+    }
+  }
+  const off = document.createElement('canvas'); off.width = W2; off.height = H2; off.getContext('2d').putImageData(img, 0, 0);
+  c.imageSmoothingEnabled = true; c.drawImage(off, A.l, A.t, A.w, A.h);
+  drawAxes(c, A, [0, 180], [0, 360], sxA, syA, { noGrid: true });
+  plotCsv(cv, el.name + ' scattering map', ['angle from the beam (deg)', 'angle round the beam (deg)', 'intensity (W/sr)'],
+    () => { const out = []; for (let i = nT - 1; i >= 0; i--) for (let j = 0; j < nP; j++) out.push([th[i], M.phi[j], M.I[i * nP + j]]); return out; });
+}
+/* The screen's Scattering tab */
+function scatterSection(el) {
+  panel.append(h('h3', null, 'Scattering'));
+  panel.append(particleRows(el));
+  if (el.trap !== 'sphere') {
+    panel.append(helpLine('Choose a particle to read the light it scatters here.', ['Choose a sphere, a rod or a spheroid to read the light it scatters from the beams through this screen: its cross-sections, where the scattered light goes, and how much a lens of a given numerical aperture would collect. Put the screen at (or near) the focus and untick “Stop the rays it records” on the Screen tab so the light carries on. The same particle is the one the Trap tab reads.'], 'note', 'margin-top:0.5rem'));
+    return;
+  }
+  const status = h('div', { class: 'rt-scatrun', role: 'status', 'aria-live': 'polite', style: 'display:none;align-items:center;gap:0.6rem;margin-top:0.6rem;font-size:0.8125rem;color:var(--jek-ink-soft)' });
+  const box = h('div', { class: 'rt-readout' });
+  const views = [['in', 'In the bench plane'], ['out', 'Out of the plane'], ['map', 'Every direction']];
+  const tabs = h('div', { class: 'rt-inline', style: 'margin:0.5rem 0 0.3rem;flex-wrap:wrap;column-gap:0.8rem;row-gap:0.2rem' });
+  const cv = h('canvas', { style: 'width:100%;display:block' });
+  let last = null, sigT = '', sigS = '';
+  const draw = () => { const v = vs(el).scatView || el.scatView; if (v === 'map') drawScatMap(cv, el, last); else drawPolar(cv, el, last, v); [...tabs.children].forEach((b, i) => { b.style.fontWeight = views[i][0] === v ? '700' : '600'; b.style.textDecoration = views[i][0] === v ? 'underline' : 'none'; }); };
+  for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { vs(el).scatView = key; draw(); } }, text));
+  const scale = h('div', { class: 'rt-rows', style: 'margin-top:0.3rem' }, selectField('Scale', [['log', 'Logarithmic, ' + SCAT_DB + ' dB'], ['lin', 'Linear']], () => el.scatScale, v => { el.scatScale = v; }, { rebuild: false }));
+  panel.append(status, box, tabs, h('div', { class: 'rt-plot' }, cv), plotSaveRow(cv, true), scale);
+  let drawnW = -1;
+  new ResizeObserver(() => requestAnimationFrame(() => { const w = cv.clientWidth; if (w && Math.abs(w - drawnW) > 0.5) { drawnW = w; draw(); } })).observe(cv);
+  bindSync(box, () => {
+    const A = scatterLater(el), S = A.S && !A.S.error ? A.S : null;
+    // the run's line: what it is doing, and Stop; or that it was stopped, and Run
+    let st = [];
+    if (A.busy) {
+      const P = A.prog;
+      const what = !P ? 'Working out the scattering…' : P.stage === 'dipoles' ? 'Dipole array, ' + P.N + ' dipoles: ' + (P.iter ? 'iteration ' + P.iter + ', residual ' + scatSig(P.resid, 2) : 'starting') + '…'
+        : P.stage === 'pattern' ? 'Working out the pattern…' : 'Taking the light at the particle…';
+      st = [what, 'stop'];
+    } else if (A.stopped) st = ['Stopped.', 'run'];
+    else if (A.S && A.S.error) st = ['No scattering: ' + (A.S.error === 'no beam' || A.S.error === 'no focused beam' || A.S.error === 'no light' ? 'no Gaussian beam through here has a field to take.' : A.S.error), ''];
+    else if (A.none) st = ['No Gaussian beam reaches this screen.', ''];
+    const s1 = JSON.stringify(st);
+    if (s1 !== sigT) {
+      sigT = s1;
+      status.replaceChildren(...(st.length ? [h('span', null, st[0]), st[1] === 'stop' ? h('button', { class: 'rt-zb', type: 'button', onclick: () => scatStop(el) }, 'Stop')
+        : st[1] === 'run' ? h('button', { class: 'rt-zb', type: 'button', onclick: () => scatGo(el) }, 'Run') : ''] : []));
+      status.style.display = st.length ? 'flex' : 'none';
+    }
+    box.style.opacity = A.busy && S ? '0.55' : '';              // figures from before the last change, while their run is redone
+    const rows = S ? scatterRows(el, S) : [];
+    const s2 = JSON.stringify(rows) + '|' + el.scatScale + '|' + (vs(el).scatView || el.scatView);
+    if (s2 !== sigS || S !== last) {
+      sigS = s2; last = S;
+      box.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)])));
+      box.hidden = !rows.length;
+      draw();
+    }
+  });
+  const P = particleOf(el);
+  panel.append(helpLine('The light the particle scatters, from the beams through this screen.', ['Three models. Lorenz–Mie is exact for a homogeneous sphere of any size. A dipole array (the discrete dipole approximation) takes any shape: the particle as point dipoles on a cubic lattice, each driven by the light and by all the others, their polarisability from the lattice dispersion relation; good to a few percent while |m|kd stays under about 0.5 and the lattice draws the shape (10 dipoles across unless set; ' + SCAT_NMAX + ' dipoles at most unless more across are asked for), and poor for metals. Rayleigh is one dipole, right only for a particle much smaller than the wavelength; Auto takes it only then. ',
+    'The light is every beam through the screen’s region, as the Trap tab takes them. A steep focus (NA above 0.3) is its full vector field: each sample of its pupil is a plane wave onto the particle with its own direction, polarisation and phase, and a sphere’s scattered field is the sum of every wave’s Mie field, added as fields, so the particle may sit off the focus. A gentler beam is taken as one plane wave where the particle is. Beams of one laser add as fields; separate lasers as powers. ',
+    'Cross-sections and efficiencies are a plane wave’s (for a shape that is not a sphere: along the strongest beam, polarised as the light at the particle is); the powers, the forward and back shares, the collected fraction and the plots are for the light as it is. The collected fraction is the scattered power into a cone of the numerical aperture set, about the direction chosen. One particle, alone: nothing the scattered light meets afterwards is counted, and the light is not put back on the bench.' +
+    (P.shape !== 'sphere' ? ' The Trap tab takes this particle as the sphere of its volume.' : '')], 'note', 'margin-top:0.4rem'));
+}
 /* A card with nothing solved yet starts a field run of the bench in the background, in
    slices, and the panels refresh when it is done */
 let cavJob = null;
@@ -41672,7 +42553,7 @@ function popScreenPrep(el) {
   const ids = new Set([...keep].map(i => B[i].src));
   const srcs = allSources().filter(e => ids.has(e.id));
   const kept = [...keep].sort((x, y) => x - y).map(i => B[i]);
-  const key = el.id + '|' + [el.z, el.tip, el.roll] + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, beamOn(e)])) + JSON.stringify(project.cavityLock || {}) + (el.trap && el.trap !== 'none' ? '|trap' + JSON.stringify([el.trap, el.trapF, el.trapMat, el.trapR, el.trapRho, el.trapMed, el.trapP, el.trapT]) : '');
+  const key = el.id + '|' + [el.z, el.tip, el.roll] + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, beamOn(e)])) + JSON.stringify(project.cavityLock || {}) + (el.trap && el.trap !== 'none' ? '|trap' + JSON.stringify([el.trap, el.trapF, el.trapMat, el.trapR, el.trapRho, el.trapMed, el.trapP, el.trapT, el.trapShape, el.trapLen]) : '');
   return { keep, srcs, key };
 }
 
@@ -41768,9 +42649,11 @@ function trapLegAt(L, px, py, pz) {
   const ph = -L.k * pz, c = Math.cos(ph), sn = Math.sin(ph);
   return [acc[0] * c - acc[1] * sn, acc[0] * sn + acc[1] * c, acc[2] * c - acc[3] * sn, acc[2] * sn + acc[3] * c, 0, 0];
 }
-function trapSolve(el, R, dom, len) {
-  const sg0 = dom.sg, b0 = sg0.b, lam0 = b0.nm * 1e-6;
-  const d0 = [b0.dx, b0.dy], a0v = [-b0.dy, b0.dx];
+/* The beams through a screen's region, for a particle there (the trap, and the light a particle
+   scatters: engines/scatter.js): each as its vector pupil (a steep focus) or its propagated
+   field. dom is the screen's strongest arrival and len where it meets the screen. */
+function trapBeams(el, R, dom, len, pup) {
+  const sg0 = dom.sg, b0 = sg0.b;
   const P0 = [b0.x0 + b0.dx * len, b0.y0 + b0.dy * len];
   const H = Math.min(Math.max(el.length / 2, 0.005), 2);
   // the beams through the region; a beam passing through a screen that lets it by is one beam
@@ -41797,7 +42680,7 @@ function trapSolve(el, R, dom, len) {
     // by the beam's own propagated field, which is the Gaussian beam the source defines there
     // (the pupil sum would take that beam's paraxial far field as exact and lose a few per cent
     // to obliquity at NA 0.1)
-    let P = force ? null : vfPupil(sg, R, { reach: 4.2, M: 96 });
+    let P = force ? null : vfPupil(sg, R, pup || { reach: 4.2, M: 96 });
     if (P && P.NA <= VF_NA) P = null;
     // a beam not converging on a focus ahead (collimated, or past its focus) has no pupil to sum
     // from: its propagated field is taken instead, cut along the beam as the search needs
@@ -41805,15 +42688,25 @@ function trapSolve(el, R, dom, len) {
     if (!P && !leg) { skipped.push(sg); continue; }
     parts.push({ sg, P, leg, b: sg.b, coh: sg.coh, Pw: Math.max(0, sg.b.lmw) * 1e-3 });
   }
+  return { parts, skipped, P0, H };
+}
+/* the medium a particle at a screen sits in: where the light is, or as set */
+const trapMedium = (el, nBench, nm) => el.trap in TRAP_ATOMS ? 1 : el.trapMed === 'vacuum' ? 1 : el.trapMed === 'air' ? airIndex(el.trapP, el.trapT)
+  : el.trapMed === 'water' ? refIndex({ glass: 'Water' }, nm) : nBench;
+function trapSolve(el, R, dom, len) {
+  const sg0 = dom.sg, b0 = sg0.b, lam0 = b0.nm * 1e-6;
+  const d0 = [b0.dx, b0.dy], a0v = [-b0.dy, b0.dx];
+  const { parts, skipped, P0, H } = trapBeams(el, R, dom, len);
   if (!parts.length) return { error: 'no focused beam' };
   const isAtom = el.trap in TRAP_ATOMS;
   // the medium: where the light is, or as set
   const nBench = b0.n;
-  const nMed = isAtom ? 1 : el.trapMed === 'vacuum' ? 1 : el.trapMed === 'air' ? airIndex(el.trapP, el.trapT) : nBench;
+  const nMed = trapMedium(el, nBench, b0.nm);
   // the particle: its polarisability (SI, complex) and mass
   let alpha, mass, sph = null;
   if (isAtom) { const [ar, ai] = trapAlpha(el.trap, b0.nm, el.trapF); alpha = [ar * EPS0, ai * EPS0]; mass = TRAP_ATOMS[el.trap].m * AMU; }
-  else { sph = sphereAlpha(el.trapMat, el.trapR, b0.nm, nMed); alpha = [sph.re, sph.im]; mass = el.trapRho * 4 / 3 * Math.PI * (el.trapR * 1e-9) ** 3; }
+  // (a particle that is not a sphere is, for the trap, the sphere of its volume)
+  else { const rEq = particleOf(el).rEq; sph = sphereAlpha(el.trapMat, rEq, b0.nm, nMed); alpha = [sph.re, sph.im]; mass = el.trapRho * 4 / 3 * Math.PI * (rEq * 1e-9) ** 3; }
   // the field in SI (V/m) at a point of the trap frame, per launch, as the physicists write it (conjugated)
   const byL = new Map();
   for (const q of parts) { if (!byL.has(q.coh)) byL.set(q.coh, []); byL.get(q.coh).push(q); }
@@ -41945,6 +42838,15 @@ function trapSolve(el, R, dom, len) {
   const fr = k => k > 0 ? Math.sqrt(k / mass) / (2 * Math.PI) : null;
   return Object.assign(out, { trap: stable, converged: ok, x: r[0], y: r[1], z: r[2], E2: E2v, U: Uat(...r), k: kd, fx: fr(kd[0]), fy: fr(kd[1]), fz: fr(kd[2]),
     zStart: S0.dz, away });
+}
+/* a screen's strongest arrival in a field run and where it meets the screen, as popDiffraction takes them */
+function screenDom(el, R) {
+  const a = el.angle * deg, nX = Math.cos(a), nY = Math.sin(a);
+  const arr = R.segs.filter(sg => sg.b.endEl === el.id && sg.b.dx * nX + sg.b.dy * nY < 0);
+  if (!arr.length) return null;
+  const hits = arr.map(sg => { const G = sg.leg.at(sg.b.len); return { sg, st: sg.eng === '2d' ? popStats2(G) : popStats(G), Pl: Math.max(0, sg.b.lmw || 0) }; });
+  const dom = hits.reduce((x, y) => y.st.power * segW(y.sg) * (y.Pl || 1) > x.st.power * segW(x.sg) * (x.Pl || 1) ? y : x);
+  return { dom, len: dom.sg.b.len3 || dom.sg.b.len };
 }
 function popDiffraction(el, R) {
   const f = frame(el), a = el.angle * deg, sYx = -Math.sin(a), sYy = Math.cos(a), nX = Math.cos(a), nY = Math.sin(a);
@@ -42376,6 +43278,319 @@ function segFieldAt(h2, sYx, sYy) {
   };
 }
 
+/* ---------- The light a particle scatters ----------
+   The particle a screen holds (trap: 'sphere', of any of the shapes), in the light the bench
+   puts on it, by one of three models: a sphere exactly (Lorenz-Mie, core/mie.js), any shape as
+   an array of dipoles (core/dda.js), or a single dipole (Rayleigh), kept beside them to compare.
+   The light: every beam through the screen's region, as the trap takes them (trapBeams). A
+   steep focus is its pupil, and each pupil sample is a plane wave onto the particle, with its
+   own direction, polarisation and phase at the particle's centre: the focus's angular
+   spectrum, the same one whose sum is the vector field there. A sphere's far field is then
+   every wave's Mie field, each turned to its own direction, added as fields; a dipole array
+   is driven by the waves' sum at each dipole. A beam with no pupil (collimated, or gently
+   focused) is one plane wave, the field where the particle is. Beams of one laser add as
+   fields (a standing wave), separate lasers as powers.
+   The answer is plain data: the cross-sections (for a plane wave along the strongest beam,
+   polarised as the light at the particle is), the powers in the light as it is, the pattern
+   on cuts and over the sphere, and the far field's amplitude itself (far), from which the
+   scattered light could be put back on the bench. */
+const SCAT_MODELS = ['auto', 'rayleigh', 'mie', 'dda'];
+const SCAT_DIRS = ['fwd', 'back', 'side', 'up', 'angle'];
+const SCAT_NMAX = 12000;           // dipoles in a run, unless more across are asked for
+const SCAT_NHARD = 24000;          // and never more than this
+const SCAT_TINY = 0.1;                    // |m| k (half the longest dimension) under which Auto takes the single dipole
+
+const scatFields = el => [el.trapShape, el.trapLen, el.trapAz, el.trapTilt, el.scatModel, el.scatDip, el.scatAt, el.scatDx, el.scatDy, el.scatDz, el.scatNA, el.scatDir, el.scatAng];
+/* what a scattering run depends on, as popScreenPrep gives it for the screen's field, with
+   the particle's own settings; null where there is no particle or no light */
+function scatterPrep(el) {
+  if (!el || el.type !== 'screen' || el.trap !== 'sphere') return null;
+  const job = popScreenPrep(el);
+  return job ? { keep: job.keep, srcs: job.srcs, key: job.key + '|scat' + JSON.stringify(scatFields(el)) } : null;
+}
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const unit = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+/* a frame with ez along a unit vector: [ex, ey, ez], ex in the bench plane where it can be */
+function frameOn(ez) {
+  const ex = Math.hypot(ez[0], ez[1]) > 1e-9 ? unit(cross([0, 0, 1], ez)) : [1, 0, 0];
+  return [ex, cross(ez, ex), ez];
+}
+// world to a frame and back, for 3-vectors packed n to an array of `step` numbers each
+function toFrame(fr, v, step, out) {
+  const o = out || new Float64Array(v.length);
+  for (let i = 0; i < v.length; i += 3 * step) for (let s = 0; s < step; s++) {
+    const x = v[i + s], y = v[i + step + s], z = v[i + 2 * step + s];
+    for (let q = 0; q < 3; q++) o[i + q * step + s] = fr[q][0] * x + fr[q][1] * y + fr[q][2] * z;
+  }
+  return o;
+}
+function fromFrame(fr, v, step, out) {
+  const o = out || new Float64Array(v.length);
+  for (let i = 0; i < v.length; i += 3 * step) for (let s = 0; s < step; s++) {
+    const x = v[i + s], y = v[i + step + s], z = v[i + 2 * step + s];
+    for (let q = 0; q < 3; q++) o[i + q * step + s] = fr[0][q] * x + fr[1][q] * y + fr[2][q] * z;
+  }
+  return o;
+}
+/* The plane waves on a particle at world point C (bench mm; C[2] out of the plane), one set a
+   launch: { n, d, E } with d each wave's direction and E its field at C (V/m, exp(-i w t)),
+   and what was made of each beam. nMed scales the fields as the trap does. */
+function scatterWaves(parts, C, nMed, size) {
+  const byL = new Map(), notes = { varies: false, pupils: 0, plane: 0 };
+  for (const q of parts) {
+    const b = q.b, rx = C[0] - b.x0, ry = C[1] - b.y0, pz = rx * b.dx + ry * b.dy, px = -rx * b.dy + ry * b.dx, py = C[2];
+    const s = Math.sqrt(2 * q.Pw * 1e6 / (nMed * EPS0 * C_SI)), ax = [-b.dy, b.dx];
+    const d = [], E = [];
+    // beam frame (x across in the plane, y out of it, z along) to the world, the field conjugated
+    const push = (dv, e) => {
+      d.push(dv[0] * ax[0] + dv[2] * b.dx, dv[0] * ax[1] + dv[2] * b.dy, dv[1]);
+      E.push(s * (e[0] * ax[0] + e[4] * b.dx), -s * (e[1] * ax[0] + e[5] * b.dx), s * (e[0] * ax[1] + e[4] * b.dy), -s * (e[1] * ax[1] + e[5] * b.dy), s * e[2], -s * e[3]);
+    };
+    if (q.P) {
+      const { X, Y, RHO, U, W, n, k, lamM, Rf } = q.P;
+      notes.pupils++;
+      for (let o = 0; o < n; o++) {
+        const vx = px - X[o], vy = py - Y[o], r = Math.sqrt(vx * vx + vy * vy + pz * pz), dv = [vx / r, vy / r, pz / r];
+        // this sample's term of the pupil sum (vfAt), i / lam and the sphere's own path with it
+        const ph = -k * (r - RHO[o]) - k * Rf + Math.PI / 2, w = pz / (r * r) * W[o] / lamM, c = Math.cos(ph) * w, sn = Math.sin(ph) * w;
+        const e = [0, 0, 0, 0, 0, 0];
+        for (let m = 0; m < 3; m++) { e[2 * m] = U[2 * m][o] * c - U[2 * m + 1][o] * sn; e[2 * m + 1] = U[2 * m][o] * sn + U[2 * m + 1][o] * c; }
+        // a plane wave is square to its direction (the pupil's field is square to the ray to the focus, a hair off it when the particle is off the focus)
+        const lr = e[0] * dv[0] + e[2] * dv[1] + e[4] * dv[2], li = e[1] * dv[0] + e[3] * dv[1] + e[5] * dv[2];
+        for (let m = 0; m < 3; m++) { e[2 * m] -= lr * dv[m]; e[2 * m + 1] -= li * dv[m]; }
+        push(dv, e);
+      }
+    } else {
+      const e = trapLegAt(q.leg, px, py, pz);
+      notes.plane++;
+      push([0, 0, 1], e);
+      // one plane wave stands for it: does the beam change across the particle?
+      if (size > 0) {
+        const I0 = e[0] * e[0] + e[1] * e[1] + e[2] * e[2] + e[3] * e[3];
+        for (const [ox, oy] of [[size, 0], [-size, 0], [0, size], [0, -size]]) {
+          const e1 = trapLegAt(q.leg, px + ox, py + oy, pz), I1 = e1[0] * e1[0] + e1[1] * e1[1] + e1[2] * e1[2] + e1[3] * e1[3];
+          if (Math.abs(I1 - I0) > 0.1 * I0) notes.varies = true;
+        }
+      }
+    }
+    if (!byL.has(q.coh)) byL.set(q.coh, { d: [], E: [] });
+    const L = byL.get(q.coh);
+    for (const v of d) L.d.push(v);
+    for (const v of E) L.E.push(v);
+  }
+  const launches = [];
+  for (const L of byL.values()) {
+    // waves too weak to matter are left out (a pupil's far corners)
+    let mx = 0;
+    const n0 = L.d.length / 3, I = new Float64Array(n0);
+    for (let o = 0; o < n0; o++) { for (let m = 0; m < 6; m++) I[o] += L.E[6 * o + m] ** 2; if (I[o] > mx) mx = I[o]; }
+    const keep = []; for (let o = 0; o < n0; o++) if (I[o] > 1e-9 * mx) keep.push(o);
+    const d = new Float64Array(3 * keep.length), E = new Float64Array(6 * keep.length);
+    keep.forEach((o, i) => { for (let m = 0; m < 3; m++) d[3 * i + m] = L.d[3 * o + m]; for (let m = 0; m < 6; m++) E[6 * i + m] = L.E[6 * o + m]; });
+    launches.push({ n: keep.length, d, E });
+  }
+  return { launches, notes };
+}
+// the waves' sum at the centre: [xr, xi, yr, yi, zr, zi]
+const wavesAt0 = L => { const e = [0, 0, 0, 0, 0, 0]; for (let o = 0; o < L.n; o++) for (let m = 0; m < 6; m++) e[m] += L.E[6 * o + m]; return e; };
+const abs2 = e => e.reduce((a, v) => a + v * v, 0);
+/* the waves' field at each dipole of a lattice (body frame; fr the body's axes in the world): 6 N numbers */
+function wavesOnLattice(L, lat, k, fr) {
+  const N = lat.N, E = new Float64Array(6 * N), db = toFrame(fr, L.d, 1), Eb = toFrame(fr, L.E, 2);
+  for (let o = 0; o < L.n; o++) {
+    const dx = k * db[3 * o], dy = k * db[3 * o + 1], dz = k * db[3 * o + 2], b = 6 * o;
+    const e0 = Eb[b], e1 = Eb[b + 1], e2 = Eb[b + 2], e3 = Eb[b + 3], e4 = Eb[b + 4], e5 = Eb[b + 5];
+    for (let j = 0; j < N; j++) {
+      const ph = dx * lat.x[j] + dy * lat.y[j] + dz * lat.z[j], c = Math.cos(ph), s = Math.sin(ph), q = 6 * j;
+      E[q] += e0 * c - e1 * s; E[q + 1] += e0 * s + e1 * c; E[q + 2] += e2 * c - e3 * s; E[q + 3] += e2 * s + e3 * c; E[q + 4] += e4 * c - e5 * s; E[q + 5] += e4 * s + e5 * c;
+    }
+  }
+  return E;
+}
+/* which model a particle gets, and why: { model, auto, note } */
+function scatterModel(el, P, k, mAbs) {
+  const want = SCAT_MODELS.includes(el.scatModel) ? el.scatModel : 'auto', sphere = P.shape === 'sphere';
+  const tiny = mAbs * k * Math.max(P.D, P.L) / 2 <= SCAT_TINY;
+  if (want === 'auto') return { model: tiny ? 'rayleigh' : sphere ? 'mie' : 'dda', auto: true };
+  return { model: want, auto: false };
+}
+/* The run, as a generator: it yields { stage, ... } as it goes (so a worker can report and be
+   stopped) and returns the answer, or { error }. R is the field run of scatterPrep's beams. */
+function* scatterGen(el, R, opts) {
+  const t0 = Date.now(), sd = screenDom(el, R);
+  if (!sd) return { error: 'no beam' };
+  const { dom, len } = sd, b0 = dom.sg.b, nm = b0.nm;
+  const P = particleOf(el), nBench = b0.n, nMed = trapMedium(el, nBench, nm);
+  const [npr, npi] = particleIndex(el.trapMat, nm), mr = npr / nMed, mi = npi / nMed, mAbs = Math.hypot(mr, mi);
+  const k = 2 * Math.PI * nMed / (nm * 1e-9), Z = Z0_OHM / nMed, aEq = P.rEq * 1e-9, area = Math.PI * aEq * aEq;
+  const pick = scatterModel(el, P, k, mAbs), model = pick.model;
+  yield { stage: 'light' };
+  // the beams, and where the particle is: the trap frame's x across the strongest beam in the plane, y out of it, z along it
+  const TB = trapBeams(el, R, dom, len, { reach: 3.2, M: 64 });
+  if (!TB.parts.length) return { error: 'no focused beam' };
+  const d0 = [b0.dx, b0.dy, 0], a0 = [-b0.dy, b0.dx, 0], up = [0, 0, 1];
+  let at = [0, 0, 0], atTrap = false, trapMiss = false;
+  if (el.scatAt === 'trap') {
+    let T = null;
+    try { T = trapSolve(el, R, dom, len); } catch (err) { T = null; }
+    if (T && T.trap) { at = [T.x, T.y, T.z]; atTrap = true; } else trapMiss = true;
+  }
+  at = [at[0] + (el.scatDx || 0) * 1e-3, at[1] + (el.scatDy || 0) * 1e-3, at[2] + (el.scatDz || 0) * 1e-3];
+  const C = [TB.P0[0] + at[0] * a0[0] + at[2] * d0[0], TB.P0[1] + at[0] * a0[1] + at[2] * d0[1], at[1]];
+  const W = scatterWaves(TB.parts, C, nMed, 0.5e3 * Math.max(P.D, P.L));
+  const launches = W.launches.filter(L => L.n > 0);
+  if (!launches.length) return { error: 'no light' };
+  // the light at the centre, and the strongest launch's polarisation there (square to the beam)
+  const E0s = launches.map(wavesAt0), E2 = E0s.reduce((a, e) => a + abs2(e), 0), I0 = 0.5 * E2 / Z;
+  let iDom = 0; E0s.forEach((e, i) => { if (abs2(e) > abs2(E0s[iDom])) iDom = i; });
+  let pol = E0s[iDom].slice();
+  { const lr = pol[0] * d0[0] + pol[2] * d0[1], li = pol[1] * d0[0] + pol[3] * d0[1]; for (let m = 0; m < 3; m++) { pol[2 * m] -= lr * d0[m]; pol[2 * m + 1] -= li * d0[m]; } }
+  { const l = Math.sqrt(abs2(pol)); pol = l > 0 ? pol.map(v => v / l) : [a0[0], 0, a0[1], 0, 0, 0]; }
+  const single = launches.length === 1 && launches[0].n === 1;
+  // the particle's axis and its frame
+  const az = (el.trapAz || 0) * deg, tl = (el.trapTilt || 0) * deg, axis = [Math.cos(tl) * Math.cos(az), Math.cos(tl) * Math.sin(az), Math.sin(tl)];
+  const body = frameOn(axis);
+  const flags = [];
+  if (Math.abs(nMed - nBench) > 1e-3) flags.push('medium');
+  if (W.notes.varies) flags.push('varies');
+  if (TB.skipped.length) flags.push('skipped');
+  if (trapMiss) flags.push('notrap');
+  const out = { model, auto: pick.auto, shape: P.shape, D: P.D * 1e9, L: P.L * 1e9, rEq: P.rEq, mat: el.trapMat, np: [npr, npi], m: [mr, mi], nMed, nBench, nm, k,
+    x: k * aEq, kL: k * Math.max(P.D, P.L) / 2, area, I0, E2, at: { x: at[0], y: at[1], z: at[2], trap: atTrap }, beams: TB.parts.length, launches: launches.length,
+    waves: launches.reduce((a, L) => a + L.n, 0), pupils: W.notes.pupils, plane: W.notes.plane, single, dir: d0, pol, axis, flags };
+  // Rayleigh's answer beside whichever model runs, and Mie's for the sphere of the same volume
+  const aSm = smallAlpha(P.V, P.shape === 'sphere' ? 1 : P.L / P.D, mr, mi, k);
+  const smallP = e => {            // p = alpha E, alpha a tensor about the axis: [6]
+    const eb = toFrame(body, Float64Array.from(e), 2), pb = new Float64Array(6);
+    for (let q = 0; q < 3; q++) { const al = q === 2 ? aSm[0] : aSm[1]; pb[2 * q] = al[0] * eb[2 * q] - al[1] * eb[2 * q + 1]; pb[2 * q + 1] = al[0] * eb[2 * q + 1] + al[1] * eb[2 * q]; }
+    return Array.from(fromFrame(body, pb, 2));
+  };
+  {
+    const p = smallP(pol), sca = 8 * Math.PI / 3 * k ** 4 * abs2(p);
+    let ext = 0; for (let q = 0; q < 3; q++) ext += pol[2 * q] * p[2 * q + 1] - pol[2 * q + 1] * p[2 * q];
+    ext *= 4 * Math.PI * k;
+    out.rayleigh = { Csca: sca, Cext: ext, Cabs: ext - sca };
+  }
+  const CM = mieCoeffs(k * aEq, mr, mi), QM = mieQ(CM);
+  out.mieEq = { Csca: QM.Qsca * area, Cext: QM.Qext * area, Cabs: QM.Qabs * area, g: QM.g, Qback: QM.Qback, terms: CM.n };
+  // each launch's far field as a function of directions (world), and what it takes from the light
+  const fars = [], Pext = [], Pabs = [];
+  let ref = null;                        // the plane wave's answer: { Csca, Cext, Cabs, g, Qback }
+  const refGrid = sphereGrid(24, 48, a0, up, d0);
+  const refFrom = (far, ext, abs, e2) => {
+    const T = sphereTotals(refGrid, farPower([far(refGrid.dirs)], refGrid.dirs.length / 3));
+    const Fb = far(Float64Array.of(-d0[0], -d0[1], 0));
+    return { Csca: T.total / e2, Cext: ext, Cabs: abs, g: T.g, Qback: 4 * Math.PI * abs2(Array.from(Fb)) / e2 / area };
+  };
+  if (model === 'mie') {
+    if (P.shape !== 'sphere') flags.push('mieNotSphere');
+    const tab = mieTable(CM);
+    for (const L of launches) {
+      fars.push(dirs => mieFarWaves(tab, k, L, dirs));
+      yield { stage: 'sphere' };
+      // the optical theorem, wave by wave: P_ext = (4 pi / k) / (2 Z) Im sum conj(E_o) . F(d_o)
+      const F = mieFarWaves(tab, k, L, L.d);
+      let s = 0; for (let q = 0; q < F.length; q += 2) s += L.E[q] * F[q + 1] - L.E[q + 1] * F[q];
+      Pext.push(4 * Math.PI / k * s / (2 * Z)); Pabs.push(null);
+    }
+    ref = { Csca: out.mieEq.Csca, Cext: out.mieEq.Cext, Cabs: out.mieEq.Cabs, g: QM.g, Qback: QM.Qback };
+    out.mie = { terms: CM.n };
+  } else if (model === 'rayleigh') {
+    if (mAbs * out.kL > 0.5) flags.push('rayleighBig');
+    E0s.forEach(e => {
+      const p = smallP(e);
+      fars.push(dirs => dipoleFar(k, p, dirs));
+      let s = 0; for (let q = 0; q < 3; q++) s += e[2 * q] * p[2 * q + 1] - e[2 * q + 1] * p[2 * q];
+      Pext.push(4 * Math.PI * k * s / (2 * Z)); Pabs.push(null);
+    });
+    const p1 = smallP(pol);
+    ref = refFrom(dirs => dipoleFar(k, p1, dirs), out.rayleigh.Cext, out.rayleigh.Cabs, 1);
+    ref.Csca = out.rayleigh.Csca;
+  } else {
+    const o = opts || {}, across = el.scatDip > 0 ? el.scatDip : 10;
+    const lat = ddaPlan(P.shape, P.D, P.L, k, mAbs, { across, nMax: Math.min(SCAT_NHARD, o.nMax || (el.scatDip > 0 ? SCAT_NHARD : SCAT_NMAX)) });
+    const dirB = Array.from(toFrame(body, Float64Array.from(d0), 1)), polB = Array.from(toFrame(body, Float64Array.from(pol), 2));
+    const alpha = ddaAlpha(mr, mi, k, lat.d, 'ldr', dirB, polB), S = ddaSolver(lat, k, alpha);
+    const D = { N: lat.N, d: lat.d * 1e9, mkd: lat.mkd, across: lat.across, capped: lat.capped, coarse: lat.coarse, iters: 0, resid: 0, converged: true, runs: 0 };
+    out.dda = D;
+    if (lat.coarse) flags.push('coarse');
+    if (lat.capped) flags.push('capped');
+    if (mAbs > 2.5) flags.push('highIndex');
+    const runSolve = function* (E, what) {
+      const g = S.solve(E, { tol: o.tol || 1e-5, maxIter: o.maxIter || 300 });
+      let r = g.next();
+      while (!r.done) { yield { stage: 'dipoles', what, iter: r.value.iter, resid: r.value.resid, N: lat.N }; r = g.next(); }
+      D.iters += r.value.iters; D.resid = Math.max(D.resid, r.value.resid); D.runs++;
+      if (!r.value.converged) D.converged = false;
+      return r.value.p;
+    };
+    const farOf = p => dirs => fromFrame(body, ddaFar(lat, k, p, toFrame(body, dirs, 1)), 2);
+    yield { stage: 'dipoles', what: 'wave', iter: 0, resid: 1, N: lat.N };
+    let n = 0;
+    for (const L of launches) {
+      const E = wavesOnLattice(L, lat, k, body), p = yield* runSolve(E, launches.length > 1 ? 'light ' + (++n) : 'light');
+      const X = ddaExtAbs(k, alpha, E, p);
+      fars.push(farOf(p)); Pext.push(X.ext / (2 * Z)); Pabs.push(X.abs / (2 * Z));
+      if (single) ref = refFrom(farOf(p), X.ext / E2, X.abs / E2, E2);
+    }
+    if (!ref) {
+      // the cross-sections are a plane wave's: one more solve, along the strongest beam
+      const E = ddaPlaneWave(lat, k, dirB, polB), p = yield* runSolve(E, 'wave');
+      const X = ddaExtAbs(k, alpha, E, p);
+      ref = refFrom(farOf(p), X.ext, X.abs, 1);
+    }
+    if (!D.converged) flags.push('noconv');
+  }
+  yield { stage: 'pattern' };
+  // the pattern in the light as it is: over the sphere (the axis along the strongest beam), on two cuts, into the cone
+  const nT = Math.max(36, Math.min(96, 2 * Math.ceil(out.kL + 8))), G = sphereGrid(nT, 2 * nT, a0, up, d0), nG = nT * 2 * nT;
+  const FG = fars.map(f => f(G.dirs)), IG = farPower(FG, nG), tot = sphereTotals(G, IG);
+  const nC = 361, cIn = new Float64Array(3 * nC), cOut = new Float64Array(3 * nC);
+  for (let i = 0; i < nC; i++) {
+    const a = i * deg; cIn[3 * i] = Math.cos(a); cIn[3 * i + 1] = Math.sin(a);
+    for (let q = 0; q < 3; q++) cOut[3 * i + q] = Math.cos(a) * d0[q] + Math.sin(a) * up[q];
+  }
+  const cut = (dirs, normal) => { const F = fars.map(f => f(dirs)); return { I: Array.from(farPower(F, nC), v => v / (2 * Z)), Is: Array.from(farPowerAlong(F, nC, normal), v => v / (2 * Z)) }; };
+  out.cutIn = cut(cIn, up);                 // by bench angle, 0 to 360 degrees; Is the part polarised out of the plane
+  out.cutOut = cut(cOut, a0);               // by angle from the beam's direction towards up; Is the part polarised across the beam in the plane
+  out.beamDeg = Math.atan2(d0[1], d0[0]) / deg;
+  out.Psca = tot.total / (2 * Z);
+  out.Pext = Pext.reduce((a, v) => a + v, 0);
+  out.Pabs = Pabs.every(v => v !== null) ? Pabs.reduce((a, v) => a + v, 0) : out.Pext - out.Psca;
+  out.fwd = tot.fwd; out.back = tot.back; out.gLight = tot.g;
+  out.Csca = ref.Csca; out.Cext = ref.Cext; out.Cabs = ref.Cabs; out.g = ref.g; out.Qback = ref.Qback;
+  out.Qsca = ref.Csca / area; out.Qext = ref.Cext / area; out.Qabs = ref.Cabs / area;
+  // a detector's share: a cone of numerical aperture NA (in the medium) about a direction
+  const ca = (el.scatAng || 0) * deg, cAxis = el.scatDir === 'back' ? d0.map(v => -v) : el.scatDir === 'side' ? a0 : el.scatDir === 'up' ? up : el.scatDir === 'angle' ? [Math.cos(ca), Math.sin(ca), 0] : d0;
+  const half = Math.asin(Math.min(1, Math.max(0, el.scatNA) / nMed)), CG = coneGrid(cAxis, half);
+  { const Ic = farPower(fars.map(f => f(CG.dirs)), CG.w.length); let s = 0; for (let i = 0; i < Ic.length; i++) s += Ic[i] * CG.w[i]; out.collect = { P: s / (2 * Z), frac: tot.total > 0 ? s / tot.total : 0, halfDeg: half / deg, na: el.scatNA, dir: el.scatDir, axis: cAxis }; }
+  out.map = { nT, nP: 2 * nT, theta: Array.from(G.mu, v => Math.acos(v) / deg), phi: Array.from(G.phi, v => v / deg), I: Float32Array.from(IG, v => v / (2 * Z)) };
+  // the far field itself: F (volts; E = F e^{ikr}/r in V/m) at the map's directions, a launch each, in the world's x, y (the bench) and z (up)
+  out.far = { axes: [a0, up, d0], mu: Array.from(G.mu), phi: Array.from(G.phi), F: FG.map(F => Float32Array.from(F)) };
+  out.ms = Date.now() - t0;
+  return out;
+}
+/* The answers kept, a screen each, under the key they were worked out for: the page's worker fills it (ui/scatter.js),
+   and scatterNow; the data export and the 3D view read it */
+const scatCache = new Map();
+function scatterCached(el) { const J = scatterPrep(el), c = J && scatCache.get(el.id); return c && c.key === J.key ? c.S : null; }
+/* an answer as plain numbers and lists (a script's, a file's) */
+const scatterPlain = S => JSON.parse(JSON.stringify(S, (k, v) => (ArrayBuffer.isView(v) ? Array.from(v) : v)));
+/* the run in one go */
+function scatterRun(el, R, opts) {
+  const g = scatterGen(el, R, opts);
+  let r = g.next();
+  while (!r.done) r = g.next();
+  return r.value;
+}
+/* a screen's scattering now, on this thread: the bench's field for it, then the run (scripts, Node, the tests) */
+function scatterNow(el, opts) {
+  const job = scatterPrep(el);
+  if (!job) return null;
+  const S = scatterRun(el, popRun(lastTrace.beams, job.srcs, { keep: job.keep }), opts);
+  scatCache.set(el.id, { key: job.key, S });
+  return S;
+}
 /* ---------- An RF lens as an antenna, from the bench's own diffracted field ----------
    The field engine carries the horn's field (its modes, as launched) through the lens: each face
    by its traced phase, a graded-index lens by its own delay and loss, the rim cutting it. Just past
@@ -48177,11 +49392,12 @@ function trapReport(el, T) {
     out.kT = -T.U / (KB * el.trapT);
     out.Psc = S.sigma * I;                                                // W scattered
     out.Fscat = T.nMed * S.sigma * I / C_SI;                              // N, one beam's worth
-    out.np = S.np; out.m = S.m; out.ka = S.ka;
+    out.np = S.np; out.kap = S.kap || 0; out.m = S.m; out.ka = S.ka;
+    const rEq = particleOf(el).rEq;
     // damping by the medium, and each direction's quality factor
     const water = Math.abs(T.nMed - refIndex({ glass: 'Water' }, lastTraceNm(el))) < 0.01;
-    if (el.trapMed === 'air') { const g = gasDamping(el.trapR, T.mass, el.trapP, el.trapT); out.G = g.G; out.mfp = g.l; out.Kn = g.Kn; out.dampBy = 'air'; }
-    else if (el.trapMed === 'bench' && water) { out.G = waterDamping(el.trapR, T.mass, el.trapT); out.dampBy = 'water'; }
+    if (el.trapMed === 'air') { const g = gasDamping(rEq, T.mass, el.trapP, el.trapT); out.G = g.G; out.mfp = g.l; out.Kn = g.Kn; out.dampBy = 'air'; }
+    else if ((el.trapMed === 'bench' || el.trapMed === 'water') && water) { out.G = waterDamping(rEq, T.mass, el.trapT); out.dampBy = 'water'; }
     else { out.G = 0; out.dampBy = el.trapMed === 'vacuum' ? 'vacuum' : 'none'; }
     out.Q = [T.fx, T.fy, T.fz].map(f => f && out.G > 0 ? 2 * Math.PI * f / out.G : null);
   }
@@ -48259,6 +49475,17 @@ function readoutsData() {
         add(el, 'MTF falls to 50% at', D.mtf50, 'lp/mm'); add(el, 'Airy radius', D.airy, 'mm'); add(el, 'NA', D.NA, '');
         add(el, 'Field power arriving', D.power, 'relative'); add(el, 'Degree of polarisation', D.dop, '');
       }
+      // its particle's scattering, where its Scattering tab has worked it out (not run here: a dipole array can take minutes)
+      const S = scatterCached(el);
+      if (S && !S.error) {
+        add(el, 'Scattering model', ({ mie: 'Lorenz–Mie', dda: 'dipole array', rayleigh: 'Rayleigh' })[S.model]);
+        add(el, 'Scattering cross-section', S.Csca, 'm²'); add(el, 'Extinction cross-section', S.Cext, 'm²'); add(el, 'Absorption cross-section', S.Cabs, 'm²');
+        add(el, 'Scattering efficiency', S.Qsca, ''); add(el, 'Extinction efficiency', S.Qext, ''); add(el, 'Asymmetry g', S.g, '');
+        add(el, 'Power scattered', S.Psca, 'W'); add(el, 'Power absorbed', S.Pabs, 'W'); add(el, 'Irradiance at the particle', S.I0, 'W/m²');
+        add(el, 'Scattered forward', S.fwd, '', 'share of the scattered power'); add(el, 'Scattered back', S.back, '', 'share of the scattered power');
+        add(el, 'Scattered light collected', S.collect.frac, '', 'share into NA ' + S.collect.na); add(el, 'Scattered power collected', S.collect.P, 'W');
+        if (S.dda) { add(el, 'Dipoles', S.dda.N, ''); add(el, 'Dipole spacing', S.dda.d, 'nm'); add(el, '|m|kd', S.dda.mkd, ''); }
+      }
     } else if (el.type === 'detector') {
       const r = detectorReading(el);
       if (el.mmw) {
@@ -48299,6 +49526,15 @@ function screensData() {
   traceScene();
   const items = [], ids = new Set();
   for (const el of screensOf()) {
+    // the pattern of the light its particle scatters, where the Scattering tab has worked it out
+    const S = scatterCached(el);
+    if (S && !S.error) {
+      ids.add(el.id);
+      const ang = S.cutIn.I.map((_, i) => i * 360 / (S.cutIn.I.length - 1));
+      items.push({ kind: 'table', name: el.name + ' scattering', about: 'the light ' + el.name + '’s particle scatters, per solid angle: in the bench plane by bench angle, and in the plane out of it by the angle from the beam’s direction towards up; each with the part polarised square to that plane',
+        cols: [col('angle', '°', ang), col('in the bench plane', 'W/sr', S.cutIn.I), col('in the bench plane, polarised out of it', 'W/sr', S.cutIn.Is),
+          col('out of the plane', 'W/sr', S.cutOut.I), col('out of the plane, polarised in the bench plane', 'W/sr', S.cutOut.Is)] });
+    }
     const hits = ((lastTrace.screens || {})[el.id] || []).filter(t => !t.chief);
     if (hits.length) {
       ids.add(el.id);
@@ -50184,7 +51420,7 @@ async function aiGuide() {
   for (const k of AI_GUIDE_EXAMPLES) { try { ex[k] = await (await fetch('demos/' + k + '.jekray')).text(); } catch (err) { /* left out */ } }
   return aiGuideText(ex);
 }
-const AI_GUIDE_PROSE = "# JEKray: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nIt works in 3D: every free-space part is placed freely in space, by its x and y, its height \"z\" and its facing, tip and roll (below), and light is followed through all of it: up a periscope, along a raised beam, through a part rolled about it. So a periscope, a beam raised to another height or a beam sent up into a vertical microscope is built as it is. What it cannot do: put fibre, electronic or chip parts in 3D (the 3D view leaves them out), or model mechanics (no forces on particles, no thermal effects).\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; two parts share an x and y only when one is above the other at a different \"z\", as in a periscope.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray and either paste it with Ctrl+V on the bench, or save it as `name.jekray` and use **File › Open a .jekray file…**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown under Edit › Bench notes…: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"disp\": ps/(nm km) or leave out for standard single-mode fibre, \"gamma\": the Kerr nonlinearity in 1/(W km) or leave out (1.3 for standard fibre at 1550 nm; pulses strong enough undergo self-phase modulation), \"ftype\": \"smf\" (keeps polarisation, the default) or \"random\" (standard fibre as laid, with a \"seed\") or \"pm\" (with \"key\" degrees, \"beat\" mm and \"per\" dB) or \"mm\" (multimode), \"conn\": its ends, \"splice\" (no reflection, the default), \"pc\" or \"apc\" connectors (45 or 65 dB return loss) or \"flat\" cleaves (4%), \"path\": [{\"x\", \"y\"}, ...]} |\n| assemblies | optional: lens assemblies, lenses and round stops on one axis designed together, each {\"id\": the group its parts carry as \"group\", \"name\", \"ref\": the id of a lens whose facing sets the axis, \"rev\": true if the light runs against that lens's facing, \"cond\": {\"aperture\": {\"kind\": \"epd\" (entrance pupil diameter, mm) or \"fno\", \"v\"}, \"fields\": [{\"deg\", \"w\"}], \"waves\": [{\"nm\", \"w\"}], \"primary\": index of the primary wavelength}}; the tool adds \"design\" (its element data\u2019s solves, variables and merit function) itself, so leave that out. Leave it out unless asked for an assembly |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n| style | optional: the bench's look, {\"bg\": a colour \"#rrggbb\" (dark as it is; light, such as \"#ffffff\" for a figure, drawn light with dark lines), \"holes\": false to hide the grid holes}. Leave it out for the dark breadboard |\n| light | optional: how the light is shown, for every source alike: {\"rays\": false to hide the rays, \"envelope\": false to hide the Gaussian beams' outlines, \"field\": true to show the diffracted field, \"scale\": \"lin\", \"log\" (30 dB) or \"log60\" (60 dB) for the field, \"byPower\": false to draw every beam at full strength rather than as bright as the power it carries}. Leave it out for rays and envelopes drawn by their power |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\nA free-space part may also take \"z\": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. Any free-space part but a link plane may take \"tip\": degrees it is tipped up (positive) or down out of the plane about its own across axis (a mirror as a mount's vertical knob tips it; a source sends its light up at that angle); leave it out for an upright part. It may also take \"roll\": degrees it is turned about its own axis (the way it faces, right-handed), which turns a cylindrical lens\u2019s power, a grating\u2019s grooves (rolled 90°, its orders go up and down), a waveplate\u2019s or polariser\u2019s axis (as for an isolator\u2019s polarisers: a roll r acts as \"axis\" less r, so rolling one with a rolled source keeps them aligned), a crystal\u2019s optic axis (a beam displacer rolled 90\u00b0 walks its beam up; a doubling crystal converts the light along its turned axis) or a Dove prism\u2019s image (by twice the roll); a rolled source turns its rays and its polarisation with it. A periscope is two mirrors one over the other at the same x and y. For a beam going along +x (\"angle\": 0): the lower mirror \"angle\": 180 (facing the beam that comes in) with \"tip\": 45, which sends the light straight up; the upper, at its own \"z\", \"angle\": 0 (facing the way the beam leaves) with \"tip\": -45, which sends it on along +x again at the new height. For a beam along another angle A, the lower mirror faces A + 180 and the upper A, with the same tips. A source may take \"pattern\": \"cross\", \"grid\" or \"hex\" (hexapolar rings) to spread its rays up and down the beam as well as across it (\"line\", the default, keeps them in the plane).\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes \"pol\": \"s\" or \"p\" (or \"linear\" with \"polAngle\" counted from p); a fibre laser takes \"pol\": \"s\", \"p\", \"linear\" (with \"polAngle\" counted from s), \"rcp\" or \"lcp\". When a paper's polarisation lies along the direction you have drawn in the plane, that is p.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0}. To see the diffracted beam, give the file \"light\": {\"field\": true} (it is the bench's, for every source), and use a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Short pulses:** give a source (or a fibre laser) \"tau\" in fs, with \"pshape\", \"rep\" and \"power\" as the average power. Glass, prisms, gratings, chirped mirrors (\"gdd\" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by \"blaze\"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.\n- **A laser from parts:** a gain element (\"g0\", \"isat\", \"centre\" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.\n- **Vapour cell spectroscopy:** a \"cell\" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser (\"splitFrom\") crossing the cell in opposite directions along the same line, the probe onto a detector. A magnetic field along the cell (\"bField\", gauss) splits the lines: for a DAVLL lock, a linearly polarised probe through a cell at about 50 to 100 G, a quarter-wave plate at 45 degrees, a polarising cube and a detector on each port; for a Faraday filter, the cell (heated, a few hundred gauss) between crossed polarisers. Polarisation spectroscopy needs no field: a circularly polarised pump (a quarter-wave plate on it) against a linearly polarised probe, the probe then through a cube at 45 degrees onto two detectors.\n- **Higher-order and vortex beams:** give a Gaussian source \"tem\": \"hg\" with \"hm\" and \"hn\", or \"tem\": \"lg\" with \"lp\" and \"ll\" (the vortex charge); \"w0\" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: \"delay\" \"theta/(2*pi)\" is a spiral phase plate of charge 1, \"mod(x/0.1 + theta/(2*pi), 1)\" a fork hologram of period 0.1 mm, and \"mod(x/0.1, 1)\" a blazed grating. Raise the source's \"popN\" if the tool flags the mask's detail as finer than its grid.\n- **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with \"absorb\": false and \"trap\" set to the atom (\"Rb87\", \"Cs133\" and so on) or to \"sphere\" with \"trapMat\", \"trapR\" (nm) and \"trapMed\". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of \"Water\" so the optics are right too.\n- **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a \"divergence\" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field (\"abAng\" degrees, or \"abH\" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a \"stop\" where the system's aperture stop is (in front of, between or behind the lenses): each field's chief ray is aimed through its centre.\n- **Frequency doubling:** a Gaussian laser focused into an \"nlc\" (a periodically poled crystal: \"material\" \"ppln\" or \"ppktp\", \"nlLen\" mm, \"temp\" °C, \"axis\" the polarisation that converts), its waist in the crystal's middle (the crystal is a block of index n, about 2.1 for PPLN, so a focus aimed at its middle in air lands further in: aim L/(2n) past its entrance face); leave \"period\" at 0 for the best period for that beam, or give it in µm (then the temperature tunes it). The second harmonic leaves as its own beam; separate it with a short-pass \"filter\". Focus so the crystal is about 2.84 confocal parameters long for the most harmonic.\n- **Self-phase modulation and solitons:** a pulsed fibre laser (\"tau\", \"rep\", \"power\") into fibre long and strong enough for a nonlinear phase (standard fibre has \"gamma\" 1.3 /(W km)); the fibre tip's beam carries the reshaped spectrum to a screen's Pulse tab. Anomalous dispersion (standard fibre at 1.55 µm) with peak power |β₂|/(γT₀²) makes a soliton.\n- **Fibre amplifier:** an fcomp \"amp\" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.\n- **Millimetre waves (RF):** a feed horn is a source with \"mmw\": {\"kind\": \"corrugated\" (or \"smooth\", \"diagonal\", \"gauss\"), \"ghz\": frequency, 1 to 3000, \"dbm\": power, \"a\": aperture radius mm, \"L\": slant length mm}; it sets its own wavelength, waist and power, so leave those out. A receiving horn is a detector with \"mmw\": {\"kind\", \"a\", \"L\"}, \"material\": \"custom\" and \"resp\" in A/W; it reads the power its mode takes in. Its front end, \"rx\": \"video\" (a square-law detector: \"rv\" V/W, \"nep\" pW/\u221aHz, \"vbw\" MHz, a single pole) or \"mixer\" (\"lo\" GHz, \"cl\" dB of conversion loss, \"trx\" K, \"ifbw\" MHz, a single pole, \"tant\" K looked into, and \"sideband\": \"ssb\", the default, with \"trx\" an SSB temperature and the image terminated cold, or \"dsb\", with \"trx\" a DSB temperature and the noise of both sidebands). An RF lens is a lens with \"mmw\": {}, drawn white, and takes the RF dielectrics as its glass: \"HDPE\", \"PTFE\", \"Rexolite\", \"TPX\", \"HR silicon\", \"Fused quartz (RF)\", \"Alumina\", \"Nylon\". Other parts (mirrors, polarisers as wire grids, screens as loads) are used as they are; give them \"mmw\": {} to list them under the RF tab. An optical source cannot go past 1 mm (1e6 nm).\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position (x, y and height); elements are not inside each other. Parts one over the other, such as a periscope's two mirrors, differ in \"z\".\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place (the same x, y and height). The person can copy this report back to you. Fix every item and give the whole corrected file again.\n\n## Part packs\n\nA person may instead ask for a **part pack**: a set of ready-made parts and glasses (a catalogue, a course kit) that they install with **File \u203a Part packs and modules\u2026** and then add from **+ Add part \u203a Packs**. A pack is one JSON object, {\"format\": \"jekpack\", \"version\": 1, \"id\": \"maker.name\" (2 to 64 lower-case letters, digits, dots, dashes or underscores), \"name\", \"author\", \"packVersion\", \"description\", \"licence\", \"glasses\": [{\"glass\": a name, \"table\": {\"wl\": [\u00b5m], \"n\": [...]}} or {\"glass\", \"nd\", \"vd\"}], \"parts\": [{\"name\", \"summary\", \"group\", \"elements\": [elements exactly as in a .jekray file, positioned about (0, 0)], \"fibres\": [...]}]}. A material naming one of the pack's glasses gets its data. Packs hold data only: never add \"code\" or \"scripts\", which make the tool refuse the pack.\n";
+const AI_GUIDE_PROSE = "# JEKray: a guide for AI assistants\n\nThis file teaches you, an AI assistant, how to write projects for **JEKray**, a free optical bench simulator that runs in the browser (https://jeksys.net/jek/tools/jekray.html). A person has given it to you so that you can design an optical system for them, or rebuild one from a paper or thesis, as a `.jekray` file they can open. It describes file format version {{VERSION}}.\n\nRead all of it before writing a file. The parts that matter most are **Coordinates and angles** and the **Checklist**.\n\n## What JEKray is\n\n- A 2D optical bench: everything lies in one plane, the bench, seen from above. x is to the right, y is up, lengths are in millimetres and angles in degrees, anticlockwise from +x.\n- It traces rays exactly through real surfaces and glass, with polarisation (s is out of the bench plane, p is in it), optical path, Fresnel losses and coatings.\n- A source can also be a Gaussian beam. Its diffracted field is propagated through the system by physical optics, so interference, diffraction, cavities (found and solved automatically), fibre coupling and photodiode signals come out as on a real bench.\n- Fibre subsystems (fibre lasers, couplers, circulators, AOMs, EOMs, photodiodes and more) sit on the bench too, joined port to port by fibres.\n- A project can have several tabs (benches), joined by pairs of link planes or fibre feedthroughs.\n\nIt works in 3D: every free-space part is placed freely in space, by its x and y, its height \"z\" and its facing, tip and roll (below), and light is followed through all of it: up a periscope, along a raised beam, through a part rolled about it. So a periscope, a beam raised to another height or a beam sent up into a vertical microscope is built as it is. What it cannot do: put fibre, electronic or chip parts in 3D (the 3D view leaves them out), or model mechanics (no forces on particles, no thermal effects).\n\n## How to work\n\n1. **Understand the system.** List every source, optic and detector with its numbers: wavelengths, powers, focal lengths, beam sizes, distances, reflectivities, frequencies. If you are rebuilding a published setup, take the numbers from the text, the figures, the methods and the supplementary material, and write down which you had to assume.\n2. **Lay it out on paper first.** Choose the optical axis, place elements in order along it with their real spacings, and work out every angle from the rules below. Keep folds at 45 degrees where the real setup has them. Leave room between elements; two parts share an x and y only when one is above the other at a different \"z\", as in a periscope.\n3. **Write the file.** Use only the types, fields and values in the reference. Leave out any field whose default is right.\n4. **Record your assumptions.** Put in \"notes\" what the bench is, its source (a citation), each assumption and simplification, and any catalogue part numbers the person should check.\n5. **Hand it over.** Give the whole file in one fenced `json` block. Tell the person to open JEKray and either paste it with Ctrl+V on the bench, or save it as `name.jekray` and use **File › Open a .jekray file…**.\n6. **Fix what the tool reports.** When a file opens with changes, the tool lists them in an import report. If the person pastes that report back to you, correct every line and give the whole file again.\n\n## The file\n\nA `.jekray` file is one JSON object:\n\n```json\n{\n  \"format\": \"jekray\",\n  \"version\": 1,\n  \"name\": \"Short title of the bench\",\n  \"notes\": \"What it is, where it comes from, what was assumed.\",\n  \"elements\": [ ... ],\n  \"fibres\": [ ... ]\n}\n```\n\n| field | meaning |\n|---|---|\n| format | always \"jekray\" |\n| version | {{VERSION}} |\n| name | the project's title |\n| notes | free text shown under Edit › Bench notes…: purpose, citation, assumptions, parts to check |\n| elements | the elements (see the reference) |\n| fibres | optional: fibres between ports, each {\"a\": [element id, port], \"b\": [element id, port], \"len\": metres, \"loss\": dB/km, \"disp\": ps/(nm km) or leave out for standard single-mode fibre, \"gamma\": the Kerr nonlinearity in 1/(W km) or leave out (1.3 for standard fibre at 1550 nm; pulses strong enough undergo self-phase modulation), \"ftype\": \"smf\" (keeps polarisation, the default) or \"random\" (standard fibre as laid, with a \"seed\") or \"pm\" (with \"key\" degrees, \"beat\" mm and \"per\" dB) or \"mm\" (multimode), \"conn\": its ends, \"splice\" (no reflection, the default), \"pc\" or \"apc\" connectors (45 or 65 dB return loss) or \"flat\" cleaves (4%), \"path\": [{\"x\", \"y\"}, ...]} |\n| assemblies | optional: lens assemblies, lenses and round stops on one axis designed together, each {\"id\": the group its parts carry as \"group\", \"name\", \"ref\": the id of a lens whose facing sets the axis, \"rev\": true if the light runs against that lens's facing, \"cond\": {\"aperture\": {\"kind\": \"epd\" (entrance pupil diameter, mm) or \"fno\", \"v\"}, \"fields\": [{\"deg\", \"w\"}], \"waves\": [{\"nm\", \"w\"}], \"primary\": index of the primary wavelength}}; the tool adds \"design\" (its element data\u2019s solves, variables and merit function) itself, so leave that out. Leave it out unless asked for an assembly |\n| benches | optional, for several tabs: [{\"id\": \"b1\", \"name\": \"Laser table\"}, ...]; then give each element \"bench\": its tab's id |\n| maxBounces | optional: interactions per ray (default 200). Raise it for high-finesse cavities |\n| minPower | optional: rays weaker than this % of their source are dropped (default 0.1). Lower it (to 1e-4) for cavities and faint ports |\n| view | optional: {\"cx\", \"cy\", \"scale\"}. Leave it out and the tool fits the view |\n| style | optional: the bench's look, {\"bg\": a colour \"#rrggbb\" (dark as it is; light, such as \"#ffffff\" for a figure, drawn light with dark lines), \"holes\": false to hide the grid holes}. Leave it out for the dark breadboard |\n| light | optional: how the light is shown, for every source alike: {\"rays\": false to hide the rays, \"envelope\": false to hide the Gaussian beams' outlines, \"field\": true to show the diffracted field, \"scale\": \"lin\", \"log\" (30 dB) or \"log60\" (60 dB) for the field, \"byPower\": false to draw every beam at full strength rather than as bright as the power it carries}. Leave it out for rays and envelopes drawn by their power |\n\nGive every element a unique \"id\" (short words like \"laser\" or \"m1\" are best) and a clear \"name\". Fibres and split sources refer to elements by id; a name also works.\n\nA free-space part may also take \"z\": the height of its optical centre above the breadboard, in mm (75, the beam height, by default). Leave it out unless the setup really has parts at different heights: light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down. Any free-space part but a link plane may take \"tip\": degrees it is tipped up (positive) or down out of the plane about its own across axis (a mirror as a mount's vertical knob tips it; a source sends its light up at that angle); leave it out for an upright part. It may also take \"roll\": degrees it is turned about its own axis (the way it faces, right-handed), which turns a cylindrical lens\u2019s power, a grating\u2019s grooves (rolled 90°, its orders go up and down), a waveplate\u2019s or polariser\u2019s axis (as for an isolator\u2019s polarisers: a roll r acts as \"axis\" less r, so rolling one with a rolled source keeps them aligned), a crystal\u2019s optic axis (a beam displacer rolled 90\u00b0 walks its beam up; a doubling crystal converts the light along its turned axis) or a Dove prism\u2019s image (by twice the roll); a rolled source turns its rays and its polarisation with it. A periscope is two mirrors one over the other at the same x and y. For a beam going along +x (\"angle\": 0): the lower mirror \"angle\": 180 (facing the beam that comes in) with \"tip\": 45, which sends the light straight up; the upper, at its own \"z\", \"angle\": 0 (facing the way the beam leaves) with \"tip\": -45, which sends it on along +x again at the new height. For a beam along another angle A, the lower mirror faces A + 180 and the upper A, with the same tips. A source may take \"pattern\": \"cross\", \"grid\" or \"hex\" (hexapolar rings) to spread its rays up and down the beam as well as across it (\"line\", the default, keeps them in the plane).\n\n## Coordinates and angles\n\nThis is where most mistakes happen. \"angle\" means different things for different elements:\n\n| elements | \"angle\" is |\n|---|---|\n| source | the direction the light leaves in |\n| mirror, grating | the direction the reflecting face points: its normal, towards the light |\n| screen, detector, fibre tip | the direction the face points: towards the light arriving |\n| lens | the direction of its axis; light travelling that way meets surfaces[0] first |\n| stop, waveplate, polariser, mask, filter, gain, aom, eom, link | the plane's normal: 0 (or 180) for a beam travelling along x, 90 for one along y |\n| isolator | its forward direction: light travelling along it passes |\n| cube | turns the diagonal: at 0 it runs like \"/\" |\n\nRules for folding a beam:\n\n- **Mirror:** to turn light travelling in direction a (degrees) into direction b, give the mirror angle (a + 180 + b) / 2, and add 180 if the result points away from the incoming light. For example, a beam travelling +x (a = 0) sent up to +y (b = 90) needs a mirror at 135; sent down to −y (b = 270, or −90) it needs 225 (or −135). A mirror sending light straight back along −x faces 180.\n- **Cube at angle 0** (\"/\"): light travelling +x is split into +x (transmitted) and +y (reflected); travelling −x into −x and −y; travelling +y into +y and +x. **At angle 90** (\"\\\"): +x reflects to −y.\n- **Screens and detectors** face the light: a beam travelling +x is caught by a screen at angle 180.\n- **Plane elements** (waveplates, polarisers and so on) at angle 0 sit across a beam travelling along x.\n\nSigns:\n\n- **Mirror \"R\"** is positive when concave towards the light it faces (focal length R/2) and negative when convex.\n- **Lens surfaces** follow the usual optical convention along the lens axis: R > 0 has its centre downstream. A biconvex lens is [{\"R\": 51.5}, {\"R\": −51.5}]; a plano-convex lens with its curved side first is [{\"R\": 51.5}, {\"R\": null}].\n- A source's **\"z0\"** is how far ahead of the source its waist is.\n- **Polarisation:** s is out of the bench plane and p is in it. A free-space source takes \"pol\": \"s\" or \"p\" (or \"linear\" with \"polAngle\" counted from p); a fibre laser takes \"pol\": \"s\", \"p\", \"linear\" (with \"polAngle\" counted from s), \"rcp\" or \"lcp\". When a paper's polarisation lies along the direction you have drawn in the plane, that is p.\n\n## Building blocks\n\n- **Lens from a catalogue:** a singlet is two surfaces, one gap and one material. Thorlabs LA1509 (N-BK7, f = 100 mm, Ø25.4 mm) is {\"type\": \"lens\", \"diameter\": 25.4, \"surfaces\": [{\"R\": 51.5}, {\"R\": null}], \"gaps\": [3.6], \"materials\": [{\"glass\": \"N-BK7\"}]}. Take R, the centre thickness, the glass and the diameter from the catalogue, put the part number in the name, and list parts you are unsure of in the notes. An achromatic doublet is three surfaces, two gaps and two materials.\n- **Ideal lens or microscope objective:** when the prescription is unknown, use a mask with a perfect-lens delay: {\"type\": \"mask\", \"name\": \"Objective, f 3 mm, NA 0.8\", \"length\": 2 × f × tan(asin(NA)), \"delay\": \"-(sqrt(r^2+9)-3)/lambda\"}. Here 9 is f² and 3 is f, in mm; the length is the entrance pupil's diameter. It focuses without aberration, and a screen at its focus shows the vector focal field.\n- **Gaussian laser:** {\"type\": \"source\", \"gauss\": true, \"w0\": waist radius mm, \"z0\": mm to the waist, \"wavelength\": nm, \"power\": mW, \"pol\": \"s\", \"rays\": 1, \"width\": 2 × w0}. To see the diffracted beam, give the file \"light\": {\"field\": true} (it is the bench's, for every source), and use a few rays (1 to 5) with gauss.\n- **Collimated launch from a fibre:** a fibre tip (\"fibre\") joined to a fibre network, facing a lens one focal length away.\n- **Two beams from one laser:** give the second source \"splitFrom\": the first's id. They then interfere, with \"splitPhase\" (degrees) and \"splitPath\" (mm of extra fibre) between them, and fringes wash out over the laser's \"coh\".\n- **Beam dump:** a small screen facing the beam. A closed stop masks the field, but the thin guide line of a Gaussian beam still passes it.\n- **Cavity:** two or more mirrors facing each other. The tool finds it, reports finesse, FSR, modes and stability, and solves the steady state. Set \"maxBounces\" to about 40 and \"minPower\" to 1e-4.\n- **Photodiode signals:** a \"detector\" (free space) or an fcomp \"pd\" (fibre) reads DC and beat notes. \"demodF\" in MHz mixes the output down: with an EOM at the same frequency on the light going to a cavity, the reflected light gives a Pound–Drever–Hall error signal.\n- **Short pulses:** give a source (or a fibre laser) \"tau\" in fs, with \"pshape\", \"rep\" and \"power\" as the average power. Glass, prisms, gratings, chirped mirrors (\"gdd\" on a mirror) and fibres then disperse it, and screens and detectors show the pulse that arrives: its duration, chirp (GDD, TOD) and arrival time. A grating compressor is two parallel gratings facing each other, the order chosen by \"blaze\"; a prism compressor is two equilateral prisms near minimum deviation, the second turned by 180 degrees with its faces parallel to the first's. Use few rays (1 to 3): each pulsed source also traces 33 reference rays across its spectrum.\n- **A laser from parts:** a gain element (\"g0\", \"isat\", \"centre\" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.\n- **Vapour cell spectroscopy:** a \"cell\" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser (\"splitFrom\") crossing the cell in opposite directions along the same line, the probe onto a detector. A magnetic field along the cell (\"bField\", gauss) splits the lines: for a DAVLL lock, a linearly polarised probe through a cell at about 50 to 100 G, a quarter-wave plate at 45 degrees, a polarising cube and a detector on each port; for a Faraday filter, the cell (heated, a few hundred gauss) between crossed polarisers. Polarisation spectroscopy needs no field: a circularly polarised pump (a quarter-wave plate on it) against a linearly polarised probe, the probe then through a cube at 45 degrees onto two detectors.\n- **Higher-order and vortex beams:** give a Gaussian source \"tem\": \"hg\" with \"hm\" and \"hn\", or \"tem\": \"lg\" with \"lp\" and \"ll\" (the vortex charge); \"w0\" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: \"delay\" \"theta/(2*pi)\" is a spiral phase plate of charge 1, \"mod(x/0.1 + theta/(2*pi), 1)\" a fork hologram of period 0.1 mm, and \"mod(x/0.1, 1)\" a blazed grating. Raise the source's \"popN\" if the tool flags the mask's detail as finer than its grid.\n- **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with \"absorb\": false and \"trap\" set to the atom (\"Rb87\", \"Cs133\" and so on) or to \"sphere\" with \"trapMat\", \"trapR\" (nm) and \"trapMed\". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of \"Water\" so the optics are right too.\n- **Light scattered by a particle:** the same screen with \"trap\": \"sphere\" is the particle; its Scattering tab gives the cross-sections, the power it scatters and the pattern. \"trapShape\" makes it a rod (\"cylinder\", \"capsule\") or a \"spheroid\" with \"trapLen\" (nm), \"trapAz\" and \"trapTilt\"; the diameter is twice \"trapR\". \"scatModel\" \"auto\" takes Lorenz\u2013Mie for a sphere and a dipole array for other shapes. A tight focus (NA above 0.3) is taken as its full vector field, a gentler beam as a plane wave. \"scatNA\" and \"scatDir\" set the cone whose share of the scattered light is read.\n- **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a \"divergence\" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field (\"abAng\" degrees, or \"abH\" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a \"stop\" where the system's aperture stop is (in front of, between or behind the lenses): each field's chief ray is aimed through its centre.\n- **Frequency doubling:** a Gaussian laser focused into an \"nlc\" (a periodically poled crystal: \"material\" \"ppln\" or \"ppktp\", \"nlLen\" mm, \"temp\" °C, \"axis\" the polarisation that converts), its waist in the crystal's middle (the crystal is a block of index n, about 2.1 for PPLN, so a focus aimed at its middle in air lands further in: aim L/(2n) past its entrance face); leave \"period\" at 0 for the best period for that beam, or give it in µm (then the temperature tunes it). The second harmonic leaves as its own beam; separate it with a short-pass \"filter\". Focus so the crystal is about 2.84 confocal parameters long for the most harmonic.\n- **Self-phase modulation and solitons:** a pulsed fibre laser (\"tau\", \"rep\", \"power\") into fibre long and strong enough for a nonlinear phase (standard fibre has \"gamma\" 1.3 /(W km)); the fibre tip's beam carries the reshaped spectrum to a screen's Pulse tab. Anomalous dispersion (standard fibre at 1.55 µm) with peak power |β₂|/(γT₀²) makes a soliton.\n- **Fibre amplifier:** an fcomp \"amp\" between fibres; its spontaneous emission reaches the fibre photodiodes and sets their noise.\n- **Millimetre waves (RF):** a feed horn is a source with \"mmw\": {\"kind\": \"corrugated\" (or \"smooth\", \"diagonal\", \"gauss\"), \"ghz\": frequency, 1 to 3000, \"dbm\": power, \"a\": aperture radius mm, \"L\": slant length mm}; it sets its own wavelength, waist and power, so leave those out. A receiving horn is a detector with \"mmw\": {\"kind\", \"a\", \"L\"}, \"material\": \"custom\" and \"resp\" in A/W; it reads the power its mode takes in. Its front end, \"rx\": \"video\" (a square-law detector: \"rv\" V/W, \"nep\" pW/\u221aHz, \"vbw\" MHz, a single pole) or \"mixer\" (\"lo\" GHz, \"cl\" dB of conversion loss, \"trx\" K, \"ifbw\" MHz, a single pole, \"tant\" K looked into, and \"sideband\": \"ssb\", the default, with \"trx\" an SSB temperature and the image terminated cold, or \"dsb\", with \"trx\" a DSB temperature and the noise of both sidebands). An RF lens is a lens with \"mmw\": {}, drawn white, and takes the RF dielectrics as its glass: \"HDPE\", \"PTFE\", \"Rexolite\", \"TPX\", \"HR silicon\", \"Fused quartz (RF)\", \"Alumina\", \"Nylon\". Other parts (mirrors, polarisers as wire grids, screens as loads) are used as they are; give them \"mmw\": {} to list them under the RF tab. An optical source cannot go past 1 mm (1e6 nm).\n- **Several tabs:** give \"benches\" and each element's \"bench\". Join tabs with two \"link\" elements sharing a \"pair\" name (free space), or two fibre feedthroughs (fcomp \"thru\") sharing a \"pair\" (fibre).\n\n## Checklist\n\nBefore you answer, check each of these:\n\n- [ ] Every element's \"type\" and every field is in the reference below, spelt exactly, with values in range and the listed options for strings.\n- [ ] Every \"id\" is unique; every fibre end and \"splitFrom\" names an existing element; every fibre uses a port that exists, and no port twice.\n- [ ] Every angle follows the rules above. Trace the main beam by hand, element by element, and check where it goes after each one.\n- [ ] Mirrors face the light they reflect, and screens and detectors face the light they catch.\n- [ ] Distances and focal lengths match the source material, and lenses sit at the right distance from foci and waists.\n- [ ] No two elements share a position (x, y and height); elements are not inside each other. Parts one over the other, such as a periscope's two mirrors, differ in \"z\".\n- [ ] \"notes\" records the source, every assumption, anything simplified to fit the plane, and parts to check.\n- [ ] The output is a single valid JSON object: no comments, no trailing commas.\n\n## The import report\n\nWhen a file is opened, JEKray lists anything it could not use as written: an unknown type or field, a value out of range, an unknown glass (which falls back to n = 1.5), a fibre that could not be joined, a link plane without a partner, two elements in one place (the same x, y and height). The person can copy this report back to you. Fix every item and give the whole corrected file again.\n\n## Part packs\n\nA person may instead ask for a **part pack**: a set of ready-made parts and glasses (a catalogue, a course kit) that they install with **File \u203a Part packs and modules\u2026** and then add from **+ Add part \u203a Packs**. A pack is one JSON object, {\"format\": \"jekpack\", \"version\": 1, \"id\": \"maker.name\" (2 to 64 lower-case letters, digits, dots, dashes or underscores), \"name\", \"author\", \"packVersion\", \"description\", \"licence\", \"glasses\": [{\"glass\": a name, \"table\": {\"wl\": [\u00b5m], \"n\": [...]}} or {\"glass\", \"nd\", \"vd\"}], \"parts\": [{\"name\", \"summary\", \"group\", \"elements\": [elements exactly as in a .jekray file, positioned about (0, 0)], \"fibres\": [...]}]}. A material naming one of the pack's glasses gets its data. Packs hold data only: never add \"code\" or \"scripts\", which make the tool refuse the pack.\n";
 
 /* ---------- Sharing a bench as a link ----------
    The project, less everything that is its default, compressed. A share link is JEKrayPro's: the
@@ -55435,6 +56671,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Scattering by a particle</b>: a screen’s new <b>Scattering</b> tab gives the light one small particle scatters. A sphere is worked out exactly (Lorenz–Mie); a rod with flat or round ends or a spheroid, at any orientation, as an array of dipoles (the discrete dipole approximation, run in the background with a Stop); and a single dipole (Rayleigh) is kept beside them to compare. The light is what the bench puts on the particle: a tight focus as its full vector field, every sample of its pupil a plane wave onto the particle, so the particle may sit off the focus; a gentler beam as a plane wave; beams of one laser added as fields. It reads the scattering, extinction and absorption cross-sections, efficiencies and asymmetry, the power scattered, the forward and back shares and the share a lens of a given NA would collect, with polar plots in the bench plane and out of it and a map over every direction. The particle is the Trap tab’s, now with a shape, gold, silver and aluminium among its materials, and water as a medium. In a script, <code>JEKray.scatter(name)</code> and <code>JEKray.mie(x, mr, mi, angles)</code>. A new example, <b>Light scattered by a 300 nm sphere</b>, and two cases on the validation page.',
     'The diffracted field behind a <b>hard edge</b> (a slit, a comb of slits, a knife edge, an iris or a rim off the beam\u2019s axis) has its true amplitude. Each sample at an edge took its share of open area and the whole field was then scaled up to the open area\u2019s power: the peak behind slits a few samples wide read up to 12% high, the envelope of an N-slit pattern came out narrow, and the fringes behind a straight edge lost contrast away from it. An edge is now carried as the samples can hold it exactly, with the light it sends past the grid\u2019s reach kept at the top of that reach, so the power is still the open area\u2019s. Slits that run the whole way up no longer cut the beam\u2019s wings off above and below them (2% of a focus behind them). Behind an edge the field is sampled more finely where the grid can still hold the light. New on <a href="/jek/tools/jekray-validation.html#fresnel-edge">the validation page</a>: Fresnel\u2019s fringes at a straight edge and the pattern of 2, 5 and 10 slits.',
     'A <b>phase mask finer than the beam</b> (a phase grating, a diffuser, an SLM\u2019s pattern) keeps its light. Behind a mask that spreads the light without cutting it, the diffracted field\u2019s grid now grows with the light as it does behind an edge; before, a grating\u2019s orders ran off the grid\u2019s sides and were lost with no warning. The beam goes on along the mask\u2019s mean slope across its footprint, where it took the slope under its own ray (a sinusoidal grating sent it off at \u03b2\u03bb/d, a fork hologram\u2019s core ended it once rays left the bench plane), and takes its focus from the trend of the slope across it. A sinusoidal phase grating\u2019s orders now carry J\u2099(\u03b2)\u00b2 each, on <a href="/jek/tools/jekray-validation.html#phase-grating">the validation page</a>. Light a mask sends past what the grid can carry is flagged.',
     'A beam of M\u00b2 above 1 keeps all its modes past its first surfaces: they shared one budget of 60 segments in the 2D field, so a beam of M\u00b2 = 4 (36 modes) lost its weakest, widest ones after a lens and read 4% narrow. Each mode now has the budget of its own, as the estimate of the run\u2019s time already took it.',
@@ -55757,7 +56994,8 @@ const EXAMPLES = [
     ['dipole-trap', 'Optical dipole trap, rubidium', 'A focused 1064 nm beam: trap depth, frequencies and scattering.'],
     ['optical-lattice', 'Two-dimensional optical lattice', 'Four beams make a grid of traps.'],
     ['optical-tweezers', 'Optical tweezers in water', 'A bead held by an NA 1.2 objective: stiffness and forces.'],
-    ['levitated-nanoparticle', 'Levitated nanoparticle in air', 'A 150 nm silica sphere held in vacuum by a tight focus.']]],
+    ['levitated-nanoparticle', 'Levitated nanoparticle in air', 'A 150 nm silica sphere held in vacuum by a tight focus.'],
+    ['scattering-sphere', 'Light scattered by a 300 nm sphere', 'A silica sphere in a tight 1550 nm focus: its cross-sections, and where the light it scatters goes.']]],
   ['Pulses', false, [
     ['pulse-compressor', 'Grating pulse compressor', 'A grating pair takes a chirped pulse back to its transform limit.'],
     ['fibre-solitons', 'Self-phase modulation and a soliton', 'The same pulse broadens in one fibre and holds its shape in another.']]],
@@ -56439,6 +57677,14 @@ function scriptCalls() {
     setParam(name, path, v) { setParam(this.byName(name), path, v); },
     getParam(name, path) { return getPath(this.byName(name), path); },
     diffraction(name) { const el = this.byName(name); return el ? diffraction(el) : null; },
+    /* the light a screen's particle scatters (its Scattering tab), worked out now: the model used, the cross-sections
+       (m²), efficiencies and asymmetry, the powers in the light as it is (W), the shares forward, back and collected,
+       the pattern on its two cuts and over the sphere (W/sr) and the far field's amplitude; null where the screen has
+       no particle or no beam. opts: { nMax, tol, maxIter } for a dipole array */
+    /* Lorenz-Mie for a sphere of size parameter x = k a and relative index mr + i mi: Qext, Qsca, Qabs, Qback, g, and S
+       (each [S1 re, S1 im, S2 re, S2 im]) at the angles given (degrees), as Bohren and Huffman write them */
+    mie(x, mr, mi, angles) { const C = mieCoeffs(+x, +mr, +mi || 0); return Object.assign(mieQ(C), { terms: C.n, S: (angles || []).map(a => mieS(C, Math.cos(a * Math.PI / 180))) }); },
+    scatter(name, opts) { traceScene(); const el = this.byName(name); if (!el) throw new Error('No part called ' + name); const S = scatterNow(el, opts); return S ? scatterPlain(S) : null; },
     asmPrescription(name) { const a = assemblies().find(x => x.name === name); return a ? JSON.parse(JSON.stringify(asmPrescription(a))) : null; },
     // (the lens engine's first order: it follows folds and mirrored faces, which the bench's paraxial helper does not)
     asmEfl(name) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = asmPrescription(a), nm = a.cond.waves[a.cond.primary].nm; return P.folded ? lensSystem(P, nm, {}).par.efl : asmParaxial(P, nm, paraxial).efl; },
@@ -56462,7 +57708,7 @@ function scriptCalls() {
 const KEY = 'jek-raytracer-scripts', LANG_KEY = 'jek-raytracer-scripts-lang';
 const SCRIPT_LANGS = [['js', 'JavaScript'], ['py', 'Python']];
 // the calls a script may make, from the page's own (ui/boot.js): the stable set the documentation lists
-const CALLS = ['load', 'serialize', 'trace', 'select', 'stats', 'detector', 'lensAntenna', 'rfSweep', 'linkBudget', 'arrivals', 'asmPrescription', 'asmEfl',
+const CALLS = ['load', 'serialize', 'trace', 'select', 'stats', 'detector', 'scatter', 'mie', 'lensAntenna', 'rfSweep', 'linkBudget', 'arrivals', 'asmPrescription', 'asmEfl',
   'exportZmx', 'sweepPlay', 'sweepPause', 'typeLabel', 'benches', 'showTab', 'paraxial', 'metric', 'diffraction', 'getParam', 'setParam',
   'setFibre', 'rays', 'distance', 'hitsOn', 'bendDbPerTurn', 'setView', 'kiosk', 'renderPNG'];
 
@@ -58534,6 +59780,16 @@ function workerMain() {
       } else if (kind === 'screen') {
         const el = getEl(args.id), J = el && popScreenPrep(el);
         out = J ? { key: J.key, D: fwPackD(popDiffraction(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }))) } : { key: null, D: null };
+      } else if (kind === 'scatter') {
+        // a particle's scattering (the Scattering tab's own worker): its progress as it goes, then the answer
+        const el = getEl(args.id), J = el && scatterPrep(el);
+        if (!J) out = { key: null, S: null };
+        else {
+          const g = scatterGen(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }));
+          let r = g.next(), t = 0;
+          while (!r.done) { const now = Date.now(); if (now - t > 100) { t = now; self.postMessage({ id, prog: r.value }); } r = g.next(); }
+          out = { key: J.key, S: r.value };
+        }
       } else if (kind === 'detector') {
         const el = getEl(args.id), J = el && popScreenPrep(el);
         out = J ? { key: J.key + '|' + el.length, r: detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })) } : null;
@@ -59280,6 +60536,25 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
         w.onerror = e => { e.preventDefault(); done({ ok: false, err: e.message }); };
         w.onmessage = e => done(e.data.ok ? { ok: true, rays: e.data.out.rays.length } : { ok: false, err: e.data.err });
         w.postMessage({ id: 1, kind: 'trace', proj: JSON.stringify(serialize()), args: { key: 'probe' } });
+      });
+    },
+    // a particle's scattering run in a worker of its own, as the Scattering tab runs it (ui/scatter.js): the progress it
+    // sends and its answer (same: worked out for the bench as the page has it); stop: end it at the first progress of that stage
+    scatterProbe(name, opts) {
+      return new Promise(resolve => {
+        const el = this.byName(name), J = el && scatterPrep(el);
+        if (!WORKERS_OK || !J) { resolve({ ok: false, err: J ? 'no worker here' : 'no particle, or no beam' }); return; }
+        const w = newAppWorker(), prog = [];
+        let timer = null;
+        const done = r => { clearTimeout(timer); w.terminate(); resolve(Object.assign({ prog }, r)); };
+        timer = setTimeout(() => done({ ok: false, err: 'no answer' }), 120000);
+        w.onerror = e => { e.preventDefault(); done({ ok: false, err: e.message }); };
+        w.onmessage = e => {
+          const m = e.data;
+          if (m.prog) { prog.push(m.prog); if (opts && opts.stop === m.prog.stage) done({ ok: true, stopped: true }); return; }
+          done(m.ok ? { ok: true, same: m.out.key === J.key, S: m.out.S && scatterPlain(m.out.S) } : { ok: false, err: m.err });
+        };
+        w.postMessage({ id: 1, kind: 'scatter', proj: fwProject(), args: { id: el.id } });
       });
     },
     // the bench's field as drawn: each drawn stretch's half-width where it starts and ends

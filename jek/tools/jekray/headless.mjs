@@ -52,6 +52,8 @@ export async function openBench(data) {
     set(name, path, v) { E.PRM.setParam(byName(name), path, v); traced = false; return this; },
     /* a screen's spot: count, centroid, rms, full width and the rest */
     screen(name) { ensure(); return plain(E.SS.screenStats(byName(name))); },
+    /* the light a screen's particle scatters (trap: 'sphere'): the model, cross-sections (m²), powers (W), the pattern and the far field */
+    async scatter(name, opts) { ensure(); const SC = await import('./src/engines/scatter.js'), S = SC.scatterNow(byName(name), opts); return S ? SC.scatterPlain(S) : null; },
     /* a photodetector's or receiving horn's reading */
     detector(name) { ensure(); const el = byName(name), r = E.FF.detectorReading(el); return plain({ mw: r.mw, V: r.V, snr: r.snr, ifMw: r.ifMw, mds: r.mds, field: r.field }); },
     /* a spectrometer's reading: the peak and its width (nm), the resolution, the power through its entrance (mW) and its share, counts, SNR */

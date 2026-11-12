@@ -32,7 +32,7 @@ import { dataMeta } from '../io/data-export.js';
 const KEY = 'jek-raytracer-scripts', LANG_KEY = 'jek-raytracer-scripts-lang';
 export const SCRIPT_LANGS = [['js', 'JavaScript'], ['py', 'Python']];
 // the calls a script may make, from the page's own (ui/boot.js): the stable set the documentation lists
-const CALLS = ['load', 'serialize', 'trace', 'select', 'stats', 'detector', 'lensAntenna', 'rfSweep', 'linkBudget', 'arrivals', 'asmPrescription', 'asmEfl',
+const CALLS = ['load', 'serialize', 'trace', 'select', 'stats', 'detector', 'scatter', 'mie', 'lensAntenna', 'rfSweep', 'linkBudget', 'arrivals', 'asmPrescription', 'asmEfl',
   'exportZmx', 'sweepPlay', 'sweepPause', 'typeLabel', 'benches', 'showTab', 'paraxial', 'metric', 'diffraction', 'getParam', 'setParam',
   'setFibre', 'rays', 'distance', 'hitsOn', 'bendDbPerTurn', 'setView', 'kiosk', 'renderPNG'];
 

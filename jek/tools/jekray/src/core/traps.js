@@ -1,4 +1,6 @@
-import { refIndex } from './glass.js';
+import { glassKey, refIndex } from './glass.js';
+import { METAL_NK, metalNK } from './metals.js';
+import { ddaVolume } from './dda.js';
 import { AMU, ATOMS, ATOM_ISO, C_SI, HPL, KB } from './cells.js';
 
 /* ---------- Dipole traps ----------
@@ -50,10 +52,33 @@ export function trapAlpha(atom, nm, F) {
    F = Re(alpha sum_j E_j grad E_j*) / 2: its real part the gradient force, its imaginary
    part the scattering force (radiation pressure, and none in a standing wave's balance). */
 export const EPS0 = 8.8541878128e-12;
-export const SPHERE_DENSITY = { 'Fused silica': 2200, 'Polystyrene': 1050, 'N-BK7': 2510, 'Sapphire': 3980, 'CaF2': 3180, 'Silicon': 2330, 'Germanium': 5323, 'ZnSe': 5270, 'MgF2': 3170 };
+export const SPHERE_DENSITY = { Au: 19300, Ag: 10490, Al: 2700, 'Fused silica': 2200, 'Polystyrene': 1050, 'N-BK7': 2510, 'Sapphire': 3980, 'CaF2': 3180, 'Silicon': 2330, 'Germanium': 5323, 'ZnSe': 5270, 'MgF2': 3170 };
+/* A particle's material: a glass of the list, or one of the metals the thin films have (Au, Ag,
+   Al), which absorb. particleMat gives the name as kept; particleIndex its index [n, kappa] at
+   nm (n + i kappa as the light is written here, kappa 0 for the glasses). */
+export const particleMat = name => (METAL_NK[name] ? name : glassKey(name) || 'Fused silica');
+export const particleIndex = (mat, nm) => (METAL_NK[mat] ? metalNK(mat, nm) : [refIndex({ glass: mat }, nm), 0]);
+/* The particle a screen holds (trap: 'sphere'): its shape, its diameter D and whole length L
+   along its axis (m; a sphere's are equal), its volume and the radius of the sphere of that
+   volume (nm), which is what the Trap tab's dipole stands for when it is not a sphere */
+export function particleOf(el) {
+  const shape = ['cylinder', 'capsule', 'spheroid'].includes(el.trapShape) ? el.trapShape : 'sphere';
+  const D = 2 * el.trapR * 1e-9, L = shape === 'sphere' ? D : Math.max(shape === 'capsule' ? D : 0, (el.trapLen || 2 * el.trapR) * 1e-9), V = ddaVolume(shape, D, L);
+  return { shape, D, L, V, rEq: shape === 'sphere' ? el.trapR : Math.cbrt(3 * V / (4 * Math.PI)) * 1e9 };
+}
 export function sphereAlpha(glass, radiusNm, nm, nMed) {
-  const np = refIndex({ glass }, nm), m = np / nMed, a = radiusNm * 1e-9, cm = (m * m - 1) / (m * m + 2);
-  const a0 = 4 * Math.PI * EPS0 * nMed * nMed * a ** 3 * cm, k = 2 * Math.PI * nMed / (nm * 1e-9);
+  const [np, kap] = particleIndex(glass, nm), a = radiusNm * 1e-9, k = 2 * Math.PI * nMed / (nm * 1e-9);
+  if (kap > 0) {
+    // an absorber: m and Clausius-Mossotti's factor complex
+    const mr = np / nMed, mi = kap / nMed, er = mr * mr - mi * mi, ei = 2 * mr * mi, d2 = (er + 2) ** 2 + ei * ei;
+    const cr = ((er - 1) * (er + 2) + ei * ei) / d2, ci = (ei * (er + 2) - (er - 1) * ei) / d2, f = 4 * Math.PI * EPS0 * nMed * nMed * a ** 3;
+    const a0r = f * cr, a0i = f * ci, q = k ** 3 / (6 * Math.PI * EPS0 * nMed * nMed);
+    // alpha = a0 / (1 - i q a0)
+    const br = 1 + q * a0i, bi = -q * a0r, b2 = br * br + bi * bi;
+    return { re: (a0r * br + a0i * bi) / b2, im: (a0i * br - a0r * bi) / b2, a0: a0r, np, kap, m: mr, cm: cr, sigma: k ** 4 * (a0r * a0r + a0i * a0i) / (EPS0 * nMed * nMed) ** 2 / (6 * Math.PI), ka: k * a };
+  }
+  const m = np / nMed, cm = (m * m - 1) / (m * m + 2);
+  const a0 = 4 * Math.PI * EPS0 * nMed * nMed * a ** 3 * cm;
   const g = k ** 3 * a0 / (6 * Math.PI * EPS0 * nMed * nMed);                     // alpha = a0 / (1 - i g)
   return { re: a0 / (1 + g * g), im: a0 * g / (1 + g * g), a0, np, m, cm, sigma: k ** 4 * (a0 / (EPS0 * nMed * nMed)) ** 2 / (6 * Math.PI), ka: k * a };
 }

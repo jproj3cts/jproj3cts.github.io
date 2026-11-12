@@ -85,6 +85,12 @@ export const AREAS = {
     node: ['datafiles.test.mjs', 'data-export.test.mjs', 'pro-gate.test.mjs', 'headless.test.mjs'],
     browser: ['Data export', 'Scripts'],
   },
+  scatter: {
+    what: 'light scattered by one particle: Lorenz–Mie, the dipole array, a focus as plane waves, the Scattering tab and its worker',
+    src: ['src/core/mie.js', 'src/core/dda.js', 'src/core/scatter.js', 'src/engines/scatter.js', 'src/ui/scatter.js'],
+    node: ['physics-scatter.test.mjs', 'demos.test.mjs', 'parts.test.mjs', 'pro-gate.test.mjs', 'data-export.test.mjs'],
+    browser: ['Scattering by a particle', 'Dipole traps'],
+  },
   site: {
     what: 'the site pages (their shared nav and jek.css stamp), the documentation pages and the data they are built from',
     src: ['../../docs/', '../../../_data/', '../jekray-ai-guide.md', '../../../_includes/', '../../../_layouts/', '../../../jek/', '../../../index.html', '../../../404.html', '../../../_config.yml', '../../../assets/'],

@@ -1,7 +1,8 @@
 import { fanEdge } from '../core/fan-edge.js';
 import { clamp } from '../core/constants.js';
+import { refIndex } from '../core/glass.js';
 import { AMU, C_SI } from '../core/cells.js';
-import { EPS0, TRAP_ATOMS, airIndex, sphereAlpha, trapAlpha } from '../core/traps.js';
+import { EPS0, TRAP_ATOMS, airIndex, particleOf, sphereAlpha, trapAlpha } from '../core/traps.js';
 import { cohModes, lagOf, splitRoot } from '../core/coherence.js';
 import { deg, project } from '../state/project.js';
 import { allSources, beamOn, getEl } from '../state/elements.js';
@@ -128,7 +129,7 @@ export function popScreenPrep(el) {
   const ids = new Set([...keep].map(i => B[i].src));
   const srcs = allSources().filter(e => ids.has(e.id));
   const kept = [...keep].sort((x, y) => x - y).map(i => B[i]);
-  const key = el.id + '|' + [el.z, el.tip, el.roll] + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, beamOn(e)])) + JSON.stringify(project.cavityLock || {}) + (el.trap && el.trap !== 'none' ? '|trap' + JSON.stringify([el.trap, el.trapF, el.trapMat, el.trapR, el.trapRho, el.trapMed, el.trapP, el.trapT]) : '');
+  const key = el.id + '|' + [el.z, el.tip, el.roll] + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, beamOn(e)])) + JSON.stringify(project.cavityLock || {}) + (el.trap && el.trap !== 'none' ? '|trap' + JSON.stringify([el.trap, el.trapF, el.trapMat, el.trapR, el.trapRho, el.trapMed, el.trapP, el.trapT, el.trapShape, el.trapLen]) : '');
   return { keep, srcs, key };
 }
 
@@ -224,9 +225,11 @@ export function trapLegAt(L, px, py, pz) {
   const ph = -L.k * pz, c = Math.cos(ph), sn = Math.sin(ph);
   return [acc[0] * c - acc[1] * sn, acc[0] * sn + acc[1] * c, acc[2] * c - acc[3] * sn, acc[2] * sn + acc[3] * c, 0, 0];
 }
-function trapSolve(el, R, dom, len) {
-  const sg0 = dom.sg, b0 = sg0.b, lam0 = b0.nm * 1e-6;
-  const d0 = [b0.dx, b0.dy], a0v = [-b0.dy, b0.dx];
+/* The beams through a screen's region, for a particle there (the trap, and the light a particle
+   scatters: engines/scatter.js): each as its vector pupil (a steep focus) or its propagated
+   field. dom is the screen's strongest arrival and len where it meets the screen. */
+export function trapBeams(el, R, dom, len, pup) {
+  const sg0 = dom.sg, b0 = sg0.b;
   const P0 = [b0.x0 + b0.dx * len, b0.y0 + b0.dy * len];
   const H = Math.min(Math.max(el.length / 2, 0.005), 2);
   // the beams through the region; a beam passing through a screen that lets it by is one beam
@@ -253,7 +256,7 @@ function trapSolve(el, R, dom, len) {
     // by the beam's own propagated field, which is the Gaussian beam the source defines there
     // (the pupil sum would take that beam's paraxial far field as exact and lose a few per cent
     // to obliquity at NA 0.1)
-    let P = force ? null : vfPupil(sg, R, { reach: 4.2, M: 96 });
+    let P = force ? null : vfPupil(sg, R, pup || { reach: 4.2, M: 96 });
     if (P && P.NA <= VF_NA) P = null;
     // a beam not converging on a focus ahead (collimated, or past its focus) has no pupil to sum
     // from: its propagated field is taken instead, cut along the beam as the search needs
@@ -261,15 +264,25 @@ function trapSolve(el, R, dom, len) {
     if (!P && !leg) { skipped.push(sg); continue; }
     parts.push({ sg, P, leg, b: sg.b, coh: sg.coh, Pw: Math.max(0, sg.b.lmw) * 1e-3 });
   }
+  return { parts, skipped, P0, H };
+}
+/* the medium a particle at a screen sits in: where the light is, or as set */
+export const trapMedium = (el, nBench, nm) => el.trap in TRAP_ATOMS ? 1 : el.trapMed === 'vacuum' ? 1 : el.trapMed === 'air' ? airIndex(el.trapP, el.trapT)
+  : el.trapMed === 'water' ? refIndex({ glass: 'Water' }, nm) : nBench;
+export function trapSolve(el, R, dom, len) {
+  const sg0 = dom.sg, b0 = sg0.b, lam0 = b0.nm * 1e-6;
+  const d0 = [b0.dx, b0.dy], a0v = [-b0.dy, b0.dx];
+  const { parts, skipped, P0, H } = trapBeams(el, R, dom, len);
   if (!parts.length) return { error: 'no focused beam' };
   const isAtom = el.trap in TRAP_ATOMS;
   // the medium: where the light is, or as set
   const nBench = b0.n;
-  const nMed = isAtom ? 1 : el.trapMed === 'vacuum' ? 1 : el.trapMed === 'air' ? airIndex(el.trapP, el.trapT) : nBench;
+  const nMed = trapMedium(el, nBench, b0.nm);
   // the particle: its polarisability (SI, complex) and mass
   let alpha, mass, sph = null;
   if (isAtom) { const [ar, ai] = trapAlpha(el.trap, b0.nm, el.trapF); alpha = [ar * EPS0, ai * EPS0]; mass = TRAP_ATOMS[el.trap].m * AMU; }
-  else { sph = sphereAlpha(el.trapMat, el.trapR, b0.nm, nMed); alpha = [sph.re, sph.im]; mass = el.trapRho * 4 / 3 * Math.PI * (el.trapR * 1e-9) ** 3; }
+  // (a particle that is not a sphere is, for the trap, the sphere of its volume)
+  else { const rEq = particleOf(el).rEq; sph = sphereAlpha(el.trapMat, rEq, b0.nm, nMed); alpha = [sph.re, sph.im]; mass = el.trapRho * 4 / 3 * Math.PI * (rEq * 1e-9) ** 3; }
   // the field in SI (V/m) at a point of the trap frame, per launch, as the physicists write it (conjugated)
   const byL = new Map();
   for (const q of parts) { if (!byL.has(q.coh)) byL.set(q.coh, []); byL.get(q.coh).push(q); }
@@ -401,6 +414,15 @@ function trapSolve(el, R, dom, len) {
   const fr = k => k > 0 ? Math.sqrt(k / mass) / (2 * Math.PI) : null;
   return Object.assign(out, { trap: stable, converged: ok, x: r[0], y: r[1], z: r[2], E2: E2v, U: Uat(...r), k: kd, fx: fr(kd[0]), fy: fr(kd[1]), fz: fr(kd[2]),
     zStart: S0.dz, away });
+}
+/* a screen's strongest arrival in a field run and where it meets the screen, as popDiffraction takes them */
+export function screenDom(el, R) {
+  const a = el.angle * deg, nX = Math.cos(a), nY = Math.sin(a);
+  const arr = R.segs.filter(sg => sg.b.endEl === el.id && sg.b.dx * nX + sg.b.dy * nY < 0);
+  if (!arr.length) return null;
+  const hits = arr.map(sg => { const G = sg.leg.at(sg.b.len); return { sg, st: sg.eng === '2d' ? popStats2(G) : popStats(G), Pl: Math.max(0, sg.b.lmw || 0) }; });
+  const dom = hits.reduce((x, y) => y.st.power * segW(y.sg) * (y.Pl || 1) > x.st.power * segW(x.sg) * (x.Pl || 1) ? y : x);
+  return { dom, len: dom.sg.b.len3 || dom.sg.b.len };
 }
 export function popDiffraction(el, R) {
   const f = frame(el), a = el.angle * deg, sYx = -Math.sin(a), sYy = Math.cos(a), nX = Math.cos(a), nY = Math.sin(a);

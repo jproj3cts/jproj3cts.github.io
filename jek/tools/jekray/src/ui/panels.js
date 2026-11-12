@@ -1,9 +1,9 @@
 import { clamp } from '../core/constants.js';
 import { makeAssemblyRow } from './assembly.js';
 import { fmtDbm, fmtFs, fmtFs2, fmtFs3, fmtHz, fmtJ, fmtLen, fmtMw, fmtNum, fmtW, fmtWl } from '../core/format.js';
-import { GLASS, glassKey, matLabel, refIndex } from '../core/glass.js';
+import { glassKey, matLabel, refIndex } from '../core/glass.js';
 import { ATOMS, ATOM_ISO, C_SI, KB } from '../core/cells.js';
-import { SPHERE_DENSITY, TRAP_ATOMS, atomLines, trapFLabel } from '../core/traps.js';
+import { SPHERE_DENSITY, TRAP_ATOMS, atomLines, particleOf, trapFLabel } from '../core/traps.js';
 import { MU_B } from '../core/zeeman.js';
 import { cellDensity, cellPlan, cellProfile, cellResponse, evalPlan, nlcConvert } from '../core/nlc.js';
 import { C_MM } from '../core/modulators.js';
@@ -38,6 +38,7 @@ import {
 import { aberCache, aberSource, aberrations, diffractionLater } from '../engines/pd-cavity.js';
 import { pulseReport } from '../engines/pulse.js';
 import { screenStats, trapReport } from '../engines/screen-stats.js';
+import { particleMats, scatterSection } from './scatter.js';
 import { alignEls, changed, duplicateSel, moveToTab, removeEls, rotateEls, setLocked, zoomToSelection } from './actions.js';
 import { addBench, checkpoint, selectEl } from './tabs.js';
 import { exportScreen } from '../io/layout.js';
@@ -136,13 +137,12 @@ function trapSection(el) {
   if (el.trap in TRAP_ATOMS) rows0.append(selectField('Ground state', [['avg', 'Hyperfine levels averaged'], ['lo', trapFLabel(el.trap, 'lo')], ['hi', trapFLabel(el.trap, 'hi')]],
     () => el.trapF, v => { el.trapF = v; }, { wide: true }));
   if (el.trap === 'sphere') {
-    const mats = Object.keys(GLASS).filter(g => g !== 'Water');
     rows0.append(
-      selectField('Material', mats.map(g => [g, g]), () => el.trapMat, v => { el.trapMat = v; if (SPHERE_DENSITY[v]) el.trapRho = SPHERE_DENSITY[v]; }),
+      selectField('Material', particleMats(), () => el.trapMat, v => { el.trapMat = v; if (SPHERE_DENSITY[v]) el.trapRho = SPHERE_DENSITY[v]; }),
       param('Radius (nm)', el, 'trapR'),
       param('Density (kg/m³)', el, 'trapRho'),
       param('Temperature (K)', el, 'trapT'),
-      selectField('Medium', [['bench', 'As on the bench'], ['vacuum', 'Vacuum'], ['air', 'Air, at a pressure']], () => el.trapMed, v => { el.trapMed = v; }, { wide: el.trapMed !== 'air' }));
+      selectField('Medium', [['bench', 'As on the bench'], ['vacuum', 'Vacuum'], ['air', 'Air, at a pressure'], ['water', 'Water']], () => el.trapMed, v => { el.trapMed = v; }, { wide: el.trapMed !== 'air' }));
     if (el.trapMed === 'air') rows0.append(param('Pressure (mbar)', el, 'trapP'));
   }
   panel.append(rows0);
@@ -164,7 +164,8 @@ function trapSection(el) {
     else {
       const sph = el.trap === 'sphere';
       rows.push(['Light', (T.beams > 1 ? T.beams + ' beams' + (T.launches < T.beams ? ', interfering' : ', from separate lasers') : 'one beam') + ', ' + (T.I >= 1e7 ? (+(T.I / 1e7).toPrecision(4)) + ' kW/cm²' : (+(T.I / 1e4).toPrecision(4)) + ' W/cm²') + ' where it sits']);
-      if (sph) rows.push(['Particle', el.trapMat + ', n = ' + (+T.np.toPrecision(5)) + ', radius ' + fmtLen(el.trapR * 1e-6) + ' in a medium of n = ' + (+T.nMed.toPrecision(5)) + (el.trapMed === 'bench' ? ' (the bench’s, where the light is)' : '') + ', mass ' + (+(T.mass * 1e3).toPrecision(3)) + ' g']);
+      if (sph && el.trapShape !== 'sphere') rows.push(['', 'The particle is ' + ({ cylinder: 'a rod', capsule: 'a rod', spheroid: 'a spheroid' })[el.trapShape] + ' (the Scattering tab has its shape): the trap is read for the sphere of the same volume, ' + fmtLen(particleOf(el).rEq * 1e-6) + ' in radius.']);
+      if (sph) rows.push(['Particle', (METAL_NAMES[el.trapMat] || el.trapMat) + ', n = ' + (+T.np.toPrecision(5)) + (T.kap > 0 ? ' + ' + (+T.kap.toPrecision(4)) + 'i' : '') + ', radius ' + fmtLen(particleOf(el).rEq * 1e-6) + ' in a medium of n = ' + (+T.nMed.toPrecision(5)) + (el.trapMed === 'bench' ? ' (the bench’s, where the light is)' : '') + ', mass ' + (+(T.mass * 1e3).toPrecision(3)) + ' g']);
       if (!T.trap && T.depthK < 0) rows.push(['', 'The particle is repelled by the light (' + (sph ? 'its index is below the medium’s' : 'blue of the D lines') + '): a barrier ' + tK(-T.depthK) + ' high at the brightest point, not a trap.']);
       else if (!T.trap && T.away) rows.push(['', 'No trap near the screen: the light pulls the particle away along the beam (' + off(T.dz, T.dz >= 0 ? 'past the screen' : 'before it') + '), as a collimated beam on its own does. A focus, or a second beam against it for a standing wave, would hold it here.']);
       else if (!T.trap) rows.push(['', 'No stable trap: ' + (sph ? 'radiation pressure outweighs the pull of the focus along the beam (a higher numerical aperture, a smaller particle, or a second beam against it would hold it)' : 'the force does not settle to zero here') + '.']);
@@ -253,6 +254,7 @@ export function readoutTabs(el, stabs) {
       plots: all.length ? '' : 'Nothing reaches ' + what,
       pulse: ((lastTrace.pulses && lastTrace.pulses[el.id]) || []).length ? '' : 'No pulse reaches ' + what + ' (a source or fibre laser with \u201cPulsed\u201d ticked)',
       trap: all.some(t => t.chief) ? '' : 'No Gaussian beam reaches ' + what + ' (the bench\u2019s Light showing the beams\u2019 envelope or field)',
+      scatter: all.some(t => t.chief) ? '' : 'No Gaussian beam reaches ' + what + ' (the bench\u2019s Light showing the beams\u2019 envelope or field)',
     };
     for (const [k, w] of Object.entries(why)) if (btns[k]) { btns[k].classList.toggle('empty', !!w); btns[k].title = w; }
   });
@@ -263,6 +265,7 @@ export function readoutTabs(el, stabs) {
   if (tab === 'aber') { aberSection(el); return true; }
   if (tab === 'pulse') { pulseSection(el); return true; }
   if (tab === 'trap') { trapSection(el); return true; }
+  if (tab === 'scatter') { scatterSection(el); return true; }
   if (tab === 'mods') { modReadoutSection(el); return true; }                   // the mods' readouts
   return false;
 }

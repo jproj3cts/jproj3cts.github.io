@@ -12520,6 +12520,93 @@ const TESTS = [
       return J.metric('Behind', 'power') || 0;
     },
   },
+  { group: 'Scattering by a particle' },
+  {
+    name: 'Mie: Bohren and Huffman’s test sphere',
+    why: 'their Appendix A case, a sphere of radius 0.525 µm and index 1.55 at 0.6328 µm: Q_ext = 3.10543 (and Q_sca the same, Q_back = 2.92534, checked in the Node tests)',
+    want: 3.10543, tol: 6e-6, unit: '',
+    run: J => J.mie(2 * Math.PI * 0.525 / 0.6328, 1.55, 0).Qext,
+  },
+  {
+    name: 'The Scattering tab: a 300 nm silica sphere in a tight 1550 nm focus, by Mie',
+    why: 'an ideal lens of f = 1 mm brings a 0.8 mm beam to NA above 0.6; the screen at its focus holds the sphere. The tab opens, names Lorenz–Mie as Auto’s choice, takes the focus as plane waves, lists the cross-sections and the collected share, and draws the pattern with numbers to save behind it; the scattered power is the Mie cross-section times the light at the sphere to within 2% (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r))), doc = rigDoc();
+      J.load(bench('scatter', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol: 'p', power: 100, popN: 256 }),
+        { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+1)-1)/lambda' },
+        screen({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum' })], { minPower: 1e-6 }));
+      J.select('S'); await frame();
+      const tab = [...doc.querySelectorAll('#panel .rt-tab')].find(b => b.textContent === 'Scattering');
+      if (!tab) return 0;
+      tab.click(); await frame(); await frame();
+      const text = doc.getElementById('panel').textContent, cv = doc.querySelector('#panel .rt-plot canvas');
+      const S = J.scatter('S'), Q = J.mie(S.x, S.m[0], S.m[1]);
+      const shown = /Lorenz–Mie/.test(text) && /Auto’s choice/.test(text) && /the tight focus as \d+ plane waves/.test(text) && /Cross-sections/.test(text) && /Collected/.test(text) && /Rayleigh would give/.test(text);
+      const plot = !!(cv && cv._csv && cv._csv.cols.length === 3 && cv._csv.rows().length === 361 && cv.width > 100);
+      const mie = S.model === 'mie' && Math.abs(S.Csca / (Q.Qsca * Math.PI * 150e-9 ** 2) - 1) < 1e-9 && Math.abs(S.Psca / (S.Csca * S.I0) - 1) < 0.02 && S.fwd > 0.52 && S.fwd < 0.57;
+      // p light: little goes sideways along the polarisation in the bench plane
+      const dip = S.cutIn.I[90] < 0.02 * S.cutIn.I[0];
+      // the other views draw, and have their numbers
+      const links = [...doc.querySelectorAll('#panel .rt-link')];
+      links.find(b => b.textContent === 'Every direction').click(); await frame();
+      const map = !!(cv._csv && /map/.test(cv._csv.name) && cv._csv.rows().length === S.map.nT * S.map.nP);
+      if (!(shown && plot && mie && dip && map)) console.log('scattering tab', { shown, plot, mie, dip, map, text: text.slice(0, 600) });
+      return shown && plot && mie && dip && map ? 1 : 0;
+    },
+  },
+  {
+    name: 'The Scattering tab: choosing a rod sets the particle’s shape, and None takes it away',
+    why: 'the Particle list makes the screen’s particle a rod (its length, axis and tilt then show, and Auto runs a dipole array), keeps the Trap tab’s sphere as the sphere of its volume, and None leaves no particle (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r))), doc = rigDoc(), win = rigWin();
+      J.load(bench('scatter rod', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.5, z0: 0, width: 1.6, rays: 1, pol: 's', power: 100, popN: 256 }),
+        screen({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 30, trapLen: 150, scatDip: 6, trapMed: 'vacuum' })], { minPower: 1e-6 }));
+      const el = J.byName('S');
+      J.select('S'); await frame();
+      [...doc.querySelectorAll('#panel .rt-tab')].find(b => b.textContent === 'Scattering').click(); await frame();
+      const pick = v => { const sel = [...doc.querySelectorAll('#panel select')].find(s => [...s.options].some(o => o.value === 'capsule')); sel.value = v; sel.dispatchEvent(new win.Event('change', { bubbles: true })); };
+      const sphere = el.trapShape === 'sphere' && !/Length \(nm\)/.test(doc.getElementById('panel').textContent);
+      pick('cylinder'); await frame(); await frame();
+      const text = doc.getElementById('panel').textContent, S = J.scatter('S');
+      const rod = el.trapShape === 'cylinder' && el.trap === 'sphere' && /Length \(nm\)/.test(text) && /Axis direction/.test(text) && /Dipole array: \d+ dipoles/.test(text) && S.model === 'dda' && S.dda.converged && Math.abs(S.Cext / S.Csca - 1) < 0.01;
+      const T = J.trap('S'), eq = Math.cbrt(0.75 * 30 * 30 * 150), vol = !!T && Math.abs(T.ka / (2 * Math.PI / 1550 * eq) - 1) < 1e-9;
+      pick('none'); await frame();
+      const none = el.trap === 'none' && J.scatter('S') === null && !/Material|Diameter|Cross-sections/.test(doc.getElementById('panel').textContent);
+      if (!(sphere && rod && vol && none)) console.log('scattering particle', JSON.stringify({ sphere, rod, vol, none, shape: el.trapShape, trap: el.trap }));
+      return sphere && rod && vol && none ? 1 : 0;
+    },
+  },
+  {
+    name: 'A dipole-array sphere in the focus is within 2% of Mie',
+    why: 'the same 300 nm sphere at the same NA 0.6 focus, as an array of dipoles each driven by the focus’s plane waves: its scattered power over Mie’s',
+    want: 1, tol: 0.02, unit: '',
+    run: J => {
+      const run = model => { J.load(bench('scatter dda', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol: 's', power: 100, popN: 256 }),
+        { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+1)-1)/lambda' },
+        screen({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum', scatModel: model })], { minPower: 1e-6 })); return J.scatter('S'); };
+      return run('dda').Psca / run('mie').Psca;
+    },
+  },
+  {
+    name: 'The scattering worker: a rod’s dipole array runs in a worker, reports as it goes, and can be stopped',
+    why: 'the Scattering tab’s run in a worker of this page’s own code: it sends the solver’s iterations as progress, answers for the bench as the page has it, with the numbers the page itself works out; and a run ended at its first iteration ends (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('scatter worker', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.5, z0: 0, width: 1.6, rays: 1, pol: 's', power: 100, popN: 256 }),
+        screen({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapShape: 'cylinder', trapR: 100, trapLen: 1000, trapAz: 90, scatDip: 8, trapMed: 'vacuum' })], { minPower: 1e-6 }));
+      const P = await J.scatterProbe('S');
+      if (!P.ok && P.err === 'no worker here') return 1;                 // (a browser without workers runs it on the page)
+      const here = J.scatter('S');
+      const ran = P.ok && P.same && P.S && P.S.model === 'dda' && P.S.dda.converged && P.prog.some(p => p.stage === 'dipoles' && p.iter >= 1 && p.resid < 1) && P.prog.some(p => p.stage === 'pattern');
+      const same = ran && Math.abs(P.S.Csca / here.Csca - 1) < 1e-9 && Math.abs(P.S.cutIn.I[30] / here.cutIn.I[30] - 1) < 1e-9;
+      const Q = await J.scatterProbe('S', { stop: 'dipoles' });
+      const stopped = Q.ok && Q.stopped && !Q.S;
+      if (!(ran && same && stopped)) console.log('scattering worker', { ok: P.ok, err: P.err, same: P.same, prog: P.prog && P.prog.length, ran, stopped });
+      return ran && same && stopped ? 1 : 0;
+    },
+  },
 ];
 /* ---------- Lasers, cells and fibre benches ---------- */
 const rigJ = () => document.getElementById('rig').contentWindow.JEKray;

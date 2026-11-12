@@ -475,8 +475,17 @@ export function fibreNet() {
     const k0 = 2 * Math.PI / (G.nm * 1e-6), P0 = G.list.reduce((s, I) => s + I.E.reduce((a, v) => a + v * v, 0), 0);
     const floor = 1e-20 * Math.max(P0, 1e-30);
     // what a component does at this light's wavelength; one that tells frequencies apart (a Bragg grating), at each offset's own
+    /* An amplifier's spontaneous emission through a modulator: a slice of it is hundreds of GHz wide, so sidebands a
+       drive frequency apart land inside the slice they came from and change nothing that can be measured. It goes
+       through as one wave with the power of all its orders together (a phase modulator's: all of it, less the loss),
+       not as an order each to be followed on through the network and out of every tip. */
+    const noise = G.root && G.root.ase && G.root.coh > 0 ? C_MM / G.root.coh : 0;                 // the slice's width, Hz
     const Smemo = new Map(), Sof = (el, fo) => {
       const K = el.type === 'fcomp' ? FC[el.kind] : null, k = K && fo && K.byFreq && K.byFreq(el) ? el.id + '@' + fo : el.id;
+      if (K && el.kind === 'eom' && noise > 20 * el.fm * 1e6 && !Smemo.has(k)) {
+        const t = Math.sqrt(eomSidebands(el).reduce((a2, [, c]) => a2 + c[0] * c[0] + c[1] * c[1], 0)), M = J2.sc(J2.I(1), [t, 0]);
+        Smemo.set(k, [[0, 1, M, 0], [1, 0, M, 0]]);
+      }
       if (!Smemo.has(k)) Smemo.set(k, K ? K.S(el, k === el.id ? G.nm : 1 / (1 / G.nm + fo / (C_MM * 1e6))) : []);
       return Smemo.get(k);
     };

@@ -19944,7 +19944,20 @@ function faceHit(el, b) {
   }
   return { u0, v0, ldx, ldy, vs };
 }
+/* (Kept for the trace it was read from and the face as it stands: a network asks for a tip's arrivals to tell
+   whether it must be solved again, then again to solve it, and each readout asks once more; with a spectrum in
+   slices and a beam of modes that was the larger part of a trace.) */
+const FACE_ARRIVALS = new WeakMap();
 function faceArrivals(el) {
+  const B = lastTrace.beams;
+  if (!B) return faceArrivalsOf(el);
+  let M = FACE_ARRIVALS.get(B);
+  if (!M) FACE_ARRIVALS.set(B, M = new Map());
+  const k = el.id + '|' + B.length + '|' + JSON.stringify([el.x, el.y, el.z, el.angle, el.tip, el.roll, el.length, el.core, el.na, el.mm, el.coll, el.type]);
+  if (!M.has(k)) M.set(k, faceArrivalsOf(el));
+  return M.get(k);
+}
+function faceArrivalsOf(el) {
   const B = lastTrace.beams || [], out = [], f = frame(el);
   B.forEach((b, i) => {
     if (b.endEl !== el.id || b.fan || b.dx * f.c + b.dy * f.s >= 0) return;
@@ -20780,8 +20793,17 @@ function fibreNet() {
     const k0 = 2 * Math.PI / (G.nm * 1e-6), P0 = G.list.reduce((s, I) => s + I.E.reduce((a, v) => a + v * v, 0), 0);
     const floor = 1e-20 * Math.max(P0, 1e-30);
     // what a component does at this light's wavelength; one that tells frequencies apart (a Bragg grating), at each offset's own
+    /* An amplifier's spontaneous emission through a modulator: a slice of it is hundreds of GHz wide, so sidebands a
+       drive frequency apart land inside the slice they came from and change nothing that can be measured. It goes
+       through as one wave with the power of all its orders together (a phase modulator's: all of it, less the loss),
+       not as an order each to be followed on through the network and out of every tip. */
+    const noise = G.root && G.root.ase && G.root.coh > 0 ? C_MM / G.root.coh : 0;                 // the slice's width, Hz
     const Smemo = new Map(), Sof = (el, fo) => {
       const K = el.type === 'fcomp' ? FC[el.kind] : null, k = K && fo && K.byFreq && K.byFreq(el) ? el.id + '@' + fo : el.id;
+      if (K && el.kind === 'eom' && noise > 20 * el.fm * 1e6 && !Smemo.has(k)) {
+        const t = Math.sqrt(eomSidebands(el).reduce((a2, [, c]) => a2 + c[0] * c[0] + c[1] * c[1], 0)), M = J2.sc(J2.I(1), [t, 0]);
+        Smemo.set(k, [[0, 1, M, 0], [1, 0, M, 0]]);
+      }
       if (!Smemo.has(k)) Smemo.set(k, K ? K.S(el, k === el.id ? G.nm : 1 / (1 / G.nm + fo / (C_MM * 1e6))) : []);
       return Smemo.get(k);
     };
@@ -56853,7 +56875,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     '<b>Export figure</b>, Journal and Technical drawing: the names are all one size (a name scaled on the bench no longer carries its scale into the figure), each is set clear of the parts and of the other names, with a thin line to its part when it has to go further out, a name at the edge is no longer cut, and the ports’ names are left out unless <b>Port names</b> is set to Shown. A bench too crowded for names is numbered, with a key under the figure (<b>Names</b>).',
-    'Faster on benches with a multimode fibre and a broad spectrum (an amplifier’s spontaneous emission, a modulator’s sidebands): the light coupled back into a multimode tip is worked out once for each beam that has not moved, and many times faster when it has; in 3D, beams that run the same path at the same size are drawn as one envelope. A bench that took 13 s to open and 8 to 12 s to answer a moved part now takes 2 s and about half a second, with the same readings.',
+    'Faster on benches with a multimode fibre and a broad spectrum (an amplifier’s spontaneous emission, a modulator’s sidebands): the light coupled back into a multimode tip is worked out once for each beam that has not moved, and many times faster when it has; in 3D, beams that run the same path at the same size are drawn as one envelope. A fibre EOM no longer puts sidebands on an amplifier’s spontaneous emission (a slice of it is far wider than the drive frequency, so they changed nothing but the number of beams to follow). A bench that took 13 s to open and 8 to 12 s to answer a moved part now takes under 2 s and about a third of a second, with the same readings.',
     '<b>Scattering by a particle</b>: a screen’s new <b>Scattering</b> tab gives the light one small particle scatters. A sphere is worked out exactly (Lorenz–Mie); a rod with flat or round ends or a spheroid, at any orientation, as an array of dipoles (the discrete dipole approximation, run in the background with a Stop); and a single dipole (Rayleigh) is kept beside them to compare. The light is what the bench puts on the particle: a tight focus as its full vector field, every sample of its pupil a plane wave onto the particle, so the particle may sit off the focus; a gentler beam as a plane wave; beams of one laser added as fields. It reads the scattering, extinction and absorption cross-sections, efficiencies and asymmetry, the power scattered, the forward and back shares and the share a lens of a given NA would collect, with polar plots in the bench plane and out of it and a map over every direction. The particle is the Trap tab’s, now with a shape, gold, silver and aluminium among its materials, and water as a medium. In 3D the particle is drawn in its shape and orientation, enlarged so it shows. In a script, <code>JEKray.scatter(name)</code> and <code>JEKray.mie(x, mr, mi, angles)</code>. A new example, <b>Light scattered by a 300 nm sphere</b>, and two cases on the validation page.',
     'The diffracted field behind a <b>hard edge</b> (a slit, a comb of slits, a knife edge, an iris or a rim off the beam\u2019s axis) has its true amplitude. Each sample at an edge took its share of open area and the whole field was then scaled up to the open area\u2019s power: the peak behind slits a few samples wide read up to 12% high, the envelope of an N-slit pattern came out narrow, and the fringes behind a straight edge lost contrast away from it. An edge is now carried as the samples can hold it exactly, with the light it sends past the grid\u2019s reach kept at the top of that reach, so the power is still the open area\u2019s. Slits that run the whole way up no longer cut the beam\u2019s wings off above and below them (2% of a focus behind them). Behind an edge the field is sampled more finely where the grid can still hold the light. New on <a href="/jek/tools/jekray-validation.html#fresnel-edge">the validation page</a>: Fresnel\u2019s fringes at a straight edge and the pattern of 2, 5 and 10 slits.',
     'A <b>phase mask finer than the beam</b> (a phase grating, a diffuser, an SLM\u2019s pattern) keeps its light. Behind a mask that spreads the light without cutting it, the diffracted field\u2019s grid now grows with the light as it does behind an edge; before, a grating\u2019s orders ran off the grid\u2019s sides and were lost with no warning. The beam goes on along the mask\u2019s mean slope across its footprint, where it took the slope under its own ray (a sinusoidal grating sent it off at \u03b2\u03bb/d, a fork hologram\u2019s core ended it once rays left the bench plane), and takes its focus from the trend of the slope across it. A sinusoidal phase grating\u2019s orders now carry J\u2099(\u03b2)\u00b2 each, on <a href="/jek/tools/jekray-validation.html#phase-grating">the validation page</a>. Light a mask sends past what the grid can carry is flagged.',

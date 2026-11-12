@@ -68,7 +68,20 @@ function faceHit(el, b) {
   }
   return { u0, v0, ldx, ldy, vs };
 }
+/* (Kept for the trace it was read from and the face as it stands: a network asks for a tip's arrivals to tell
+   whether it must be solved again, then again to solve it, and each readout asks once more; with a spectrum in
+   slices and a beam of modes that was the larger part of a trace.) */
+const FACE_ARRIVALS = new WeakMap();
 export function faceArrivals(el) {
+  const B = lastTrace.beams;
+  if (!B) return faceArrivalsOf(el);
+  let M = FACE_ARRIVALS.get(B);
+  if (!M) FACE_ARRIVALS.set(B, M = new Map());
+  const k = el.id + '|' + B.length + '|' + JSON.stringify([el.x, el.y, el.z, el.angle, el.tip, el.roll, el.length, el.core, el.na, el.mm, el.coll, el.type]);
+  if (!M.has(k)) M.set(k, faceArrivalsOf(el));
+  return M.get(k);
+}
+function faceArrivalsOf(el) {
   const B = lastTrace.beams || [], out = [], f = frame(el);
   B.forEach((b, i) => {
     if (b.endEl !== el.id || b.fan || b.dx * f.c + b.dy * f.s >= 0) return;

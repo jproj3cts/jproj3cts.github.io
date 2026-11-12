@@ -12704,17 +12704,95 @@ const MASK_EDGE_SHARE = 0.5;
 /* A mask delay's slope along u, in waves per mm, from just round (u, 0) where the formula is
    singular or jumps there: the mean of its slopes at four points 2 um away, each taken modulo
    whole waves, or 0 unless all four are smooth (a binary step bends nothing) */
-function maskMeanSlope(fn, u, lam) {
+function maskMeanSlope(fn, u, lam, v = 0, up = false, cell = fn.cell) {
   // round a sampled delay's core (a mod's table), far enough out that the samples hold the vortex
-  const h = 1e-4, e = Math.max(2e-3, 2.5 * (fn.cell || 0)), w = d => d - Math.round(d);
+  const h = 1e-4, e = Math.max(2e-3, 2.5 * (cell || 0)), w = d => d - Math.round(d);
   let sum = 0;
   for (const [a, b] of [[e, 0], [-e, 0], [0, e], [0, -e]]) {
-    const D = (x) => fn(u + a + x, b, lam)[1], d0 = D(0), dp = w(D(h) - d0), dm = w(d0 - D(-h));
+    // (up: the slope along v, out of the bench plane, taken the same way)
+    const D = (x) => fn(u + a + (up ? 0 : x), v + b + (up ? x : 0), lam)[1], d0 = D(0), dp = w(D(h) - d0), dm = w(d0 - D(-h));
     if (Math.abs(dp) > 0.45 || Math.abs(dm) > 0.45 || Math.abs(dp - dm) > 0.05) return 0;
     sum += (dp + dm) / (2 * h);
   }
   return sum / 4;
 }
+/* What a mask's delay does to a whole beam, where the delay at the beam's own ray is no guide to it.
+   A lens bends a beam by its slope where the beam's ray crosses it and focuses it by its curvature
+   there, because its slope runs on evenly across the beam. A grating finer than the beam does
+   not: its slope under the ray is whatever part of a period the ray happens to cross (a sinusoidal
+   phase grating's, anything from -beta/d to +beta/d waves per mm), while the light goes into orders
+   set by the whole pattern. What the whole beam takes is the mean of the slope over its irradiance,
+   which is where the centroid of the light it sends on goes (the mean of the transverse wavevector
+   it adds), and the trend of the slope across it, which is the lens it makes.
+   The slopes are sampled over the beam's footprint (1/e^2 half-widths wu along u and wv along v
+   about (u0, v0)), each modulo whole waves, in pairs either side of the centre so that a vortex on
+   the beam's ray cancels and a carrier stays; a straight-line fit across the footprint gives the
+   trend. Where that fit accounts for most of the slope's variation (a lens, aberrated or not, an
+   axicon) or what it leaves would not spread the beam, the answer is null and the delay at the
+   ray stands, as before. Else { gu, gv, cu, cv, su, sv, ku, kv }: the mean slopes (waves/mm), their
+   trends (waves/mm^2) along u and v, and what a grid needs to know of the rest (see below). */
+function maskBeamFit(fn, u0, v0, wu, wv, lam) {
+  if (!(wu > 0) || !(wv > 0) || !isFinite(wu) || !isFinite(wv)) return null;
+  const memo = BEAM_FIT.get(fn), key = u0 + ',' + v0 + ',' + wu + ',' + wv + ',' + lam;
+  if (memo && memo.key === key) return memo.out;
+  const h = 1e-4, w = d => d - Math.round(d), n = BEAM_FIT_N;
+  // a slope from one-sided differences that agree; none at a step or a core
+  const grad = (u, v) => {
+    const f0 = fn(u, v, lam), d0 = f0[1];
+    const a1 = w(fn(u + h, v, lam)[1] - d0), a2 = w(d0 - fn(u - h, v, lam)[1]), b1 = w(fn(u, v + h, lam)[1] - d0), b2 = w(d0 - fn(u, v - h, lam)[1]);
+    if (Math.abs(a1) > 0.45 || Math.abs(a2) > 0.45 || Math.abs(a1 - a2) > 0.05 || Math.abs(b1) > 0.45 || Math.abs(b2) > 0.45 || Math.abs(b1 - b2) > 0.05) return null;
+    return [(a1 + a2) / (2 * h), (b1 + b2) / (2 * h), f0[0] * f0[0], (a1 - a2) / (h * h), (b1 - b2) / (h * h)];
+  };
+  const A = new Float64Array(n), B = new Float64Array(n), GU = new Float64Array(n), GV = new Float64Array(n), W = new Float64Array(n), CU = new Float64Array(n), CV = new Float64Array(n);
+  // Points on a Fibonacci lattice over the footprint out to 2.2 w, each weighted by the beam's
+  // irradiance there, exp(-2 r^2 / w^2), and the mask's own transmission: a lattice sums a pattern
+  // far finer than its own spacing to nothing, as it should, where points scattered at random
+  // would leave a share of it. Point n - i is point i through the centre.
+  const G = new Array(n), half = 2.2;
+  let m = 0, s0 = 0, su = 0, sv = 0, all = 0, ok = 0;
+  const at = i => [2 * half * wu * (i / n - 0.5), 2 * half * wv * ((i * BEAM_FIT_GEN % n) / n - 0.5)];
+  for (let i = 1; i < n; i++) { const [a, b] = at(i); G[i] = grad(u0 + a, v0 + b); }
+  for (let i = 1; i < n; i++) {
+    const [a, b] = at(i), g = G[i], wt = Math.exp(-2 * (a * a / (wu * wu) + b * b / (wv * wv)));
+    all += wt;
+    if (!g || !G[n - i]) continue;
+    ok += wt;
+    A[m] = a; B[m] = b; GU[m] = g[0]; GV[m] = g[1]; W[m] = g[2] * wt; CU[m] = g[3]; CV[m] = g[4];
+    s0 += W[m]; su += W[m] * g[0]; sv += W[m] * g[1]; m++;
+  }
+  let out = null;
+  if (ok >= 0.5 * all && s0 > 0) {
+    const gu = su / s0, gv = sv / s0;
+    let aa = 0, bb = 0, ua = 0, ub = 0, va = 0, vb = 0, tot = 0;
+    for (let i = 0; i < m; i++) {
+      const du = GU[i] - gu, dv = GV[i] - gv, wt = W[i];
+      aa += wt * A[i] * A[i]; bb += wt * B[i] * B[i]; ua += wt * du * A[i]; ub += wt * du * B[i]; va += wt * dv * A[i]; vb += wt * dv * B[i];
+      tot += wt * (du * du + dv * dv);
+    }
+    const cu = aa > 0 ? ua / aa : 0, cuv = bb > 0 ? ub / bb : 0, cvu = aa > 0 ? va / aa : 0, cv = bb > 0 ? vb / bb : 0;
+    let res = 0, ru = 0, rv = 0, qu = 0, qv = 0;
+    const RU = [], RV = [];
+    for (let i = 0; i < m; i++) {
+      const du = GU[i] - gu - cu * A[i] - cuv * B[i], dv = GV[i] - gv - cvu * A[i] - cv * B[i];
+      res += W[i] * (du * du + dv * dv); ru += W[i] * du * du; rv += W[i] * dv * dv;
+      qu += W[i] * (CU[i] - cu) ** 2; qv += W[i] * (CV[i] - cv) ** 2;
+      if (W[i] > 0) { RU.push(Math.abs(du)); RV.push(Math.abs(dv)); }
+    }
+    // what the fit leaves, as an angle (waves/mm times lambda), against the beam's own spread lambda / (pi w)
+    if (res > 0.5 * tot && Math.sqrt(res / s0) * Math.PI * Math.min(wu, wv) > 0.5) {
+      // and for the grid that must hold it: the steepest slope left (all but the hundredth of
+      // the samples nearest a vortex's core, where it has no bound), in waves/mm, and how fast the
+      // slope itself turns, rms(D'') / rms(D'), a sinusoid's 2 pi / d, in rad/mm
+      const top = R => { R.sort((a, b) => a - b); return R.length ? R[Math.min(R.length - 1, Math.floor(0.99 * R.length))] : 0; };
+      // (along an axis the mask leaves alone both are nothing: a ratio of rounding errors is no rate)
+      const su = top(RU), sv = top(RV), live = (sl, wd) => sl * Math.PI * wd > 0.05;
+      out = { gu, gv, cu, cv, su: live(su, wu) ? su : 0, sv: live(sv, wv) ? sv : 0, ku: live(su, wu) && ru > 0 ? Math.sqrt(qu / ru) : 0, kv: live(sv, wv) && rv > 0 ? Math.sqrt(qv / rv) : 0 };
+    }
+  }
+  BEAM_FIT.set(fn, { key, out });
+  return out;
+}
+const BEAM_FIT = new WeakMap(), BEAM_FIT_N = 1597, BEAM_FIT_GEN = 987;
 /* How many whole waves a mask's delay resets by between two points (a blazed grating's or a
    kinoform's): its change less what its local slopes, taken modulo whole waves, account for */
 function maskResets(fn, u0, v0, u1, v1, lam) {
@@ -14137,21 +14215,35 @@ function traceSceneOnce() {
           const smooth = Math.abs(dp) < 0.45 && Math.abs(dm) < 0.45 && Math.abs(dp - dm) < 0.05;
           const A = f0[0];
           let slope = smooth ? (dp + dm) / (2 * hh) * lam : 0;
-          const curv = smooth ? (dp - dm) / (hh * hh) * lam : 0;
           // on a vortex's core (a fork hologram's, where the reference ray usually crosses it)
           // the slope is the mean of those just round it: the vortex's cancel, the carrier's stay
           if (!smooth) slope = maskMeanSlope(s.maskFn, ly, lam) * lam;
-          // and up and down by its slope that way, off the plane (a smooth delay's only)
+          // and up and down by its slope that way, off the plane (a smooth delay's only: on a
+          // vortex's core the delay either side differs by half a turn whichever way it is
+          // crossed, which is no slope, so there it is the mean of those just round it too)
           let slopeV = 0;
           if (anyZ) {
             const fu = mf(ly, hS + hh, lam), fd = mf(ly, hS - hh, lam), du = wrap(fu[1] - f0[1]), dd = wrap(f0[1] - fd[1]);
-            if (Math.abs(du) < 0.45 && Math.abs(dd) < 0.45 && Math.abs(du - dd) < 0.05) slopeV = (du + dd) / (2 * hh) * lam;
+            if (!smooth) slopeV = maskMeanSlope(mf, ly, lam, hS, true, s.maskFn.cell) * lam;
+            else if (Math.abs(du) < 0.45 && Math.abs(dd) < 0.45 && Math.abs(du - dd) < 0.05) slopeV = (du + dd) / (2 * hh) * lam;
+          }
+          // A beam wider than the mask's detail (a grating's lines, a diffuser's grain) is not bent
+          // by the slope its own ray happens to cross, nor focused by the curvature there: it takes
+          // the mean slope over its footprint, which is where the light it sends on is centred, and
+          // the trend of the slope across it (see maskBeamFit). A lens, where the two agree, is left
+          // exactly as it was.
+          let curv = smooth ? (dp - dm) / (hh * hh) * lam : 0, fit = null;
+          if (isQ) {
+            const bw = beamAt(qr, qi, nCur, nm, m2Env(src));
+            fit = bw && bw.w > 0 ? maskBeamFit(mf, ly, hS, bw.w / (Math.abs(cosd) || 1), bw.w, lam) : null;
+            if (fit) { slope = fit.gu * lam; if (anyZ) slopeV = fit.gv * lam; curv = fit.cu * lam; }
           }
           if (isQ) {
             // in a medium the delay's curvature bends the light by 1/n of it, as the rays' slope
             // does: a mask inside water or glass focuses at its focal length there
             const cN = curv / nCur;
             evt = Object.assign(passEv(), { C: cN, mode: 'M' });
+            if (fit) evt.mfit = fit;
             const dr = cN * qr + 1, di = cN * qi, den = dr * dr + di * di;
             const nr = (qr * dr + qi * di) / den, ni = (qi * dr - qr * di) / den;
             qr = nr; qi = ni;
@@ -36554,6 +36646,8 @@ function popMask(r, a) {
    and every reference phase is put back analytically. */
 let BAB_N = 1024;                       // samples for the light a disc takes out (see popSurface)
 function setBAB_N(v) { return (BAB_N = v); }
+/* Behind a phase mask the pilot is refitted where the light's M^2 is this many times the pilot's own */
+const SPREAD_M2 = 1.2;
 const POP_N_MAX = 1024;                    // the most radial points a steep surface refines a field to
 function popSurface(F, q, ev) {
   // Behind an obscuring disc the light is the free beam less what a round opening of the
@@ -36618,6 +36712,36 @@ function popSurface(F, q, ev) {
       m2In = Math.max(1, 2 * Math.PI * Math.sqrt((m2 / p) * (s2 / s0)));
     }
   }
+  // A round mask that cuts nothing but is finer than the beam (rings of phase, a round diffuser)
+  // spreads the light as an edge does, and the pilot must spread with it or its near-field grid
+  // never grows (see the 2D step). The tracer's fit of the mask across the beam (maskBeamFit) says
+  // when; the light's M^2 is then measured as above, with the mask's phase on it, on a grid fine
+  // enough for that phase, the lens the pilot takes from the mask and the pilot's own curvature off.
+  let spread = false, gMask = 0;
+  const rawS = ev.raw, mfS = rawS && rawS.mfit && rawS.surf && rawS.surf.maskFn && rawS.mode !== 'P' && !ev.paraxial ? rawS.mfit : null;
+  if (mfS) gMask = Math.max(2 * Math.PI * mfS.su, Math.PI * mfS.su + 2 * mfS.ku);
+  if (mfS && !clipped && !ev.fixed && gMask > 0) {
+    const fn = rawS.surf.maskFn, c0 = isFinite(rawS.ly) ? rawS.ly : 0, D0 = fn(c0, 0, lam0)[1];
+    const R1 = Math.min(G * popW(qr, qi, lamIn), N * Math.PI / (2 * gMask)), r1 = popRadii(Q, R1);
+    const [re, im] = popResample(r, F.re, F.im, r1);
+    const b = 0.5 * kIn * (popInvR([qr, qi]) - (F.sphere ? 1 / F.z : 0));
+    const cr = new Float64Array(N), ci = new Float64Array(N);
+    let p = 0, m2 = 0;
+    for (let i = 0; i < N; i++) {
+      const [a, d] = fn(c0 + r1[i], 0, lam0), ph = (b + 0.5 * kIn * ev.C) * r1[i] * r1[i] - 2 * Math.PI * (d - D0), c = Math.cos(ph) * a, s = Math.sin(ph) * a;
+      cr[i] = re[i] * c - im[i] * s; ci[i] = re[i] * s + im[i] * c;
+      const w = (cr[i] ** 2 + ci[i] ** 2) * Q.inv[i];
+      p += w; m2 += w * r1[i] * r1[i];
+    }
+    if (p > 0) {
+      const [Hr, Hi] = hankel(Q, R1, cr, ci);
+      let s0 = 0, s2 = 0;
+      for (let k = 0; k < N; k++) { const nu = Q.j[k] / (2 * Math.PI * R1), P = (Hr[k] ** 2 + Hi[k] ** 2) * Q.inv[k]; s0 += P; s2 += P * nu * nu; }
+      const mm = 2 * Math.PI * Math.sqrt((m2 / p) * (s2 / s0)), wF = Math.sqrt(2 * m2 / p);
+      const own = Math.max(1, Math.PI * wF * wF * qi / ((qr * qr + qi * qi) * lamIn));
+      if (mm > SPREAD_M2 * own) { spread = true; m2In = mm; wFitIn = wF; }
+    }
+  }
   // pilot through the surface: q' = A q / (C q + D)
   const A = ev.A, aA = Math.abs(A), C = ev.C, D = ev.D;
   {
@@ -36627,9 +36751,9 @@ function popSurface(F, q, ev) {
   }
   const qAB = [qr, qi];
   const n2 = ev.n2, k2 = 2 * Math.PI * n2 / lam0, lam2 = lam0 / n2;
-  if (ev.fixed) clipped = ev.fixed.clipped;
-  if (clipped && ev.fixed) { qr = ev.fixed.q[0]; qi = ev.fixed.q[1]; }
-  else if (clipped) {
+  if (ev.fixed) { clipped = ev.fixed.clipped; spread = !!ev.fixed.spread; }
+  if ((clipped || spread) && ev.fixed) { qr = ev.fixed.q[0]; qi = ev.fixed.q[1]; }
+  else if (clipped || spread) {
     // recompute the pilot from what got through, the usual way: its curvature from the
     // pilot, its width from the second moment of the clipped field
     const wFit = aA * wFitIn;
@@ -36670,7 +36794,8 @@ function popSurface(F, q, ev) {
       if (prev !== null) g = Math.max(g, Math.abs(v - prev[1]) / (u - prev[0]));
       prev = [u, v];
     }
-    g /= aA;
+    // (a mask finer than these 41 points: its slope from the fit made of it across the beam)
+    g = Math.max(g, gMask) / aA;
     if (g > 0) Rn = Math.min(Rn, Q.N * Math.PI / (2 * g));
     if (Rn < wFloor) { steep = 1; Rn = wFloor; }
     // a surface that turns the wavefront faster than the grid can follow (a high-NA objective):
@@ -36773,7 +36898,7 @@ function popSurface(F, q, ev) {
   const coarse = !ev.fixed && (pAreaM > 0 && pEdgeM > MASK_EDGE_SHARE * pAreaM || discSpot < 3 * Rn / N) ? 1 : 0;
   if (bab) field.bab = bab;
   return { field, q: [qr, qi], clipped, steep, coarse,
-    decision: { Rn, clipped, q: [qr, qi], areaScale, resScale } };
+    decision: { Rn, clipped, spread, q: [qr, qi], areaScale, resScale } };
 }
 
 /* ---------- Cavities ----------
@@ -38617,11 +38742,22 @@ function reverseLine(re, im) {
     let t = re[a]; re[a] = re[b]; re[b] = t; t = im[a]; im[a] = im[b]; im[b] = t;
   }
 }
+/* A line fresh from an edge, whose samples were chosen to hold the edge's light as far as the next
+   surface (st.as, see popSurface2), goes there on those samples, whatever its pilot says of near
+   and far: a far-field step's grid is as wide as the angles the samples carry and no wider, so
+   the light an edge off to one side sends out at the steepest of them would land past its end. */
+const axisHeld = (st, t) => st.as > 0 && t > 0 && t <= st.as * (1 + 1e-12) && popInside(st.z, st.zR);
 /* Moving a line a distance t along the beam, steps chosen from its own pilot: { ops, st } */
 function axisPlan(n, st, t, lam, k) {
   const ops = [], z2 = st.z + t;
   const in1 = popInside(st.z, st.zR), in2 = popInside(z2, st.zR);
   if (in1 && in2) return { ops, st: axisASPlan(ops, n, st, t, lam) };
+  if (axisHeld(st, t)) {
+    // past the pilot's near field the line is kept against its reference sphere: taken off here
+    const S = axisASPlan(ops, n, st, t, lam);
+    ops.push(planMul(n, i => { const x = (i - n / 2) * S.d; return k * x * x / (2 * z2); }, 1));
+    return { ops, st: S };
+  }
   const W = in1 ? axisASPlan(ops, n, st, -st.z, lam) : axisToWaistPlan(ops, n, st, lam, k);
   return { ops, st: in2 ? axisASPlan(ops, n, W, z2, lam) : axisFromWaistPlan(ops, n, W, z2, lam, k) };
 }
@@ -38808,7 +38944,8 @@ function popLeg2(F0) {
     cutC(t) {
       const z1 = F0.ay.z, z2 = z1 + t;
       let base = F0, h;
-      if (popInside(z1, F0.ay.zR) && popInside(z2, F0.ay.zR)) h = rowAS(F0.ay, t);
+      // (held on its own samples from an edge: the row y = 0 has no reference sphere to take off)
+      if ((popInside(z1, F0.ay.zR) && popInside(z2, F0.ay.zR)) || axisHeld(F0.ay, t)) h = rowAS(F0.ay, t);
       else { base = yWaist(); h = popInside(z2, F0.ay.zR) ? rowAS(base.ay, z2) : rowWTS(base.ay, z2); }
       const line = (RE, IM) => {
         const gr = new Float64Array(N), gi = new Float64Array(N);
@@ -38868,6 +39005,52 @@ function interp2s(F, x, y, RE, IM) {
   I2R = r; I2I = i;
 }
 
+/* ---------- A hard edge on a grid ----------
+   Behind an opaque edge the field stops dead, and no grid of samples can hold a step: the light an
+   edge sends out reaches every angle, and the samples carry only those below lambda / 2d. What a
+   grid can hold exactly is the step with everything past that angle taken off, its ideal low-pass
+   (1/2 + Si(pi t) / pi at t samples from the edge), which overshoots and rings either side, as the
+   true field does once it has gone far enough for its fringes to be a sample wide. With it the
+   light the grid carries (the central lobe of a slit's pattern, the fringes behind a straight edge
+   out to the grid's reach) has its true amplitude.
+   The light the edge sends past the grid's reach is then missing, a tenth of a sample's worth of
+   irradiance along the edge (d / pi^2 of it), and the field's power short of the open area's by
+   that. It is put back near where sampling would fold it, at the top of the grid's reach and
+   nowhere else: a ripple across the edge, cos(pi EDGE_NU t), under a smooth envelope EDGE_J
+   samples wide either side (cos^4), whose light is all within 3/EDGE_J of EDGE_NU of the reach
+   (9/16 to 15/16 of it), none at the angles below, and none at the very limit (the envelope's
+   spectrum has a zero there, and one at no angle at all), where it would sit on a grid's last sample. Its size is the one that brings the power to the open area's (see
+   where it is solved, in popSurface2).
+   (Passing each sample its share of open area instead, as this did, is a box filter one sample
+   wide: it rolls the edge's light off from well inside the grid's reach, sinc(f d), folds what is
+   past the reach back over all of it, and loses power that was put back by scaling the whole
+   field up, 12% in irradiance for a slit four samples wide. The fringes behind a straight edge
+   lost contrast, and an N-slit pattern's peak read 12% high and its envelope narrow.)
+   The ringing is tapered to nothing over EDGE_K samples (the kernel is sinc times a Hann window
+   that long), and the cut-off set at EDGE_FC of the reach, so that it is whole to 1 - 4/EDGE_K
+   of the reach and gone by the limit: light at the limit itself is what a near-field step
+   scatters across the whole grid. The taper also keeps a far edge from rippling a beam it
+   barely touches. edgeStep(t) is that step, t in samples, from a table;
+   edgeRipple(t) the envelope. */
+const EDGE_K = 16, EDGE_FC = 1 - 2 / EDGE_K, EDGE_SUB = 128, EDGE_J = 16, EDGE_NU = 0.75;
+let edgeTab = null;
+function edgeStep(t) {
+  if (t <= -EDGE_K) return 0;
+  if (t >= EDGE_K) return 1;
+  if (!edgeTab) {
+    // the kernel integrated by Simpson's rule, two half-steps to a table step
+    const n = 2 * EDGE_K * EDGE_SUB, T = new Float64Array(n + 1), hk = x => { const a = Math.PI * x, b = a * EDGE_FC; return (x === 0 ? 1 : Math.sin(b) / b) * Math.cos(0.5 * a / EDGE_K) ** 2; };
+    const h = 1 / EDGE_SUB;
+    for (let i = 1; i <= n; i++) { const x0 = -EDGE_K + (i - 1) * h; T[i] = T[i - 1] + h / 6 * (hk(x0) + 4 * hk(x0 + h / 2) + hk(x0 + h)); }
+    for (let i = 0; i <= n; i++) T[i] /= T[n];
+    edgeTab = T;
+  }
+  const f = (t + EDGE_K) * EDGE_SUB, i = Math.min(Math.floor(f), edgeTab.length - 2), q = f - i;
+  return edgeTab[i] + q * (edgeTab[i + 1] - edgeTab[i]);
+}
+const edgeRipple = t => { if (t <= -EDGE_J || t >= EDGE_J) return 0; const c = Math.cos(0.5 * Math.PI * t / EDGE_J), c2 = c * c; return c2 * c2 * Math.cos(Math.PI * EDGE_NU * t); };
+/* Light a phase mask sends to the outer fifth of what the samples can carry: more than this share is flagged */
+const SPREAD_EDGE = 0.02;
 /* Through one surface. The pilot in each plane goes through the ABCD the traced
    quadratic implies (in the bench plane this is the tracer's own; out of it, it is
    the only way to know); the traced phase less that quadratic is the aberration,
@@ -38922,6 +39105,10 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
       const jump = u => Math.abs(u) > 0.05 * lam0;
       if (!jump(px[0] + mx[0]) && !jump(px[0] - mx[0])) bx = -k0 * (px[0] + mx[0]) / (2 * hh * hh);
       if (!jump(py[0] + my[0]) && !jump(py[0] - my[0])) by = -k0 * (py[0] + my[0]) / (2 * hh * hh);
+      // a mask finer than the beam (a grating, a diffuser): the lens it makes of the whole beam is
+      // the trend of its slope across the beam, not its curvature where the ray crosses one line
+      // of it (see maskBeamFit, by which the tracer set the beam's way on)
+      if (ev.mfit) { bx = -k0 * lam0 * ev.mfit.cu / (2 * ev.cth * ev.cth); by = -k0 * lam0 * ev.mfit.cv / 2; }
     }
   }
   const aAx = Math.abs(Ax) || 1, aAy = Math.abs(Ay) || 1;
@@ -38937,7 +39124,11 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   // a grid for what comes out: the pilot's width, or less if the aperture will cut it
   const a = popClear(ev);
   let wxo = Math.max(1e-9, Math.min(popW(qxo[0], qxo[1], lam2), aAx * a));
-  const wyo = Math.max(1e-9, Math.min(popW(qyo[0], qyo[1], lam2), aAy * a));
+  // (slits that run the whole way up cut nothing out of the plane: there the light keeps its own
+  // width, and a grid sized to the slit's width would cut the beam's wings, 1% of its amplitude,
+  // off the top and bottom)
+  const longSlit = ev.mask && ev.mask.slits && !(ev.mask.h > 0);
+  const wyo = Math.max(1e-9, Math.min(popW(qyo[0], qyo[1], lam2), longSlit ? Infinity : aAy * a));
   // An opening off to one side must still fit on the grid, which stays on the reference ray;
   // so must light that arrives off to one side, where it lands after this surface
   if (ev.mask && ev.mask.shape !== 'knife' && ev.mask.shape !== 'disc')
@@ -38974,7 +39165,14 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   // what the surface adds, and what the light already carries (a field leaving an aberrating
   // lens arrives at the next surface with its phase already steep, whatever that surface adds)
   const replay = !!(pol && pol.fixed);
-  const gx = replay ? 0 : (slope(wix, true) + field2Slope(F, 'x')) / aAx, gy = replay ? 0 : (slope(wiy, false) + field2Slope(F, 'y')) / aAy;
+  // A mask finer than the beam is finer than the 41 points above too. Its slope is known from the
+  // fit made of it across the beam (maskBeamFit): the steepest it has, 2 pi su, and since light a
+  // phase that swings sends out reaches past its steepest slope by a few times the rate it swings
+  // at (a sinusoidal phase grating's orders past beta by Carson's rule and its tail), half of
+  // that slope and four times the rate, whichever asks for more.
+  const mf2 = ev.mfit && traced ? ev.mfit : null;
+  const maskG = (g, su, ku, c) => mf2 ? Math.max(g, 2 * Math.PI * su / c, (2 * Math.PI * su + 4 * ku) / (2 * c)) : g;
+  const gx = replay ? 0 : (maskG(slope(wix, true), mf2 && mf2.su, mf2 && mf2.ku, ev.cth) + field2Slope(F, 'x')) / aAx, gy = replay ? 0 : (maskG(slope(wiy, false), mf2 && mf2.sv, mf2 && mf2.kv, 1) + field2Slope(F, 'y')) / aAy;
   let steep = 0;
   const span = (w, g, hold) => {
     let L = G * w;
@@ -38994,8 +39192,9 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   // An edge that cuts the beam sends out fringes: the first is sqrt(lam t) wide at the next
   // surface, t on, and the later ones finer. The guard band that keeps a clean beam well
   // sampled near and far leaves too few samples inside the beam for them, so here the
-  // sampling is chosen for that distance instead: eight across the first fringe, as far as a
-  // grid that still holds the beam and the light the edge sends out over t allows.
+  // sampling is chosen for that distance instead: sqrt(N) across the first fringe (which is as
+  // fine there as a far-field step would make it; eight at the least), as far as a grid that
+  // still holds the beam and the light the edge sends out over t allows.
   if (!replay && tNext > 0 && isFinite(tNext)) {
     const Sin = statsIn(), lam2 = lam0 / n2;
     let ex = false, ey = false;
@@ -39010,10 +39209,12 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
     const fine = (st, w, c, has) => {
       if (!has) return;
       const C = Math.abs(c) + 3.5 * w;
-      // N d / 2 >= C + lam t / (4 d): the smallest d that still holds it all
-      const dHold = (C + Math.sqrt(C * C + N * lam2 * tNext / 2)) / N;
-      const d = Math.max(Math.sqrt(lam2 * tNext) / 8, dHold);
+      // N d / 2 >= C + lam t / (2 d), the edge's light out to the steepest angle the samples
+      // carry: the smallest d that still holds it all
+      const dHold = (C + Math.sqrt(C * C + N * lam2 * tNext)) / N;
+      const d = Math.max(Math.sqrt(lam2 * tNext) / Math.max(8, Math.sqrt(N)), dHold);
       if (d < st.d) st.d = d;
+      st.holdC = C;
     };
     fine(ax, Sin.wx * aAx, Sin.cx * aAx, ex);
     fine(ay, Sin.wy * aAy, Sin.cy * aAy, ey);
@@ -39047,6 +39248,11 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   // and the round trip stays one linear operator
   const fixed = pol && pol.fixed;
   if (fixed) { ax.d = fixed.axd; ay.d = fixed.ayd; }
+  // An axis an edge cuts, whose samples as they now stand hold the edge's light to the next
+  // surface and follow the near-field step's phase there (N d^2 >= lambda t): it goes there on
+  // them (see axisHeld), if it starts in its pilot's near field
+  const heldTo = st => { const C = st.holdC; delete st.holdC; return C !== undefined && N * st.d * st.d >= lam2 * tNext * (1 - 1e-9) && N * st.d / 2 >= (C + lam2 * tNext / (2 * st.d)) * (1 - 1e-9); };
+  const asX = fixed ? !!fixed.asx : heldTo(ax), asY = fixed ? !!fixed.asy : heldTo(ay);
   const re = new Float64Array(N * N), im = new Float64Array(N * N);
   const vec = !!F.re2, re2 = vec ? new Float64Array(N * N) : null, im2 = vec ? new Float64Array(N * N) : null;
   const pix = Math.max(ax.d / aAx, ay.d / aAy);
@@ -39073,9 +39279,56 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   // phase that turns too fast only matters where there is light
   let peakIn = 0;
   if (!(pol && pol.fixed && pol.fixed.cache)) for (let i = 0; i < N * N; i++) peakIn = Math.max(peakIn, field2I(F, i));
-  // an edge that cuts a sample passes the sample's share of the area; with its amplitude at
-  // that share its power would fall short, so the whole is rescaled to the area's power
+  // a mask whose formula jumps inside a sample passes the sample's mean transmission; with its
+  // amplitude at that mean its power would fall short, so the whole is rescaled to the mean power
+  // (pArea against pAmp, both by the open area: what the edges and masks let through)
   let pArea = 0, pAmp = 0, pU = 0, pF = 0, pFe = 0;
+  // The stop's own edges, where it is one (see edgeStep): a slit family's openings along it,
+  // every edge of them, since a slit a few samples wide is as much its far edge as its near one.
+  // Each leaves the step in eM and the ripple in eQ.
+  const SM = ev.mask && edgeFn ? ev.mask : null, puS = ax.d / (aAx * ev.cth), pvS = ay.d / aAy, pxS = Math.max(puS, pvS);
+  let slitOpen = null, eM = 1, eQ = 0;
+  if (SM && SM.slits && ev.surf.el) { const bl = stopBlades(ev.surf.el); slitOpen = []; for (let i = 0; i + 1 < bl.length; i++) slitOpen.push(bl[i][1], bl[i + 1][0]); }
+  // a round edge of radius R about (o, 0): the near side and the far one, along the line through its centre
+  const roundEdge = (u, v, R, o) => {
+    const du = u - o, rho = Math.hypot(du, v), au = Math.abs(du) * puS, av = Math.abs(v) * pvS, dE = rho > 0 ? Math.max(au, av) / rho : pxS;
+    eM = edgeStep((R - rho) / dE) + edgeStep((R + rho) / dE) - 1;
+    // (the ripple by the sample's size summed along the normal, not its larger part: on a diagonal
+    // that is root 2 coarser, which keeps the ripple off the corner of what the samples carry)
+    eQ = edgeRipple((R - rho) / (rho > 0 ? (au + av) / rho : pxS));
+  };
+  // (the slits' transmission depends on u alone: worked out once for each u, which a flat stop met square repeats down every column)
+  const slitU = new Float64Array(N).fill(NaN), slitM = new Float64Array(N), slitQ = new Float64Array(N);
+  const slitsAt = (u, i) => {
+    if (slitU[i] !== u) {
+      let m = 0, q = 0;
+      for (let k = 0; k < slitOpen.length; k++) { const t = (u - slitOpen[k]) / puS; m += k & 1 ? -edgeStep(t) : edgeStep(t); q += edgeRipple(t); }
+      slitU[i] = u; slitM[i] = m; slitQ[i] = q;
+    }
+    eM = slitM[i]; eQ = slitQ[i];
+  };
+  const edgeAt = (r, i) => {
+    const u = r[6], v = r[7];
+    if (SM) {
+      if (SM.shape === 'disc') { roundEdge(u, v, SM.a, SM.o); eM = 1 - eM; return; }
+      if (slitOpen) {
+        slitsAt(u, i);
+        if (SM.h > 0) { const t1 = (v + SM.h) / pvS, t2 = (v - SM.h) / pvS, mv = edgeStep(t1) - edgeStep(t2); eQ = eQ * mv + eM * (edgeRipple(t1) + edgeRipple(t2)); eM *= mv; }
+      } else if (SM.shape === 'knife') { const t = -SM.side * (u - SM.o) / puS; eM = edgeStep(t); eQ = edgeRipple(t); }
+      else roundEdge(u, v, SM.a, SM.o);
+      // and the light that passes outside the plate
+      if (Math.hypot(u, v) > SM.b - EDGE_K * pxS) { const open = eM, q = eQ; roundEdge(u, v, SM.b, 0); const past = 1 - eM; eM = open + past - open * past; eQ += q; }
+      return;
+    }
+    if (!ev.surf.maskMargin) { if (isFinite(ev.surf.semi)) roundEdge(u, v, ev.surf.semi, 0); else { eM = 1; eQ = 0; } return; }          // a part's rim
+    // any other edge (a zone's, the cut where a beam passes a rim): the nearest alone, by its distance and its normal
+    const s0 = r[3];
+    if (Math.abs(s0) >= EDGE_K * pxS) { eM = s0 > 0 ? 1 : 0; eQ = 0; return; }
+    const e = 1e-4, gu = Math.abs(edgeFn(u + e, v) - edgeFn(u - e, v)) / (2 * e) * puS, gv = Math.abs(edgeFn(u, v + e) - edgeFn(u, v - e)) / (2 * e) * pvS, t = s0 / Math.max(1e-12, gu, gv);
+    eM = edgeStep(t); eQ = edgeRipple(s0 / Math.max(1e-12, gu + gv));
+  };
+  // each sample's step and ripple, kept until the ripple's size is known (only where there is an edge)
+  let EM = null, EQ = null, eA = 0, eB = 0, eC = 0;
   // A cavity's later round trips reuse what the first fixed pass worked out for each sample
   // (where it reads the incoming field, its phase and amplitude, its polarisation matrix),
   // so they cost an interpolation and a multiply, not a ray trace, per sample
@@ -39113,7 +39366,7 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
       if (vec) { interp2s(F, x, y, F.re2, F.im2); vr = I2R; vi = I2I; }
       if (!record && ur === 0 && ui === 0 && vr === 0 && vi === 0) { prev = null; continue; }
       pU += ur * ur + ui * ui + vr * vr + vi * vi;
-      let m = 1, ab = 0, fr = 1, fi = 0, PM = jonesM;
+      let m = 1, me = 1, ab = 0, fr = 1, fi = 0, PM = jonesM;
       if (tr) {
         const r = tr(x, y);
         if (vec && coef && r[4]) {
@@ -39167,9 +39420,9 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
           PM = pmS;
         }
         if (!r[4]) { prev = null; continue; }
-        // A sample the edge crosses passes the share of it on the open side. For a straight
-        // edge that share ramps across the pixel's own size in the direction the edge cuts,
-        // |dm/du| du + |dm/dv| dv, not across the coarser of the two spacings.
+        // The share of the sample on the open side, which is what the power is held to: for a
+        // straight edge that share ramps across the pixel's own size in the direction the edge
+        // cuts, |dm/du| du + |dm/dv| dv, not across the coarser of the two spacings.
         let ramp = pix;
         if (edgeFn && Math.abs(r[3]) < 2 * pix) {
           const e = 1e-4, pu = ax.d / (aAx * ev.cth), pv = ay.d / aAy;
@@ -39177,6 +39430,8 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
           ramp = Math.max(1e-12, Math.abs(gu) * pu + Math.abs(gv) * pv);
         }
         const cov = Math.min(1, Math.max(0, 0.5 + r[3] / ramp));
+        // and the edge as the samples can carry it (see edgeStep): the step, and the ripple's envelope
+        if (edgeFn) edgeAt(r, i); else { eM = cov; eQ = 0; }
         // the transmission here: a mask's amplitude (its delay is already in the traced
         // path), or, where its formula jumps inside the sample, the mean over the sample
         fr = r[5]; fi = 0;
@@ -39193,16 +39448,22 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
           pF += U0; if (fp) pFe += U0;
           edgeHere = !!fp;
         }
-        m = cov;
-        if (m === 0 || (fr === 0 && fi === 0)) { prev = null; continue; }
-        const U = ur * ur + ui * ui + vr * vr + vi * vi;
-        pArea += U * T2 * cov; pAmp += U * (fr * fr + fi * fi) * cov * cov;
+        me = eM;
+        if ((eM === 0 && eQ === 0 && cov === 0) || (fr === 0 && fi === 0)) { prev = null; continue; }
+        const U = ur * ur + ui * ui + vr * vr + vi * vi, Uf = U * (fr * fr + fi * fi);
+        pArea += U * T2 * cov; pAmp += Uf * cov;
+        if (eM !== 1 || eQ !== 0) {
+          if (!EM) { EM = new Float64Array(N * N).fill(1); EQ = new Float64Array(N * N); }
+          EM[j * N + i] = eM; EQ[j * N + i] = eQ;
+        }
+        eA += Uf * eQ * eQ; eB += Uf * eM * eQ; eC += Uf * (eM * eM - cov);
+        m = 1;
         if (traced) { ab = abAt(x, y, r); curUV = [r[6], r[7]]; }
       }
       // how fast the sampled phase turns from one sample to the next (a mask's step, which
       // its footprint average already handles, is not a slope; nor is a whole-wave reset, nor
       // one lone jump, which is a vortex's core: a slope the grid cannot follow runs on)
-      const big = prev !== null && !edgeHere && !prevEdge && Math.abs(ab - prev) > 2 && !(maskFn && prevUV && curUV && Math.abs(ab - prev + 2 * Math.PI * maskResets(maskFn, prevUV[0], prevUV[1], curUV[0], curUV[1], lam0)) <= 2) && ur * ur + ui * ui + vr * vr + vi * vi > 1e-6 * peakIn && m > 0.01;
+      const big = prev !== null && !edgeHere && !prevEdge && Math.abs(ab - prev) > 2 && !(maskFn && prevUV && curUV && Math.abs(ab - prev + 2 * Math.PI * maskResets(maskFn, prevUV[0], prevUV[1], curUV[0], curUV[1], lam0)) <= 2) && ur * ur + ui * ui + vr * vr + vi * vi > 1e-6 * peakIn && me > 0.01;
       if (big && prevBig) steep = 1;
       prevBig = big;
       prev = ab; prevEdge = edgeHere; prevUV = curUV;
@@ -39225,6 +39486,15 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   const out = { N, re, im, ax, ay, n: n2, lam0 };
   if (vec) { out.re2 = re2; out.im2 = im2; }
   const scaleAll = f => { for (const [kr, ki] of fieldComps(out)) { const R = out[kr], I = out[ki]; for (let i = 0; i < N * N; i++) { R[i] *= f; I[i] *= f; } } };
+  // The edges: each sample takes the step and so much of the ripple as brings the power to the open
+  // area's, sum W (m + a q)^2 = sum W cov, W the light on the sample: a quadratic in a, of whose
+  // roots the smaller is taken (with no root, the nearest it can come). A cavity's later passes
+  // replay what the first worked out, sample by sample.
+  if (EM) {
+    const disc = eB * eB - eA * eC, al = eA > 0 ? (disc > 0 ? (eB >= 0 ? -eB + Math.sqrt(disc) : -eB - Math.sqrt(disc)) : -eB) / eA : 0;
+    for (const [kr, ki] of fieldComps(out)) { const R = out[kr], I = out[ki]; for (let o = 0; o < N * N; o++) { const f = EM[o] + al * EQ[o]; if (f !== 1) { R[o] *= f; I[o] *= f; } } }
+    if (record) for (let o = 0; o < N * N; o++) { const f = EM[o] + al * EQ[o]; if (f !== 1) { record.c[2 * o] *= f; record.c[2 * o + 1] *= f; } }
+  }
   const areaScale = fixed ? fixed.areaScale : (pAmp > 0 && pArea > pAmp ? Math.sqrt(pArea / pAmp) : 1);
   if (areaScale !== 1) scaleAll(areaScale);
   // cut or not by what the edges and masks let through, not by how much a partial reflector
@@ -39237,12 +39507,49 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   const isPol = ev.surf && ev.surf.el && (ev.surf.el.type === 'polariser' || ev.surf.el.type === 'isolator');
   const resScale = fixed ? fixed.resScale || 1 : (!clipped && ev.mode !== 'M' && !isPol && pU > 0 ? Math.sqrt(pIn / (pU * g * g * ax.d * ay.d)) : 1);
   if (resScale !== 1) scaleAll(resScale);
-  if (clipped) {
-    // refit each pilot to what got through: curvature kept, width from the second moment
-    const refit = (q, w) => {
-      const den = q[0] * q[0] + q[1] * q[1], ir = q[0] / den, ii = -lam2 / (Math.PI * w * w), d2 = ir * ir + ii * ii;
-      return [ir / d2, -ii / d2];
-    };
+  // each axis's M^2 from the light's own spectrum (see the refit below)
+  const M2 = axis => {
+    const q = axis === 'x' ? qxo : qyo, st = axis === 'x' ? ax : ay, sph = !popInside(q[0], q[1]);
+    const b = 0.5 * k2 * (popInvR(q) - (sph ? 1 / q[0] : 0));
+    const lr = new Float64Array(N), li = new Float64Array(N), P = new Float64Array(N);
+    for (const [kr, ki] of fieldComps(out)) {
+      const R = out[kr], I = out[ki];
+      for (let j = 0; j < N; j++) {
+        for (let i = 0; i < N; i++) {
+          const o = axis === 'x' ? j * N + i : i * N + j, x = (i - N / 2) * st.d, ph = b * x * x, c = Math.cos(ph), s = Math.sin(ph);
+          lr[i] = R[o] * c - I[o] * s; li[i] = R[o] * s + I[o] * c;
+        }
+        cdft(lr, li, -1);
+        for (let m = 0; m < N; m++) P[m] += lr[m] * lr[m] + li[m] * li[m];
+      }
+    }
+    let s0 = 0, s1 = 0, s2 = 0, se = 0;
+    for (let m = 0; m < N; m++) { const f = (m - N / 2) / (N * st.d); s0 += P[m]; s1 += P[m] * f; s2 += P[m] * f * f; if (Math.abs(m - N / 2) > 0.4 * N) se += P[m]; }
+    const sf = Math.sqrt(Math.max(0, s2 / s0 - (s1 / s0) ** 2)), sx = 0.5 * (axis === 'x' ? S.wx : S.wy);
+    // (and for the light a mask spreads: its spread in spatial frequency, and the share of it in the
+    // outer fifth of what the samples can carry)
+    spec[axis] = { sf, edge: se / s0 };
+    return Math.max(1, 4 * Math.PI * sx * sf);
+  };
+  const spec = {};
+  // A mask that cuts nothing can still spread the light: a phase grating sends it into orders, a
+  // diffuser into a cone. The pilot went through the mask as through a lens and knows nothing of
+  // that, so a near-field grid would never grow and the orders would run off its sides and come
+  // back in at the other. So behind a phase mask the light's M^2 is measured too, and where it
+  // spreads faster than the pilot would (whose own M^2, by the light's width here, is
+  // pi w^2 Im(-1/q) / lambda), the pilot is refitted exactly as behind an edge.
+  let mxS = 0, myS = 0, spread = false;
+  if (!fixed && !clipped && maskFn && traced && S.power > 0) {
+    const own = (q, w) => Math.max(1, Math.PI * w * w * q[1] / ((q[0] * q[0] + q[1] * q[1]) * lam2));
+    mxS = M2('x'); myS = M2('y');
+    spread = mxS > SPREAD_M2 * own(qxo, S.wx) || myS > SPREAD_M2 * own(qyo, S.wy);
+    // light at the edge of what the samples can carry: the mask sends some further out than
+    // that, which comes back in as light at the wrong angle
+    if (spec.x.edge > SPREAD_EDGE || spec.y.edge > SPREAD_EDGE) steep = 1;
+  }
+  const refitted = fixed ? (fixed.refit !== undefined ? fixed.refit : fixed.clipped) : clipped || spread;
+  if (refitted) {
+    // refit each pilot to what got through: curvature kept, width from the second moment.
     // Widths about the light's own centre: the pilot decides how fast the light spreads,
     // and so when to switch to the far-field step. (Measured about the axis instead, a narrow
     // slit off to one side looks like a wide slow beam, the near-field grid never grows, and
@@ -39255,27 +39562,7 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
     // curvature taken off, and the pilot becomes an embedded Gaussian with that M^2: its
     // Rayleigh range is divided by M^2, and the switch to the far-field step comes as soon
     // as the light really spreads.
-    const M2 = axis => {
-      const q = axis === 'x' ? qxo : qyo, st = axis === 'x' ? ax : ay, sph = !popInside(q[0], q[1]);
-      const b = 0.5 * k2 * (popInvR(q) - (sph ? 1 / q[0] : 0));
-      const lr = new Float64Array(N), li = new Float64Array(N), P = new Float64Array(N);
-      for (const [kr, ki] of fieldComps(out)) {
-        const R = out[kr], I = out[ki];
-        for (let j = 0; j < N; j++) {
-          for (let i = 0; i < N; i++) {
-            const o = axis === 'x' ? j * N + i : i * N + j, x = (i - N / 2) * st.d, ph = b * x * x, c = Math.cos(ph), s = Math.sin(ph);
-            lr[i] = R[o] * c - I[o] * s; li[i] = R[o] * s + I[o] * c;
-          }
-          cdft(lr, li, -1);
-          for (let m = 0; m < N; m++) P[m] += lr[m] * lr[m] + li[m] * li[m];
-        }
-      }
-      let s0 = 0, s1 = 0, s2 = 0;
-      for (let m = 0; m < N; m++) { const f = (m - N / 2) / (N * st.d); s0 += P[m]; s1 += P[m] * f; s2 += P[m] * f * f; }
-      const sf = Math.sqrt(Math.max(0, s2 / s0 - (s1 / s0) ** 2)), sx = 0.5 * (axis === 'x' ? S.wx : S.wy);
-      return Math.max(1, 4 * Math.PI * sx * sf);
-    };
-    const mx2 = fixed ? 1 : M2('x'), my2 = fixed ? 1 : M2('y');
+    const mx2 = fixed ? 1 : mxS || M2('x'), my2 = fixed ? 1 : myS || M2('y');
     const refitM = (q, w, m2) => {
       const den = q[0] * q[0] + q[1] * q[1], ir = q[0] / den, ii = -m2 * lam2 / (Math.PI * w * w), d2 = ir * ir + ii * ii;
       return [ir / d2, -ii / d2];
@@ -39298,7 +39585,14 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
     }
     qxo = nx; qyo = ny;
     ax.z = nx[0]; ax.zR = nx[1]; ay.z = ny[0]; ay.zR = ny[1];
+    // Light a mask spreads must still be on the grid at the next surface. A far-field step's grid
+    // grows with the light; a near-field step keeps this one, and the light walks across it by its
+    // angle times the distance: where three standard deviations of that leave it, say so.
+    if (spread && tNext > 0 && isFinite(tNext)) for (const [st, c, w, sp] of [[ax, S.cx, S.wx, spec.x], [ay, S.cy, S.wy, spec.y]])
+      if (popInside(st.z, st.zR) && popInside(st.z + tNext, st.zR) && Math.abs(c) + 1.5 * w + 3 * lam2 * sp.sf * tNext > N * st.d / 2) steep = 1;
   }
+  if (asX && popInside(ax.z, ax.zR)) ax.as = tNext;
+  if (asY && popInside(ay.z, ay.zR)) ay.as = tNext;
   const gs = Math.sqrt(gain === undefined ? 1 : gain);
   if (gs !== 1) scaleAll(gs);
   // The field's centre against the tracer's Jones vector for this branch: the same
@@ -39326,7 +39620,7 @@ function popSurface2(F, ev, gain, paraxial, tNext, pol) {
   }
   if (record) fixed.cache = record;
   if (!replay && pF > 0 && pFe > MASK_EDGE_SHARE * pF) coarse = 1;
-  return { field: out, clipped, steep, coarse, polErr, decision: { axd: ax.d, ayd: ay.d, clipped, nx: nxD, ny: nyD, areaScale, resScale } };
+  return { field: out, clipped, steep, coarse, polErr, decision: { axd: ax.d, ayd: ay.d, asx: asX, asy: asY, clipped, refit: refitted, nx: nxD, ny: nyD, areaScale, resScale } };
 }
 
 /* ---------- The beam tree as diffracted fields ----------
@@ -54804,10 +55098,12 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'The diffracted field behind a <b>hard edge</b> (a slit, a comb of slits, a knife edge, an iris or a rim off the beam\u2019s axis) has its true amplitude. Each sample at an edge took its share of open area and the whole field was then scaled up to the open area\u2019s power: the peak behind slits a few samples wide read up to 12% high, the envelope of an N-slit pattern came out narrow, and the fringes behind a straight edge lost contrast away from it. An edge is now carried as the samples can hold it exactly, with the light it sends past the grid\u2019s reach kept at the top of that reach, so the power is still the open area\u2019s. Slits that run the whole way up no longer cut the beam\u2019s wings off above and below them (2% of a focus behind them). Behind an edge the field is sampled more finely where the grid can still hold the light. New on <a href="/jek/tools/jekray-validation.html#fresnel-edge">the validation page</a>: Fresnel\u2019s fringes at a straight edge and the pattern of 2, 5 and 10 slits.',
+    'A <b>phase mask finer than the beam</b> (a phase grating, a diffuser, an SLM\u2019s pattern) keeps its light. Behind a mask that spreads the light without cutting it, the diffracted field\u2019s grid now grows with the light as it does behind an edge; before, a grating\u2019s orders ran off the grid\u2019s sides and were lost with no warning. The beam goes on along the mask\u2019s mean slope across its footprint, where it took the slope under its own ray (a sinusoidal grating sent it off at \u03b2\u03bb/d, a fork hologram\u2019s core ended it once rays left the bench plane), and takes its focus from the trend of the slope across it. A sinusoidal phase grating\u2019s orders now carry J\u2099(\u03b2)\u00b2 each, on <a href="/jek/tools/jekray-validation.html#phase-grating">the validation page</a>. Light a mask sends past what the grid can carry is flagged.',
     'A beam of M\u00b2 above 1 keeps all its modes past its first surfaces: they shared one budget of 60 segments in the 2D field, so a beam of M\u00b2 = 4 (36 modes) lost its weakest, widest ones after a lens and read 4% narrow. Each mode now has the budget of its own, as the estimate of the run\u2019s time already took it.',
     '<b>The design work needs only a free account now</b>: the optimiser, tolerancing, design reports, lens drawings, design export, scripts, and data as Excel, NumPy or MATLAB files, any number of kinds at once. JEKrayPro is the cloud: benches saved online with their history, forks, My parts, teams, and more than a free account’s three share links.',
     '<b>Signed out, nothing is kept</b>: no autosave in this browser, no earlier versions, no recent files. <b>Not kept</b> beside Save says so, turns to <b>Not saved</b> once the bench is changed, and opens the sign-in; the bench comes with you. A free account keeps your work as before and saves it as a .jekray file (Save, Ctrl+S).',
-    'The examples send their rays in <b>hexapolar rings</b> (3, 5 or 7 across: 7, 19 or 37 rays), so in 3D each beam fills its round aperture: the lenses, mirrors and traps, the interferometers, the RF horns and the fibre launches. A source of one guide ray, a slit, a pulse, the double slit and the SLM\u2019s vortex keep a line.',
+    'The examples send their rays in <b>hexapolar rings</b> (3, 5 or 7 across: 7, 19 or 37 rays), so in 3D each beam fills its round aperture: the lenses, mirrors and traps, the interferometers, the RF horns and the fibre launches. A source of one guide ray, a slit, a pulse and the double slit keep a line.',
     'The Bench panel\u2019s list of parts reads as JEKcad\u2019s feature list: one line a part, its kind small beside it, under a heading for each kind (free space, fibre, circuits, objects, drawings) with its count; the parts selected are marked, and the eye shows on hover (or while the part is hidden in 3D).',
     'In 3D the bar no longer shows the Parts / Draw switcher: Parts is the only mode there (Draw is for the 2D bench).',
     '<b>Mates, and parts moved together, in 3D</b>: <b>Mate</b> on the 3D view\u2019s bar holds two parts together. Click a face of the part that stays (a flat face, a round one such as a hole, a shaft or a lens\u2019s rim, or close to a straight edge), then one of the part to move, and choose how they meet: <b>Coincident</b> (flush, facing each other), <b>Concentric</b> (on one axis), <b>Parallel</b>, a <b>Distance</b> apart or at an <b>Angle</b>, with Flip. The second part, with its group, moves to meet the first, and from then on the two move and turn together until the mate is deleted; each part\u2019s panel lists its mates, to change a distance, an angle or Flip, or delete one. Undo takes any of it back, and mates are saved with the bench. In 3D, <b>drag across empty space</b> to select a boxful (Shift-click adds a part); the arrows and rings of several selected move them as one and turn them about their middle, and their panel moves and turns them by numbers typed. <b>Group</b> and <b>Ungroup</b> are on the bar too.',

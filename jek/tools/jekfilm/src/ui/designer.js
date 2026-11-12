@@ -4,8 +4,8 @@ import { designPro, proMark } from '../../../jekray/src/ui/pro.js';
 import { track } from '../../../jekray/src/io/usage.js';
 import { COAT_MATERIALS, qwot } from '../../../jekray/src/core/coatings.js';
 import { METAL_NAMES, metalCovers, metalNK } from '../../../jekray/src/core/metals.js';
-import { coatAngles, coatCurve, coatMerit, coatOptimise, coatWant, stackR } from '../../../jekray/src/core/coatdesign.js';
-import { dsFix, FILM_GLASSES, FILM_PRESETS, FILM_TARGETS, filmPreset, filmSpec, newFilm, normFilm, subClear, subIndex } from '../core/film.js';
+import { coatMerit, coatOptimise, stackR } from '../../../jekray/src/core/coatdesign.js';
+import { dsFix, FILM_GLASSES, FILM_PRESETS, FILM_TARGETS, filmCurves, filmPreset, filmSpec, newFilm, normFilm, subClear, subIndex } from '../core/film.js';
 import { linePlotSvg } from './plot.js';
 import { filmMaterials, filmNeedle } from '../core/film-opt.js';
 import { filmTolerance } from '../core/film-tol.js';
@@ -120,11 +120,6 @@ function miniTable(id, label, heads, rows, foot, lbl) {
     h('thead', null, h('tr', null, ...heads.map((t, k) => h('th', { scope: 'col', class: k ? 'n' : null }, t)))),
     h('tbody', null, ...rows.map(r => h('tr', null, h('th', { scope: 'row', class: lbl ? 'lbl' : null }, r[0]), ...r.slice(1).map(v => h('td', { class: 'n mono' }, v))))),
     foot ? h('tfoot', null, h('tr', null, h('td', { colspan: String(heads.length) }, foot))) : null));
-}
-/* the curves drawn: square on and at the largest angle against wavelength, the target; s and p against the angle */
-export function filmCurves(f) {
-  const spec = filmSpec(f), c0 = coatCurve(f.layers, spec, spec.theta0), ct = spec.theta > spec.theta0 ? coatCurve(f.layers, spec, spec.theta) : null, A = coatAngles(f.layers, spec);
-  return { spec, nms: c0.nms, R0: c0.R, Rt: ct ? ct.R : null, want: c0.nms.map(nm => coatWant(spec, nm)), A };
 }
 /* what the plots show: reflectance R, transmittance T into the substrate, or the share absorbed A = 1 − R − T (kept in
    this browser, per viewer, not in the coating) */

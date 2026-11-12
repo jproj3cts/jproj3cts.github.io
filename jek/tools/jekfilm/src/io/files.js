@@ -2,8 +2,8 @@ import { EMBED, TEST_MODE } from '../../../jekray/src/core/constants.js';
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { accountGate, designPro, keepHere, workChanged } from '../../../jekray/src/ui/pro.js';
 import { goal, track } from '../../../jekray/src/io/usage.js';
-import { FILM_FORMAT, FILM_STORE_KEY, filmText, newFilm, normFilm } from '../core/film.js';
-import { film, filmCurves, setFilm } from '../ui/designer.js';
+import { FILM_FORMAT, FILM_STORE_KEY, filmCurves, filmText, newFilm, normFilm } from '../core/film.js';
+import { film, setFilm } from '../ui/designer.js';
 import { setStatus, toast } from '../ui/bar.js';
 import { h } from '../../../jekray/src/ui/dom.js';
 

@@ -1,0 +1,16 @@
+{
+ "source": "Grimm, Weidemueller and Ovchinnikov (2000), the standing-wave trap; alpha from Safronova, Arora and Clark (2006), Table I",
+ "atom": "Rb87",
+ "lam_vac_nm": 1064.2915,
+ "P_W": 1.0,
+ "w0_um": 100.0,
+ "from_mirror_mm": 2.0,
+ "alpha_au": 686.9,
+ "zR_mm": 29.51815976722348,
+ "w_um": 100.22927350045457,
+ "single_depth_uK": 9.791827546928845,
+ "depth_uK": 39.16731018771538,
+ "depth_Erec": 402.6807850600918,
+ "f_radial_Hz": 194.40242752743694,
+ "f_axial_Hz": 81339.32105954483
+}

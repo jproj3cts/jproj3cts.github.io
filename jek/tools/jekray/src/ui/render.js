@@ -870,6 +870,43 @@ function drawLabels() {
      then further out), and one that had to go further than beside its part joined to it by a thin line */
   const tidy = !!(figure && figure.tidy);
   const bodies = tidy ? project.elements.filter(e => onTab(e) && e.type !== 'draw' && !(e.type === 'elec' && e.kind === 'node')).map(e => { const b = worldBox(e); const m = 0.2 * figure.labelPx; return { x: sx(b.x0) - m, y: sy(b.y1) - m, w: sx(b.x1) - sx(b.x0) + 2 * m, h: sy(b.y0) - sy(b.y1) + 2 * m }; }) : [];   // a thin part still has a body to keep off
+  const nameOf = el => figure && figure.numbers ? String(figure.numbers.get(el.id) ?? '') : el.name;      // a figure with a key: the part's number
+  const spots = new Map();
+  if (tidy) {
+    const fs = figure.labelPx, u = fs / 11, lh = 13 * u, gap = 0.5 * fs, placed = [];
+    ctx.font = +fs.toFixed(3) + 'px ' + sans;
+    const over = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+    const cost = (it, x, y) => { const b = { x: x - it.w / 2 - gap, y: y - 10 * u, w: it.w + 2 * gap, h: lh }; let c = 0; for (const o of placed) c += over(b, o); for (const o of taken) c += over(b, o); for (const o of bodies) c += over(b, o); return c; };
+    const ring = (it, r) => {
+      const bx = it.bx, d = 0.35 * fs + r * lh, cx = bx.x + bx.w / 2, below = bx.y + bx.h + d + 10 * u, above = bx.y - d - 3 * u, mid = bx.y + bx.h / 2 + 3.5 * u, right = bx.x + bx.w + d + gap + it.w / 2, left = bx.x - d - gap - it.w / 2;
+      return [[cx, below], [cx, above], [right, mid], [left, mid], [right, below], [left, below], [right, above], [left, above]];
+    };
+    let far = 0, clash = 0;
+    const fix = (it, c) => {
+      const X = c[0], Y = c[1], bx = it.bx, lb = { x: X - it.w / 2, y: Y - 10 * u, w: it.w, h: lh }, near = (v, a, b) => Math.min(b, Math.max(a, v));
+      // further than beside its part: a line from the name to the part
+      const px = near(X, bx.x, bx.x + bx.w), py = near(Y - 3.5 * u, bx.y, bx.y + bx.h), qx = near(px, lb.x, lb.x + lb.w), qy = near(py, lb.y, lb.y + lb.h);
+      const lead = Math.hypot(px - qx, py - qy) > 1.1 * lh ? [qx, qy, px, py] : null;
+      if (lead) far++;
+      spots.set(it.el.id, { X, Y, lead }); placed.push(lb);
+    };
+    const list = project.elements.filter(e => onTab(e) && e.type !== 'draw' && !(e.type === 'elec' && e.kind === 'node')).map(el => { const b = worldBox(el); return { el, w: ctx.measureText(nameOf(el)).width, bx: { x: sx(b.x0), y: sy(b.y1), w: sx(b.x1) - sx(b.x0), h: sy(b.y0) - sy(b.y1) } }; });
+    // every name first tried beside its own part (where it was put on the bench, if that is clear at this size), so one
+    // name's detour never takes the place beside another part; then those left over, further out
+    const rest = [];
+    for (const it of list) {
+      const el = it.el, c0 = (el.label && !figure.numbers ? [[sx(el.x + el.label.dx), sy(el.y + el.label.dy)]] : []).concat(ring(it, 0));
+      const c = c0.find(q => cost(it, q[0], q[1]) === 0);
+      if (c) fix(it, c); else rest.push(it);
+    }
+    for (const it of rest) {
+      let best = null, bc = Infinity;
+      for (let r = 0; r < 6 && bc > 0; r++) for (const q of ring(it, r)) { const v = cost(it, q[0], q[1]); if (v < bc - 1e-9) { bc = v; best = q; if (v === 0) break; } }
+      if (bc > 0) clash++;
+      fix(it, best);
+    }
+    figure.placed = { n: list.length, far, clash };              // how it went: a crowded figure is given numbers and a key (io/figure.js)
+  }
   for (const el of project.elements) {
     if (!onTab(el) || el.type === 'draw') continue;                   // a drawing has no label
     if (el.type === 'elec' && el.kind === 'node' && !(el.id === selectedId || extraSel.has(el.id))) continue;   // ELEC hook: a node's name only when selected
@@ -888,28 +925,12 @@ function drawLabels() {
     if (el.label) { X = sx(el.x + el.label.dx); Y = sy(el.y + el.label.dy); }
     ctx.font = +fs.toFixed(3) + 'px ' + sans;
     // two names in the same place: the later one steps down until clear
-    const w = ctx.measureText(el.name).width;
+    const nm = nameOf(el), w = ctx.measureText(nm).width;
     // (on a figure, above the part too, before further down: a figure's names are large beside its parts)
     let lead = null;
     if (tidy) {
-      const bx = { x: sx(B.x0), y: sy(B.y1), w: sx(B.x1) - sx(B.x0), h: sy(B.y0) - sy(B.y1) }, cx = bx.x + bx.w / 2, cy = bx.y + bx.h / 2, lh = 13 * u, gap = 0.5 * fs;
-      const boxAt = (x, y) => ({ x: x - w / 2 - gap, y: y - 10 * u, w: w + 2 * gap, h: lh });
-      const over = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
-      const others = [...labelBoxes.values()].map(b => ({ x: b.x - gap, y: b.y, w: b.w + 2 * gap, h: b.h })).concat(taken, bodies);
-      const cost = (x, y) => { const b = boxAt(x, y); let c = 0; for (const o of others) c += over(b, o); return c; };
-      const cands = [];
-      if (el.label) cands.push([sx(el.x + el.label.dx), sy(el.y + el.label.dy)]);            // where it was put, if it is clear there
-      for (let ring = 0; ring < 5; ring++) {
-        const d = 0.35 * fs + ring * lh, below = bx.y + bx.h + d + 10 * u, above = bx.y - d - 3 * u, mid = cy + 3.5 * u, right = bx.x + bx.w + d + gap + w / 2, left = bx.x - d - gap - w / 2;
-        cands.push([cx, below], [cx, above], [right, mid], [left, mid], [right, below], [left, below], [right, above], [left, above]);
-      }
-      let best = null, bc = Infinity;
-      for (const c of cands) { const v = cost(c[0], c[1]); if (v < bc - 1e-9) { bc = v; best = c; if (v === 0) break; } }
-      X = best[0]; Y = best[1];
-      // further than beside its part: a line from the name to the part
-      const lb = { x: X - w / 2, y: Y - 10 * u, w, h: lh }, near = (v, a, b) => Math.min(b, Math.max(a, v));
-      const px = near(X, bx.x, bx.x + bx.w), py = near(Y - 3.5 * u, bx.y, bx.y + bx.h), qx = near(px, lb.x, lb.x + lb.w), qy = near(py, lb.y, lb.y + lb.h);
-      if (Math.hypot(px - qx, py - qy) > 1.1 * lh) lead = [qx, qy, px, py];
+      const sp = spots.get(el.id); if (!sp) continue;
+      X = sp.X; Y = sp.Y; lead = sp.lead;
     } else if (!el.label) {
       const Ya = sy(B.y1) - 4 * u, tries = figure ? [Y, Ya, Y + 13 * u, Ya - 13 * u, Y + 26 * u, Ya - 26 * u] : [Y, Y + 13 * u, Y + 26 * u, Y + 39 * u];
       // clear of the others, with a word's gap either side: two names side by side never read as one
@@ -925,7 +946,7 @@ function drawLabels() {
     if (ctx.roundRect) ctx.roundRect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u, 3 * u); else ctx.rect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u);
     ctx.fill(); ctx.restore();
     ctx.fillStyle = figure && figure.bg ? '#000' : el.id === selectedId || extraSel.has(el.id) ? '#ffffff' : 'rgba(255,255,255,0.5)';
-    ctx.fillText(el.name, X, Y);
+    ctx.fillText(nm, X, Y);
     if (el.locked) drawLock(X + ctx.measureText(el.name).width / 2 + 8, Y - 4);
     // a part not at the beam height: by how much, under its name (see zOf)
     if (el.z !== undefined && Math.abs(el.z - BEAM_Z) > 1e-9) {

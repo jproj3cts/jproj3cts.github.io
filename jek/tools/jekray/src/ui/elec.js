@@ -141,7 +141,7 @@ function elecDraw(el, sel) {
     const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i));
     c.beginPath(); c.arc(X, Y, r, 0, 2 * Math.PI);
     c.fillStyle = on || P.elec === 'out' ? ELEC_YELLOW : portFill(); c.fill(); c.strokeStyle = ELEC_YELLOW; c.lineWidth = 1.4; c.stroke();
-    if (named(P, i) && s > 2.2) {
+    if (named(P, i) && s > 2.2 && !(figure && figure.ports === false)) {
       // the name just outside the port, away from the part, upright whatever the part's angle
       c.save(); c.font = fs + 'px ' + getCss('--jek-mono'); c.fillStyle = INK;
       const ox = Q.dx, oy = -Q.dy, out = r + 3;

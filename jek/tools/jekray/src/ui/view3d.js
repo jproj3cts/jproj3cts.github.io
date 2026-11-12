@@ -1000,12 +1000,29 @@ export const V3D = (() => {
       qy.set(i, q); return q;
     };
     R.nBeams = 0;
+    /* Beams that run the same path at the same size are one envelope: a fibre's light in many spectral slices (an
+       amplifier's spontaneous emission, a modulator's sidebands) leaves a collimator as a beam a slice, all along one
+       line and alike to a few per cent. Drawn each on the last they were tens of see-through tubes to fill for one
+       that looks the same; the strongest of each family is drawn, as bright as the family's power together. */
+    const fam = new Map(), lead = new Map();
+    const envOk = seg => lightOf().envelope && !seg.fan && !seg.pol && seg.bench === project.tab && (seg.len3 || seg.len) > 0;
     B.forEach((seg, i) => {
-      if (!lightOf().envelope || seg.fan || seg.pol || seg.bench !== project.tab || !((seg.len3 || seg.len) > 0)) return;
-      if (byPow && !(powerFade(beamPowerShare(seg, lastTrace, byPow)) > 0.0025)) return;
+      if (!envOk(seg)) return;
       const src = getEl(seg.src);
       if (!src) return;
       if (!m2.has(seg.src)) m2.set(seg.src, [m2Env(src), m2Of(src) * modeM2(src)[1]]);
+      const Mx = m2.get(seg.src)[0], L3 = seg.len3 || seg.len, wa = beamAt(seg.qr, seg.qi, seg.n, seg.nm, Mx), wb = beamAt(seg.qr + L3, seg.qi, seg.n, seg.nm, Mx);
+      const bin = b2 => b2 && b2.w > 0 ? Math.round(Math.log(b2.w) / 0.08) : 'x';                  // sizes within about 8%
+      const k = [seg.x0, seg.y0, seg.z0 === undefined ? '' : seg.z0, seg.dx, seg.dy, seg.uz || 0, L3].map(v => typeof v === 'number' ? v.toFixed(2) : v).join() + seg.colour + '|' + bin(wa) + ',' + bin(wb);
+      const sh = byPow ? beamPowerShare(seg, lastTrace, byPow) : seg.w === undefined ? 1 : seg.w, f = fam.get(k);
+      if (!f) fam.set(k, { i, top: sh, sum: sh }); else { f.sum += sh; if (sh > f.top) { f.top = sh; f.i = i; } }
+    });
+    for (const f of fam.values()) lead.set(f.i, Math.min(1, f.sum));
+    B.forEach((seg, i) => {
+      if (!lead.has(i)) return;
+      const share = lead.get(i);
+      if (byPow && !(powerFade(share) > 0.0025)) return;
+      const src = getEl(seg.src);
       const [Mx, My] = m2.get(seg.src), q0 = qyAt(i), lam0 = seg.nm * 1e-6;
       // a beam with its axes turned: its ellipse from its whole Q along the segment (see beamQ)
       const QG = beamQ(B.map((b2, j) => j === i ? Object.assign({}, b2, { len: 0, len3: 0 }) : b2), i, lam0);
@@ -1041,7 +1058,7 @@ export const V3D = (() => {
       }
       for (let s = 0; s < steps; s++) for (let j = 0; j < nt; j++) { const a = s * nt + j, b = s * nt + (j + 1) % nt; idx.push(a, a + nt, b + nt, a, b + nt, b); }
       const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
-      G.add(new T.Mesh(geo, new T.MeshBasicMaterial({ clippingPlanes: segClip3(PL), color: col(seg.colour), transparent: true, opacity: (add ? 0.16 : 0.22) * (byPow ? Math.sqrt(powerFade(beamPowerShare(seg, lastTrace, byPow))) : clamp(Math.sqrt(seg.w === undefined ? 1 : seg.w), 0.15, 1)), blending: blend, side: T.DoubleSide, depthWrite: false })));
+      G.add(new T.Mesh(geo, new T.MeshBasicMaterial({ clippingPlanes: segClip3(PL), color: col(seg.colour), transparent: true, opacity: (add ? 0.16 : 0.22) * (byPow ? Math.sqrt(powerFade(share)) : clamp(Math.sqrt(share), 0.15, 1)), blending: blend, side: T.DoubleSide, depthWrite: false })));
       R.nBeams++;
       geo.computeBoundingBox(); box.union(geo.boundingBox);
     });

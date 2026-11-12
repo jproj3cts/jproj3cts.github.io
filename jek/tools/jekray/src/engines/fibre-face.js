@@ -122,6 +122,7 @@ export function arrivalWindow(arr, a) {
 }
 /* One arrival's s and p field at a point (u along the face, v out of the plane), in power
    per unit face area, in the field's e^{-ikz} convention */
+const QM_FACE = new WeakMap();
 export function arrivalField(A, u, v0) {
   // the face's point against the beam's own cross-section: across it level (x), and up it square
   // to that (y); a beam arriving sloped out of the plane has its footprint stretched up the face
@@ -130,16 +131,22 @@ export function arrivalField(A, u, v0) {
   if (A.QM) {
     // a higher-order beam in its own frame: x1, y1 along its axes, each with its q and gathered Gouy phase
     const M = A.QM, c0 = Math.cos(M.th), s0 = Math.sin(M.th), x1 = xb * c0 + v * s0, y1 = -xb * s0 + v * c0;
-    const Qf = QRot(M.Q, M.th), qa = Qf[0], qb = Qf[3];
-    const ia = [qa[0] / (qa[0] ** 2 + qa[1] ** 2), -qa[1] / (qa[0] ** 2 + qa[1] ** 2)], ib = [qb[0] / (qb[0] ** 2 + qb[1] ** 2), -qb[1] / (qb[0] ** 2 + qb[1] ** 2)];
-    const wa = qW(qa, A.lam0), wb = qW(qb, A.lam0);
+    // the beam's own q's, widths and mode norms: the same at every point of the face, worked out once an arrival
+    let F = QM_FACE.get(M);
+    if (!F) {
+      const Qf = QRot(M.Q, M.th), qa = Qf[0], qb = Qf[3];
+      F = { ia: [qa[0] / (qa[0] ** 2 + qa[1] ** 2), -qa[1] / (qa[0] ** 2 + qa[1] ** 2)], ib: [qb[0] / (qb[0] ** 2 + qb[1] ** 2), -qb[1] / (qb[0] ** 2 + qb[1] ** 2)], wa: qW(qa, A.lam0), wb: qW(qb, A.lam0),
+        norm: M.comps.map(([mx, my]) => { let f = 1; for (let i = 2; i <= mx; i++) f *= i; for (let i = 2; i <= my; i++) f *= i; return 1 / Math.sqrt(Math.pow(2, mx + my) * f); }) };
+      QM_FACE.set(M, F);
+    }
+    const { ia, ib, wa, wb } = F;
     const re = 0.5 * k * (ia[1] * x1 * x1 + ib[1] * y1 * y1);
     const ph = -0.5 * k * (ia[0] * x1 * x1 + ib[0] * y1 * y1) - k * (A.opl + du * A.ldy * hx + (A.vs ? dv * ez : 0)) - 0.5 * M.psi[0] - 0.5 * M.psi[1];
     const amp0 = Math.sqrt(2 / (Math.PI * wa * wb)) * Math.exp(re) * Math.sqrt(cT);
     let c = 0, sn = 0;
-    for (const [mx, my, ar, ai] of M.comps) {
-      let f = 1; for (let i = 2; i <= mx; i++) f *= i; for (let i = 2; i <= my; i++) f *= i;
-      const a = amp0 * hermite(mx, Math.SQRT2 * x1 / wa) * hermite(my, Math.SQRT2 * y1 / wb) / Math.sqrt(Math.pow(2, mx + my) * f);
+    for (let ci = 0; ci < M.comps.length; ci++) {
+      const [mx, my, ar, ai] = M.comps[ci];
+      const a = amp0 * hermite(mx, Math.SQRT2 * x1 / wa) * hermite(my, Math.SQRT2 * y1 / wb) * F.norm[ci];
       const p2 = ph - mx * M.psi[0] - my * M.psi[1], er = a * Math.cos(p2), ei = a * Math.sin(p2);
       c += er * ar - ei * ai; sn += er * ai + ei * ar;
     }
@@ -210,14 +217,65 @@ export function erfA(x) {
    (Gaussian, the beam's far-field half-angle, tilted by its angle to the axis) inside +-NA
    in each plane. A product of the two, where the real acceptance is a phase-space overlap:
    good for a fibre the light fills or under-fills, rougher near its edges. */
+/* A many-mode arrival's power at a point of the face, to a constant: arrivalField's own sum for a beam of modes
+   (A.QM), with everything that is the same at every point taken out of the point's work. The modes' Gouy phases
+   and amplitudes are one complex number a mode; the phase all the modes share drops out of the power; and the
+   Hermite polynomials are run up once by their recurrence in place of once a mode. Many times faster where a
+   multimode fibre's own light comes back to it in tens of modes, and the same number. */
+function modePower(A) {
+  const M = A.QM, c0 = Math.cos(M.th), s0 = Math.sin(M.th), k = 2 * Math.PI / A.lam0, hx = A.vs ? 1 / Math.sqrt(1 + A.vs * A.vs) : 1, ez = (A.vs || 0) * hx;
+  const Qf = QRot(M.Q, M.th), qa = Qf[0], qb = Qf[3], iaI = -qa[1] / (qa[0] ** 2 + qa[1] ** 2), ibI = -qb[1] / (qb[0] ** 2 + qb[1] ** 2);
+  const sa = Math.SQRT2 / qW(qa, A.lam0), sb = Math.SQRT2 / qW(qb, A.lam0), n = M.comps.length;
+  const mxs = new Int32Array(n), mys = new Int32Array(n), Cr = new Float64Array(n), Ci = new Float64Array(n);
+  let NX = 0, NY = 0;
+  M.comps.forEach(([mx, my, ar, ai], c) => {
+    let f = 1; for (let i = 2; i <= mx; i++) f *= i; for (let i = 2; i <= my; i++) f *= i;
+    const nrm = 1 / Math.sqrt(Math.pow(2, mx + my) * f), g = -mx * M.psi[0] - my * M.psi[1], cg = Math.cos(g), sg = Math.sin(g);
+    mxs[c] = mx; mys[c] = my; Cr[c] = nrm * (cg * ar - sg * ai); Ci[c] = nrm * (cg * ai + sg * ar);
+    NX = Math.max(NX, mx); NY = Math.max(NY, my);
+  });
+  const HX = new Float64Array(NX + 1), HY = new Float64Array(NY + 1);
+  const fill = (H, N, x) => { H[0] = 1; if (N > 0) H[1] = 2 * x; for (let i = 1; i < N; i++) H[i + 1] = 2 * x * H[i] - 2 * i * H[i - 1]; };
+  const u0 = A.u0, v0 = A.v0 || 0, ldx = A.ldx, ldy = A.ldy, sloped = !!A.vs;
+  const at = (u, v) => {
+    const du = u - u0, dv = v - v0, xb = du * ldx, vv = sloped ? hx * dv - ez * ldy * du : dv, x1 = xb * c0 + vv * s0, y1 = -xb * s0 + vv * c0;
+    fill(HX, NX, sa * x1); fill(HY, NY, sb * y1);
+    let sr = 0, si = 0;
+    for (let c = 0; c < n; c++) { const hh = HX[mxs[c]] * HY[mys[c]]; sr += hh * Cr[c]; si += hh * Ci[c]; }
+    return Math.exp(k * (iaI * x1 * x1 + ibI * y1 * y1)) * (sr * sr + si * si);
+  };
+  // a single mode, level, its axes the face's own: x1 is the place along the face alone, y1 the height alone
+  if (n === 1 && !sloped && Math.abs(s0) < 1e-12) {
+    const mx = mxs[0], my = mys[0], cc = Cr[0] * Cr[0] + Ci[0] * Ci[0];
+    at.split = [u => { const x1 = (u - u0) * ldx * c0; fill(HX, NX, sa * x1); return Math.exp(k * iaI * x1 * x1) * HX[mx] * HX[mx] * cc; },
+      v => { const y1 = (v - v0) * c0; fill(HY, NY, sb * y1); return Math.exp(k * ibI * y1 * y1) * HY[my] * HY[my]; }];
+  }
+  return at;
+}
+/* (Kept by what it depends on: the core, the acceptance and the arrival's shape and place on the face, not its
+   strength, polarisation or phase. A fibre network is solved in passes and a spectrum arrives slice by slice, so the
+   same arrival is asked for many times in one trace, and again on every trace that leaves that beam where it was.) */
+const MM_SHARES = new Map();
 export function mmShare(el, A) {
+  const M = A.QM, key = JSON.stringify([el.core, el.na, A.lam0, A.u0, A.v0 || 0, A.vs || 0, A.ldx, A.ldy, A.qx, A.qy, A.Q || 0, A.comps || 0, M ? [M.th, M.Q, M.psi, M.comps] : 0]);
+  let sh = MM_SHARES.get(key);
+  if (sh === undefined) { if (MM_SHARES.size > 30000) MM_SHARES.clear(); sh = mmShareOf(el, A); MM_SHARES.set(key, sh); }
+  return sh;
+}
+function mmShareOf(el, A) {
   const a = el.core / 2 * 1e-3, NA = el.na;
   // a higher-order mode reaches sqrt(2N + 1) times as far, and spreads that much faster
   const fM = A.comps ? Math.sqrt(Math.max(...A.comps.map(c => 2 * (c[0] + c[1]) + 1))) : 1;
   const wx = qW(A.qx, A.lam0), wy = qW(A.qy, A.lam0), L = Math.max(a, 3 * fM * Math.max(wx, wy)), N = 64, d = 2 * L / N;
   let on = 0, all = 0;
-  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
-    const u = -L + (i + 0.5) * d, v = -L + (j + 0.5) * d, E = arrivalField(A, u, v), p = E[0] ** 2 + E[1] ** 2 + E[2] ** 2 + E[3] ** 2;
+  const pAt = A.QM ? modePower(A) : (u, v) => { const E = arrivalField(A, u, v); return E[0] ** 2 + E[1] ** 2 + E[2] ** 2 + E[3] ** 2; };
+  if (pAt.split) {
+    // one mode with its axes along the face's: its power is one factor along the face times one up it, a row of each
+    const fu = new Float64Array(N), fv = new Float64Array(N), a2 = a * a;
+    for (let i = 0; i < N; i++) { const t = -L + (i + 0.5) * d; fu[i] = pAt.split[0](t); fv[i] = pAt.split[1](t); }
+    for (let i = 0; i < N; i++) { const u = -L + (i + 0.5) * d, lim = a2 - u * u; for (let j = 0; j < N; j++) { const v = -L + (j + 0.5) * d, p = fu[i] * fv[j]; all += p; if (v * v <= lim) on += p; } }
+  } else for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    const u = -L + (i + 0.5) * d, v = -L + (j + 0.5) * d, p = pAt(u, v);
     all += p; if (u * u + v * v <= a * a) on += p;
   }
   const th = q => fM * A.lam0 / (Math.PI * Math.sqrt(A.lam0 * q[1] / Math.PI));     // far-field half-angle from q's waist

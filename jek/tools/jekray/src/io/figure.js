@@ -16,7 +16,8 @@ import { track } from './usage.js';
    File › Export figure…: the bench as a figure made for where it is going.
    - Journal: white, no holes, the parts as line art, the light in its colour or black, the names in
      Helvetica all at one size in points, each clear of the parts and of the other names (render.js
-     drawLabels, figure.tidy), the ports' names left out unless asked for; 85 mm wide (a single column) or 174 mm (two), lines no thinner than
+     drawLabels, figure.tidy), the ports' names left out unless asked for; on a bench too crowded for that, numbers
+     beside the parts and a key under the figure; 85 mm wide (a single column) or 174 mm (two), lines no thinner than
      0.5 pt, a scale bar; PDF or SVG (vector), or PNG at 600 dpi.
    - Technical drawing: an A4 or A3 sheet, the bench to a standard scale, the parts' centres dimensioned
      (along and across), numbered callouts and a parts list, and a title block.
@@ -28,7 +29,7 @@ const FIG_MM = 72 / 25.4;                                              // points
 const FIG_FONT = 'Helvetica, Arial, sans-serif', FIG_INK = '#111', FIG_SOFT = '#5b6570';
 export const FIGURE_PRESETS = [['journal', 'Journal'], ['technical', 'Technical drawing'], ['slides', 'Presentation']];
 export const FIGURE_DEFAULTS = {
-  journal: { width: 85, mono: false, pt: 8, ports: false, scaleBar: true, fmt: 'pdf' },
+  journal: { width: 85, mono: false, names: 'auto', pt: 8, ports: false, scaleBar: true, fmt: 'pdf' },
   technical: { sheet: 'A4', mono: true, dims: true, callouts: true, title: '', by: '', fmt: 'pdf' },
   slides: { size: '169', fmt: 'png' },
 };
@@ -102,16 +103,35 @@ function figFitted(fig, pt, scaleOf) {
 /* ---- Journal ---- */
 function journalFigure(o) {
   const Wpt = o.width * FIG_MM, maxH = 230 * FIG_MM, bar = o.scaleBar ? o.pt * 2.2 : 0;
-  const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#111', font: FIG_FONT, tidy: true, ports: !!o.ports };
-  const { rec, box, s } = figFitted(fig, o.pt, b => Math.min(Wpt / b.w, (maxH - bar) / b.h));
-  const g = new VecCtx(Wpt, box.h * s + bar, { plain: true, res: 4 });
+  const parts = figParts().slice().sort((a, b) => a.x - b.x || b.y - a.y);
+  // the key under a numbered figure: "1 Fibre laser" in as many columns as fit the width
+  const meas = document.createElement('canvas').getContext('2d'); meas.font = o.pt + 'px ' + FIG_FONT;
+  const numW = meas.measureText(String(parts.length) + ' ').width + o.pt * 0.4, colW = Math.max(...parts.map(e => meas.measureText(e.name).width), 1) + numW + o.pt * 1.6;
+  const cols = Math.max(1, Math.floor(Wpt / colW)), rows = Math.ceil(parts.length / cols), rowH = o.pt * 1.35, keyH = rows * rowH + o.pt;
+  const draw = key => {
+    const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#111', font: FIG_FONT, tidy: true, ports: !!o.ports, labels: o.names === 'none' ? false : undefined, numbers: key ? new Map(parts.map((e, i) => [e.id, i + 1])) : null };
+    const under = bar + (key ? keyH : 0);
+    return Object.assign(figFitted(fig, o.pt, b => Math.min(Wpt / b.w, (maxH - under) / b.h)), { fig, key, under });
+  };
+  // Auto: the names beside the parts when they sit well; numbers and a key when a name would lie on something or too many are led out
+  let F = draw(o.names === 'key');
+  const how = F.fig.placed;
+  if (o.names === 'auto' && parts.length > 1 && how && (how.clash > 0 || how.far > Math.max(2, 0.2 * how.n))) F = draw(true);
+  const { rec, box, s } = F;
+  const g = new VecCtx(Wpt, box.h * s + F.under, { plain: true, res: 4 });
   figPlace(g, rec, box, (Wpt - box.w * s) / 2, 0, s, 0.5, !!o.mono);
+  // under the bench white again: a beam running off the bench stops at its edge, clear of the scale bar and the key
+  if (F.under > 0) { g.fillStyle = '#fff'; g.fillRect(0, box.h * s, Wpt, F.under); }
   if (o.scaleBar) {
     const mmPerPt = 1 / (V().scale * s), L = niceStep(0.18 * Wpt * mmPerPt), len = L / mmPerPt, y = box.h * s + bar * 0.45, x = 2;
     figLine(g, [[x, y - 2.5], [x, y], [x + len, y], [x + len, y - 2.5]], 0.75);
     figSay(g, fmtLen(L), x + len + 3, y + o.pt * 0.35, { size: o.pt });
   }
-  return { g, unit: 'pt', dpi: 600, note: o.width + ' × ' + Math.round(g.h / FIG_MM) + ' mm, names in Helvetica ' + o.pt + ' pt, lines at least 0.5 pt' };
+  if (F.key) {
+    const y0 = box.h * s + bar + o.pt * 1.2, cw = Wpt / cols;
+    parts.forEach((e, i) => { const c = Math.floor(i / rows), r = i % rows, x = 2 + c * cw, y = y0 + r * rowH; figSay(g, String(i + 1), x + numW - o.pt * 0.4, y, { size: o.pt, align: 'right', bold: true }); figSay(g, e.name, x + numW, y, { size: o.pt }); });
+  }
+  return { g, unit: 'pt', dpi: 600, keyed: !!F.key, note: o.width + ' × ' + Math.round(g.h / FIG_MM) + ' mm, ' + (o.names === 'none' ? 'no names' : F.key ? (o.names === 'auto' ? 'too crowded for names beside the parts: numbered, with a key, in Helvetica ' : 'numbered, with a key, in Helvetica ') + o.pt + ' pt' : 'names in Helvetica ' + o.pt + ' pt') + ', lines at least 0.5 pt' };
 }
 
 /* ---- Technical drawing ---- */
@@ -330,7 +350,8 @@ export async function exportFigure(preset, o) {
 const FIG_KEY = 'jek-rt-figure';
 const FIG_FIELDS = {
   journal: [['width', 'Width', [[85, 'Single column, 85 mm'], [174, 'Double column, 174 mm']]], ['mono', 'Light', [[false, 'In its colour'], [true, 'Black']]],
-    ['pt', 'Names', [[6, '6 pt'], [7, '7 pt'], [8, '8 pt'], [9, '9 pt'], [10, '10 pt']]], ['ports', 'Port names', [[false, 'Left out'], [true, 'Shown']]], ['scaleBar', 'Scale bar', [[true, 'Yes'], [false, 'No']]],
+    ['names', 'Names', [['auto', 'Beside the parts, numbered if crowded'], ['beside', 'Beside the parts'], ['key', 'Numbered, with a key'], ['none', 'None']]],
+    ['pt', 'Size', [[6, '6 pt'], [7, '7 pt'], [8, '8 pt'], [9, '9 pt'], [10, '10 pt']]], ['ports', 'Port names', [[false, 'Left out'], [true, 'Shown']]], ['scaleBar', 'Scale bar', [[true, 'Yes'], [false, 'No']]],
     ['fmt', 'As', [['pdf', 'PDF (vector)'], ['svg', 'SVG (vector)'], ['png', 'PNG, 600 dpi']]]],
   technical: [['sheet', 'Sheet', [['A4', 'A4'], ['A3', 'A3']]], ['dims', 'Dimensions', [[true, 'Between the parts’ centres'], [false, 'None']]],
     ['callouts', 'Callouts', [[true, 'Numbered, with a parts list'], [false, 'The parts’ names']]], ['mono', 'Light', [[true, 'Black'], [false, 'In its colour']]],

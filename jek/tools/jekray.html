@@ -16849,6 +16849,43 @@ function drawLabels() {
      then further out), and one that had to go further than beside its part joined to it by a thin line */
   const tidy = !!(figure && figure.tidy);
   const bodies = tidy ? project.elements.filter(e => onTab(e) && e.type !== 'draw' && !(e.type === 'elec' && e.kind === 'node')).map(e => { const b = worldBox(e); const m = 0.2 * figure.labelPx; return { x: sx(b.x0) - m, y: sy(b.y1) - m, w: sx(b.x1) - sx(b.x0) + 2 * m, h: sy(b.y0) - sy(b.y1) + 2 * m }; }) : [];   // a thin part still has a body to keep off
+  const nameOf = el => figure && figure.numbers ? String(figure.numbers.get(el.id) ?? '') : el.name;      // a figure with a key: the part's number
+  const spots = new Map();
+  if (tidy) {
+    const fs = figure.labelPx, u = fs / 11, lh = 13 * u, gap = 0.5 * fs, placed = [];
+    ctx.font = +fs.toFixed(3) + 'px ' + sans;
+    const over = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+    const cost = (it, x, y) => { const b = { x: x - it.w / 2 - gap, y: y - 10 * u, w: it.w + 2 * gap, h: lh }; let c = 0; for (const o of placed) c += over(b, o); for (const o of taken) c += over(b, o); for (const o of bodies) c += over(b, o); return c; };
+    const ring = (it, r) => {
+      const bx = it.bx, d = 0.35 * fs + r * lh, cx = bx.x + bx.w / 2, below = bx.y + bx.h + d + 10 * u, above = bx.y - d - 3 * u, mid = bx.y + bx.h / 2 + 3.5 * u, right = bx.x + bx.w + d + gap + it.w / 2, left = bx.x - d - gap - it.w / 2;
+      return [[cx, below], [cx, above], [right, mid], [left, mid], [right, below], [left, below], [right, above], [left, above]];
+    };
+    let far = 0, clash = 0;
+    const fix = (it, c) => {
+      const X = c[0], Y = c[1], bx = it.bx, lb = { x: X - it.w / 2, y: Y - 10 * u, w: it.w, h: lh }, near = (v, a, b) => Math.min(b, Math.max(a, v));
+      // further than beside its part: a line from the name to the part
+      const px = near(X, bx.x, bx.x + bx.w), py = near(Y - 3.5 * u, bx.y, bx.y + bx.h), qx = near(px, lb.x, lb.x + lb.w), qy = near(py, lb.y, lb.y + lb.h);
+      const lead = Math.hypot(px - qx, py - qy) > 1.1 * lh ? [qx, qy, px, py] : null;
+      if (lead) far++;
+      spots.set(it.el.id, { X, Y, lead }); placed.push(lb);
+    };
+    const list = project.elements.filter(e => onTab(e) && e.type !== 'draw' && !(e.type === 'elec' && e.kind === 'node')).map(el => { const b = worldBox(el); return { el, w: ctx.measureText(nameOf(el)).width, bx: { x: sx(b.x0), y: sy(b.y1), w: sx(b.x1) - sx(b.x0), h: sy(b.y0) - sy(b.y1) } }; });
+    // every name first tried beside its own part (where it was put on the bench, if that is clear at this size), so one
+    // name's detour never takes the place beside another part; then those left over, further out
+    const rest = [];
+    for (const it of list) {
+      const el = it.el, c0 = (el.label && !figure.numbers ? [[sx(el.x + el.label.dx), sy(el.y + el.label.dy)]] : []).concat(ring(it, 0));
+      const c = c0.find(q => cost(it, q[0], q[1]) === 0);
+      if (c) fix(it, c); else rest.push(it);
+    }
+    for (const it of rest) {
+      let best = null, bc = Infinity;
+      for (let r = 0; r < 6 && bc > 0; r++) for (const q of ring(it, r)) { const v = cost(it, q[0], q[1]); if (v < bc - 1e-9) { bc = v; best = q; if (v === 0) break; } }
+      if (bc > 0) clash++;
+      fix(it, best);
+    }
+    figure.placed = { n: list.length, far, clash };              // how it went: a crowded figure is given numbers and a key (io/figure.js)
+  }
   for (const el of project.elements) {
     if (!onTab(el) || el.type === 'draw') continue;                   // a drawing has no label
     if (el.type === 'elec' && el.kind === 'node' && !(el.id === selectedId || extraSel.has(el.id))) continue;   // ELEC hook: a node's name only when selected
@@ -16867,28 +16904,12 @@ function drawLabels() {
     if (el.label) { X = sx(el.x + el.label.dx); Y = sy(el.y + el.label.dy); }
     ctx.font = +fs.toFixed(3) + 'px ' + sans;
     // two names in the same place: the later one steps down until clear
-    const w = ctx.measureText(el.name).width;
+    const nm = nameOf(el), w = ctx.measureText(nm).width;
     // (on a figure, above the part too, before further down: a figure's names are large beside its parts)
     let lead = null;
     if (tidy) {
-      const bx = { x: sx(B.x0), y: sy(B.y1), w: sx(B.x1) - sx(B.x0), h: sy(B.y0) - sy(B.y1) }, cx = bx.x + bx.w / 2, cy = bx.y + bx.h / 2, lh = 13 * u, gap = 0.5 * fs;
-      const boxAt = (x, y) => ({ x: x - w / 2 - gap, y: y - 10 * u, w: w + 2 * gap, h: lh });
-      const over = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
-      const others = [...labelBoxes.values()].map(b => ({ x: b.x - gap, y: b.y, w: b.w + 2 * gap, h: b.h })).concat(taken, bodies);
-      const cost = (x, y) => { const b = boxAt(x, y); let c = 0; for (const o of others) c += over(b, o); return c; };
-      const cands = [];
-      if (el.label) cands.push([sx(el.x + el.label.dx), sy(el.y + el.label.dy)]);            // where it was put, if it is clear there
-      for (let ring = 0; ring < 5; ring++) {
-        const d = 0.35 * fs + ring * lh, below = bx.y + bx.h + d + 10 * u, above = bx.y - d - 3 * u, mid = cy + 3.5 * u, right = bx.x + bx.w + d + gap + w / 2, left = bx.x - d - gap - w / 2;
-        cands.push([cx, below], [cx, above], [right, mid], [left, mid], [right, below], [left, below], [right, above], [left, above]);
-      }
-      let best = null, bc = Infinity;
-      for (const c of cands) { const v = cost(c[0], c[1]); if (v < bc - 1e-9) { bc = v; best = c; if (v === 0) break; } }
-      X = best[0]; Y = best[1];
-      // further than beside its part: a line from the name to the part
-      const lb = { x: X - w / 2, y: Y - 10 * u, w, h: lh }, near = (v, a, b) => Math.min(b, Math.max(a, v));
-      const px = near(X, bx.x, bx.x + bx.w), py = near(Y - 3.5 * u, bx.y, bx.y + bx.h), qx = near(px, lb.x, lb.x + lb.w), qy = near(py, lb.y, lb.y + lb.h);
-      if (Math.hypot(px - qx, py - qy) > 1.1 * lh) lead = [qx, qy, px, py];
+      const sp = spots.get(el.id); if (!sp) continue;
+      X = sp.X; Y = sp.Y; lead = sp.lead;
     } else if (!el.label) {
       const Ya = sy(B.y1) - 4 * u, tries = figure ? [Y, Ya, Y + 13 * u, Ya - 13 * u, Y + 26 * u, Ya - 26 * u] : [Y, Y + 13 * u, Y + 26 * u, Y + 39 * u];
       // clear of the others, with a word's gap either side: two names side by side never read as one
@@ -16904,7 +16925,7 @@ function drawLabels() {
     if (ctx.roundRect) ctx.roundRect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u, 3 * u); else ctx.rect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u);
     ctx.fill(); ctx.restore();
     ctx.fillStyle = figure && figure.bg ? '#000' : el.id === selectedId || extraSel.has(el.id) ? '#ffffff' : 'rgba(255,255,255,0.5)';
-    ctx.fillText(el.name, X, Y);
+    ctx.fillText(nm, X, Y);
     if (el.locked) drawLock(X + ctx.measureText(el.name).width / 2 + 8, Y - 4);
     // a part not at the beam height: by how much, under its name (see zOf)
     if (el.z !== undefined && Math.abs(el.z - BEAM_Z) > 1e-9) {
@@ -19977,6 +19998,7 @@ function arrivalWindow(arr, a) {
 }
 /* One arrival's s and p field at a point (u along the face, v out of the plane), in power
    per unit face area, in the field's e^{-ikz} convention */
+const QM_FACE = new WeakMap();
 function arrivalField(A, u, v0) {
   // the face's point against the beam's own cross-section: across it level (x), and up it square
   // to that (y); a beam arriving sloped out of the plane has its footprint stretched up the face
@@ -19985,16 +20007,22 @@ function arrivalField(A, u, v0) {
   if (A.QM) {
     // a higher-order beam in its own frame: x1, y1 along its axes, each with its q and gathered Gouy phase
     const M = A.QM, c0 = Math.cos(M.th), s0 = Math.sin(M.th), x1 = xb * c0 + v * s0, y1 = -xb * s0 + v * c0;
-    const Qf = QRot(M.Q, M.th), qa = Qf[0], qb = Qf[3];
-    const ia = [qa[0] / (qa[0] ** 2 + qa[1] ** 2), -qa[1] / (qa[0] ** 2 + qa[1] ** 2)], ib = [qb[0] / (qb[0] ** 2 + qb[1] ** 2), -qb[1] / (qb[0] ** 2 + qb[1] ** 2)];
-    const wa = qW(qa, A.lam0), wb = qW(qb, A.lam0);
+    // the beam's own q's, widths and mode norms: the same at every point of the face, worked out once an arrival
+    let F = QM_FACE.get(M);
+    if (!F) {
+      const Qf = QRot(M.Q, M.th), qa = Qf[0], qb = Qf[3];
+      F = { ia: [qa[0] / (qa[0] ** 2 + qa[1] ** 2), -qa[1] / (qa[0] ** 2 + qa[1] ** 2)], ib: [qb[0] / (qb[0] ** 2 + qb[1] ** 2), -qb[1] / (qb[0] ** 2 + qb[1] ** 2)], wa: qW(qa, A.lam0), wb: qW(qb, A.lam0),
+        norm: M.comps.map(([mx, my]) => { let f = 1; for (let i = 2; i <= mx; i++) f *= i; for (let i = 2; i <= my; i++) f *= i; return 1 / Math.sqrt(Math.pow(2, mx + my) * f); }) };
+      QM_FACE.set(M, F);
+    }
+    const { ia, ib, wa, wb } = F;
     const re = 0.5 * k * (ia[1] * x1 * x1 + ib[1] * y1 * y1);
     const ph = -0.5 * k * (ia[0] * x1 * x1 + ib[0] * y1 * y1) - k * (A.opl + du * A.ldy * hx + (A.vs ? dv * ez : 0)) - 0.5 * M.psi[0] - 0.5 * M.psi[1];
     const amp0 = Math.sqrt(2 / (Math.PI * wa * wb)) * Math.exp(re) * Math.sqrt(cT);
     let c = 0, sn = 0;
-    for (const [mx, my, ar, ai] of M.comps) {
-      let f = 1; for (let i = 2; i <= mx; i++) f *= i; for (let i = 2; i <= my; i++) f *= i;
-      const a = amp0 * hermite(mx, Math.SQRT2 * x1 / wa) * hermite(my, Math.SQRT2 * y1 / wb) / Math.sqrt(Math.pow(2, mx + my) * f);
+    for (let ci = 0; ci < M.comps.length; ci++) {
+      const [mx, my, ar, ai] = M.comps[ci];
+      const a = amp0 * hermite(mx, Math.SQRT2 * x1 / wa) * hermite(my, Math.SQRT2 * y1 / wb) * F.norm[ci];
       const p2 = ph - mx * M.psi[0] - my * M.psi[1], er = a * Math.cos(p2), ei = a * Math.sin(p2);
       c += er * ar - ei * ai; sn += er * ai + ei * ar;
     }
@@ -20065,14 +20093,65 @@ function erfA(x) {
    (Gaussian, the beam's far-field half-angle, tilted by its angle to the axis) inside +-NA
    in each plane. A product of the two, where the real acceptance is a phase-space overlap:
    good for a fibre the light fills or under-fills, rougher near its edges. */
+/* A many-mode arrival's power at a point of the face, to a constant: arrivalField's own sum for a beam of modes
+   (A.QM), with everything that is the same at every point taken out of the point's work. The modes' Gouy phases
+   and amplitudes are one complex number a mode; the phase all the modes share drops out of the power; and the
+   Hermite polynomials are run up once by their recurrence in place of once a mode. Many times faster where a
+   multimode fibre's own light comes back to it in tens of modes, and the same number. */
+function modePower(A) {
+  const M = A.QM, c0 = Math.cos(M.th), s0 = Math.sin(M.th), k = 2 * Math.PI / A.lam0, hx = A.vs ? 1 / Math.sqrt(1 + A.vs * A.vs) : 1, ez = (A.vs || 0) * hx;
+  const Qf = QRot(M.Q, M.th), qa = Qf[0], qb = Qf[3], iaI = -qa[1] / (qa[0] ** 2 + qa[1] ** 2), ibI = -qb[1] / (qb[0] ** 2 + qb[1] ** 2);
+  const sa = Math.SQRT2 / qW(qa, A.lam0), sb = Math.SQRT2 / qW(qb, A.lam0), n = M.comps.length;
+  const mxs = new Int32Array(n), mys = new Int32Array(n), Cr = new Float64Array(n), Ci = new Float64Array(n);
+  let NX = 0, NY = 0;
+  M.comps.forEach(([mx, my, ar, ai], c) => {
+    let f = 1; for (let i = 2; i <= mx; i++) f *= i; for (let i = 2; i <= my; i++) f *= i;
+    const nrm = 1 / Math.sqrt(Math.pow(2, mx + my) * f), g = -mx * M.psi[0] - my * M.psi[1], cg = Math.cos(g), sg = Math.sin(g);
+    mxs[c] = mx; mys[c] = my; Cr[c] = nrm * (cg * ar - sg * ai); Ci[c] = nrm * (cg * ai + sg * ar);
+    NX = Math.max(NX, mx); NY = Math.max(NY, my);
+  });
+  const HX = new Float64Array(NX + 1), HY = new Float64Array(NY + 1);
+  const fill = (H, N, x) => { H[0] = 1; if (N > 0) H[1] = 2 * x; for (let i = 1; i < N; i++) H[i + 1] = 2 * x * H[i] - 2 * i * H[i - 1]; };
+  const u0 = A.u0, v0 = A.v0 || 0, ldx = A.ldx, ldy = A.ldy, sloped = !!A.vs;
+  const at = (u, v) => {
+    const du = u - u0, dv = v - v0, xb = du * ldx, vv = sloped ? hx * dv - ez * ldy * du : dv, x1 = xb * c0 + vv * s0, y1 = -xb * s0 + vv * c0;
+    fill(HX, NX, sa * x1); fill(HY, NY, sb * y1);
+    let sr = 0, si = 0;
+    for (let c = 0; c < n; c++) { const hh = HX[mxs[c]] * HY[mys[c]]; sr += hh * Cr[c]; si += hh * Ci[c]; }
+    return Math.exp(k * (iaI * x1 * x1 + ibI * y1 * y1)) * (sr * sr + si * si);
+  };
+  // a single mode, level, its axes the face's own: x1 is the place along the face alone, y1 the height alone
+  if (n === 1 && !sloped && Math.abs(s0) < 1e-12) {
+    const mx = mxs[0], my = mys[0], cc = Cr[0] * Cr[0] + Ci[0] * Ci[0];
+    at.split = [u => { const x1 = (u - u0) * ldx * c0; fill(HX, NX, sa * x1); return Math.exp(k * iaI * x1 * x1) * HX[mx] * HX[mx] * cc; },
+      v => { const y1 = (v - v0) * c0; fill(HY, NY, sb * y1); return Math.exp(k * ibI * y1 * y1) * HY[my] * HY[my]; }];
+  }
+  return at;
+}
+/* (Kept by what it depends on: the core, the acceptance and the arrival's shape and place on the face, not its
+   strength, polarisation or phase. A fibre network is solved in passes and a spectrum arrives slice by slice, so the
+   same arrival is asked for many times in one trace, and again on every trace that leaves that beam where it was.) */
+const MM_SHARES = new Map();
 function mmShare(el, A) {
+  const M = A.QM, key = JSON.stringify([el.core, el.na, A.lam0, A.u0, A.v0 || 0, A.vs || 0, A.ldx, A.ldy, A.qx, A.qy, A.Q || 0, A.comps || 0, M ? [M.th, M.Q, M.psi, M.comps] : 0]);
+  let sh = MM_SHARES.get(key);
+  if (sh === undefined) { if (MM_SHARES.size > 30000) MM_SHARES.clear(); sh = mmShareOf(el, A); MM_SHARES.set(key, sh); }
+  return sh;
+}
+function mmShareOf(el, A) {
   const a = el.core / 2 * 1e-3, NA = el.na;
   // a higher-order mode reaches sqrt(2N + 1) times as far, and spreads that much faster
   const fM = A.comps ? Math.sqrt(Math.max(...A.comps.map(c => 2 * (c[0] + c[1]) + 1))) : 1;
   const wx = qW(A.qx, A.lam0), wy = qW(A.qy, A.lam0), L = Math.max(a, 3 * fM * Math.max(wx, wy)), N = 64, d = 2 * L / N;
   let on = 0, all = 0;
-  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
-    const u = -L + (i + 0.5) * d, v = -L + (j + 0.5) * d, E = arrivalField(A, u, v), p = E[0] ** 2 + E[1] ** 2 + E[2] ** 2 + E[3] ** 2;
+  const pAt = A.QM ? modePower(A) : (u, v) => { const E = arrivalField(A, u, v); return E[0] ** 2 + E[1] ** 2 + E[2] ** 2 + E[3] ** 2; };
+  if (pAt.split) {
+    // one mode with its axes along the face's: its power is one factor along the face times one up it, a row of each
+    const fu = new Float64Array(N), fv = new Float64Array(N), a2 = a * a;
+    for (let i = 0; i < N; i++) { const t = -L + (i + 0.5) * d; fu[i] = pAt.split[0](t); fv[i] = pAt.split[1](t); }
+    for (let i = 0; i < N; i++) { const u = -L + (i + 0.5) * d, lim = a2 - u * u; for (let j = 0; j < N; j++) { const v = -L + (j + 0.5) * d, p = fu[i] * fv[j]; all += p; if (v * v <= lim) on += p; } }
+  } else for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    const u = -L + (i + 0.5) * d, v = -L + (j + 0.5) * d, p = pAt(u, v);
     all += p; if (u * u + v * v <= a * a) on += p;
   }
   const th = q => fM * A.lam0 / (Math.PI * Math.sqrt(A.lam0 * q[1] / Math.PI));     // far-field half-angle from q's waist
@@ -23970,12 +24049,29 @@ const V3D = (() => {
       qy.set(i, q); return q;
     };
     R.nBeams = 0;
+    /* Beams that run the same path at the same size are one envelope: a fibre's light in many spectral slices (an
+       amplifier's spontaneous emission, a modulator's sidebands) leaves a collimator as a beam a slice, all along one
+       line and alike to a few per cent. Drawn each on the last they were tens of see-through tubes to fill for one
+       that looks the same; the strongest of each family is drawn, as bright as the family's power together. */
+    const fam = new Map(), lead = new Map();
+    const envOk = seg => lightOf().envelope && !seg.fan && !seg.pol && seg.bench === project.tab && (seg.len3 || seg.len) > 0;
     B.forEach((seg, i) => {
-      if (!lightOf().envelope || seg.fan || seg.pol || seg.bench !== project.tab || !((seg.len3 || seg.len) > 0)) return;
-      if (byPow && !(powerFade(beamPowerShare(seg, lastTrace, byPow)) > 0.0025)) return;
+      if (!envOk(seg)) return;
       const src = getEl(seg.src);
       if (!src) return;
       if (!m2.has(seg.src)) m2.set(seg.src, [m2Env(src), m2Of(src) * modeM2(src)[1]]);
+      const Mx = m2.get(seg.src)[0], L3 = seg.len3 || seg.len, wa = beamAt(seg.qr, seg.qi, seg.n, seg.nm, Mx), wb = beamAt(seg.qr + L3, seg.qi, seg.n, seg.nm, Mx);
+      const bin = b2 => b2 && b2.w > 0 ? Math.round(Math.log(b2.w) / 0.08) : 'x';                  // sizes within about 8%
+      const k = [seg.x0, seg.y0, seg.z0 === undefined ? '' : seg.z0, seg.dx, seg.dy, seg.uz || 0, L3].map(v => typeof v === 'number' ? v.toFixed(2) : v).join() + seg.colour + '|' + bin(wa) + ',' + bin(wb);
+      const sh = byPow ? beamPowerShare(seg, lastTrace, byPow) : seg.w === undefined ? 1 : seg.w, f = fam.get(k);
+      if (!f) fam.set(k, { i, top: sh, sum: sh }); else { f.sum += sh; if (sh > f.top) { f.top = sh; f.i = i; } }
+    });
+    for (const f of fam.values()) lead.set(f.i, Math.min(1, f.sum));
+    B.forEach((seg, i) => {
+      if (!lead.has(i)) return;
+      const share = lead.get(i);
+      if (byPow && !(powerFade(share) > 0.0025)) return;
+      const src = getEl(seg.src);
       const [Mx, My] = m2.get(seg.src), q0 = qyAt(i), lam0 = seg.nm * 1e-6;
       // a beam with its axes turned: its ellipse from its whole Q along the segment (see beamQ)
       const QG = beamQ(B.map((b2, j) => j === i ? Object.assign({}, b2, { len: 0, len3: 0 }) : b2), i, lam0);
@@ -24011,7 +24107,7 @@ const V3D = (() => {
       }
       for (let s = 0; s < steps; s++) for (let j = 0; j < nt; j++) { const a = s * nt + j, b = s * nt + (j + 1) % nt; idx.push(a, a + nt, b + nt, a, b + nt, b); }
       const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
-      G.add(new T.Mesh(geo, new T.MeshBasicMaterial({ clippingPlanes: segClip3(PL), color: col(seg.colour), transparent: true, opacity: (add ? 0.16 : 0.22) * (byPow ? Math.sqrt(powerFade(beamPowerShare(seg, lastTrace, byPow))) : clamp(Math.sqrt(seg.w === undefined ? 1 : seg.w), 0.15, 1)), blending: blend, side: T.DoubleSide, depthWrite: false })));
+      G.add(new T.Mesh(geo, new T.MeshBasicMaterial({ clippingPlanes: segClip3(PL), color: col(seg.colour), transparent: true, opacity: (add ? 0.16 : 0.22) * (byPow ? Math.sqrt(powerFade(share)) : clamp(Math.sqrt(share), 0.15, 1)), blending: blend, side: T.DoubleSide, depthWrite: false })));
       R.nBeams++;
       geo.computeBoundingBox(); box.union(geo.boundingBox);
     });
@@ -25865,7 +25961,7 @@ function elecDraw(el, sel) {
     const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i));
     c.beginPath(); c.arc(X, Y, r, 0, 2 * Math.PI);
     c.fillStyle = on || P.elec === 'out' ? ELEC_YELLOW : portFill(); c.fill(); c.strokeStyle = ELEC_YELLOW; c.lineWidth = 1.4; c.stroke();
-    if (named(P, i) && s > 2.2) {
+    if (named(P, i) && s > 2.2 && !(figure && figure.ports === false)) {
       // the name just outside the port, away from the part, upright whatever the part's angle
       c.save(); c.font = fs + 'px ' + getCss('--jek-mono'); c.fillStyle = INK;
       const ox = Q.dx, oy = -Q.dy, out = r + 3;
@@ -38288,9 +38384,10 @@ function hgRotate(comps, alpha) {
     if (!row) {
       const L = Math.sqrt(2 * N + 1) + 5, K = 2 * Math.ceil(12 * L) + 1, h = 2 * L / (K - 1), xs = Array.from({ length: K }, (_, i) => -L + i * h);
       row = [];
+      const um = xs.map(x => hgUnit(m, x)), un = xs.map(y => hgUnit(n, y));      // the mode itself: the same for every j
       for (let j = 0; j <= N; j++) {
         let s = 0;
-        for (const x of xs) for (const y of xs) s += hgUnit(m, x) * hgUnit(n, y) * hgUnit(j, x * ca + y * sa) * hgUnit(N - j, -x * sa + y * ca);
+        for (let ix = 0; ix < K; ix++) { const x = xs[ix]; for (let iy = 0; iy < K; iy++) { const y = xs[iy]; s += um[ix] * un[iy] * hgUnit(j, x * ca + y * sa) * hgUnit(N - j, -x * sa + y * ca); } }
         row.push(s * h * h);
       }
       if (hgRotMemo.size > 2000) hgRotMemo.clear();
@@ -50873,7 +50970,8 @@ function wireDataExport() {
    File › Export figure…: the bench as a figure made for where it is going.
    - Journal: white, no holes, the parts as line art, the light in its colour or black, the names in
      Helvetica all at one size in points, each clear of the parts and of the other names (render.js
-     drawLabels, figure.tidy), the ports' names left out unless asked for; 85 mm wide (a single column) or 174 mm (two), lines no thinner than
+     drawLabels, figure.tidy), the ports' names left out unless asked for; on a bench too crowded for that, numbers
+     beside the parts and a key under the figure; 85 mm wide (a single column) or 174 mm (two), lines no thinner than
      0.5 pt, a scale bar; PDF or SVG (vector), or PNG at 600 dpi.
    - Technical drawing: an A4 or A3 sheet, the bench to a standard scale, the parts' centres dimensioned
      (along and across), numbered callouts and a parts list, and a title block.
@@ -50885,7 +50983,7 @@ const FIG_MM = 72 / 25.4;                                              // points
 const FIG_FONT = 'Helvetica, Arial, sans-serif', FIG_INK = '#111', FIG_SOFT = '#5b6570';
 const FIGURE_PRESETS = [['journal', 'Journal'], ['technical', 'Technical drawing'], ['slides', 'Presentation']];
 const FIGURE_DEFAULTS = {
-  journal: { width: 85, mono: false, pt: 8, ports: false, scaleBar: true, fmt: 'pdf' },
+  journal: { width: 85, mono: false, names: 'auto', pt: 8, ports: false, scaleBar: true, fmt: 'pdf' },
   technical: { sheet: 'A4', mono: true, dims: true, callouts: true, title: '', by: '', fmt: 'pdf' },
   slides: { size: '169', fmt: 'png' },
 };
@@ -50959,16 +51057,35 @@ function figFitted(fig, pt, scaleOf) {
 /* ---- Journal ---- */
 function journalFigure(o) {
   const Wpt = o.width * FIG_MM, maxH = 230 * FIG_MM, bar = o.scaleBar ? o.pt * 2.2 : 0;
-  const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#111', font: FIG_FONT, tidy: true, ports: !!o.ports };
-  const { rec, box, s } = figFitted(fig, o.pt, b => Math.min(Wpt / b.w, (maxH - bar) / b.h));
-  const g = new VecCtx(Wpt, box.h * s + bar, { plain: true, res: 4 });
+  const parts = figParts().slice().sort((a, b) => a.x - b.x || b.y - a.y);
+  // the key under a numbered figure: "1 Fibre laser" in as many columns as fit the width
+  const meas = document.createElement('canvas').getContext('2d'); meas.font = o.pt + 'px ' + FIG_FONT;
+  const numW = meas.measureText(String(parts.length) + ' ').width + o.pt * 0.4, colW = Math.max(...parts.map(e => meas.measureText(e.name).width), 1) + numW + o.pt * 1.6;
+  const cols = Math.max(1, Math.floor(Wpt / colW)), rows = Math.ceil(parts.length / cols), rowH = o.pt * 1.35, keyH = rows * rowH + o.pt;
+  const draw = key => {
+    const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#111', font: FIG_FONT, tidy: true, ports: !!o.ports, labels: o.names === 'none' ? false : undefined, numbers: key ? new Map(parts.map((e, i) => [e.id, i + 1])) : null };
+    const under = bar + (key ? keyH : 0);
+    return Object.assign(figFitted(fig, o.pt, b => Math.min(Wpt / b.w, (maxH - under) / b.h)), { fig, key, under });
+  };
+  // Auto: the names beside the parts when they sit well; numbers and a key when a name would lie on something or too many are led out
+  let F = draw(o.names === 'key');
+  const how = F.fig.placed;
+  if (o.names === 'auto' && parts.length > 1 && how && (how.clash > 0 || how.far > Math.max(2, 0.2 * how.n))) F = draw(true);
+  const { rec, box, s } = F;
+  const g = new VecCtx(Wpt, box.h * s + F.under, { plain: true, res: 4 });
   figPlace(g, rec, box, (Wpt - box.w * s) / 2, 0, s, 0.5, !!o.mono);
+  // under the bench white again: a beam running off the bench stops at its edge, clear of the scale bar and the key
+  if (F.under > 0) { g.fillStyle = '#fff'; g.fillRect(0, box.h * s, Wpt, F.under); }
   if (o.scaleBar) {
     const mmPerPt = 1 / (V().scale * s), L = niceStep(0.18 * Wpt * mmPerPt), len = L / mmPerPt, y = box.h * s + bar * 0.45, x = 2;
     figLine(g, [[x, y - 2.5], [x, y], [x + len, y], [x + len, y - 2.5]], 0.75);
     figSay(g, fmtLen(L), x + len + 3, y + o.pt * 0.35, { size: o.pt });
   }
-  return { g, unit: 'pt', dpi: 600, note: o.width + ' × ' + Math.round(g.h / FIG_MM) + ' mm, names in Helvetica ' + o.pt + ' pt, lines at least 0.5 pt' };
+  if (F.key) {
+    const y0 = box.h * s + bar + o.pt * 1.2, cw = Wpt / cols;
+    parts.forEach((e, i) => { const c = Math.floor(i / rows), r = i % rows, x = 2 + c * cw, y = y0 + r * rowH; figSay(g, String(i + 1), x + numW - o.pt * 0.4, y, { size: o.pt, align: 'right', bold: true }); figSay(g, e.name, x + numW, y, { size: o.pt }); });
+  }
+  return { g, unit: 'pt', dpi: 600, keyed: !!F.key, note: o.width + ' × ' + Math.round(g.h / FIG_MM) + ' mm, ' + (o.names === 'none' ? 'no names' : F.key ? (o.names === 'auto' ? 'too crowded for names beside the parts: numbered, with a key, in Helvetica ' : 'numbered, with a key, in Helvetica ') + o.pt + ' pt' : 'names in Helvetica ' + o.pt + ' pt') + ', lines at least 0.5 pt' };
 }
 
 /* ---- Technical drawing ---- */
@@ -51187,7 +51304,8 @@ async function exportFigure(preset, o) {
 const FIG_KEY = 'jek-rt-figure';
 const FIG_FIELDS = {
   journal: [['width', 'Width', [[85, 'Single column, 85 mm'], [174, 'Double column, 174 mm']]], ['mono', 'Light', [[false, 'In its colour'], [true, 'Black']]],
-    ['pt', 'Names', [[6, '6 pt'], [7, '7 pt'], [8, '8 pt'], [9, '9 pt'], [10, '10 pt']]], ['ports', 'Port names', [[false, 'Left out'], [true, 'Shown']]], ['scaleBar', 'Scale bar', [[true, 'Yes'], [false, 'No']]],
+    ['names', 'Names', [['auto', 'Beside the parts, numbered if crowded'], ['beside', 'Beside the parts'], ['key', 'Numbered, with a key'], ['none', 'None']]],
+    ['pt', 'Size', [[6, '6 pt'], [7, '7 pt'], [8, '8 pt'], [9, '9 pt'], [10, '10 pt']]], ['ports', 'Port names', [[false, 'Left out'], [true, 'Shown']]], ['scaleBar', 'Scale bar', [[true, 'Yes'], [false, 'No']]],
     ['fmt', 'As', [['pdf', 'PDF (vector)'], ['svg', 'SVG (vector)'], ['png', 'PNG, 600 dpi']]]],
   technical: [['sheet', 'Sheet', [['A4', 'A4'], ['A3', 'A3']]], ['dims', 'Dimensions', [[true, 'Between the parts’ centres'], [false, 'None']]],
     ['callouts', 'Callouts', [[true, 'Numbered, with a parts list'], [false, 'The parts’ names']]], ['mono', 'Light', [[true, 'Black'], [false, 'In its colour']]],
@@ -56734,7 +56852,8 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>Export figure</b>, Journal and Technical drawing: the names are all one size (a name scaled on the bench no longer carries its scale into the figure), each is set clear of the parts and of the other names, with a thin line to its part when it has to go further out, a name at the edge is no longer cut, and the ports’ names are left out unless <b>Port names</b> is set to Shown.',
+    '<b>Export figure</b>, Journal and Technical drawing: the names are all one size (a name scaled on the bench no longer carries its scale into the figure), each is set clear of the parts and of the other names, with a thin line to its part when it has to go further out, a name at the edge is no longer cut, and the ports’ names are left out unless <b>Port names</b> is set to Shown. A bench too crowded for names is numbered, with a key under the figure (<b>Names</b>).',
+    'Faster on benches with a multimode fibre and a broad spectrum (an amplifier’s spontaneous emission, a modulator’s sidebands): the light coupled back into a multimode tip is worked out once for each beam that has not moved, and many times faster when it has; in 3D, beams that run the same path at the same size are drawn as one envelope. A bench that took 13 s to open and 8 to 12 s to answer a moved part now takes 2 s and about half a second, with the same readings.',
     '<b>Scattering by a particle</b>: a screen’s new <b>Scattering</b> tab gives the light one small particle scatters. A sphere is worked out exactly (Lorenz–Mie); a rod with flat or round ends or a spheroid, at any orientation, as an array of dipoles (the discrete dipole approximation, run in the background with a Stop); and a single dipole (Rayleigh) is kept beside them to compare. The light is what the bench puts on the particle: a tight focus as its full vector field, every sample of its pupil a plane wave onto the particle, so the particle may sit off the focus; a gentler beam as a plane wave; beams of one laser added as fields. It reads the scattering, extinction and absorption cross-sections, efficiencies and asymmetry, the power scattered, the forward and back shares and the share a lens of a given NA would collect, with polar plots in the bench plane and out of it and a map over every direction. The particle is the Trap tab’s, now with a shape, gold, silver and aluminium among its materials, and water as a medium. In 3D the particle is drawn in its shape and orientation, enlarged so it shows. In a script, <code>JEKray.scatter(name)</code> and <code>JEKray.mie(x, mr, mi, angles)</code>. A new example, <b>Light scattered by a 300 nm sphere</b>, and two cases on the validation page.',
     'The diffracted field behind a <b>hard edge</b> (a slit, a comb of slits, a knife edge, an iris or a rim off the beam\u2019s axis) has its true amplitude. Each sample at an edge took its share of open area and the whole field was then scaled up to the open area\u2019s power: the peak behind slits a few samples wide read up to 12% high, the envelope of an N-slit pattern came out narrow, and the fringes behind a straight edge lost contrast away from it. An edge is now carried as the samples can hold it exactly, with the light it sends past the grid\u2019s reach kept at the top of that reach, so the power is still the open area\u2019s. Slits that run the whole way up no longer cut the beam\u2019s wings off above and below them (2% of a focus behind them). Behind an edge the field is sampled more finely where the grid can still hold the light. New on <a href="/jek/tools/jekray-validation.html#fresnel-edge">the validation page</a>: Fresnel\u2019s fringes at a straight edge and the pattern of 2, 5 and 10 slits.',
     'A <b>phase mask finer than the beam</b> (a phase grating, a diffuser, an SLM\u2019s pattern) keeps its light. Behind a mask that spreads the light without cutting it, the diffracted field\u2019s grid now grows with the light as it does behind an edge; before, a grating\u2019s orders ran off the grid\u2019s sides and were lost with no warning. The beam goes on along the mask\u2019s mean slope across its footprint, where it took the slope under its own ray (a sinusoidal grating sent it off at \u03b2\u03bb/d, a fork hologram\u2019s core ended it once rays left the bench plane), and takes its focus from the trend of the slope across it. A sinusoidal phase grating\u2019s orders now carry J\u2099(\u03b2)\u00b2 each, on <a href="/jek/tools/jekray-validation.html#phase-grating">the validation page</a>. Light a mask sends past what the grid can carry is flagged.',

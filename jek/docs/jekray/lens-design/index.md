@@ -294,7 +294,7 @@ Under the drawing, **Make the part** sets what the lens or window is made to, an
 | Scratch-dig | surface quality to MIL-PRF-13830B | 60-40 |
 | Chamfer | the widest protective chamfer, mm at 45° | 0.2 mm |
 
-A value not set is shown in grey and follows the design's tolerance settings where they give one, else the commercial grade in the last column. Type one to set it on the part, or clear it to follow them again. The settings are kept with the lens on the bench and saved in the .jekray file.
+The card warns when a chamfer would reach a face's clear aperture (each 45° chamfer takes its width off the face's radius, so a clear aperture as wide as the part leaves it no room), or when the chamfers on a glass's two faces leave less than 0.1 mm of its edge between them. A cemented face has no chamfer of its own. A value not set is shown in grey and follows the design's tolerance settings where they give one, else the commercial grade in the last column. Type one to set it on the part, or clear it to follow them again. The settings are kept with the lens on the bench and saved in the .jekray file.
 
 To coat a face with a coating designed in [JEKfilm](/jek/docs/jekray/jekfilm/), choose it in the face's **Coating** list in the element data: the bench folder's JEKfilm coatings are listed with ◆, and **A JEKfilm coating from a file…** reads a .jekfilm from your computer. The face keeps the coating's layers and what it was designed to: its band, angles, limits and durability.
 

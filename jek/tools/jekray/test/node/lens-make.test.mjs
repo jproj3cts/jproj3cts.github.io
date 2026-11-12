@@ -55,3 +55,21 @@ test('a lens and a window keep their make settings; one saved without them loads
   assert.deepEqual(PARTS.prism.norm({ shape: 'window', make: { faces: [{ sd: '20-10' }] } }, {}).make, { faces: [{ sd: '20-10' }, {}] });
   assert.equal(PARTS.prism.norm({ shape: 'right', make: { qty: 2 } }, {}).make, undefined, 'only a window');
 });
+
+test('a chamfer that reaches the clear aperture, or chamfers that meet across a thin edge, are warned of; a cemented face has none', () => {
+  const mk = faces => partMakeOf({ faces }, 2, null);
+  // the clear aperture the full diameter: any chamfer cuts into it
+  let D = drawingData(lensP(null, null, 3, 'Fused silica', 6.35), 0, { dia: 12.7, make: mk([{}, {}]) });
+  assert.equal(D.chamferWarnings.length, 2); assert.match(D.chamferWarnings[0], /S1’s clear aperture is the full diameter/);
+  // 90 % clear aperture leaves 0.635 mm at the rim: 0.2 mm fits, 0.7 mm does not
+  D = drawingData(lensP(null, null, 3, 'Fused silica', 5.715), 0, { dia: 12.7, make: mk([{ chamfer: 0.2 }, { chamfer: 0.7 }]) });
+  assert.deepEqual(D.chamferWarnings.map(t => t.slice(0, 22)), ['S2’s chamfer (0.7 mm) ']);
+  // a 0.5 mm plate: two 0.25 mm chamfers meet across its edge
+  D = drawingData(lensP(null, null, 0.5, 'Fused silica', 5), 0, { dia: 12.7, make: mk([{ chamfer: 0.25 }, { chamfer: 0.25 }]) });
+  assert.ok(D.chamferWarnings.some(t => /meet across its 0.5 mm edge/.test(t)), D.chamferWarnings.join(' | '));
+  // a cemented doublet: its middle surface has glass both sides, so no chamfer is asked of it
+  const s = semi => surf(null, semi), P = { surfaces: [s(5), s(5), s(5)], gaps: [3, 3], materials: [{ glass: 'N-BK7' }, { glass: 'F2' }], stopIndex: -1, parts: [{ id: 'L', kind: 'lens', flip: false, n: 3 }] };
+  D = drawingData(P, 0, { dia: 12.7, make: partMakeOf({ faces: [{}, { chamfer: 3 }, {}] }, 3, null) });
+  assert.equal(D.chamferWarnings.length, 0, D.chamferWarnings.join(' | '));
+  assert.equal(drawingData(lensP(null, null, 3, 'Fused silica', 6.35), 0, { dia: 12.7 }).chamferWarnings.length, 0, 'no make settings, nothing said');
+});

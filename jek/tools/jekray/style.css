@@ -1658,6 +1658,7 @@
   .rt-lmakepart th { text-align: left; font-weight: 500; color: var(--jek-ink-soft); }
   .rt-lmakepart td.unit { color: var(--jek-ink-soft); font-size: 0.8rem; }
   .rt-lmakefaces { min-width: 34rem !important; }
+  .rt-lmakewarn { margin: 0 0 0.5rem; padding: 0.45rem 0.7rem; border-left: 3px solid var(--jek-orange); background: var(--jek-well); font-size: 0.82rem; }
   .rt-lmake .rt-lfrom { color: var(--jek-ink-soft); font-style: italic; }
   .rt-lmake .rt-lbar { margin-top: 0.8rem; }
   @media (max-width: 900px) { .rt-lmakegrid { grid-template-columns: 1fr; } }

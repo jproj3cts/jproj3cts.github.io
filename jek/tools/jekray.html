@@ -1703,6 +1703,7 @@
   .rt-lmakepart th { text-align: left; font-weight: 500; color: var(--jek-ink-soft); }
   .rt-lmakepart td.unit { color: var(--jek-ink-soft); font-size: 0.8rem; }
   .rt-lmakefaces { min-width: 34rem !important; }
+  .rt-lmakewarn { margin: 0 0 0.5rem; padding: 0.45rem 0.7rem; border-left: 3px solid var(--jek-orange); background: var(--jek-well); font-size: 0.82rem; }
   .rt-lmake .rt-lfrom { color: var(--jek-ink-soft); font-style: italic; }
   .rt-lmake .rt-lbar { margin-top: 0.8rem; }
   @media (max-width: 900px) { .rt-lmakegrid { grid-template-columns: 1fr; } }
@@ -32049,7 +32050,7 @@ function makeCard(asm, D, i, state) {
     partRow('Quantity', num(M.qty, M.from.qty, 'Quantity', (m, v) => { m.qty = v; }), ''),
     partRow('Diameter tolerance', num(M.diaTol, M.from.diaTol, 'Diameter tolerance (mm)', (m, v) => { m.diaTol = v; }), 'mm, +0/−'),
     partRow('Centre thickness tolerance', num(M.ctTol, M.from.ctTol, 'Centre thickness tolerance (mm)', (m, v) => { m.ctTol = v; }), '± mm'),
-    partRow('Centring 4/', num(M.cent, M.from.cent, 'Centring (arcminutes)', (m, v) => { m.cent = v; }, { perSurface: true, w: '5.2rem' }), '′')));
+    partRow('Centring 4/', num(M.cent, M.from.cent, 'Centring (arcminutes)', (m, v) => { m.cent = v; }, { perSurface: true, w: '6.6rem' }), '′')));
   const faceSet = (j, k) => (m, v) => { m.faces = m.faces || []; m.faces[M.order[j]] = Object.assign({}, m.faces[M.order[j]], { [k]: v }); };
   const faces = h('table', { class: 'rt-ltable rt-lmakefaces' },
     h('thead', null, h('tr', null, ...['Face', 'Finish', 'Power 3/A', 'Irregularity (B)', 'Scratch-dig', 'Chamfer (mm)', 'Coating'].map(t => h('th', { scope: 'col' }, t)))),
@@ -32070,6 +32071,7 @@ function makeCard(asm, D, i, state) {
   go.addEventListener('click', () => { makeThePart(asm, i); });
   card.append(h('h3', null, 'Make the part'),
     h('p', { class: 'rt-lnote' }, 'What ' + D.name + ' is made to. Values in grey follow the tolerance settings or a commercial grade; type one to set it here, or clear it to follow them again. Make the part downloads the drawing, the part specification and each JEKfilm coating’s specification as one zip.'),
+    ...(D.chamferWarnings || []).map(t => h('p', { class: 'rt-lmakewarn', role: 'note' }, t)),
     h('div', { class: 'rt-lmakegrid' }, part, h('div', { class: 'rt-ltwrap' }, faces)),
     h('div', { class: 'rt-lbar' }, go));
   return card;
@@ -46827,7 +46829,24 @@ function drawingData(P, pi, opts) {
   });
   surfaces.forEach(s => { if (!isFinite(s.sagRim)) notes.push('Surface ' + s.n + ' does not reach the lens’s full diameter: its sphere is smaller.'); });
   elements.forEach(e => { if (!e.air && !e.stack && isFinite(e.et) && e.et < 0.5) notes.push('The glass after surface ' + surfaces[e.from].n + ' is ' + (e.et <= 0 ? 'nothing' : 'only ' + (+e.et.toFixed(3)) + ' mm') + ' thick at its edge.'); });
-  return { name: opts.name || 'Lens', kind: part.kind, dia, diaTol: MK ? MK.diaTol : null, qty: MK ? MK.qty : null, made: !!MK, surfaces, elements, stacks, length: G.reduce((a, b) => a + b, 0),
+  // the chamfers against the part: each, 45° and this wide, takes as much off the face's radius and off the glass's
+  // edge; one reaching the clear aperture, or two leaving next to no edge between them, is said (Make the part's card)
+  const chamferWarnings = [];
+  if (MK) {
+    const outer = j => (j > 0 && elements[j - 1] && !elements[j - 1].air && !elements[j - 1].stack) !== (j < n - 1 && elements[j] && !elements[j].air && !elements[j].stack);
+    surfaces.forEach((s, j) => {
+      const w = s.chamfer; if (!(w > 0) || !outer(j)) return;
+      const room = (dia - s.clear) / 2;
+      if (room <= 1e-9) chamferWarnings.push('S' + s.n + '’s clear aperture is the full diameter, so its ' + (+w.toFixed(3)) + ' mm chamfer cuts into it: give it a clear aperture at least ' + (+(2 * w).toFixed(3)) + ' mm under the diameter (its clear radius, in the element data), or no chamfer.');
+      else if (w >= room - 1e-9) chamferWarnings.push('S' + s.n + '’s chamfer (' + (+w.toFixed(3)) + ' mm) reaches its clear aperture, which leaves only ' + (+room.toFixed(3)) + ' mm at the rim: make the chamfer narrower or the clear radius smaller.');
+    });
+    elements.forEach(e => {
+      if (e.air || e.stack || !isFinite(e.et)) return;
+      const a = outer(e.from) && surfaces[e.from].chamfer || 0, b = outer(e.from + 1) && surfaces[e.from + 1].chamfer || 0, left = e.et - a - b;
+      if (a + b > 0 && left < 0.1) chamferWarnings.push('The chamfers on S' + surfaces[e.from].n + ' and S' + surfaces[e.from + 1].n + ' (' + (+(a + b).toFixed(3)) + ' mm together) ' + (left <= 0 ? 'meet across' : 'leave only ' + (+left.toFixed(3)) + ' mm of') + ' its ' + (+e.et.toFixed(3)) + ' mm edge: make them narrower.');
+    });
+  }
+  return { name: opts.name || 'Lens', kind: part.kind, dia, diaTol: MK ? MK.diaTol : null, qty: MK ? MK.qty : null, made: !!MK, chamferWarnings, surfaces, elements, stacks, length: G.reduce((a, b) => a + b, 0),
     toleranced: !!MK || (!!T && [frT, thk, dec, tilt, dn, dv, irrT].some(v => v !== null)), notes };
 }
 

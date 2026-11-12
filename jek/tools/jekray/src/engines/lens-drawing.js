@@ -106,7 +106,24 @@ export function drawingData(P, pi, opts) {
   });
   surfaces.forEach(s => { if (!isFinite(s.sagRim)) notes.push('Surface ' + s.n + ' does not reach the lens’s full diameter: its sphere is smaller.'); });
   elements.forEach(e => { if (!e.air && !e.stack && isFinite(e.et) && e.et < 0.5) notes.push('The glass after surface ' + surfaces[e.from].n + ' is ' + (e.et <= 0 ? 'nothing' : 'only ' + (+e.et.toFixed(3)) + ' mm') + ' thick at its edge.'); });
-  return { name: opts.name || 'Lens', kind: part.kind, dia, diaTol: MK ? MK.diaTol : null, qty: MK ? MK.qty : null, made: !!MK, surfaces, elements, stacks, length: G.reduce((a, b) => a + b, 0),
+  // the chamfers against the part: each, 45° and this wide, takes as much off the face's radius and off the glass's
+  // edge; one reaching the clear aperture, or two leaving next to no edge between them, is said (Make the part's card)
+  const chamferWarnings = [];
+  if (MK) {
+    const outer = j => (j > 0 && elements[j - 1] && !elements[j - 1].air && !elements[j - 1].stack) !== (j < n - 1 && elements[j] && !elements[j].air && !elements[j].stack);
+    surfaces.forEach((s, j) => {
+      const w = s.chamfer; if (!(w > 0) || !outer(j)) return;
+      const room = (dia - s.clear) / 2;
+      if (room <= 1e-9) chamferWarnings.push('S' + s.n + '’s clear aperture is the full diameter, so its ' + (+w.toFixed(3)) + ' mm chamfer cuts into it: give it a clear aperture at least ' + (+(2 * w).toFixed(3)) + ' mm under the diameter (its clear radius, in the element data), or no chamfer.');
+      else if (w >= room - 1e-9) chamferWarnings.push('S' + s.n + '’s chamfer (' + (+w.toFixed(3)) + ' mm) reaches its clear aperture, which leaves only ' + (+room.toFixed(3)) + ' mm at the rim: make the chamfer narrower or the clear radius smaller.');
+    });
+    elements.forEach(e => {
+      if (e.air || e.stack || !isFinite(e.et)) return;
+      const a = outer(e.from) && surfaces[e.from].chamfer || 0, b = outer(e.from + 1) && surfaces[e.from + 1].chamfer || 0, left = e.et - a - b;
+      if (a + b > 0 && left < 0.1) chamferWarnings.push('The chamfers on S' + surfaces[e.from].n + ' and S' + surfaces[e.from + 1].n + ' (' + (+(a + b).toFixed(3)) + ' mm together) ' + (left <= 0 ? 'meet across' : 'leave only ' + (+left.toFixed(3)) + ' mm of') + ' its ' + (+e.et.toFixed(3)) + ' mm edge: make them narrower.');
+    });
+  }
+  return { name: opts.name || 'Lens', kind: part.kind, dia, diaTol: MK ? MK.diaTol : null, qty: MK ? MK.qty : null, made: !!MK, chamferWarnings, surfaces, elements, stacks, length: G.reduce((a, b) => a + b, 0),
     toleranced: !!MK || (!!T && [frT, thk, dec, tilt, dn, dv, irrT].some(v => v !== null)), notes };
 }
 

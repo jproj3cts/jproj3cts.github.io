@@ -153,7 +153,7 @@ export function makeCard(asm, D, i, state) {
     partRow('Quantity', num(M.qty, M.from.qty, 'Quantity', (m, v) => { m.qty = v; }), ''),
     partRow('Diameter tolerance', num(M.diaTol, M.from.diaTol, 'Diameter tolerance (mm)', (m, v) => { m.diaTol = v; }), 'mm, +0/−'),
     partRow('Centre thickness tolerance', num(M.ctTol, M.from.ctTol, 'Centre thickness tolerance (mm)', (m, v) => { m.ctTol = v; }), '± mm'),
-    partRow('Centring 4/', num(M.cent, M.from.cent, 'Centring (arcminutes)', (m, v) => { m.cent = v; }, { perSurface: true, w: '5.2rem' }), '′')));
+    partRow('Centring 4/', num(M.cent, M.from.cent, 'Centring (arcminutes)', (m, v) => { m.cent = v; }, { perSurface: true, w: '6.6rem' }), '′')));
   const faceSet = (j, k) => (m, v) => { m.faces = m.faces || []; m.faces[M.order[j]] = Object.assign({}, m.faces[M.order[j]], { [k]: v }); };
   const faces = h('table', { class: 'rt-ltable rt-lmakefaces' },
     h('thead', null, h('tr', null, ...['Face', 'Finish', 'Power 3/A', 'Irregularity (B)', 'Scratch-dig', 'Chamfer (mm)', 'Coating'].map(t => h('th', { scope: 'col' }, t)))),
@@ -174,6 +174,7 @@ export function makeCard(asm, D, i, state) {
   go.addEventListener('click', () => { makeThePart(asm, i); });
   card.append(h('h3', null, 'Make the part'),
     h('p', { class: 'rt-lnote' }, 'What ' + D.name + ' is made to. Values in grey follow the tolerance settings or a commercial grade; type one to set it here, or clear it to follow them again. Make the part downloads the drawing, the part specification and each JEKfilm coating’s specification as one zip.'),
+    ...(D.chamferWarnings || []).map(t => h('p', { class: 'rt-lmakewarn', role: 'note' }, t)),
     h('div', { class: 'rt-lmakegrid' }, part, h('div', { class: 'rt-ltwrap' }, faces)),
     h('div', { class: 'rt-lbar' }, go));
   return card;

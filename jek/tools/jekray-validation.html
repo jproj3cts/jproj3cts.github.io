@@ -1449,6 +1449,255 @@ const ALL_CASES = [
       return { checks, benches, plots, notes: 'The field in JEKray goes as exp(−ikz) and a coupler crosses with +i; SAX’s goes as exp(+ikz) and its couplers cross with −i, the complex conjugate, so every power is the same while each field is the other’s conjugate. In SAX the waveguides are its own model; the couplers, the MMI and the phase shifter are written in the script to JEKray’s compact models (a coupler’s power coupling changes linearly with wavelength, the MMI is flat), so what SAX checks is the circuit: the ports joined, the loops closed and solved. The widths and depths are measured on the spectrum as JEKray’s spectrum view does: a line’s depth against the highest point between it and its neighbours, its width at half that depth. The panel’s range and width come from λ²/(n_g L) and the finesse π√x/(1 − x), x the round trip’s field, which leave out how the range grows with the wavelength: the lines either side of the one near 1550 nm are 9.041 and 9.148 nm from it, and the panel’s 9.104 nm falls between; it is checked against the nearer of the two. The differences of about 5 × 10⁻¹³ in the powers are the reference file’s rounding to 12 digits. Photonic circuits are experimental: switch them on under Experimental features to add parts; the benches above open with or without it.' };
     },
   },
+  {
+    id: 'corrugated-horn', area: 'Millimetre waves', title: 'A corrugated horn’s fundamental Gaussian and its far field',
+    kind: 'Paper: closed forms', ref: 'corrugated-horn.json', script: 'corrugated_horn.py',
+    cite: 'R. J. Wylde, “Millimetre-wave Gaussian beam-mode optics and corrugated feed horns”, IEE Proceedings H 131, 258–262 (1984); P. F. Goldsmith, Quasioptical Systems (IEEE Press, 1998), chapters 6 and 7.',
+    what: 'A corrugated conical horn’s aperture carries the hybrid HE₁₁ mode, J₀(2.405 r/a) out to the wall at r = a. Wylde fitted it with a Gaussian of radius w = 0.6435 a, which carries 98% of its power. Here: the share of the fundamental Gaussian in JEKray’s horn, and the w/a of the beam its corrugated horn launches, against both found by quadrature; the power a corrugated receiving horn (a = 7.5 mm, flat aperture) takes in at 100 GHz from an ideal Gaussian horn 1 mm away, as the incoming beam’s radius runs from 0.45 a to 0.85 a; and the far field of two horns (a = 7.5 mm, slant length 60 mm, at 100 GHz; a = 10 mm, 200 mm, at 150 GHz): their directivity and full width at half power, from the Hankel transform of the J₀ field on its spherical phase front, with the obliquity factor (1 + cos θ)/2.',
+    tolerance: 'The fundamental’s share within 0.001 and the fitted w/a within 0.0005; each coupling within 0.002; the directivity within 0.05 dB and each half-power width within 0.1°.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      checks.push(check('Fundamental Gaussian’s share at w = 0.6435 a', R.eta_at_0p6435, J.hornModes('corrugated').gauss, { abs: 0.001 }));
+      const hornBench = (a, L, ghz) => bench('Corrugated horn, a ' + a + ' mm, L ' + L + ' mm, ' + ghz + ' GHz', [
+        { type: 'source', name: 'Horn', x: 0, y: 0, angle: 0, mmw: { kind: 'corrugated', ghz, dbm: 0, a, L } },
+        { type: 'screen', name: 'Load', x: 300, y: 0, angle: 180, length: 200, mmw: { part: true } }]);
+      J.load(hornBench(7.5, 1e5, 100));
+      checks.push(check('Its beam’s radius at a flat aperture, w/a', R.w_opt_over_a, J.byName('Horn').w0 / 7.5, { abs: 0.0005 }));
+      const X = R.receiver, xs = [], ys = [], gs = [];
+      for (const r of X.rows) {
+        const d = bench('A Gaussian beam of ' + r.ratio + ' a into a corrugated horn, 100 GHz', [
+          { type: 'source', name: 'Gaussian horn', x: 0, y: 0, angle: 0, mmw: { kind: 'gauss', ghz: X.ghz, dbm: 0, a: +r.a_t.toFixed(9), L: 1e5 } },
+          { type: 'detector', name: 'Corrugated receiver', x: X.D_mm, y: 0, angle: 180, material: 'custom', resp: 0.5, gain: 1e4, mmw: { kind: 'corrugated', a: X.a_mm, L: X.L_mm } }]);
+        J.load(d); const D = J.detector('Corrugated receiver'), e = D.rf ? D.rf.eff : NaN;
+        checks.push(check('Coupling, beam radius ' + r.ratio + ' a', r.coupling, e, { abs: 0.002 }));
+        xs.push(r.ratio); ys.push(r.coupling); gs.push(e);
+        if (r.ratio === 0.6435) benches.push(['Matched beam into the corrugated horn', d]);
+      }
+      plots.push(plot({ title: 'A Gaussian beam into a corrugated horn (a = 7.5 mm, 100 GHz)', xlabel: 'beam radius at the aperture / a', ylabel: 'power coupled',
+        series: [{ name: 'Quadrature', x: xs, y: ys, colour: REF_C, width: 2.4 }, { name: 'JEKray', x: xs, y: gs, colour: GOT_C, dots: true }] }));
+      for (const F of R.far_field) {
+        const d = hornBench(F.a_mm, F.L_mm, F.ghz); J.load(d); const P = J.hornPattern('Horn'), tag = 'a ' + F.a_mm + ' mm, L ' + F.L_mm + ' mm, ' + F.ghz + ' GHz';
+        checks.push(check(tag + ': directivity', F.directivity_dBi, P.dir, { abs: 0.05 }, ' dBi'));
+        checks.push(check(tag + ': half-power width, E-plane', F.hpbw_deg, P.hpbw[0], { abs: 0.1 }, '°'));
+        checks.push(check(tag + ': half-power width, H-plane', F.hpbw_deg, P.hpbw[1], { abs: 0.1 }, '°'));
+        benches.push(['Horn, ' + tag, d]);
+      }
+      return { checks, benches, plots, notes: 'The receiving horn’s aperture is flat (its slant length 10⁵ mm, as long as JEKray allows) and the incoming beam is 1 mm from its own flat aperture, so the curvature of either barely matters; the reference includes both. The best coupling here, ' + fmt(R.receiver.rows.find(r => r.ratio === 0.6435).coupling, 5) + ', is a little under the 0.98075 of the fundamental alone for that reason.' };
+    },
+  },
+  {
+    id: 'gaussian-coupling', area: 'Millimetre waves', title: 'Two horns facing each other: separation, waist mismatch, offset and tilt',
+    kind: 'Textbook: closed forms', ref: 'gaussian-coupling.json', script: 'gaussian_coupling.py',
+    cite: 'P. F. Goldsmith, Quasioptical Systems (IEEE Press, 1998), chapter 4 (the coupling of Gaussian beams) and chapter 7 (horns).',
+    what: 'Two ideal Gaussian horns at 100 GHz, the beam at each aperture w = 0.6435 a on a phase front of radius L, the slant length. JEKray’s receiving horn takes the arriving field’s overlap with its own mode. The reference is the overlap of the two paraxial Gaussian beams in the receiver’s aperture plane, worked out as Gaussian integrals in closed form, which give back Goldsmith’s formulas: for beams on one axis, K = 4 / ((w₀₁/w₀₂ + w₀₂/w₀₁)² + (λΔz / πw₀₁w₀₂)²), with Δz between the waists; with the waists in one plane, an offset and a tilt each multiply that by a Gaussian. Four sets: identical horns (a = 7.5 mm, L = 60 mm) 20 to 400 mm apart; flat horns 5 mm apart, the receiver’s radius from 3.75 to 15 mm against the transmitter’s 7.5 mm; flat horns 5 mm apart, the receiver moved 0 to 8 mm across the axis; and flat horns of a = 30 mm 50 mm apart, the receiver turned 0° to 3° about its aperture’s centre.',
+    tolerance: 'Each coupling within 0.001.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      const S = R.sets;
+      const mk = r => bench('Two Gaussian horns, 100 GHz', [
+        { type: 'source', name: 'Transmitter', x: 0, y: 0, angle: 0, mmw: { kind: 'gauss', ghz: R.ghz, dbm: 0, a: r.at, L: r.Lt } },
+        { type: 'detector', name: 'Receiver', x: r.D, y: r.x0 || 0, angle: 180 + (r.theta || 0), material: 'custom', resp: 0.5, gain: 1e4, mmw: { kind: 'gauss', a: r.ar, L: r.Lr } }]);
+      const K = r => { const d = mk(r); J.load(d); const D = J.detector('Receiver'); return { d, K: D.rf ? D.rf.eff : NaN }; };
+      const sets = [['separation', r => r.D + ' mm apart', r => r.D, 'distance between apertures (mm)'], ['waist', r => 'receiver a ' + r.ar + ' mm', r => r.ar, 'receiver’s aperture radius (mm)'],
+        ['offset', r => 'offset ' + r.x0 + ' mm', r => r.x0, 'offset (mm)'], ['tilt', r => 'tilt ' + r.theta + '°', r => r.theta, 'tilt (°)']];
+      for (const [key, label, xOf, xl] of sets) {
+        const xs = [], ys = [], gs = [];
+        for (const r of S[key]) {
+          const g = K(r); checks.push(check(key[0].toUpperCase() + key.slice(1) + ': ' + label(r), r.K, g.K, { abs: 0.001 }));
+          xs.push(xOf(r)); ys.push(r.K); gs.push(g.K);
+          if (r === S[key][Math.floor(S[key].length / 2)]) benches.push([key[0].toUpperCase() + key.slice(1) + ', ' + label(r), g.d]);
+        }
+        plots.push(plot({ title: 'Coupling against ' + xl.replace(/ \(.*/, ''), xlabel: xl, ylabel: 'power coupled', yMin: 0,
+          series: [{ name: 'Goldsmith', x: xs, y: ys, colour: REF_C, width: 2.4 }, { name: 'JEKray', x: xs, y: gs, colour: GOT_C, dots: true }] }));
+        await idle();
+      }
+      return { checks, benches, plots, notes: 'Both horns are ideal Gaussian horns, so the coupling is that of the two beams alone. The tilt is taken paraxially, as a phase k θ x across the receiver; JEKray takes the arriving beam in the receiver’s own turned plane, which differs from that by terms in θ²: the largest difference here, 1.7 × 10⁻⁴ at 3°, is of that kind.' };
+    },
+  },
+  {
+    id: 'fibre-ring-coherence', area: 'Fibre components', title: 'A fibre ring resonator, and a fibre Mach–Zehnder lit by a laser of finite linewidth',
+    kind: 'Paper and textbook: closed forms', ref: 'fibre-ring-coherence.json', script: 'fibre_ring_coherence.py',
+    cite: 'A. Yariv, “Universal relations for coupling of optical power between microresonators and dielectric waveguides”, Electronics Letters 36, 321–322 (2000); J. W. Goodman, Statistical Optics (Wiley, 1985), chapter 5.',
+    what: 'JEKray solves a fibre network by following the light round it, loops and all. A ring: a 2×2 coupler crossing 10% of the power, one output joined back to an input through an attenuator of 1 dB; and one crossing 20% with 0.97 dB, just short of critical coupling. The power through each against the round-trip phase, against T = (a² − 2at cos φ + t²)/(1 − 2at cos φ + a²t²), t² the power the coupler passes straight and a² what the loop passes. And a Mach–Zehnder of two 50% couplers whose arms differ by 0 to 800 mm, lit by a laser of coherence length 1 m (a linewidth of 300 MHz), its line Lorentzian or Gaussian: the fringes’ visibility is the modulus of the laser’s degree of coherence at the arms’ delay τ, exp(−πΔν τ) for a Lorentzian line and exp(−(πΔν τ)²/4 ln 2) for a Gaussian one.',
+    tolerance: 'The ring’s through power within 1 × 10⁻⁵ of the laser’s at every phase; the Mach–Zehnder’s visibility within 1 × 10⁻⁴ and its mean power within 1 × 10⁻⁵ mW.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [], n = 1.468, lam = 1550e-6, TP = 2 * Math.PI;
+      // the loop's length for a round-trip phase phi: 1 m of fibre, and a little more
+      const kL = TP * n / lam * 1000, phi0 = (kL * 1.0) % TP;
+      const loopFor = phi => 0.5 + (((phi - phi0) % TP) + TP) % TP / kL;
+      const ring = (C, L2) => bench('Fibre ring: ' + fmt(100 * C.kappa, 3) + '% coupler, ' + C.att_dB + ' dB in the loop', [
+        { type: 'fcomp', kind: 'laser', id: 'L', name: 'Laser', x: -60, y: 0, angle: 0, wavelength: 1550, power: 1 },
+        { type: 'fcomp', kind: 'coupler', id: 'C', name: 'Coupler', x: 0, y: 0, angle: 0, ratio: 100 * C.kappa, loss: 0 },
+        { type: 'fcomp', kind: 'voa', id: 'A', name: 'Loop attenuator', x: 0, y: -30, angle: 180, att: C.att_dB },
+        { type: 'fcomp', kind: 'pd', id: 'P', name: 'PD', x: 60, y: 10, angle: 0, material: 'custom', resp: 1 }],
+        { fibres: [{ a: ['L', 0], b: ['C', 0], len: 1, loss: 0 }, { a: ['C', 2], b: ['P', 0], len: 1, loss: 0 }, { a: ['C', 3], b: ['A', 0], len: 0.5, loss: 0 }, { a: ['A', 1], b: ['C', 1], len: L2, loss: 0 }] });
+      for (const C of R.rings) {
+        const xs = [], gs = [], tag = 'Ring, ' + fmt(100 * C.kappa, 3) + '% and ' + C.att_dB + ' dB';
+        for (const r of C.rows) {
+          const d = ring(C, loopFor(r.phi)); J.load(d); const T = J.fibrePd('PD');
+          checks.push(check(tag + ': through at φ = ' + fmt(r.phi, 4), r.T, T, { abs: 1e-5 }));
+          xs.push(r.phi); gs.push(T);
+          if (r.phi === 0) benches.push([tag + ', on resonance', d]);
+        }
+        const ph = Array.from({ length: 401 }, (_, i) => -Math.PI + i * TP / 400), t = Math.sqrt(1 - C.kappa), a = C.a;
+        plots.push(plot({ title: tag + ': power through', xlabel: 'round-trip phase (rad)', ylabel: 'through', yMin: 0, yMax: 1,
+          series: [{ name: 'Yariv', x: ph, y: ph.map(p => (a * a - 2 * a * t * Math.cos(p) + t * t) / (1 - 2 * a * t * Math.cos(p) + a * a * t * t)), colour: REF_C, width: 2.4 }, { name: 'JEKray', x: xs, y: gs, colour: GOT_C, dots: true }] }));
+        await idle();
+      }
+      const mz = (M, dL, step) => bench('Fibre Mach–Zehnder, arms ' + dL + ' mm apart, ' + (M.lineshape === 'gauss' ? 'Gaussian' : 'Lorentzian') + ' line, coherence length ' + M.Lc_mm + ' mm', [
+        { type: 'fcomp', kind: 'laser', id: 'L', name: 'Laser', x: -80, y: 0, angle: 0, wavelength: 1550, power: M.P0_mW, coh: M.Lc_mm, lineshape: M.lineshape },
+        { type: 'fcomp', kind: 'coupler', id: 'A', name: 'Splitter', x: -40, y: 0, angle: 0, ratio: 50, loss: 0 },
+        { type: 'fcomp', kind: 'coupler', id: 'B', name: 'Combiner', x: 40, y: 0, angle: 0, ratio: 50, loss: 0 },
+        { type: 'fcomp', kind: 'pd', id: 'P', name: 'PD', x: 80, y: 2, angle: 0, material: 'custom', resp: 1 }],
+        { fibres: [{ a: ['L', 0], b: ['A', 0], len: 1, loss: 0 }, { a: ['A', 2], b: ['B', 0], len: 1, loss: 0 },
+          { a: ['A', 3], b: ['B', 1], len: 1 + dL / 1000 + step * lam / (4 * n) / 1000, loss: 0 }, { a: ['B', 2], b: ['P', 0], len: 1, loss: 0 }] });
+      for (const M of R.mz) {
+        const xs = [], ys = [], gs = [];
+        for (const r of M.rows) {
+          const P = [0, 1, 2, 3].map(s => { J.load(mz(M, r.dL_mm, s)); return J.fibrePd('PD'); });
+          const mean = (P[0] + P[1] + P[2] + P[3]) / 4, V = Math.hypot(P[0] - P[2], P[1] - P[3]) / 2 / mean, tag = M.lineshape === 'gauss' ? 'Gaussian' : 'Lorentzian';
+          checks.push(check(tag + ' line, arms ' + r.dL_mm + ' mm apart: visibility', r.V, V, { abs: 1e-4 }));
+          checks.push(check(tag + ' line, arms ' + r.dL_mm + ' mm apart: mean power', M.P0_mW / 2, mean, { abs: 1e-5 }, ' mW'));
+          xs.push(r.dL_mm); ys.push(r.V); gs.push(V);
+          if (r.dL_mm === 400) benches.push(['Mach–Zehnder, ' + tag + ' line, 400 mm', mz(M, r.dL_mm, 0)]);
+        }
+        const dd = Array.from({ length: 161 }, (_, i) => 5 * i), x = d => Math.PI * M.n_g * d / M.Lc_mm;
+        plots.push(plot({ title: 'Fringe visibility, ' + (M.lineshape === 'gauss' ? 'Gaussian' : 'Lorentzian') + ' line, coherence length 1 m', xlabel: 'arm length difference (mm)', ylabel: 'visibility', yMin: 0, yMax: 1,
+          series: [{ name: 'Wiener–Khinchin', x: dd, y: dd.map(d => M.lineshape === 'gauss' ? Math.exp(-(x(d) ** 2) / (4 * Math.LN2)) : Math.exp(-x(d))), colour: REF_C, width: 2.4 }, { name: 'JEKray', x: xs, y: gs, colour: GOT_C, dots: true }] }));
+      }
+      return { checks, benches, plots, notes: 'The round-trip phase is set by the loop’s length, at JEKray’s fibre index of 1.468 (an assumption the reference does not need: it takes the phase as given). The delay between the arms is n_g ΔL / c with JEKray’s group index, also 1.468; the coherence length is c over the linewidth. The visibility is found from four powers a quarter-wave of arm apart.' };
+    },
+  },
+  {
+    id: 'aom', area: 'Detection and electronics', title: 'An acousto-optic modulator: Bragg angle, frequency shift and efficiency against drive',
+    kind: 'Textbook: closed forms', ref: 'aom-heterodyne.json', script: 'aom_heterodyne.py',
+    cite: 'B. E. A. Saleh and M. C. Teich, Fundamentals of Photonics (Wiley), the chapter on acousto-optics; A. Yariv, Optical Electronics (Saunders), the chapter on the interaction of light and sound.',
+    what: 'Sound of frequency f at speed v writes a moving grating of period Λ = v/f. A free-space AOM met at the Bragg angle, sin θ_B = λ/2Λ, sends its first order out at +θ_B on the other side of the normal: 32 combinations of wavelength (532 to 1550 nm), drive (40 to 200 MHz) and sound speed (TeO₂’s 4200 m/s and its slow shear 650 m/s). The order is shifted by +f: in a fibre heterodyne interferometer (1 mW split equally, one arm through an 80 MHz AOM, the other through 3 dB, joined by a 50% coupler), the photodiode sees P₁ + P₂ + 2√(P₁P₂) cos 2πft; through the AOM twice (a circulator and a fibre mirror) the beat moves to 2f. And in the Bragg regime the diffracted share rises as sin²(πV/2V_sat) with the drive’s amplitude V: a DC level on the fibre AOM’s RF input, V_sat = 1 V.',
+    tolerance: 'Each angle within 0.001°; the beat’s frequency within 1 Hz, its amplitude and the mean power within 0.1%; the diffracted share within 1 × 10⁻⁶ at each drive.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      let worstAng = 0, worstAt = '';
+      for (const b of R.bragg) {
+        const th = b.theta_B_deg, rad = Math.PI / 180;
+        const d = bench('AOM at the Bragg angle: ' + b.nm + ' nm, ' + b.mhz + ' MHz, ' + b.v + ' m/s', [
+          { type: 'source', name: 'Beam', x: -50 * Math.cos(th * rad), y: 50 * Math.sin(th * rad), angle: -th, wavelength: b.nm, width: 0.1, rays: 1 },
+          { type: 'aom', name: 'AOM', x: 0, y: 0, angle: 0, length: 10, rf: b.mhz, v: b.v, eff: 100, order: 1 },
+          { type: 'screen', name: 'Screen', x: 80, y: 0, angle: 180, length: 200 }]);
+        const p = paths(J, d)[0], [x0, y0, x1, y1] = lastSeg(p), out = Math.atan2(y1 - y0, x1 - x0) / rad;
+        checks.push(check(b.nm + ' nm, ' + b.mhz + ' MHz, ' + b.v + ' m/s: first order leaves at', b.out_deg, out, { abs: 0.001 }, '°'));
+        if (Math.abs(out - b.out_deg) >= worstAng) { worstAng = Math.abs(out - b.out_deg); worstAt = b.nm + ' nm'; }
+        if (b.nm === 1064 && b.mhz === 80 && b.v === 650) benches.push(['Bragg angle, 1064 nm, 80 MHz, slow shear', d]);
+      }
+      const H = R.het, f = R.mhz * 1e6, F = (a, b, len) => ({ a, b, len: len || 1, loss: 0 });
+      const het = bench('Fibre heterodyne, 80 MHz AOM', [
+        { type: 'fcomp', kind: 'laser', id: 'L', name: 'Laser', x: -120, y: 0, angle: 0, power: 1, wavelength: 1550 },
+        { type: 'fcomp', kind: 'coupler', id: 'S', name: 'Splitter', x: -70, y: 0, angle: 0, ratio: 50, loss: 0 },
+        { type: 'fcomp', kind: 'aom', id: 'M', name: 'AOM', x: 0, y: 25, angle: 0, rf: R.mhz, loss: 0 },
+        { type: 'fcomp', kind: 'voa', id: 'V', name: 'Attenuator', x: 0, y: -25, angle: 0, att: 3 },
+        { type: 'fcomp', kind: 'coupler', id: 'C', name: 'Combiner', x: 70, y: 0, angle: 0, ratio: 50, loss: 0 },
+        { type: 'fcomp', kind: 'pd', id: 'P', name: 'Photodiode', x: 120, y: 2, angle: 0, material: 'custom', resp: 1, gain: 1e4 }],
+        { fibres: [F(['L', 0], ['S', 0]), F(['S', 2], ['M', 0]), F(['M', 1], ['C', 0]), F(['S', 3], ['V', 0]), F(['V', 1], ['C', 1]), F(['C', 2], ['P', 0], 0.5)] });
+      J.load(het); benches.push(['Fibre heterodyne', het]);
+      let S = J.pdSignal('Photodiode'), t = S.tones.reduce((a, q) => (!a || q.amp > a.amp ? q : a), null);
+      checks.push(check('Heterodyne: mean power', H.dc_mW, S.dc, { rel: 1e-3 }, ' mW'));
+      checks.push(check('Heterodyne: beat frequency', f, t ? t.f : NaN, { abs: 1 }, ' Hz'));
+      checks.push(check('Heterodyne: beat amplitude, 2√(P₁P₂)', H.beat_mW, t ? t.amp : NaN, { rel: 1e-3 }, ' mW'));
+      const dbl = bench('Fibre heterodyne, through an 80 MHz AOM twice', [
+        { type: 'fcomp', kind: 'laser', id: 'L', name: 'Laser', x: -120, y: 0, angle: 0, power: 1, wavelength: 1550 },
+        { type: 'fcomp', kind: 'coupler', id: 'S', name: 'Splitter', x: -80, y: 0, angle: 0, ratio: 50, loss: 0 },
+        { type: 'fcomp', kind: 'circ', id: 'Q', name: 'Circulator', x: -30, y: 25, angle: 0, loss: 0, iso: 80 },
+        { type: 'fcomp', kind: 'aom', id: 'M', name: 'AOM', x: 20, y: 25, angle: 0, rf: R.mhz, loss: 0 },
+        { type: 'fcomp', kind: 'fmir', id: 'R', name: 'Fibre mirror', x: 60, y: 25, angle: 0, rmax: 100, loss: 0 },
+        { type: 'fcomp', kind: 'voa', id: 'V', name: 'Attenuator', x: 0, y: -25, angle: 0, att: 3 },
+        { type: 'fcomp', kind: 'coupler', id: 'C', name: 'Combiner', x: 80, y: -10, angle: 0, ratio: 50, loss: 0 },
+        { type: 'fcomp', kind: 'pd', id: 'P', name: 'Photodiode', x: 120, y: -8, angle: 0, material: 'custom', resp: 1, gain: 1e4 }],
+        { fibres: [F(['L', 0], ['S', 0]), F(['S', 2], ['Q', 0]), F(['Q', 1], ['M', 0]), F(['M', 1], ['R', 0]), F(['Q', 2], ['C', 0]), F(['S', 3], ['V', 0]), F(['V', 1], ['C', 1]), F(['C', 2], ['P', 0], 0.5)] });
+      J.load(dbl); benches.push(['Through the AOM twice', dbl]);
+      S = J.pdSignal('Photodiode'); t = S.tones.reduce((a, q) => (!a || q.amp > a.amp ? q : a), null);
+      checks.push(check('Double pass: beat frequency', 2 * f, t ? t.f : NaN, { abs: 1 }, ' Hz'));
+      checks.push(check('Double pass: beat amplitude, 2√(P₁P₂)', H.beat_mW, t ? t.amp : NaN, { rel: 1e-3 }, ' mW'));
+      const xs = [], ys = [], gs = [];
+      for (const r of R.drive) {
+        const d = bench('Fibre AOM driven at ' + r.V + ' V (V_sat 1 V)', [
+          { type: 'fcomp', kind: 'laser', id: 'L', name: 'Laser', x: -60, y: 0, angle: 0, power: 1, wavelength: 1550 },
+          { type: 'fcomp', kind: 'aom', id: 'M', name: 'AOM', x: 0, y: 0, angle: 0, rf: R.mhz, loss: 0, vsat: R.vsat },
+          { type: 'elec', kind: 'dc', id: 'D', name: 'Drive', x: 0, y: 30, angle: 0, v: r.V },
+          { type: 'fcomp', kind: 'pd', id: 'P', name: 'Photodiode', x: 60, y: 0, angle: 0, material: 'custom', resp: 1, gain: 1000 }],
+          { fibres: [F(['L', 0], ['M', 0]), F(['M', 1], ['P', 0]), { a: ['D', 0], b: ['M', 2] }] });
+        J.load(d); const sig = J.elec.signal('Photodiode', 0), eta = sig ? sig.dc : NaN;     // 1 mW, 1 A/W, 1000 V/A: volts are the share
+        checks.push(check('Diffracted share at ' + r.V + ' V', r.eta, eta, { abs: 1e-6 }));
+        xs.push(r.V); ys.push(r.eta); gs.push(eta);
+        if (r.V === 0.5) benches.push(['AOM driven at 0.5 V', d]);
+      }
+      const vv = Array.from({ length: 201 }, (_, i) => i / 100);
+      plots.push(plot({ title: 'The fibre AOM’s diffracted share against its drive', xlabel: 'drive (V)', ylabel: 'share in the order', yMin: 0, yMax: 1,
+        series: [{ name: 'sin²(πV/2V_sat)', x: vv, y: vv.map(v => Math.sin(Math.PI * v / 2) ** 2), colour: REF_C, width: 2.4 }, { name: 'JEKray', x: xs, y: gs, colour: GOT_C, dots: true }] }));
+      return { checks, benches, plots, notes: 'JEKray treats the AOM as a thin grating moving at the sound’s speed, its efficiency set by the part (or by the drive); the angles therefore follow the grating equation at any incidence, and only at the Bragg angle are they also the Bragg-regime result. The drive is the amplitude of the RF, taken proportional to the sound’s, as the sin² law assumes. The fibres here have no loss, so the powers are exact.' };
+    },
+  },
+  {
+    id: 'detection', area: 'Detection and electronics', title: 'A photodiode’s noise, Butterworth filters and a lock-in amplifier',
+    kind: 'Papers and textbook: closed forms', ref: 'detection-electronics.json', script: 'detection_electronics.py',
+    cite: 'W. Schottky, Annalen der Physik 57, 541–567 (1918); J. B. Johnson, Physical Review 32, 97–109 (1928); H. Nyquist, Physical Review 32, 110–113 (1928); P. Horowitz and W. Hill, The Art of Electronics (3rd ed., Cambridge, 2015), chapters 6 and 8.',
+    what: 'A fibre photodiode (0.8 A/W, 1 nA dark, a 10 kΩ transimpedance, 2 pA/√Hz amplifier noise, 1 MHz bandwidth) at 1 µW to 10 mW: its shot noise 2q(I + I_d)B_n, the feedback resistor’s Johnson noise 4kT B_n/R and the amplifier’s i_n²B_n, B_n the single pole’s noise-equivalent bandwidth (π/2)B found by quadrature, T = 295 K; and its signal-to-noise ratio. A 1 V sine from 10 Hz to 100 kHz through Butterworth low-pass filters of order 1, 2 and 4 and high-pass filters of order 1 and 3 (corner 1 kHz), and band-pass filters of order 1 and 2 (1 kHz centre, 200 Hz wide): the gain and phase, against scipy’s analogue designs. A lock-in amplifier (τ = 0.1 s): the equivalent noise bandwidth of its 1 to 4 pole filter, ∫|H|² df by quadrature; the noise on X from 100 nV/√Hz white noise, e_n√ENBW; and a 1 V sine at 1 kHz through a first-order 2 kHz low-pass, R = |H|/√2 and θ = arg H.',
+    tolerance: 'Each noise part within 0.1% and the signal-to-noise ratio within 0.01 dB; each gain within 1 × 10⁻⁶ of itself and each phase within 0.001°; the ENBW within 1 × 10⁻⁶ of itself, the noise on X within 1%, R within 1 × 10⁻⁶ of itself and θ within 0.001°.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      const D = R.pd;
+      for (const r of D.rows) {
+        const d = bench('Fibre photodiode at ' + r.P_mW + ' mW', [
+          { type: 'fcomp', kind: 'laser', id: 'L', name: 'Laser', x: -40, y: 0, angle: 0, power: r.P_mW, wavelength: 1550 },
+          { type: 'fcomp', kind: 'pd', id: 'P', name: 'Photodiode', x: 40, y: 0, angle: 0, material: 'custom', resp: D.resp, gain: D.gain, bandwidth: D.bandwidth, dark: D.dark_nA, ampNoise: D.ampNoise_pA, vmax: 1e6 }],
+          { fibres: [{ a: ['L', 0], b: ['P', 0], len: 1, loss: 0 }] });
+        J.load(d); const N = J.pdSignal('Photodiode').noise, tag = r.P_mW + ' mW';
+        checks.push(check(tag + ': shot noise, 2q(I + I_d)B_n', r.shot_A2, N ? N.parts.shot : NaN, { rel: 1e-3 }, ' A²'));
+        checks.push(check(tag + ': Johnson noise, 4kT B_n / R', r.thermal_A2, N ? N.parts.thermal : NaN, { rel: 1e-3 }, ' A²'));
+        checks.push(check(tag + ': amplifier noise, i_n² B_n', r.amp_A2, N ? N.parts.amp : NaN, { rel: 1e-3 }, ' A²'));
+        checks.push(check(tag + ': signal to noise', r.snr_dB, N ? N.snr : NaN, { abs: 0.01 }, ' dB'));
+        if (r.P_mW === 1) benches.push(['Photodiode at 1 mW', d]);
+      }
+      const wrap = x => ((x + 180) % 360 + 360) % 360 - 180;
+      for (const Fl of R.filters) {
+        const tag = { lpf: 'Low-pass', hpf: 'High-pass', bpf: 'Band-pass' }[Fl.kind] + ', order ' + Fl.order, fx = [], gy = [], ry = [];
+        for (const r of Fl.rows) {
+          const d = bench(tag + ' filter, ' + r.f + ' Hz', [
+            { type: 'elec', kind: 'sig', id: 'G', name: 'Generator', x: 0, y: 0, angle: 0, wave: 'sine', f: r.f, amp: 1 },
+            Object.assign({ type: 'elec', kind: Fl.kind, id: 'F', name: 'Filter', x: 40, y: 0, angle: 0, order: Fl.order }, Fl.kind === 'bpf' ? { f0: Fl.f0, bw: Fl.bw } : { fc: Fl.fc })],
+            { fibres: [{ a: ['G', 0], b: ['F', 0] }] });
+          J.load(d); const o = J.elec.signal('Filter', 0), q = o && o.tones.find(t => Math.abs(t.f - r.f) < 1e-6 * r.f);
+          const mag = q ? q.amp : 0, ph = q ? wrap((q.ph + Math.PI / 2) * 180 / Math.PI) : NaN;
+          checks.push(check(tag + ' at ' + r.f + ' Hz: gain', r.mag, mag, { rel: 1e-6 }));
+          checks.push(check(tag + ' at ' + r.f + ' Hz: phase, off by', 0, wrap(ph - r.phase_deg), { abs: 0.001 }, '°'));
+          fx.push(r.f); ry.push(r.mag); gy.push(mag);
+          if (r.f === 1000 && Fl.order === 2) benches.push([tag + ' at 1 kHz', d]);
+        }
+        if (Fl.kind === 'lpf' && Fl.order === 4 || Fl.kind === 'bpf' && Fl.order === 2) plots.push(plot({ title: tag + ' filter: gain', xlabel: 'frequency (Hz)', ylabel: 'gain', logY: true, yMin: 1e-8, yMax: 1,
+          series: [{ name: 'scipy', x: fx, y: ry, colour: REF_C, width: 2.4 }, { name: 'JEKray', x: fx, y: gy, colour: GOT_C, dots: true }] }));
+      }
+      await idle();
+      const L = R.lockin;
+      for (const r of L.rows) {
+        const d = bench('Lock-in, ' + r.n + ' poles, on white noise', [
+          { type: 'elec', kind: 'noise', id: 'N', name: 'Noise', x: 0, y: 10, angle: 0, psd: L.en * 1e9, bw: 1e6 },
+          { type: 'elec', kind: 'sig', id: 'G', name: 'Reference', x: 0, y: -10, angle: 0, wave: 'sine', f: 1000, amp: 1 },
+          { type: 'elec', kind: 'lockin', id: 'K', name: 'Lock-in', x: 40, y: 0, angle: 0, tau: L.tau, slope: r.n }],
+          { fibres: [{ a: ['N', 0], b: ['K', 0] }, { a: ['G', 1], b: ['K', 1] }] });
+        J.load(d); const K = J.elec.lockin('Lock-in');
+        checks.push(check('Lock-in, ' + r.n + ' pole' + (r.n > 1 ? 's' : '') + ': ENBW', r.enbw, K ? K.enbw : NaN, { rel: 1e-6 }, ' Hz'));
+        checks.push(check('Lock-in, ' + r.n + ' pole' + (r.n > 1 ? 's' : '') + ': noise on X', r.sigma * 1e9, K ? K.sigma * 1e9 : NaN, { rel: 0.01 }, ' nV'));
+        if (r.n === 2) benches.push(['Lock-in on white noise', d]);
+      }
+      const T = L.through_lpf, d = bench('Lock-in reading a sine through a low-pass', [
+        { type: 'elec', kind: 'sig', id: 'G', name: 'Generator', x: 0, y: 0, angle: 0, wave: 'sine', f: T.f, amp: 1 },
+        { type: 'elec', kind: 'lpf', id: 'F', name: 'Low-pass', x: 30, y: 0, angle: 0, fc: T.fc, order: 1 },
+        { type: 'elec', kind: 'lockin', id: 'K', name: 'Lock-in', x: 60, y: 0, angle: 0, tau: L.tau, slope: 2 }],
+        { fibres: [{ a: ['G', 0], b: ['F', 0] }, { a: ['F', 1], b: ['K', 0] }, { a: ['G', 1], b: ['K', 1] }] });
+      J.load(d); const K = J.elec.lockin('Lock-in'); benches.push(['Lock-in through a low-pass', d]);
+      checks.push(check('Lock-in through the low-pass: R', T.R, K ? K.R : NaN, { rel: 1e-6 }, ' V'));
+      checks.push(check('Lock-in through the low-pass: θ', T.theta_deg, K ? K.theta : NaN, { abs: 0.001 }, '°'));
+      return { checks, benches, plots, notes: 'JEKray takes the temperature as 295 K for the Johnson noise, and so does the reference. The noise is checked part by part as JEKray reports it over the noise bandwidth; the photodiode’s signal to noise is its photocurrent squared over the total. The lock-in’s noise on X comes from the density it finds at the lowest frequency of its grid, 0.01 Hz, after the mixer has moved the noise beside 1 kHz down to it.' };
+    },
+  },
 ];
 
 /* ---------- Running and reporting ---------- */

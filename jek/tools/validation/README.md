@@ -36,6 +36,11 @@ scripts that made them. The page itself runs JEKray live against these files.
 | `ref/jones-calculus.json` | `scripts/jones_calculus.py` | Jones, J. Opt. Soc. Am. 31, 488 (1941): polarisers and wave plates as 2 x 2 matrices, Malus's law |
 | `ref/wollaston.json` | `scripts/wollaston.py` | A calcite Wollaston prism's two beams by exact refraction, calcite's indices from Ghosh, Opt. Commun. 163, 95 (1999) |
 | `ref/tir-rhomb.json` | `scripts/tir_rhomb.py` | Total internal reflection's phase between s and p, and Fresnel's rhomb (Born & Wolf, §1.5.4), N-BK7 |
+| `ref/corrugated-horn.json` | `scripts/corrugated_horn.py` | Wylde, IEE Proc. H 131, 258 (1984), and Goldsmith, Quasioptical Systems (1998), ch. 6–7: the HE11 field's fundamental Gaussian, a corrugated receiver's coupling and the far field, by quadrature |
+| `ref/gaussian-coupling.json` | `scripts/gaussian_coupling.py` | Goldsmith, Quasioptical Systems (1998), ch. 4: two Gaussian horns' coupling against separation, waist mismatch, offset and tilt |
+| `ref/fibre-ring-coherence.json` | `scripts/fibre_ring_coherence.py` | A fibre ring's through power (Yariv, Electron. Lett. 36, 321 (2000)); a fibre Mach-Zehnder's visibility against a Lorentzian or Gaussian laser line (Goodman, Statistical Optics (1985), ch. 5) |
+| `ref/aom-heterodyne.json` | `scripts/aom_heterodyne.py` | An AOM's Bragg angle, its shift seen as a heterodyne beat (single and double pass), and its sin² efficiency against drive |
+| `ref/detection-electronics.json` | `scripts/detection_electronics.py` | Shot (Schottky 1918), Johnson (Johnson; Nyquist 1928) and amplifier noise over a single pole's noise bandwidth; Butterworth filters (scipy.signal); a lock-in's ENBW, noise and phase |
 
 ## Making them again
 
@@ -77,6 +82,11 @@ numpy instead.
     python scripts/jones_calculus.py
     python scripts/wollaston.py
     python scripts/tir_rhomb.py
+    python scripts/corrugated_horn.py
+    python scripts/gaussian_coupling.py
+    python scripts/fibre_ring_coherence.py
+    python scripts/aom_heterodyne.py
+    python scripts/detection_electronics.py
 
 ## Rules
 

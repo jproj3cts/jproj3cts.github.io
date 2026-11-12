@@ -5563,12 +5563,12 @@ const TESTS = [
   },
   {
     name: 'A field splits the lines as the sum rules say, weak or strong',
-    why: 'rubidium in 50 G and 2000 G: the strength-weighted centres of the σ+ and σ− lines lie about 2 × 7/6 μB B apart on D2 and 2 × 4/3 μB B on D1 (exactly, from Landé’s g), whatever the hyperfine mixing, each hand’s strengths averaging one per ground state (worst relative error)',
+    why: 'rubidium in 50 G and 2000 G: the strength-weighted centres of the σ+ and σ− lines lie about 2 × 7/6 μB B apart on D2 and 2 × 4/3 μB B on D1 (exactly, from the excited states’ Landé g and the ground state’s measured g_J), whatever the hyperfine mixing, each hand’s strengths averaging one per ground state (worst relative error)',
     want: 0, tol: 1e-6, unit: '',
     run: J => {
-      // Landé's g: P3/2 (2 gL + gS)/3, about 4/3; P1/2 (4 gL - gS)/3, about 2/3
-      const gS = 2.00231930436, gL = 0.99999369, gP32 = (2 * gL + gS) / 3, gP12 = (4 * gL - gS) / 3;
-      const want = { D2: 2 * ((1 / 3) * (gP32 / 2 + gS / 2) + (1.5 * gP32 - gS / 2)) / (4 / 3), D1: 2 * (gP12 / 2 + gS / 2) };
+      // Landé's g: P3/2 (2 gL + gS)/3, about 4/3; P1/2 (4 gL - gS)/3, about 2/3; the ground state's g_J as measured (Steck)
+      const gS = 2.00231930436, gL = 0.99999369, gG = 2.00233113, gP32 = (2 * gL + gS) / 3, gP12 = (4 * gL - gS) / 3;
+      const want = { D2: 2 * ((1 / 3) * (gP32 / 2 + gG / 2) + (1.5 * gP32 - gG / 2)) / (4 / 3), D1: 2 * (gP12 / 2 + gG / 2) };
       let worst = 0;
       for (const line of ['D2', 'D1']) for (const B of [50, 2000]) {
         const L = J.zeemanLines('Rb', line, B), cen = q => { let s = 0, w = 0; for (const a of L) if (a.q === q) { s += a.share * a.S * a.nu; w += a.share * a.S; } return [s / w, w]; };
@@ -5580,10 +5580,10 @@ const TESTS = [
   },
   {
     name: 'Rubidium 87’s ground state follows Breit and Rabi into the Paschen–Back regime',
-    why: 'its eight levels at 1000 G, from diagonalising the hyperfine and Zeeman energy, against the Breit–Rabi formula (worst, MHz)',
+    why: 'its eight levels at 1000 G, from diagonalising the hyperfine and Zeeman energy, against the Breit–Rabi formula with Steck’s measured g_J (worst, MHz)',
     want: 0, tol: 1e-6, unit: ' MHz',
     run: J => {
-      const B = 1000, I = 1.5, dE = 3417.341305452 * (I + 0.5), gJ = 2.00231930436, gI = -0.0009951414, muB = 1.39962449361, x = (gJ - gI) * muB * B / dE;
+      const B = 1000, I = 1.5, dE = 3417.341305452 * (I + 0.5), gJ = 2.00233113, gI = -0.0009951414, muB = 1.39962449361, x = (gJ - gI) * muB * B / dE;
       const br = (m, sg) => -dE / (2 * (2 * I + 1)) + gI * muB * m * B + sg * dE / 2 * Math.sqrt(1 + 4 * m * x / (2 * I + 1) + x * x);
       // the stretched states, m = ±2, are the formula's with the root taken as 1 ± x
       const stretched = m => -dE / (2 * (2 * I + 1)) + gI * muB * m * B + dE / 2 * (1 + Math.sign(m) * x);

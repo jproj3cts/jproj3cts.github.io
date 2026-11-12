@@ -6250,7 +6250,10 @@ function atomLines(atom, line) {
    strength is 3 (2J+1) |sum c_g c_e <J' m_J'|d_q|J m_J>|^2, so the strengths of either
    hand from each ground state average one, as the field-free lines' do. */
 const MU_B = 1.39962449361;                         // Bohr magneton / h, MHz per gauss
-const ZEE_G = { gS: 2.00231930436, gI: { Rb85: -0.00029364000, Rb87: -0.0009951414, Cs133: -0.00039885395, K39: -0.00014193489, K41: -0.00007790600 } };
+const ZEE_G = { gS: 2.00231930436, gI: { Rb85: -0.00029364000, Rb87: -0.0009951414, Cs133: -0.00039885395, K39: -0.00014193489, K41: -0.00007790600 },
+  // the ground state's g_J as measured (Steck's Rb and Cs data; Tiecke's potassium), which the
+  // electron's own g_S misses by 1e-5 (Rb) to 1e-4 (Cs): 0.15 MHz on caesium's levels at 1000 G
+  gJS: { Rb85: 2.00233113, Rb87: 2.00233113, Cs133: 2.00254032, K39: 2.00229421, K41: 2.00229421 } };
 const zeeGJ = (L, J) => { const gL = 0.99999369, S = 0.5, Lq = L; return gL * (J * (J + 1) - S * (S + 1) + Lq * (Lq + 1)) / (2 * J * (J + 1)) + ZEE_G.gS * (J * (J + 1) + S * (S + 1) - Lq * (Lq + 1)) / (2 * J * (J + 1)); };
 /* the Wigner 3j symbol, by Racah's formula (half-integer arguments allowed) */
 function threej(j1, j2, j3, m1, m2, m3) {
@@ -6286,7 +6289,7 @@ function zeemanStates(iso, level, B) {
   const X = ATOM_ISO[iso], I = X.I;
   const J = level === 'S' ? 0.5 : level === 'D1' ? 0.5 : 1.5, Lq = level === 'S' ? 0 : 1;
   const A = level === 'S' ? X.Ag : X[level].Ae, Bq = level === 'D2' ? X[level].Be : 0;
-  const gJ = zeeGJ(Lq, J), gI = ZEE_G.gI[iso] || 0, out = [];
+  const gJ = level === 'S' && ZEE_G.gJS[iso] ? ZEE_G.gJS[iso] : zeeGJ(Lq, J), gI = ZEE_G.gI[iso] || 0, out = [];
   const ms = j => { const v = []; for (let m = -j; m <= j + 1e-9; m++) v.push(m); return v; };
   const lad = (j, m, up) => Math.sqrt(Math.max(0, j * (j + 1) - m * (m + (up ? 1 : -1))));
   for (let mF = -(I + J); mF <= I + J + 1e-9; mF++) {
@@ -54654,6 +54657,7 @@ const NEWS = [
     'The 3D view\u2019s <b>Model</b> tools (sketches extruded and revolved) are gone: objects come onto the bench by importing them (.stl, .step), and a CAD app of our own is in development. A part modelled with them before opens as the fixed object it made, where it was.',
     '<b>Coatings are designed in JEKfilm</b>, the new coating designer, in its own tab. A face\u2019s <b>Design a coating in JEKfilm\u2026</b> (and Tools \u203a Coating design in JEKfilm\u2026) opens it on that face\u2019s glass and stack; saved to the cloud in the bench\u2019s folder, the coating comes back onto the face. An RF lens\u2019s matching layer is still designed here. Coatings you kept by name are still in every face\u2019s Coating list, and JEKfilm can open them.',
     '<b>JEKfilm coatings on a face.</b> A face\u2019s Coating list offers the JEKfilm coatings (\u25c6) kept in the cloud bench\u2019s folder, and a .jekfilm file from your computer. The face keeps a copy of the stack, linked to the coating: when the coating is saved again in JEKfilm, the bench offers to update its faces.',
+    'Fixed: a vapour cell in a magnetic field puts the ground state\u2019s levels where they are measured to be. It took the electron\u2019s own g-factor for the ground state; the measured g<sub>J</sub> (Steck\u2019s, Tiecke\u2019s) is larger by 1 part in 10<sup>5</sup> for rubidium and 1 in 10<sup>4</sup> for caesium, which moved caesium\u2019s levels by 0.15 MHz at 1000 G. The validation page compares them with the Breit\u2013Rabi formula.',
     'Fixed: a sweep that renders the diffracted field keeps every frame it rendered through what does not change the light: pausing and playing again, moving a part the light never reaches (or a drawing), changing <b>Field intensity</b> (linear or logarithmic is how the field is drawn, so it is drawn again at once) and the Light ticks. An edit that does change the light renders the field again for the bench as it now is and plays on. In 3D every step of the sweep is kept (a sweep of 120 steps lost its first ones each cycle), and its steps share one brightness scale, so light before an absorber whose density is swept stays as bright while the light after it dims.',
     'Fixed: turning the 3D view while a sweep plays stayed choppy with an oscilloscope showing in Roll (each step solved its circuit again, tracing the bench for every photodiode, at ten frames a second): a beam that lands well inside a round part is no longer summed point by point, an amplifier\u2019s clipping check is worked out once and from a table, and while sweeps play the scope solves afresh only as often as it can without taking the view\u2019s frames.',
     'Fixed: in 3D, turning the view while a sweep plays is smooth: the view is drawn once a frame however fast the pointer moves, and a sweep\u2019s step that leaves the light and the cables where they were keeps their models and shadows rather than making them again.',

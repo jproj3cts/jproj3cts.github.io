@@ -11,7 +11,10 @@ import { cellPumps } from '../engines/trace.js';
    strength is 3 (2J+1) |sum c_g c_e <J' m_J'|d_q|J m_J>|^2, so the strengths of either
    hand from each ground state average one, as the field-free lines' do. */
 export const MU_B = 1.39962449361;                         // Bohr magneton / h, MHz per gauss
-const ZEE_G = { gS: 2.00231930436, gI: { Rb85: -0.00029364000, Rb87: -0.0009951414, Cs133: -0.00039885395, K39: -0.00014193489, K41: -0.00007790600 } };
+const ZEE_G = { gS: 2.00231930436, gI: { Rb85: -0.00029364000, Rb87: -0.0009951414, Cs133: -0.00039885395, K39: -0.00014193489, K41: -0.00007790600 },
+  // the ground state's g_J as measured (Steck's Rb and Cs data; Tiecke's potassium), which the
+  // electron's own g_S misses by 1e-5 (Rb) to 1e-4 (Cs): 0.15 MHz on caesium's levels at 1000 G
+  gJS: { Rb85: 2.00233113, Rb87: 2.00233113, Cs133: 2.00254032, K39: 2.00229421, K41: 2.00229421 } };
 const zeeGJ = (L, J) => { const gL = 0.99999369, S = 0.5, Lq = L; return gL * (J * (J + 1) - S * (S + 1) + Lq * (Lq + 1)) / (2 * J * (J + 1)) + ZEE_G.gS * (J * (J + 1) + S * (S + 1) - Lq * (Lq + 1)) / (2 * J * (J + 1)); };
 /* the Wigner 3j symbol, by Racah's formula (half-integer arguments allowed) */
 function threej(j1, j2, j3, m1, m2, m3) {
@@ -47,7 +50,7 @@ export function zeemanStates(iso, level, B) {
   const X = ATOM_ISO[iso], I = X.I;
   const J = level === 'S' ? 0.5 : level === 'D1' ? 0.5 : 1.5, Lq = level === 'S' ? 0 : 1;
   const A = level === 'S' ? X.Ag : X[level].Ae, Bq = level === 'D2' ? X[level].Be : 0;
-  const gJ = zeeGJ(Lq, J), gI = ZEE_G.gI[iso] || 0, out = [];
+  const gJ = level === 'S' && ZEE_G.gJS[iso] ? ZEE_G.gJS[iso] : zeeGJ(Lq, J), gI = ZEE_G.gI[iso] || 0, out = [];
   const ms = j => { const v = []; for (let m = -j; m <= j + 1e-9; m++) v.push(m); return v; };
   const lad = (j, m, up) => Math.sqrt(Math.max(0, j * (j + 1) - m * (m + (up ? 1 : -1))));
   for (let mF = -(I + J); mF <= I + J + 1e-9; mF++) {

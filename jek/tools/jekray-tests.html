@@ -4359,6 +4359,19 @@ const TESTS = [
     },
   },
   {
+    name: 'A beam of M\u00b2 = 4 keeps all its modes past a lens',
+    why: 'its 36 modes take 72 segments: the cap of 60 is each mode\u2019s, so none is dropped; past an ideal 150 mm lens 300 mm on, Siegman\u2019s width M w(z) of the embedded Gaussian, 100 mm past the lens',
+    want: (() => { const lam = 1064e-6, zR = Math.PI * 0.0625 / lam, qr = 300, qi = zR, ar = 1 - qr / 150, ai = -qi / 150, dn = ar * ar + ai * ai, nr = (qr * ar + qi * ai) / dn + 100, ni = (qi * ar - qr * ai) / dn; return 2 * Math.sqrt(lam * (nr * nr + ni * ni) / (Math.PI * ni)); })(),
+    tol: 1e-3, rel: true, unit: ' mm',
+    run: J => {
+      J.load(bench('m2 lens', [src({ x: -50, rays: 1, width: 1, wavelength: 1064, gauss: true, w0: 0.5, z0: 50, m2: 4, pol: 's' }),
+        { type: 'mask', name: 'L', x: 300, y: 0, angle: 0, length: 25.4, amp: '1', delay: '-(r^2)/(300*lambda)', preset: 'custom' },
+        screen({ name: 'S', x: 400, length: 20 })], { minPower: 1e-6 }));
+      const D = J.diffraction('S');
+      return Math.abs(D.power - 1) < 1e-3 ? D.wx : NaN;
+    },
+  },
+  {
     name: 'A Fabry\u2013Perot fed by a broad line transmits its average',
     why: 'Lorentzian line of Lc = 5 m: T1 T2 (1 + \u03c1) / ((1 \u2212 r\u00b2)(1 \u2212 \u03c1)), r = \u221a(R1 R2), \u03c1 = r e^{\u2212\u03c0 Lrt / Lc}',
     want: (() => { const r = Math.sqrt(0.99 * 0.999), rho = r * Math.exp(-Math.PI * 500 / 5000); return 1e-5 * (1 + rho) / ((1 - r * r) * (1 - rho)); })(),

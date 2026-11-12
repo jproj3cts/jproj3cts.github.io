@@ -316,6 +316,158 @@ const ALL_CASES = [
     },
   },
   {
+    id: 'embedded-gaussian', area: 'Gaussian beams and resonators', title: 'A beam of M² = 4 and its embedded Gaussian',
+    kind: 'Textbook: closed forms', ref: 'embedded-gaussian.json', script: 'embedded_gaussian.py',
+    cite: 'A. E. Siegman, Lasers (University Science Books, 1986), chapter 17; A. E. Siegman, “New developments in laser resonators”, Proceedings of SPIE 1224, 2–14 (1990).',
+    what: 'A beam at 1064 nm of beam quality M² = 4, its second-moment waist W₀ = 0.5 mm (W = 2σ, twice the standard deviation of the irradiance across the beam). Siegman showed that any such beam’s width follows W(z)² = W₀² + (M²λ/πW₀)² z² exactly, and that through any paraxial optics it stays M times the width of an embedded Gaussian of waist W₀/M that obeys the ordinary ABCD law. Compared: the width in free space out to 800 mm (the Rayleigh range is 184.5 mm), and through an ideal lens of 150 mm focal length 300 mm past the waist, where the new waist falls 209.7 mm past the lens (a TEM₀₀ beam of the same 0.5 mm waist would put it at 155.9 mm). The reference works the width after the lens out both ways, the embedded Gaussian’s q and the second-moment matrix law, and they agree. JEKray launches the beam as a sum of Hermite–Gauss modes of the embedded Gaussian added as powers (a Gaussian Schell-model beam), propagates each mode’s field, and gives the width from the second moments of their summed irradiance on a screen.',
+    tolerance: 'Each width within 1%.',
+    async run(J, R) {
+      const checks = [], benches = [], xs = [[], []], ys = [[], []];
+      for (const r of R.rows) {
+        const els = [{ type: 'source', name: 'Laser', x: -50, y: 0, angle: 0, wavelength: R.lambda_nm, width: 1, gauss: true, w0: R.W0_mm, z0: 50, m2: R.M2, pol: 's', rays: 1, power: 1 }];
+        if (r.after_lens) els.push({ type: 'mask', name: 'Ideal lens, f 150 mm', x: R.lens_at_mm, y: 0, angle: 0, length: 25.4, amp: '1', delay: '-(r^2)/(' + 2 * R.f_mm + '*lambda)', preset: 'custom' });
+        els.push({ type: 'screen', name: 'Screen', x: Math.max(r.z_mm, 1e-3), y: 0, angle: 180, length: 20 });
+        const data = bench('M² = 4, W₀ 0.5 mm, 1064 nm: ' + (r.after_lens ? fmt(r.past_lens_mm, 5) + ' mm past a 150 mm lens' : fmt(r.z_mm, 5) + ' mm from the waist') + ' (Siegman)', els, { minPower: 1e-6 });
+        J.load(data); const D = J.diffraction('Screen');
+        const tag = r.after_lens ? fmt(r.past_lens_mm, 5) + ' mm past the lens' + (Math.abs(r.past_lens_mm - R.waist_after_lens_mm) < 1e-6 ? ' (its new waist)' : '') : fmt(r.z_mm, 5) + ' mm from the waist';
+        checks.push(check(tag + ': width W', r.W_mm, D ? D.wx : NaN, { rel: 0.01 }, ' mm'));
+        xs[+r.after_lens].push(r.z_mm); ys[+r.after_lens].push(D ? D.wx : NaN);
+        if (r.z_mm === 400 && !r.after_lens || r.after_lens && Math.abs(r.past_lens_mm - R.waist_after_lens_mm) < 1e-6) benches.push([tag, data]);
+        await idle();
+      }
+      const zf = Array.from({ length: 81 }, (_, i) => i * 10), zl = Array.from({ length: 51 }, (_, i) => R.lens_at_mm + i * 8);
+      const Wf = z => R.W0_mm * Math.sqrt(1 + (z / R.zR_mm) ** 2);
+      const We = z => { let qr = R.lens_at_mm, qi = R.zR_mm; const ar = 1 - qr / R.f_mm, ai = -qi / R.f_mm, dn = ar * ar + ai * ai; const nr = (qr * ar + qi * ai) / dn + (z - R.lens_at_mm), ni = (qi * ar - qr * ai) / dn; return Math.sqrt(R.M2) * Math.sqrt(1064e-6 * (nr * nr + ni * ni) / (Math.PI * ni)); };
+      const plots = [plot({ title: 'Width of an M² = 4 beam: in free space, and after a 150 mm lens at 300 mm', xlabel: 'distance from the first waist (mm)', ylabel: 'width W = 2σ (mm)', yMin: 0,
+        series: [{ name: 'Siegman, free space', x: zf, y: zf.map(Wf), colour: REF_C, width: 2.4 }, { name: 'Siegman, after the lens', x: zl, y: zl.map(We), colour: '#6a3d9a', width: 2.4, dash: '4 3' },
+          { name: 'JEKray, free space', x: xs[0], y: ys[0], colour: GOT_C, dots: true }, { name: 'JEKray, after the lens', x: xs[1], y: ys[1], colour: '#b8860b', dots: true }] })];
+      return { checks, benches, plots, notes: 'The first run of this case found a fault in JEKray, now fixed: past the lens every width came out 4.0% narrow (0.5443 mm for 0.5669 mm 100 mm past it), and 5% of the light was missing. The field run caps a 2D bench at 60 segments, and the cap was shared by all of a beam’s modes, though each mode runs the whole tree of its own: the 36 modes of this beam needed 72 segments, so the 12 weakest, the widest, were dropped after the lens without a word. The cap is now each mode’s, as the estimate of the run’s cost already took it; the tolerance is the one first set. The lens is a thin phase mask, −r²/2fλ, so it is exactly the paraxial lens of the closed forms. In JEKray a source’s w0 with M² above 1 is the real beam’s second-moment waist; its embedded Gaussian is M times narrower, and its modes are weighted so that their mean of 2m + 1 is M² exactly.' };
+    },
+  },
+  {
+    id: 'fibre-coupling', area: 'Gaussian beams and resonators', title: 'Coupling a Gaussian beam into a single-mode fibre',
+    kind: 'Paper: closed forms', ref: 'fibre-coupling.json', script: 'fibre_coupling.py',
+    cite: 'W. B. Joyce and B. C. DeLoach, “Alignment of Gaussian beams”, Applied Optics 23, 4187–4196 (1984); D. Marcuse, “Loss analysis of single-mode fiber splices”, Bell System Technical Journal 56, 703–718 (1977), for the fibre’s mode.',
+    what: 'A Gaussian beam at 1550 nm into a single-mode fibre (core 8.2 µm, NA 0.14, V = 2.327), whose mode is the Gaussian of 1/e² radius 4.610 µm Marcuse’s formula gives. The share of the beam’s power the fibre takes in is the squared overlap of the two fields: here as the beam is moved across the face (0 to 8 µm), tilted to it (0.5° to 2°), made narrower or wider (0.5 to 2 times the mode) and focused short of the face (20 to 200 µm), and with all four at once. For two Gaussians the overlap is a Gaussian integral, done in closed form as Joyce and DeLoach do; the tilted beam is taken on the face as it lands, its footprint x cos θ and its phase kx sin θ, which at 2° differs from their small-angle form by 2 × 10⁻⁵. JEKray traces the beam to the tip and integrates the overlap of its field with the fibre’s mode across the face.',
+    tolerance: 'Each coupling efficiency within 2 × 10⁻⁴.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [], lab = { offset: [], tilt: [], waist: [], axial: [] };
+      for (const r of R.rows) {
+        const w0 = (r.w0_um || R.w_mode_um) * 1e-3, dz = (r.dz_um || 0) * 1e-3, off = (r.off_um || 0) * 1e-3, tilt = r.tilt_deg || 0;
+        const data = bench('Into a single-mode fibre at 1550 nm: ' + r.kind + ' (Joyce and DeLoach)', [
+          { type: 'source', name: 'Beam', x: -10, y: off, angle: 0, wavelength: R.lambda_nm, width: 0.05, gauss: true, w0, z0: 10 - dz, rays: 1, pol: 's', power: 1 },
+          { type: 'fibre', name: 'Fibre', x: 0, y: 0, angle: 180 + tilt, core: R.core_um, na: R.na }]);
+        J.load(data);
+        const eff = J.metric('Fibre', 'couple') / 100;
+        const tag = r.kind === 'offset' ? 'Offset ' + r.off_um + ' µm' : r.kind === 'tilt' ? 'Tilted ' + r.tilt_deg + '°' : r.kind === 'waist' ? 'Waist ' + fmt(r.w0_um, 4) + ' µm' : r.kind === 'axial' ? 'Waist ' + r.dz_um + ' µm short of the face' : 'Waist ' + fmt(r.w0_um, 4) + ' µm, ' + r.dz_um + ' µm short, offset ' + r.off_um + ' µm, tilted ' + r.tilt_deg + '° back towards the axis';
+        checks.push(check(tag + ': coupling efficiency', r.eta, eff, { abs: 2e-4 }));
+        if (lab[r.kind]) lab[r.kind].push([r.kind === 'offset' ? r.off_um : r.kind === 'tilt' ? r.tilt_deg : r.kind === 'waist' ? r.w0_um / R.w_mode_um : r.dz_um, r.eta, eff]);
+        if (r.kind === 'mixed' || r.kind === 'offset' && r.off_um === 4) benches.push([r.kind === 'mixed' ? 'All four at once' : 'Offset 4 µm', data]);
+      }
+      for (const [k, xl] of [['offset', 'offset across the face (µm)'], ['tilt', 'tilt (°)'], ['waist', 'beam waist / mode radius'], ['axial', 'waist short of the face (µm)']]) {
+        const L = lab[k];
+        plots.push(plot({ title: 'Coupling against ' + xl.split(' (')[0], xlabel: xl, ylabel: 'coupling efficiency', yMin: 0, yMax: 1,
+          series: [{ name: 'Overlap of two Gaussians', x: L.map(v => v[0]), y: L.map(v => v[1]), colour: REF_C, width: 2.4 }, { name: 'JEKray', x: L.map(v => v[0]), y: L.map(v => v[2]), colour: GOT_C, dots: true }] }));
+      }
+      return { checks, benches, plots, notes: 'The beam’s waist sits on the face’s centre, the tip turned about that point for the tilts. With the waist short of the face, offset and tilt do mix: the beam’s curved wavefront meets the fibre’s axis at a slope of its own, which adds to the tilt or takes from it. On the bench the beam runs 2 µm to one side of the fibre’s axis and, against that axis, back towards it; the first run of this case failed on that row alone (JEKray 0.6883 against 0.7343), because the reference had turned the tilt the other way, away from the axis (its efficiency then is ' + fmt(R.rows.find(r => r.kind === 'mixed').eta_tilted_away, 4) + '). The script now takes the tilt as the bench has it; JEKray and the tolerance are unchanged. Fresnel reflection at the fibre’s end is left out by both: JEKray’s efficiency is what enters the mode against what arrives.' };
+    },
+  },
+  {
+    id: 'fibre-mfd', area: 'Gaussian beams and resonators', title: 'A step-index fibre’s mode-field diameter against V',
+    kind: 'Paper: fit, and the exact mode', ref: 'fibre-mfd.json', script: 'fibre_mfd.py',
+    cite: 'D. Marcuse, “Loss analysis of single-mode fiber splices”, Bell System Technical Journal 56, 703–718 (1977); the weakly guiding LP₀₁ mode as in A. W. Snyder and J. D. Love, Optical Waveguide Theory (1983).',
+    what: 'JEKray gives a single-mode fibre’s mode as a Gaussian whose 1/e² radius is Marcuse’s fit, w/a = 0.65 + 1.619 V^−1.5 + 2.879 V^−6. Here a fibre of core 8.2 µm and NA 0.14 at V from 1.2 to 2.4 (wavelengths 3006 to 1503 nm). The reference solves the step-index fibre’s exact fundamental mode independently (the weakly guiding eigenvalue equation U J₁(U)/J₀(U) = W K₁(W)/K₀(W), the field J₀ in the core and K₀ outside) and finds the Gaussian that overlaps it best, which is what Marcuse’s formula approximates. Three readings from JEKray at each V: the waist of the beam a fibre launches, read on a screen 10 mm on, against Marcuse’s formula and against the exact mode’s best Gaussian; and how much of a beam focused to that best Gaussian a fibre tip takes in, which shows the tip’s mode is the formula’s.',
+    tolerance: 'The launched waist within 10⁻⁴ of Marcuse’s formula. Against the exact mode’s best Gaussian, within the formula’s own error at that V (from the script, up to 0.8%) plus 0.1%. The tip’s coupling within 10⁻⁵ of (2w_M w/(w_M² + w²))², w_M Marcuse’s radius and w the best Gaussian’s.',
+    async run(J, R) {
+      const checks = [], benches = [], got = [];
+      for (const r of R.rows) {
+        const nm = +r.nm.toFixed(4), tag = 'V = ' + r.V.toFixed(1) + ' (' + fmt(nm, 5) + ' nm)';
+        const ld = bench('Launch from a single-mode fibre, core 8.2 µm, NA 0.14, ' + fmt(nm, 5) + ' nm (Marcuse)', [
+          { type: 'source', name: 'Launch', x: 0, y: 0, angle: 0, wavelength: nm, rays: 1, pol: 's', fibre: { core: R.core_um, na: R.na } },
+          { type: 'screen', name: 'Screen', x: 10, y: 0, angle: 180, length: 20 }]);
+        J.load(ld); const st = J.stats('Screen'), w = st && st.beam ? st.beam.w0 * 1e3 : NaN;
+        got.push(w);
+        checks.push(check(tag + ': launched waist against Marcuse’s formula', r.w_marcuse_um, w, { rel: 1e-4 }, ' µm'));
+        checks.push(check(tag + ': launched waist against the exact mode’s best Gaussian', r.w_exact_um, w, { rel: +(Math.abs(r.fit_err) + 0.001).toPrecision(3) }, ' µm'));
+        const td = bench('A beam focused to the exact LP01 mode’s best Gaussian, into a fibre tip, ' + fmt(nm, 5) + ' nm', [
+          { type: 'source', name: 'Beam', x: -10, y: 0, angle: 0, wavelength: nm, width: 0.05, gauss: true, w0: r.w_exact_um * 1e-3, z0: 10, rays: 1, pol: 's', power: 1 },
+          { type: 'fibre', name: 'Fibre', x: 0, y: 0, angle: 180, core: R.core_um, na: R.na }]);
+        J.load(td);
+        checks.push(check(tag + ': the tip’s coupling of the best Gaussian', r.eta_tip, J.metric('Fibre', 'couple') / 100, { abs: 1e-5 }));
+        if (r.V === 2.4 || r.V === 1.2) benches.push([tag + ', launch', ld], [tag + ', into a tip', td]);
+        await idle();
+      }
+      const V = R.rows.map(r => r.V);
+      const plots = [plot({ title: 'Mode-field radius against V: core 8.2 µm, NA 0.14', xlabel: 'V', ylabel: '1/e² radius (µm)',
+        series: [{ name: 'Exact LP₀₁, best Gaussian', x: V, y: R.rows.map(r => r.w_exact_um), colour: REF_C, width: 2.4 }, { name: 'Marcuse’s formula', x: V, y: R.rows.map(r => r.w_marcuse_um), colour: '#6a3d9a', width: 2, dash: '4 3' },
+          { name: 'JEKray', x: V, y: got, colour: GOT_C, dots: true }] })];
+      return { checks, benches, plots, notes: 'Marcuse’s formula is within ' + fmt(100 * Math.max(...R.rows.map(r => Math.abs(r.fit_err))), 2) + '% of the exact mode’s best Gaussian across this range, and the coupling it predicts into the exact mode is within ' + fmt(Math.max(...R.rows.map(r => r.eta_best - r.eta_marcuse)), 2) + ' of the best a Gaussian can do (' + R.rows.map(r => fmt(r.eta_best, 4)).join(', ') + ' from V = 1.2 to 2.4: the exact mode is not quite Gaussian, and a Gaussian beam can never fill it entirely).' };
+    },
+  },
+  {
+    id: 'abcd-beams', area: 'Gaussian beams and resonators', title: 'A Gaussian beam through a thick lens and off a tilted mirror',
+    kind: 'Paper: closed forms', ref: 'abcd-beams.json', script: 'abcd_beams.py',
+    cite: 'H. Kogelnik and T. Li, “Laser beams and resonators”, Applied Optics 5, 1550–1567 (1966), the ABCD law; A. E. Siegman, Lasers (University Science Books, 1986), chapter 15, a mirror met at an angle.',
+    what: 'Kogelnik and Li carry a Gaussian beam’s complex parameter q through any paraxial system by its ray matrix, q′ = (Aq + B)/(Cq + D). A beam at 1064 nm, its waist 1 mm in radius, through two systems. A plano-convex N-BK7 lens (R = 51.5 mm, 3.6 mm thick, the prescription of LA1509) 500 mm past the waist, curved side first and then flat side first: the matrices of its two refracting surfaces and the glass between, with N-BK7’s index from Schott’s Sellmeier coefficients (1.50664). And a concave mirror of radius 500 mm, 300 mm past the waist, met at 15°: in the plane of incidence it focuses as a mirror of focal length (R/2) cos θ, across it as (R/2)/cos θ, so the beam leaves with two waists 17 mm apart. For each, where the new waist is and its radius. JEKray carries q along the beam’s own path through the real surfaces, in the bench plane and out of it; the beam is read on a screen past the focus.',
+    tolerance: 'Each new waist’s position within 0.05 mm and its radius within 0.1%, as in the Self case.',
+    async run(J, R) {
+      const checks = [], benches = [], lam = R.lambda_nm * 1e-6, th = R.incidence_deg * Math.PI / 180;
+      for (const r of R.rows.filter(q => q.system === 'lens')) {
+        const v0 = R.lens_at_mm, L = 150;
+        const data = bench('Gaussian beam through LA1509, ' + r.name + ', 1064 nm (ABCD law)', [
+          { type: 'source', name: 'Laser', x: -50, y: 0, angle: 0, wavelength: R.lambda_nm, width: 2, gauss: true, w0: R.w0_mm, z0: 50, pol: 's', rays: 1, power: 1 },
+          { type: 'lens', name: 'LA1509, ' + r.name, x: v0 + 1.8, y: 0, angle: 0, diameter: 25.4, surfaces: [{ R: r.R1 }, { R: r.R2 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }] },
+          { type: 'screen', name: 'Screen', x: v0 + 3.6 + L, y: 0, angle: 180, length: 20 }]);
+        J.load(data); const A = J.arrivals('Screen')[0];
+        checks.push(check('Lens, ' + r.name + ': new waist, past the last vertex', r.waist_past_mm, A ? L - A.qx[0] : NaN, { abs: 0.05 }, ' mm'));
+        checks.push(check('Lens, ' + r.name + ': new waist radius', r.w0_mm * 1e3, A ? Math.sqrt(lam * A.qx[1] / Math.PI) * 1e3 : NaN, { rel: 1e-3 }, ' µm'));
+        checks.push(check('Lens, ' + r.name + ': out of the plane, new waist', r.waist_past_mm, A ? L - A.qy[0] : NaN, { abs: 0.05 }, ' mm'));
+        benches.push(['Lens, ' + r.name, data]);
+      }
+      const m = R.mirror_at_mm, L = 400, dir = Math.PI - 2 * th;
+      const md = bench('Gaussian beam off a concave mirror (R 500 mm) at 15°, 1064 nm (ABCD law)', [
+        { type: 'source', name: 'Laser', x: -50, y: 0, angle: 0, wavelength: R.lambda_nm, width: 2, gauss: true, w0: R.w0_mm, z0: 50, pol: 's', rays: 1, power: 1 },
+        { type: 'mirror', name: 'Concave mirror', x: m, y: 0, angle: 180 - R.incidence_deg, length: 25.4, reflect: 100, R: R.mirror_R_mm },
+        { type: 'screen', name: 'Screen', x: m + L * Math.cos(dir), y: L * Math.sin(dir), angle: dir * 180 / Math.PI - 180, length: 20 }]);
+      J.load(md); const A = J.arrivals('Screen')[0];
+      for (const r of R.rows.filter(q => q.system === 'mirror')) {
+        const q = A ? (r.name === 'in the plane' ? A.qx : A.qy) : null;
+        checks.push(check('Mirror, ' + r.name + ': new waist, past the mirror', r.waist_past_mm, q ? L - q[0] : NaN, { abs: 0.05 }, ' mm'));
+        checks.push(check('Mirror, ' + r.name + ': new waist radius', r.w0_mm * 1e3, q ? Math.sqrt(lam * q[1] / Math.PI) * 1e3 : NaN, { rel: 1e-3 }, ' µm'));
+      }
+      benches.push(['Mirror at 15°', md]);
+      return { checks, benches, notes: 'The beam is 1 mm in radius on the lens, so a ray at its edge sees the lens’s spherical aberration; the ABCD law, like JEKray’s q, is the paraxial beam along the axis, which is what is compared. Turning the lens round moves the focus by ' + fmt(R.rows[1].waist_past_mm - R.rows[0].waist_past_mm, 4) + ' mm, the shift of its principal planes.' };
+    },
+  },
+  {
+    id: 'collimator-pair', area: 'Gaussian beams and resonators', title: 'Fibre to fibre through a pair of collimators',
+    kind: 'Paper: closed forms', ref: 'collimator-pair.json', script: 'collimator_pair.py',
+    cite: 'H. Kogelnik and T. Li, “Laser beams and resonators”, Applied Optics 5, 1550–1567 (1966); W. B. Joyce and B. C. DeLoach, “Alignment of Gaussian beams”, Applied Optics 23, 4187–4196 (1984); D. Marcuse, Bell System Technical Journal 56, 703–718 (1977), for the fibres’ mode.',
+    what: 'A fibre laser at 1550 nm feeds a single-mode fibre (core 8.2 µm, NA 0.14, mode radius 4.610 µm by Marcuse’s formula) that ends in a collimating lens of focal length f₁; across a gap D a second such fibre takes the light in through a lens of focal length f₂. A thin lens with the fibre at its focus makes a beam whose waist is on the lens, of radius W = λf/πw (1.177 mm for 11 mm), and the second collimator takes in by the same rule, so the coupling is the overlap of the first beam, D past its waist, with the second’s mode on its lens: in closed form, as in the coupling case. Compared: equal 11 mm collimators from 50 mm to 5 m apart (the beam’s Rayleigh range is 2.8 m), unequal ones (8, 18.4 and 4.5 mm against 11 mm) 100 mm apart, the second moved across by 0.5 and 1 mm, and 15 mm against 11 mm 300 mm apart and 0.4 mm across. In JEKray the light runs through the fibre network to the first tip, out as a Gaussian beam, and is taken in at the second tip by the overlap with its mode.',
+    tolerance: 'Each coupling efficiency within 2 × 10⁻⁴, as in the coupling case.',
+    async run(J, R) {
+      const checks = [], benches = [], gx = [], gr = [], gj = [];
+      for (const r of R.rows) {
+        const data = bench('Two collimated fibres, ' + r.f1_mm + ' and ' + r.f2_mm + ' mm, ' + r.gap_mm + ' mm apart' + (r.off_mm ? ', ' + r.off_mm + ' mm across' : '') + ' (1550 nm)', [
+          { type: 'fcomp', kind: 'laser', id: 'laser', name: 'Laser', x: -60, y: 30, angle: 0, wavelength: R.lambda_nm, power: 1 },
+          { type: 'fibre', id: 'a', name: 'Collimator A', x: 0, y: 0, angle: 0, length: 10, core: R.core_um, na: R.na, coll: r.f1_mm },
+          { type: 'fibre', id: 'b', name: 'Collimator B', x: r.gap_mm, y: r.off_mm, angle: 180, length: 10, core: R.core_um, na: R.na, coll: r.f2_mm }],
+          { fibres: [{ a: ['laser', 0], b: ['a', 0], len: 1 }] });
+        J.load(data);
+        const v = J.metric('Collimator B', 'couple'), eff = v === null || v === undefined ? NaN : v / 100;
+        const tag = r.f1_mm + ' and ' + r.f2_mm + ' mm, ' + r.gap_mm + ' mm apart' + (r.off_mm ? ', ' + r.off_mm + ' mm across' : '');
+        checks.push(check(tag + ': coupling efficiency', r.eta, eff, { abs: 2e-4 }));
+        if (r.f1_mm === 11 && r.f2_mm === 11 && !r.off_mm) { gx.push(r.gap_mm); gr.push(r.eta); gj.push(eff); }
+        if (r.gap_mm === 2000 || r.off_mm === 0.4) benches.push([tag, data]);
+        await idle();
+      }
+      const ds = Array.from({ length: 101 }, (_, i) => i * 50), zR = Math.PI * R.rows[0].W1_mm ** 2 / (R.lambda_nm * 1e-6);
+      const plots = [plot({ title: 'Two 11 mm collimators against the gap between them', xlabel: 'gap (mm)', ylabel: 'coupling efficiency', yMin: 0, yMax: 1,
+        series: [{ name: '1 / (1 + (D / 2z_R)²)', x: ds, y: ds.map(D => 1 / (1 + (D / (2 * zR)) ** 2)), colour: REF_C, width: 2.4 }, { name: 'JEKray', x: gx, y: gj, colour: GOT_C, dots: true }] })];
+      return { checks, benches, plots, notes: 'The collimators are ideal thin lenses with the fibre at the focus, as a fibre tip’s collimating lens is in JEKray; a real collimator’s lens adds aberrations and a little loss. Each tip’s face is set 10 mm across so that it does not cut a beam 2.4 mm across.' };
+    },
+  },
+  {
     id: 'fox-li', area: 'Diffraction', title: 'Loss of a flat-mirror resonator against its Fresnel number',
     kind: 'Independent solution of the paper’s equation', ref: 'fox-li.json', script: 'fox_li.py',
     cite: 'A. G. Fox and T. Li, “Resonant modes in a maser interferometer”, Bell System Technical Journal 40, 453–488 (1961).',
@@ -531,6 +683,40 @@ const ALL_CASES = [
       plots.unshift(plot({ title: 'Poisson’s spot: its height behind the disc', xlabel: 'distance behind the disc (mm)', ylabel: 'on-axis irradiance (mW/mm²)',
         series: [{ name: 'Exact: exp(−2a²/w₀²) of the free beam', x: Pz.rows.map(r => r.z_mm), y: Pz.rows.map(r => r.I_axis), colour: REF_C }, { name: 'JEKray', x: Pz.rows.map(r => r.z_mm), y: checks.slice(0, Pz.rows.length).map(c => c.got), colour: GOT_C, dots: true }] }));
       return { checks, benches, plots, notes: 'The first run of this case failed on Poisson’s spot: 4–17% low from 250 mm to 2 m, and missed at 100 mm. The spot is only 0.38 λz/a across (80 µm at 500 mm), made by light the disc’s edge bends through a/z, and the round field’s grid, sized to hold the whole 6 mm beam, could not hold that light too. JEKray now follows Babinet: behind a disc the field is the free beam less what a round opening of the disc’s size would pass, and that opening’s light goes on as a field of its own, on a grid sized to the disc and to the distance, so the spot comes out at its height at every distance here. The tolerance is the one set before the first run. The 2D field (used when a tilt or an offset breaks the symmetry) does not do this yet: there the spot is flagged as only roughly right when its grid cannot resolve it.' };
+    },
+  },
+  {
+    id: 'talbot', area: 'Diffraction', title: 'The Talbot effect: a grating’s self-image',
+    kind: 'Paper: closed forms', ref: 'talbot.json', script: 'talbot.py',
+    cite: 'Lord Rayleigh, “On copying diffraction-gratings, and on some phenomena connected therewith”, Philosophical Magazine 11, 196–205 (1881); J. W. Goodman, Introduction to Fourier Optics, chapter 4 (Fresnel diffraction by a sinusoidal amplitude grating).',
+    what: 'A Gaussian beam at 633 nm, its 3 mm waist on a sinusoidal amplitude grating of period 0.2 mm (a mask with transmission ½ + ½ cos(2πx/d)). Rayleigh’s formula puts the grating’s self-image at z_T = 2d²/λ, 126.4 mm behind it, and the same image shifted by half a period at z_T/2. Such a grating passes exactly three orders, so behind it the field is three Gaussian beams, the zeroth order at ½ and the first orders at ¼ each, tilted by ±λ/d; the reference adds them in closed form. The orders walk apart by λz/d (0.4 mm at z_T), so the self-image there is 2% short of the grating’s own. JEKray propagates the diffracted field from the mask; the irradiance across the beam is read from its field at z_T/4, z_T/2, 3z_T/4 and z_T.',
+    tolerance: 'The irradiance within 2% of the free beam’s peak everywhere across ±1 mm, and the bright line nearest the axis (on the axis, or half a period off it at z_T/2) within 2 µm, 1% of the period.',
+    async run(J, R) {
+      const checks = [], plots = [], d = R.d_mm;
+      const interp = (xs, ys, x) => { if (x <= xs[0]) return ys[0]; if (x >= xs[xs.length - 1]) return ys[ys.length - 1]; let lo = 0, hi = xs.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] > x) hi = m; else lo = m; } const f = (x - xs[lo]) / (xs[hi] - xs[lo]); return ys[lo] * (1 - f) + ys[hi] * f; };
+      const data = bench('Talbot effect: a sinusoidal grating, d = 0.2 mm, 633 nm (Rayleigh)', [
+        { type: 'source', name: 'Laser', x: -50, y: 0, angle: 0, wavelength: 633, width: 6, gauss: true, w0: R.w0_mm, z0: 50, popN: 1024, pol: 's', rays: 1, power: R.P_mW },
+        { type: 'mask', name: 'Grating', x: 0, y: 0, angle: 0, length: 25.4, amp: '0.5+0.5*cos(2*pi*x/' + d + ')', delay: '0', preset: 'custom' },
+        { type: 'screen', name: 'Screen', x: 150, y: 0, angle: 180, length: 20 }], { minPower: 1e-6 });
+      J.load(data);
+      const S = J.popSegments().find(s => s.el === 'Grating');
+      if (!S) return { checks: [check('a field behind the grating', 1, NaN, { abs: 0 })], benches: [['Talbot', data]] };
+      for (const P of R.planes) {
+        const pr = S.profile(P.z_mm), xs = Array.from(pr.r), I = Array.from(pr.I), tag = P.frac === 1 ? 'z_T' : P.frac + ' z_T';
+        let worst = 0; xs.forEach((x, i) => { if (Math.abs(x) <= 1) worst = Math.max(worst, Math.abs(I[i] - interp(P.x_mm, P.I, x)) / R.I0); });
+        checks.push(check(tag + ' (' + fmt(P.z_mm, 5) + ' mm): largest difference across ±1 mm, share of the free beam’s peak', 0, worst, { abs: 0.02 }));
+        // the bright line nearest the axis, on its + side: the first local maximum from the axis out, by a parabola through three samples
+        const h = xs[1] - xs[0];
+        let k = xs.findIndex(x => x >= -h / 2);
+        while (k > 0 && k < xs.length - 1 && !(I[k] >= I[k - 1] && I[k] >= I[k + 1])) k++;
+        const den = I[k - 1] - 2 * I[k] + I[k + 1], at = xs[k] + (den ? 0.5 * h * (I[k - 1] - I[k + 1]) / den : 0);
+        checks.push(check(tag + ': the bright line nearest the axis', P.bright_mm * 1e3, at * 1e3, { abs: 2 }, ' µm'));
+        const sel = xs.map((x, i) => i).filter(i => Math.abs(xs[i]) <= 0.45);
+        plots.push(plot({ title: 'Behind the grating at ' + tag + ', ' + fmt(P.z_mm, 4) + ' mm', xlabel: 'across the beam (mm)', ylabel: 'irradiance (mW/mm²)', yMin: 0, yMax: 0.075,
+          series: [{ name: 'Three Gaussian beams (closed form)', x: P.x_mm.filter(x => Math.abs(x) <= 0.45), y: P.I.filter((_, i) => Math.abs(P.x_mm[i]) <= 0.45), colour: REF_C, width: 3 }, { name: 'JEKray', x: sel.map(i => xs[i]), y: sel.map(i => I[i]), colour: GOT_C, dots: true }] }));
+        await idle();
+      }
+      return { checks, benches: [['Talbot effect', data]], plots, notes: 'Rayleigh’s z_T = 2d²/λ is the paraxial distance; the exact one, λ/(1 − √(1 − λ²/d²)), is longer by about a part in 10⁵ here, which moves nothing at this scale. The field is read straight from JEKray’s propagated field at each distance (its samples, 25 µm apart, eight to the period), not from a screen: a screen’s cut is centred on its brightest point, which at z_T/2 is off the axis. This bench was tried in JEKray, to learn how to read its field across the beam, before the reference was written; the tolerances are the Young’s slits case’s 2% and 1% of the period, not taken from what was seen.' };
     },
   },
   {

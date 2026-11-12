@@ -30,6 +30,12 @@ scripts that made them. The page itself runs JEKray live against these files.
 | `ref/rigrod.json` | `scripts/rigrod.py` | Rigrod, J. Appl. Phys. 36, 2487 (1965): a laser's output against its output coupling, checked by integrating the two saturating waves |
 | `ref/pdh-black.json` | `scripts/pdh_black.py` | Black, Am. J. Phys. 69, 79 (2001): the Pound-Drever-Hall reflected power and beats, every sideband order |
 | `ref/photonic-circuits.json` | `scripts/photonic_circuits.py` | Closed forms for rings (Bogaerts et al. 2012; Yariv 2000), a Mach-Zehnder and a directional coupler; two small circuits solved by SAX 0.18.2 (github.com/flaport/sax) |
+| `ref/talbot.json` | `scripts/talbot.py` | The Talbot effect (Rayleigh, Phil. Mag. 11, 196 (1881)): a sinusoidal amplitude grating's three orders as tilted Gaussian beams in closed form (Goodman, Introduction to Fourier Optics, ch. 4) |
+| `ref/embedded-gaussian.json` | `scripts/embedded_gaussian.py` | Siegman's embedded Gaussian (Lasers, ch. 17; Proc. SPIE 1224, 2 (1990)): an M² = 4 beam's width in free space and through a lens, by the embedded q and by the second-moment matrix law |
+| `ref/fibre-coupling.json` | `scripts/fibre_coupling.py` | Joyce & DeLoach, Appl. Opt. 23, 4187 (1984): a Gaussian beam's overlap with a single-mode fibre's mode (Marcuse's) against offset, tilt, waist and axial offset, in closed form |
+| `ref/fibre-mfd.json` | `scripts/fibre_mfd.py` | Marcuse, Bell Syst. Tech. J. 56, 703 (1977): the mode-field radius against V, and the exact LP01 mode's best Gaussian, solved independently |
+| `ref/abcd-beams.json` | `scripts/abcd_beams.py` | Kogelnik & Li's ABCD law: a Gaussian beam through a thick N-BK7 lens both ways round, and off a concave mirror at 15° (Siegman, Lasers, ch. 15) |
+| `ref/collimator-pair.json` | `scripts/collimator_pair.py` | Fibre to fibre through two collimating lenses: the beams' overlap in closed form against the gap, the focal lengths and an offset |
 
 ## Making them again
 
@@ -65,6 +71,12 @@ numpy instead.
     ELECSUS=/path/to/ElecSus python scripts/faraday_elecsus.py
     ELECSUS=/path/to/ElecSus python scripts/davll_elecsus.py
     python scripts/sat_abs.py
+    python scripts/talbot.py
+    python scripts/embedded_gaussian.py
+    python scripts/fibre_coupling.py
+    python scripts/fibre_mfd.py
+    python scripts/abcd_beams.py
+    python scripts/collimator_pair.py
 
 ## Rules
 

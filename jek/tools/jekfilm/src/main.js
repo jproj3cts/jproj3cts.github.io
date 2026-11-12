@@ -26,6 +26,7 @@ import './io/film-account.js';
 import './io/cloud.js';
 import './io/share.js';
 import './io/film-data.js';
+import './io/film-pages.js';
 import './io/film-spec.js';
 import './ui/make.js';
 import './ui/boot.js';

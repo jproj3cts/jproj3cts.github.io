@@ -10,7 +10,7 @@
 <meta name="description" content="JEKion: a charged-particle optics simulator in the browser. Electrodes, ion traps, lenses and time-of-flight, solved and flown live.">
 <script>if (location.hostname === 'www.jeksys.net') location.replace('https://jeksys.net' + location.pathname + location.search + location.hash);</script>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261120">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261121">
 <style>
   /* Ray tracer: page-specific styles. Site tokens come from jek.css. */
   :root {
@@ -1663,6 +1663,19 @@
   .rt-lasp1 > td { border: 0; padding: 0; }
   .rt-ldraw .rt-lbar { margin: 0 0 0.6rem; flex-wrap: wrap; }
   .rt-lsheetwrap { overflow: auto; border: 1px solid var(--jek-line-2); background: var(--rt-surface); }
+  /* Make the part, under the drawing: the part's settings beside its faces' */
+  .rt-lmake { margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid var(--jek-line); }
+  .rt-lmake h3 { margin: 0 0 0.2rem; font-size: 0.95rem; }
+  .rt-lmake .rt-lnote { margin: 0.2rem 0 0.7rem; }
+  .rt-lmakegrid { display: grid; grid-template-columns: minmax(16rem, 22rem) 1fr; gap: 1rem; align-items: start; }
+  .rt-lmakegrid .rt-ltable { min-width: 0; }
+  .rt-lmakepart th { text-align: left; font-weight: 500; color: var(--jek-ink-soft); }
+  .rt-lmakepart td.unit { color: var(--jek-ink-soft); font-size: 0.8rem; }
+  .rt-lmakefaces { min-width: 34rem !important; }
+  .rt-lmakewarn { margin: 0 0 0.5rem; padding: 0.45rem 0.7rem; border-left: 3px solid var(--jek-orange); background: var(--jek-well); font-size: 0.82rem; }
+  .rt-lmake .rt-lfrom { color: var(--jek-ink-soft); font-style: italic; }
+  .rt-lmake .rt-lbar { margin-top: 0.8rem; }
+  @media (max-width: 900px) { .rt-lmakegrid { grid-template-columns: 1fr; } }
   .rt-lsheet { display: block; }
   .rt-ltable tr.obj td { color: var(--jek-ink-soft); }
   .rt-ltable tbody tr:not(.obj):hover { background: rgba(0,146,178,0.04); }
@@ -4901,7 +4914,7 @@ function iwReset() {
    (jek-api FREE_LINKS): signed out they ask for an account; signed in the API says when they are used up (JEKray
    counts them on the badge, io/tasters.js). The tests, and a build without accounts, are not gated.
    ========================================================================== */
-const FREE_WORK = /optimise|search for designs|substitute glasses|tolerance a|design report|drawings|export a design|run scripts|export (data as|several kinds|everything)|save a coating file|coating specification/;
+const FREE_WORK = /optimise|search for designs|substitute glasses|tolerance a|design report|drawings|export a design|run scripts|export (data as|several kinds|everything)|save a coating file|coating specification|make the part/;
 const freeWork = what => FREE_WORK.test(String(what || ''));
 const shareWork = what => /share a link|QR code/.test(String(what || ''));
 /* why the work named is not open now, from the account's own reason (cloud.js proWhy: not signed in, or no plan): '' when it is */

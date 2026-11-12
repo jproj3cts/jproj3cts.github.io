@@ -6,7 +6,7 @@ permalink: /jek/docs/jekcad/assemblies/
 description: "A JEKcad document's tabs: several Part Studios and Assemblies in one file. Inserting parts into an assembly, moving them, and the five mates."
 ---
 
-<p class="dx-lead">A document holds tabs at the foot of the view, as a JEKray bench does. Each tab is a Part Studio, where parts are made, or an Assembly, where parts are put together.</p>
+<p class="dx-lead">A document holds tabs at the foot of the view, as a JEKray bench does. Each tab is a Part Studio, where parts are made, an Assembly, where parts are put together, or a [Drawing](/jek/docs/jekcad/drawings/).</p>
 
 ## Tabs
 

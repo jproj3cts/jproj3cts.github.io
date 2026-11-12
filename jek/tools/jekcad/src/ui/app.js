@@ -3,7 +3,7 @@ import { h } from '../../../jekray/src/ui/dom.js';
 import { acctWhy } from '../../../jekray/src/ui/pro.js';
 import { appliedCount, fileData, normFile } from '../core/doc.js';
 import { carryRegions } from '../core/sketch-tools.js';
-import { kernelAsk } from '../page/kernel.js';
+import { kernelAsk, kernelHas } from '../page/kernel.js';
 
 /* ==========================================================================
    The page's state, in one object every module reads and changes (so none needs another's setter): the document,
@@ -15,6 +15,7 @@ export const app = {
   file: null,             // the whole document: its name and its tabs (Part Studios and Assemblies)
   doc: null,              // the Part Studio in hand: the tab that is open, or with an Assembly open the studio last open
   asm: null,              // the Assembly that is open, or null
+  drw: null,              // the Drawing that is open, or null
   sel: [], hover: null, filter: 'any', history: [], future: [], result: null, error: null,
   editing: null,          // the feature dialog: { f (the feature as edited), at (its place), isNew, field (the active selection field) }
   sketch: null,           // the sketch being edited: see ui/sketcher.js
@@ -40,6 +41,7 @@ export function bindTab() {
   const F = app.file, t = F.tabs.find(x => x.id === F.active) || F.tabs[0];
   F.active = t.id;
   app.asm = t.kind === 'assembly' ? t : null;
+  app.drw = t.kind === 'drawing' ? t : null;
   if (t.kind === 'studio') app.doc = t;
   else if (!app.doc || !F.tabs.includes(app.doc)) app.doc = F.tabs.find(x => x.kind === 'studio');
 }
@@ -67,8 +69,11 @@ export function changed(opts) {
   if (hooks.cadCloudChanged) hooks.cadCloudChanged();
   regenSoon();
 }
-let regenTimer = null;
-export function regenSoon(ms) { clearTimeout(regenTimer); regenTimer = setTimeout(regenNow, ms === undefined ? 20 : ms); }
+let regenTimer = null, regenQueued = false;
+export function regenSoon(ms) { clearTimeout(regenTimer); regenQueued = true; regenTimer = setTimeout(regenNow, ms === undefined ? 20 : ms); }
+/* is a regeneration still to come: one waiting on its timer, or asked of the kernel and not back yet. A regeneration
+   that comes back while a newer one is on its way is not the model's last word: regenDone waits for the newer. */
+export const regenPending = () => regenQueued || kernelHas('regen');
 /* what is shown: up to the rollback bar, or up to the feature being edited (with its preview), or the sketch's place */
 export function regenOpts() {
   const E = app.editing, S = app.sketch;
@@ -79,22 +84,25 @@ export function regenOpts() {
 let regenWaiters = [];
 /* a promise of the next regeneration's result (the tests wait on it) */
 export const regenDone = () => new Promise(res => regenWaiters.push(res));
+/* those waiting for the model, told: once nothing newer is on its way (a Part Studio's regeneration, or an assembly's) */
+export function regenTold(out) { if (regenPending()) return; const w = regenWaiters; regenWaiters = []; for (const r of w) r(out); }
 export async function regenNow() {
-  clearTimeout(regenTimer);
+  clearTimeout(regenTimer); regenQueued = false;
   if (app.asm && hooks.cadAsmRegen) return hooks.cadAsmRegen();
+  if (app.drw && hooks.cadDrwRegen) return hooks.cadDrwRegen();
   const t0 = performance.now(), opts = regenOpts();
   app.busy = true; emit('busy');
   let out;
   try { out = await kernelAsk('regen', { doc: app.doc, opts }, 'regen'); }
-  catch (err) { app.error = err.message; app.busy = false; emit('busy'); toast('The model could not be made: ' + err.message, true); const w = regenWaiters; regenWaiters = []; for (const r of w) r(null); return null; }
+  catch (err) { app.error = err.message; app.busy = regenPending(); emit('busy'); toast('The model could not be made: ' + err.message, true); regenTold(null); return null; }
   if (!out) return null;                 // replaced by a newer request
   // a sketch whose shapes followed the model's edges (the kernel moved and solved it): the document takes it up
   for (const r of out.features) if (r.ok && r.info && r.info.ents) { const f = app.doc.features.find(x => x.id === r.id); if (f && f.type === 'sketch') { if (r.info.was) carryRegions(app.doc, f.id, r.info.was, r.info.ents); f.ents = r.info.ents; f.cons = r.info.cons; f.dims = r.info.dims; } }
-  app.result = out; app.error = null; app.busy = false; app.regenMs = performance.now() - t0; app.regenCount++;
+  app.result = out; app.error = null; app.busy = regenPending(); app.regenMs = performance.now() - t0; app.regenCount++;
   // a selection of parts, faces or edges no longer there goes
   app.sel = app.sel.filter(s => !s.part || out.parts.some(p => p.id === s.part && (s.kind === 'part' || (s.kind === 'face' ? s.index < p.faceGroups.length / 2 : s.kind === 'edge' ? s.index < p.edgeGroups.length / 2 : s.index < p.verts.length / 3))));
   emit('busy'); emit('model', out);
-  const w = regenWaiters; regenWaiters = []; for (const r of w) r(out);
+  regenTold(out);
   return out;
 }
 export const applied = () => appliedCount(app.doc);
@@ -135,6 +143,7 @@ export function wireMenus() {
 export const CAD_ICONS = {
   new: 'M4 1.5h5.5L12.5 4.5V14.5H4Z M9.5 1.5V4.5H12.5', open: 'M1.5 4.5V13.5H13L14.5 7.5H4L2.5 13 M1.5 4.5V2.5H6L7.5 4H12.5V7.5', save: 'M2.5 2.5H11L13.5 5V13.5H2.5Z M5 2.5V6H10V2.5 M5 13.5V9.5H11V13.5',
   export: 'M8 1.5V10 M5 7L8 10L11 7 M2.5 11V14H13.5V11', import: 'M8 10V1.5 M5 4.5L8 1.5L11 4.5 M2.5 11V14H13.5V11', undo: 'M5.5 3.5L2.5 6.5L5.5 9.5 M2.5 6.5H10Q13.5 6.5 13.5 10Q13.5 13.5 10 13.5H6', redo: 'M10.5 3.5L13.5 6.5L10.5 9.5 M13.5 6.5H6Q2.5 6.5 2.5 10Q2.5 13.5 6 13.5H10',
+  drawing: 'M2 2H14V14H2Z M9 10H14 M9 10V14 M4 5H9V8H4Z M4 5V4 M9 5V4 M4 4H9',
   assembly: 'M2 6L6 4L10 6L6 8Z M2 6V10L6 12V8 M10 6V10L6 12 M9 9L12 7.5L15 9L12 10.5Z M9 9V12L12 13.5V10.5 M15 9V12L12 13.5', mate: 'M2 5H8V11H2Z M8 6.5H10 M8 9.5H10 M10 4H14V12H10Z', pin: 'M8 2V9 M5 9H11 M8 9V14 M5.5 2H10.5', flip: 'M3 5H13L10.5 2.5 M13 11H3L5.5 13.5', slider: 'M2 8H14 M5 5H11V11H5Z M2 8L4 6.5 M2 8L4 9.5 M14 8L12 6.5 M14 8L12 9.5',
   trash: 'M2.5 4H13.5 M5.5 4V2.5H10.5V4 M4 4L4.5 14H11.5L12 4', fit: 'M2 6V2H6 M10 2H14V6 M14 10V14H10 M6 14H2V10', check: 'M3 8.5L6.5 12L13 4', cube: 'M8 1.5L14 5V11L8 14.5L2 11V5Z M8 8L14 5 M8 8V14.5 M8 8L2 5',
   sketch: 'M2 14L3 10.5L11 2.5L13.5 5L5.5 13Z M9.5 4L12 6.5', extrude: 'M3 11H11V14H3Z M3 11L6 8H14L11 11 M14 8V11L11 14 M8.5 6.5V1.5 M6.5 3.5L8.5 1.5L10.5 3.5', revolve: 'M8 1.5V14.5 M4 4Q1 8 4 12 M12 4Q15 8 12 12 M10.5 11.5L12 12L12.5 10.5',

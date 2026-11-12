@@ -76,6 +76,7 @@
   "core/coatings.js",
   "core/coatdesign.js",
   "core/face-pol.js",
+  "core/part-make.js",
   "state/elements.js",
   "state/tabs.js",
   "core/geometry.js",
@@ -148,6 +149,7 @@
   "ui/coat-workspace.js",
   "ui/lens-tolerance.js",
   "ui/lens-drawing.js",
+  "ui/lens-make.js",
   "ui/lens-report.js",
   "ui/lens-stock.js",
   "ui/rf-lens3d.js",
@@ -226,5 +228,9 @@
   "page/workers.js",
   "page/script-worker.js",
   "worker/main.js",
+  "../../jekfilm/src/core/film-tol.js",
+  "../../jekfilm/src/core/film-make.js",
+  "../../jekfilm/src/core/film.js",
+  "../../jekfilm/src/io/film-pages.js",
   "ui/boot.js"
 ]

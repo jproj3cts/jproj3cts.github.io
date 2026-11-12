@@ -4,14 +4,15 @@ import { needsShown } from '../../../jekray/src/ui/pro.js';
 import { usageDrawn, usageStart, wireUsage } from '../../../jekray/src/io/usage.js';
 import { accountLoaded } from '../../../jekray/src/io/account.js';
 import { AS, addInstance, addTab, checkClash, deleteTab, mateApply, mateEdit, mateOpen, matePick, poseInstance, renameTab, switchTab, triadPoints, wireAssembly } from './assembly.js';
+import { DR, addOverall, deleteDim, drwPdf, fitSheet, setDrwTool, wireDrawing } from './drawing.js';
 import { STD_PLANES, normDoc } from '../core/doc.js';
-import { app, cadIcons, cadTheme, changed, checkpoint, closeMenus, emit, fileText, on, redo, regenDone, regenNow, setCadTheme, setFile, themeNow, toast, undo, wireMenus } from './app.js';
+import { app, cadIcons, cadTheme, changed, checkpoint, closeMenus, emit, fileText, on, redo, regenDone, regenNow, regenPending, setCadTheme, setFile, themeNow, toast, undo, wireMenus } from './app.js';
 import { V, cubePart, fit, flyStart, flyStop, flyTurn, turnStep, initView, pickAt, project, setMode, setSection, viewFrom, viewPng, wireCube, wireFly } from './view3d.js';
 import { SK, addConstraint, cancelSketch, dimsShown, drawOverlay, finishSketch, modelDimEdit, modelGeom, overlayPick, setDimsShown, setTool, sketchBar, sketchRight, sketchUndo, startSketch, toScreen, wireSketcher } from './sketcher.js';
 import { closeDialog, editFeature, fieldPick, okDialog, openFeature, showVariables, wireDialog } from './dialog.js';
 import { deleteFeature, deletePart, moveFeature, renderPanel, setRollback, toggleFeatureShown, wirePanel } from './panel.js';
 import { normalToSel, pickHere, selectPick, wirePointer } from './pointer.js';
-import { exportParts, importStep, newDocument, openDocData, openFile, restoreSaved, saveFile, wireFiles } from '../io/files.js';
+import { exportParts, exportPdf, importStep, newDocument, openDocData, openFile, restoreSaved, saveFile, wireFiles } from '../io/files.js';
 import { wireCadAccount } from '../io/cad-account.js';
 import { cadOpenShare, cadOpenShort, cadReadShare, cadShare, cadShareHash, wireShare } from '../io/share.js';
 import { cloudPush, openCloudBench, openCloudList, wireCloud } from '../io/cloud.js';
@@ -30,7 +31,7 @@ const saved = restoreSaved();
 setFile(saved || {});
 on('icons', el => cadIcons(el));
 hooks.cadCloseDialog = () => closeDialog();
-wireMenus(); wireSketcher(); wireDialog(); wirePanel(); wireAssembly(); wirePointer(); wireFiles(); wireCube(); wireFly(); wireNews(); wireCadAccount(); wireShare(); wireCloud(); wireUsage();
+wireMenus(); wireSketcher(); wireDialog(); wirePanel(); wireAssembly(); wireDrawing(); wirePointer(); wireFiles(); wireCube(); wireFly(); wireNews(); wireCadAccount(); wireShare(); wireCloud(); wireUsage();
 /* the bar's buttons and menus */
 const click = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
 for (const b of document.querySelectorAll('[data-feature]')) b.addEventListener('click', () => { closeMenus(); openFeature(b.dataset.feature); });
@@ -120,11 +121,12 @@ if (!TEST_MODE && !EMBED) window.addEventListener('hashchange', () => { const sh
 window.JEKcad = {
   version: APP_VERSION, app, sk: SK, view: V,
   doc: () => app.doc, load: d => openDocData(d, null, { fresh: true }), text: () => fileText(), file: () => app.file,
-  regen: regenNow, regenDone, changed, checkpoint, undo, redo,
+  regen: regenNow, regenDone, regenIdle: () => !regenPending(), changed, checkpoint, undo, redo,
   openFeature, editFeature, okDialog, closeDialog, fieldPick, startSketch, finishSketch, cancelSketch, setTool, addConstraint,
   deleteFeature, moveFeature, setRollback, exportParts, importStep, saveFile, kernel: kernelAsk, cloudPush,
   pickAt, pickHere, overlayPick, selectPick, project, toScreen, fit, viewFrom, setMode, png: viewPng, sketchOn: () => !!app.sketch,
   share: cadShare, shareHash: cadShareHash, readShare: cadReadShare, openShare: cadOpenShare,
+  dr: DR, addOverall, deleteDim, drwPdf, fitSheet, setDrwTool, exportPdf,
   as: AS, addTab, switchTab, renameTab, deleteTab, addInstance, poseInstance, mateOpen, matePick, mateApply, mateEdit, checkClash, triadPoints,
   flyStart, flyStop, flyTurn, cubePart, turnStep, deletePart, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
 };

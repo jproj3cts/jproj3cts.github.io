@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex" />
 <title>JEKray regression tests</title>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261120">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261121">
 <style>
   .tt-wrap { width: 100%; max-width: 1100px; text-align: left; }
   .tt-bar {
@@ -12024,7 +12024,7 @@ const TESTS = [
       const front = J.byName('Front'), sag = (R, h) => R ? R - Math.sign(R) * Math.sqrt(R * R - h * h) : 0, r = front.diameter / 2;
       const et = front.gaps[0] + sag(front.surfaces[1].R, r) - sag(front.surfaces[0].R, r);
       const dataOk = Math.abs(D[0].elements[0].ct - front.gaps[0]) < 1e-12 && Math.abs(D[0].elements[0].et - et) < 1e-9 && D[0].name === 'Front';
-      const svg = J.lensDrawingSvg('Cooke triplet', 0), svgOk = /<svg/.test(svg) && />Front</.test(svg) && /3\/3\(-\)/.test(svg) && /Scale \d+:\d+/.test(svg);
+      const svg = J.lensDrawingSvg('Cooke triplet', 0), svgOk = /<svg/.test(svg) && />Front</.test(svg) && /3\/3\(1\)/.test(svg) && /Scale \d+:\d+/.test(svg);
       J.openLensDesign('Cooke triplet');
       let tabOk = false;
       try {
@@ -12036,6 +12036,35 @@ const TESTS = [
       const pdf = await J.lensDrawingsPdf('Cooke triplet'), pdfOk = /^%PDF-1\.4/.test(pdf) && /\/Count 3>>/.test(pdf) && (pdf.match(/\/Type\/Page\//g) || []).length === 3 && /%%EOF\s*$/.test(pdf);
       if (!(dataOk && svgOk && tabOk && pdfOk)) console.log('drawings', dataOk, svgOk, tabOk, pdfOk);
       return dataOk && svgOk && tabOk && pdfOk ? 1 : 0;
+    },
+  },
+  {
+    name: 'Make the part: a lens with a JEKfilm coating gives its drawing, its part specification and the coating’s specification, its make settings set in the Drawings tab',
+    why: 'the Cooke triplet’s Front lens with a one-layer JEKfilm AR on S1: its Coating list in the element data names it (◆); Make the part gives three PDFs, the drawing with its scratch-dig and chamfers and the coating’s note, the part specification with its quantity and the coating’s file named, and the coating’s two-page specification; in the Drawings tab a quantity typed and S2 made fine ground are kept on the lens (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(optTriplet());
+      const doc = { format: 'jekfilm', version: 1, name: 'AR 587', spec: { target: 'ar', design: 587.56, lo: 480, hi: 660, sub: { n: 1.62 } }, layers: [{ n: 1.38, d: 106.44 }] };
+      const put = J.filmOnFace('Front', 0, doc) && !!J.byName('Front').surfaces[0].coat.film;
+      const files = await J.makePartFiles('Cooke triplet', 0), names = files.map(f => f.name), txt = i => files[i].text;
+      const filesOk = names.length === 3 && names[0] === 'Front - drawing.pdf' && names[1] === 'Front - part specification.pdf' && /^Front - S1 coating - AR 587\.pdf$/.test(names[2]);
+      const drawOk = /\(Scratch-dig\)/.test(txt(0)) && /\(60-40\)/.test(txt(0)) && /AR 587/.test(txt(0)) && /MIL-PRF-13830B/.test(txt(0));
+      const specOk = /\(Part specification\)/.test(txt(1)) && /\(Quantity\)/.test(txt(1)) && /\(10\)/.test(txt(1)) && /coating specification enclosed/.test(txt(1)) && /AR 587/.test(txt(1));
+      const coatOk = /\(Coating specification\)/.test(txt(2)) && (txt(2).match(/\/Type\s*\/Page\b/g) || []).length === 2;
+      J.openLensDesign('Cooke triplet');
+      let listOk = false, tabOk = false;
+      try {
+        const sel = rigDoc().querySelector('#lensWs select[aria-label="Coating of surface 1"]');
+        listOk = !!sel && sel.options[sel.selectedIndex].textContent === '◆ AR 587' && [...sel.options].some(o => o.value === 'filmfile');
+        wsClick('Drawings', null, 'tab');
+        const D = rigDoc(), W = rigWin();
+        const q = D.querySelector('#lensWs input[aria-label="Quantity"]'); q.value = '25'; q.dispatchEvent(new W.Event('change'));
+        const fin = D.querySelector('#lensWs select[aria-label="Finish of S2"]'); fin.value = 'ground'; fin.dispatchEvent(new W.Event('change'));
+        const m = J.byName('Front').make;
+        tabOk = !!D.querySelector('#lensWs #lensMakePart') && m && m.qty === 25 && m.faces[1].finish === 'ground' && !D.querySelector('#lensWs input[aria-label="Scratch-dig of S2"]');
+      } finally { J.closeLensDesign(); }
+      if (!(put && filesOk && drawOk && specOk && coatOk && listOk && tabOk)) console.log('make part', put, filesOk, drawOk, specOk, coatOk, listOk, tabOk, names);
+      return put && filesOk && drawOk && specOk && coatOk && listOk && tabOk ? 1 : 0;
     },
   },
   {

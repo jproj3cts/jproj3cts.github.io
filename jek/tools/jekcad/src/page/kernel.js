@@ -34,6 +34,8 @@ export function kernelAsk(kind, args, slot) {
     kwPump();
   });
 }
+/* is a request of this slot waiting or being worked on (a regeneration still to come back) */
+export const kernelHas = slot => !!(KW.busy && KW.busy.slot === slot) || KW.queue.some(j => j.slot === slot);
 function kwPump() {
   if (KW.busy || !KW.queue.length) return;
   const job = KW.queue.shift();

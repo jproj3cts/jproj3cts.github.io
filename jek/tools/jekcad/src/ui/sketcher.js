@@ -988,6 +988,8 @@ export function drawOverlay() {
   c.setTransform(pr, 0, 0, pr, 0, 0);
   c.clearRect(0, 0, V.w, V.h);
   c.lineCap = 'round'; c.lineJoin = 'round';
+  // (a drawing open: the overlay is its sheet of paper)
+  if (app.drw && hooks.cadSheet) { hooks.cadSheet(c); V.overlays = []; return; }
   const ed = app.editing, field = ed && ed.field, selKey = x => JSON.stringify(x);
   const selected = new Set(app.sel.filter(s => s.kind === 'plane' || s.kind === 'region').map(selKey));
   // planes
@@ -1462,7 +1464,7 @@ export function sketchBar() {
   const bar = document.getElementById('sketchBar');
   if (!bar) return;
   bar.hidden = !app.sketch;
-  document.getElementById('featureBar').hidden = !!app.sketch || !!app.asm;
+  document.getElementById('featureBar').hidden = !!app.sketch || !!app.asm || !!app.drw;
   mirrorPanel();
   if (!app.sketch) return;
   const btn = (id, title, icon, on) => h('button', { type: 'button', class: 'rt-btn rt-icon quiet cad-tool' + (on ? ' on' : ''), 'data-sktool': id, 'data-icon': icon, title, 'aria-label': title, 'aria-pressed': String(!!on), onclick: () => setTool(id) });

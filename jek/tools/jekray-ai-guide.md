@@ -810,8 +810,15 @@ Fibre components sit on the bench like any element (x, y, angle, name, id) and a
 | field | default | meaning |
 |---|---|---|
 | centre | `1550` | Bragg wavelength (nm) |
-| fwhm | `0.5` | Bandwidth (nm) |
-| rmax | `90` | Peak reflectance (%) |
+| len | `5` | Length (mm) |
+| dn | `0.00018` | Index modulation δn |
+| vis | `1` | Fringe visibility (0 to 1) |
+| neff | `1.468` | Effective index |
+| chirp | `0` | Chirp (nm/cm) |
+| fwhm | `0.5` | Bandwidth (nm), model "band" |
+| rmax | `90` | Peak reflectance (%), model "band" |
+| model | `"cmt"` | "cmt": a grating by coupled-mode theory, from len, dn, vis, neff, apod and chirp (peak reflectance tanh²(π vis dn len / λ), with side lobes, delay and dispersion); "band": a Gaussian band of peak rmax and width fwhm, with no phase. Give "model" when you give fwhm or rmax: a grating with those and neither len nor dn is read as "band", as files from before the grating model are |
+| apod | `"none"` | "none" (uniform), "gauss" (Gaussian, its full width at half maximum half the length) or "cos" (raised cosine): the index modulation’s profile along the grating |
 
 ### kind "term": Terminator
 

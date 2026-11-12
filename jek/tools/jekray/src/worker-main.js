@@ -18,6 +18,7 @@ import './core/nlc.js';
 import './core/modulators.js';
 import './core/packsig.js';
 import './core/bend.js';
+import './core/fbg.js';
 import './core/tasters.js';
 import './core/rf.js';
 import './core/grin.js';

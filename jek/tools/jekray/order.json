@@ -18,6 +18,7 @@
   "core/modulators.js",
   "core/packsig.js",
   "core/bend.js",
+  "core/fbg.js",
   "core/tasters.js",
   "core/rf.js",
   "core/grin.js",

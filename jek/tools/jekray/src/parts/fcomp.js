@@ -3,6 +3,7 @@ import { DETECTOR_MATERIALS } from '../core/rf.js';
 import { CMODES } from '../core/pulses.js';
 import { nextName, num, project } from '../state/project.js';
 import { FC, FIBRE_POLS } from '../engines/fibre.js';
+import { FBG_APODS } from '../core/fbg.js';
 
 /* Fibre components (engines/fibre.js has each kind, FC) */
 export const FCOMP = {
@@ -46,6 +47,13 @@ export const FCOMP = {
     if (e.kind === 'amp') { base.soa = !!e.soa; base.pdg = Math.max(0, num(e.pdg, 0.5)); }
     if (e.kind === 'star') { base.ins = Math.round(clamp(base.ins, 1, 32)); base.outs = Math.round(clamp(base.outs, 1, 32)); }
     if (e.kind === 'depol') base.dgd = Math.max(0, base.dgd);
+    // a Bragg grating: coupled-mode theory, or the Gaussian band it was before it had a length, which a file
+    // giving only that band's width or peak keeps (so an old bench reads what it read)
+    if (e.kind === 'fbg') {
+      base.model = e.model === 'band' || e.model === 'cmt' ? e.model : (e.fwhm !== undefined || e.rmax !== undefined) && e.len === undefined && e.dn === undefined ? 'band' : 'cmt';
+      base.len = clamp(base.len, 0.01, 1000); base.dn = clamp(base.dn, 0, 0.05); base.vis = clamp(base.vis, 0, 1); base.neff = clamp(base.neff, 1, 4); base.chirp = clamp(base.chirp, -100, 100);
+      base.apod = FBG_APODS.includes(e.apod) ? e.apod : 'none';
+    }
     if (e.kind === 'split') { base.ways = Math.round(clamp(base.ways, 2, 64)); base.loss = Math.max(0, base.loss); base.combine = !!e.combine; }
     if (e.kind === 'eom') base.emode = e.emode === 'amplitude' ? 'amplitude' : 'phase';
     // a fibre photodetector's material, as a free-space one's; a file from before there was one keeps its fixed responsivity

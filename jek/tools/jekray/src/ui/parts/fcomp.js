@@ -39,7 +39,9 @@ function fcompPanel(el) {
   panel.append(h('h3', null, typeLabel(el)));
   const rows = h('div', { class: 'rt-rows' });
   // a laser's pulse has a section of its own; while pulsed, the pulse sets its line
-  const skip = el.kind === 'laser' ? ['tau', 'rep', 'gdd0', 'polAngle', 'coh'] : [];
+  // a Bragg grating shows its model's own settings: the grating's, or the simple band's
+  const skip = el.kind === 'laser' ? ['tau', 'rep', 'gdd0', 'polAngle', 'coh'] : el.kind === 'fbg' ? (el.model === 'band' ? ['len', 'dn', 'vis', 'neff', 'chirp'] : ['fwhm', 'rmax']) : [];
+  if (el.kind === 'fbg') rows.append(selectField('Model', [['cmt', 'Grating (coupled-mode theory)'], ['band', 'Simple band (Gaussian, no phase)']], () => el.model, v => { el.model = v; renderPanel(); }, { wide: true }));
   if (el.kind === 'pd') {
     // as a free-space photodetector: its material, then its amplifier (none on a bare photodiode)
     rows.append(selectField('Material', Object.entries(DETECTOR_MATERIALS).map(([k, v]) => [k, v.name]), () => el.material, v => { el.material = v; renderPanel(); }, { wide: el.material !== 'custom' }));
@@ -54,7 +56,8 @@ function fcompPanel(el) {
     : k === 'ins' || k === 'outs' ? param(label, el, k, { noSweep: true, commit: true })
     : el.kind === 'amp' && el.soa && k === 'iso' ? param('Polarisation-dependent gain (dB)', el, 'pdg', { wide: true })
     : k === 'cross' ? selectField('State', [['0', 'Bar: 1 \u2192 3, 2 \u2192 4'], ['1', 'Cross: 1 \u2192 4, 2 \u2192 3']], () => String(el.cross >= 0.5 ? 1 : 0), v => { el.cross = +v; }, { wide: true })
-    : param(label, el, k));
+    : param(label.replace(/, model "band"$/, ''), el, k));
+  if (el.kind === 'fbg' && el.model !== 'band') rows.append(selectField('Apodisation', [['none', 'None (uniform)'], ['gauss', 'Gaussian'], ['cos', 'Raised cosine']], () => el.apod, v => { el.apod = v; }));
   if (el.kind === 'split') {
     const sn = h('p', { class: 'note', style: 'margin-top:0.5rem' });
     bindSync(sn, () => { const N = el.ways, dB = 10 * Math.log10(N) + el.loss;
@@ -125,7 +128,8 @@ function fcompPanel(el) {
     pc: 'Three paddles, a quarter-wave, a half-wave and a quarter-wave, each turned about the fibre: any polarisation in to any out. The light going back through it sees the transpose, as in a real fibre.',
     pol: 'Passes the polarisation along its axis (from s) and the crossed one weakened by its extinction.',
     fm: 'A Faraday rotator and a mirror: what comes back is orthogonal to what went in, whatever the fibre did to it on the way, so a Michelson made with two stays at full contrast however its fibres are bent.',
-    fbg: 'Reflects a narrow band about its Bragg wavelength, back out of the port the light came in by; passes the rest.',
+    fbg: el.model === 'band' ? 'Reflects a Gaussian band about its Bragg wavelength, back out of the port the light came in by; passes the rest. It has no phase, side lobes or delay: choose the grating model for those.'
+      : 'A grating written along a length of the fibre\u2019s core, by coupled-mode theory: it reflects a band about its Bragg wavelength \u03bb_B = 2 n_eff \u039b back out of the port the light came in by, tanh\u00b2(\u03baL) at the peak with \u03ba = \u03c0 v \u03b4n / \u03bb, with its side lobes, and passes the rest. Reflected and transmitted light carry its phase, so its delay and dispersion. Apodisation takes the side lobes down; a chirp (the Bragg wavelength changing along it) widens the band and spreads its delay.',
     term: 'Absorbs what arrives, sending back only its return loss.',
     pd: 'Reads the power arriving, the paths of one laser added as fields (weighted by its coherence), different lasers as powers.',
     thru: 'Carries a fibre to the partner of the same name, on another tab.',

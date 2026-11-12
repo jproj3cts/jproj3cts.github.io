@@ -166,7 +166,7 @@ Light the network sends to a tip leaves it into free space as a source *split fr
 
 <ul class="dx-cards">
   <li><a class="fibre" href="/jek/docs/jekray/fibre/wdm/"><b>WDM</b><small>A flat-topped band to one port, the rest to the other.</small></a></li>
-  <li><a class="fibre" href="/jek/docs/jekray/fibre/bragg-grating/"><b>Fibre Bragg grating</b><small>A narrow band reflected, the rest passed.</small></a></li>
+  <li><a class="fibre" href="/jek/docs/jekray/fibre/bragg-grating/"><b>Fibre Bragg grating</b><small>A narrow band reflected, by coupled-mode theory.</small></a></li>
   <li><a class="fibre" href="/jek/docs/jekray/fibre/tunable-filter/"><b>Tunable filter</b><small>A Gaussian pass band.</small></a></li>
   <li><a class="fibre" href="/jek/docs/jekray/fibre/attenuator/"><b>Attenuator</b><small>A set loss, both ways.</small></a></li>
   <li><a class="fibre" href="/jek/docs/jekray/fibre/delay/"><b>Variable delay line</b><small>A delay, its path and its phase.</small></a></li>

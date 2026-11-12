@@ -53,6 +53,7 @@ scripts that made them. The page itself runs JEKray live against these files.
 | `ref/fibre-mfd.json` | `scripts/fibre_mfd.py` | Marcuse, Bell Syst. Tech. J. 56, 703 (1977): the mode-field radius against V, and the exact LP01 mode's best Gaussian, solved independently |
 | `ref/abcd-beams.json` | `scripts/abcd_beams.py` | Kogelnik & Li's ABCD law: a Gaussian beam through a thick N-BK7 lens both ways round, and off a concave mirror at 15° (Siegman, Lasers, ch. 15) |
 | `ref/collimator-pair.json` | `scripts/collimator_pair.py` | Fibre to fibre through two collimating lenses: the beams' overlap in closed form against the gap, the focal lengths and an offset |
+| `ref/fbg-erdogan.json` | `scripts/fbg_erdogan.py` | Erdogan, J. Lightwave Technol. 15, 1277 (1997): a uniform fibre Bragg grating's coupled-mode equations, integrated numerically and checked against his closed forms |
 
 ## Making them again
 
@@ -111,6 +112,7 @@ numpy instead.
     python scripts/fibre_mfd.py
     python scripts/abcd_beams.py
     python scripts/collimator_pair.py
+    python scripts/fbg_erdogan.py
 
 ## Rules
 

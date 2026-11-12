@@ -57,7 +57,7 @@ through `core/hooks.js`.
 - **Parts**: `parts/<type>.js` (fields: `norm` defaults/clamps, `guide` text, `make`, picker) + `ui/parts/<type>.js`
   (`draw`, `hit`, `panel`). Registries: `parts/registry.js` (`FREE_GROUPS`, picker), `ui/parts/registry.js` (`PART_UI`).
 - **Physics**: ray/beam tracing `engines/trace.js` (by part type); diffracted field `field.js`, `field2d.js`,
-  `diffraction.js`; cavities `cavity.js`; fibre networks `fibre.js`, `fibre-face.js`; electronics `elec.js`;
+  `diffraction.js`; cavities `cavity.js`; fibre networks `fibre.js`, `fibre-face.js` (the Bragg grating's coupled-mode model in `core/fbg.js`); electronics `elec.js`;
   photonic chips `pic.js`; RF `rf-design.js`, `rf-sweep.js`; lens design `lens-*.js`; data in `core/` (glass,
   coatings, crystals, atoms in `cells.js`/`traps.js`/`zeeman.js`, horns, special functions).
 - **UI**: bench `ui/render.js`, `pointer.js`, `actions.js` (toast, context menu, save); panel framework `ui/panel.js`

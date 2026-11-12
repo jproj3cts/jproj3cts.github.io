@@ -1798,14 +1798,39 @@
      "meaning": "Bragg wavelength (nm)"
     },
     {
+     "k": "len",
+     "def": "5",
+     "meaning": "Length (mm)"
+    },
+    {
+     "k": "dn",
+     "def": "0.00018",
+     "meaning": "Index modulation δn"
+    },
+    {
+     "k": "vis",
+     "def": "1",
+     "meaning": "Fringe visibility (0 to 1)"
+    },
+    {
+     "k": "neff",
+     "def": "1.468",
+     "meaning": "Effective index"
+    },
+    {
+     "k": "chirp",
+     "def": "0",
+     "meaning": "Chirp (nm/cm)"
+    },
+    {
      "k": "fwhm",
      "def": "0.5",
-     "meaning": "Bandwidth (nm)"
+     "meaning": "Bandwidth (nm), model \"band\""
     },
     {
      "k": "rmax",
      "def": "90",
-     "meaning": "Peak reflectance (%)"
+     "meaning": "Peak reflectance (%), model \"band\""
     }
    ]
   },

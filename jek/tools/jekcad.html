@@ -1980,6 +1980,11 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .cad-tabs button .ic2 { display: inline-flex; margin-right: 0.35rem; vertical-align: -0.2em; }
   .cad-tabs button .ic2 svg.ic { width: 13px; height: 13px; }
   .cad-tabs button[data-kind="assembly"] .ic2 { color: var(--jek-orange); }
+  /* a drawing open: the stage is its sheet of paper */
+  .cad-stage.drw #view, .cad-stage.drw #viewCube, .cad-stage.drw #measure, .cad-stage.drw #hint { visibility: hidden; }
+  .cad-stage.drw { background: var(--rt-bg, #1c1f24); }
+  #drwSide .cad-frow { display: flex; align-items: center; gap: 0.4rem; margin: 0.15rem 0.3rem; } #drwSide .cad-frow label { flex: none; width: 5.2rem; font-size: 0.78rem; } #drwSide .cad-frow input, #drwSide .cad-frow select { flex: 1; min-width: 0; }
+  #drwSide .cad-check { display: block; margin: 0.15rem 0.4rem; font-size: 0.78rem; } .cad-drwviews { display: grid; grid-template-columns: 1fr 1fr; }
   .cad-tabmenu { position: fixed; z-index: 60; min-width: 180px; top: auto; right: auto; display: flex; flex-direction: column; }
   .cad-irow { cursor: pointer; }
   .cad-irow.picked { background: var(--jek-well); box-shadow: inset 2px 0 0 var(--jek-orange); }
@@ -2236,6 +2241,14 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         <span class="rt-qsep" aria-hidden="true"></span>
         <button type="button" class="rt-btn quiet cad-fbtn" data-asm="clash" data-icon="measure" title="Check which parts run into each other as they are placed">Interference</button>
       </div>
+      <div class="rt-row cad-fbar" id="drwBar" role="group" aria-label="Drawing" hidden>
+        <button type="button" class="rt-btn quiet cad-fbtn on" data-drw="select" data-icon="select" title="Select: drag a view or a dimension to move it (Esc)">Select</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="dim" data-icon="dim" title="Dimension (D): click two corners of a view, then where it goes; or click a circle for its diameter">Dimension</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="overall" data-icon="measure" title="Add each view’s overall width and height">Overall sizes</button>
+        <span class="rt-qsep" aria-hidden="true"></span>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="fit" data-icon="fit" title="Fit the sheet in the window (F)">Fit sheet</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="pdf" data-icon="export" data-need="account" data-what="export a PDF" title="Export the sheet as a PDF, at its true size">Export PDF</button>
+      </div>
       <div class="rt-row cad-fbar cad-skbar" id="sketchBar" role="group" aria-label="Sketch tools" hidden></div>
     </div>
 
@@ -2248,6 +2261,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
           <ul class="cad-plist" id="partsList"></ul>
         </div>
         <div id="asmSide" hidden></div>
+        <div id="drwSide" hidden></div>
       </aside>
       <button type="button" class="cad-sidetab" id="sideTab" aria-controls="side" aria-expanded="true" title="Hide the feature list" aria-label="Hide the feature list"><span aria-hidden="true">‹</span></button>
       <div class="rt-stage cad-stage" id="stage">
@@ -4306,6 +4320,211 @@ function solveMatesOnce(asm, hold) {
   return { ok: em < 1e-6, err: em };
 }
 /* ==========================================================================
+   A drawing: a tab that shows a Part Studio's parts, or an Assembly, as views on a sheet of paper, with dimensions
+   and a title block. Pure: the document's drawing checked, where each view sits on the sheet, each dimension's
+   lines, the whole sheet drawn through a pen (the page's canvas, or a PDF), and the PDF written with no library.
+   The sheet is in millimetres, x across and y down from its top left corner. A view is the model seen square on
+   (the kernel takes the hidden lines out); its own coordinates are the model's millimetres, X across and Y up.
+   Third angle: the top view above the front, the right view to its right.
+   ========================================================================== */
+const SHEETS = { A4: [297, 210], A3: [420, 297], A2: [594, 420] };
+const R2 = Math.SQRT1_2, R3 = 1 / Math.sqrt(3);
+/* each view: n towards the eye, x across the paper */
+const VIEW_DIRS = {
+  front: { name: 'Front', n: [0, -1, 0], x: [1, 0, 0] }, top: { name: 'Top', n: [0, 0, 1], x: [1, 0, 0] }, right: { name: 'Right', n: [1, 0, 0], x: [0, 1, 0] },
+  back: { name: 'Back', n: [0, 1, 0], x: [-1, 0, 0] }, left: { name: 'Left', n: [-1, 0, 0], x: [0, -1, 0] }, bottom: { name: 'Bottom', n: [0, 0, -1], x: [1, 0, 0] },
+  iso: { name: 'Isometric', n: [R3, -R3, R3], x: [R2, R2, 0] },
+};
+const SCALES = [50, 20, 10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.002, 0.001];
+const dstr = (v, n) => typeof v === 'string' && v.length <= n;
+const dcross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const ddot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+/* a model point as a view sees it: [X across, Y up] */
+function viewPoint(dir, p) { const V = VIEW_DIRS[dir] || VIEW_DIRS.front, y = dcross(V.n, V.x); return [ddot(p, V.x), ddot(p, y)]; }
+const scaleText = s => (s >= 1 ? +s.toFixed(3) + ':1' : '1:' + +(1 / s).toFixed(3));
+const drwText = v => String(+(+v).toFixed(2));
+
+/* ---------- the document's drawing, checked ---------- */
+function normRef(r) {
+  if (!r || typeof r !== 'object' || !r.ref || typeof r.ref !== 'object' || !(r.ref.kind === 'vertex' || r.ref.kind === 'edge')) return null;
+  const ref = r.ref, okS = (v, n) => typeof v === 'string' && v.length < n;
+  if (!okS(ref.part, 80) || !Array.isArray(ref.faces) || ref.faces.length < 1 || ref.faces.length > 6 || !ref.faces.every(x => okS(x, 120)) || !Array.isArray(ref.pt) || ref.pt.length !== 3 || !ref.pt.every(Number.isFinite)) return null;
+  return Object.assign({ ref: { kind: ref.kind, part: ref.part, faces: ref.faces.slice(), pt: ref.pt.slice() } }, okS(r.inst, 40) ? { inst: r.inst } : {});
+}
+function normDrawing(d, n) {
+  d = d && typeof d === 'object' ? d : {};
+  const vids = new Set(), views = [];
+  for (const v of (Array.isArray(d.views) ? d.views : []).slice(0, 12)) {
+    if (!v || !VIEW_DIRS[v.dir]) continue;
+    const id = dstr(v.id, 40) && v.id && !vids.has(v.id) ? v.id : sketchId('v'); vids.add(id);
+    views.push(Object.assign({ id, dir: v.dir }, Array.isArray(v.at) && v.at.length === 2 && v.at.every(Number.isFinite) ? { at: v.at.map(Number) } : {}));
+  }
+  const dims = [], dids = new Set();
+  for (const m of (Array.isArray(d.dims) ? d.dims : []).slice(0, 400)) {
+    if (!m || !vids.has(m.view) || !['lin', 'dia', 'ext'].includes(m.t)) continue;
+    const id = dstr(m.id, 40) && m.id && !dids.has(m.id) ? m.id : sketchId('q'); dids.add(id);
+    const o = { id, view: m.view, t: m.t, off: Number.isFinite(m.off) ? +m.off : 10 };
+    if (m.t === 'lin') { const a = normRef(m.a), b = normRef(m.b); if (!a || !b) continue; Object.assign(o, { a, b, dir: ['h', 'v', 'a'].includes(m.dir) ? m.dir : 'h' }); }
+    else if (m.t === 'dia') { const a = normRef(m.a); if (!a || a.ref.kind !== 'edge') continue; Object.assign(o, { a, ang: Number.isFinite(m.ang) ? +m.ang : 45 }); }
+    else o.axis = m.axis === 'y' ? 'y' : 'x';
+    dims.push(o);
+  }
+  const t = d.title && typeof d.title === 'object' ? d.title : {}, title = {};
+  for (const k of ['title', 'by', 'material', 'note', 'number']) if (dstr(t[k], 120) && t[k]) title[k] = t[k];
+  return { id: dstr(d.id, 40) && d.id ? d.id : sketchId('t'), kind: 'drawing', name: dstr(d.name, 120) && d.name.trim() ? d.name : 'Drawing ' + (n || 1),
+    of: dstr(d.of, 40) ? d.of : '', part: dstr(d.part, 80) && d.part ? d.part : null, sheet: SHEETS[d.sheet] ? d.sheet : 'A4',
+    scale: Number.isFinite(d.scale) && d.scale > 0 ? +d.scale : 0, hidden: !!d.hidden, views, dims, title };
+}
+/* a new drawing of a tab: the three views and the isometric one */
+const newDrawing = (of, n) => normDrawing({ of, views: [{ dir: 'front' }, { dir: 'top' }, { dir: 'right' }, { dir: 'iso' }] }, n);
+
+/* ---------- where everything sits on the sheet ----------
+   data: { views: { [id]: { vis, hid } } } as the kernel gives them (runs of x, y in the view's millimetres).
+   { W, H, s, m (the margin), views: [{ id, dir, box, c, at }] }, and toSheet(view, [X, Y]) */
+function viewBox(v) {
+  let lo = [Infinity, Infinity], hi = [-Infinity, -Infinity];
+  for (const L of [v && v.vis, v && v.hid]) for (const run of L || []) for (let i = 0; i + 1 < run.length; i += 2) { lo = [Math.min(lo[0], run[i]), Math.min(lo[1], run[i + 1])]; hi = [Math.max(hi[0], run[i]), Math.max(hi[1], run[i + 1])]; }
+  return lo[0] === Infinity ? null : [lo[0], lo[1], hi[0], hi[1]];
+}
+const TITLE_W = 150, TITLE_H = 36;
+function layoutOf(D, data) {
+  const [W, H] = SHEETS[D.sheet] || SHEETS.A4, m = 10, gap = 18;
+  const vs = D.views.map(v => { const box = viewBox(data && data.views && data.views[v.id]); return { id: v.id, dir: v.dir, box, at: v.at || null, c: box ? [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2] : [0, 0], w: box ? box[2] - box[0] : 0, h: box ? box[3] - box[1] : 0 }; });
+  const by = d => vs.find(v => v.dir === d), F = by('front') || vs[0], T = by('top'), Rv = by('right'), I = by('iso');
+  // the scale: the largest of the usual ones at which the front, top and right views sit together above the title block
+  const needW = (F ? F.w : 0) + (Rv ? Rv.w : 0) + (I && !Rv ? I.w : 0), needH = (F ? F.h : 0) + (T ? T.h : 0);
+  const roomW = W - 2 * m - gap * 4, roomH = H - 2 * m - TITLE_H - gap * 3;
+  let s = D.scale;
+  if (!s) { s = SCALES[SCALES.length - 1]; for (const k of SCALES) if (needW * k <= roomW * 0.86 && needH * k <= roomH * 0.92) { s = k; break; } }
+  // third angle: the front view low on the left, the top above it, the right beside it, the isometric at the top right
+  if (F) {
+    const fx = m + gap + 8 + (F.w * s) / 2 + (by('left') ? by('left').w * s + gap : 0), fy = H - m - TITLE_H - gap - (F.h * s) / 2 - (by('bottom') ? by('bottom').h * s + gap : 0);
+    const auto = { front: [fx, fy] };
+    if (T) auto.top = [fx, fy - (F.h * s) / 2 - gap - (T.h * s) / 2];
+    if (Rv) auto.right = [fx + (F.w * s) / 2 + gap + (Rv.w * s) / 2, fy];
+    if (by('left')) auto.left = [fx - (F.w * s) / 2 - gap - (by('left').w * s) / 2, fy];
+    if (by('bottom')) auto.bottom = [fx, fy + (F.h * s) / 2 + gap + (by('bottom').h * s) / 2];
+    if (by('back')) auto.back = [(auto.right ? auto.right[0] + (Rv.w * s) / 2 : fx + (F.w * s) / 2) + gap + (by('back').w * s) / 2, fy];
+    if (I) auto.iso = [W - m - gap - (I.w * s) / 2, m + gap + (I.h * s) / 2];
+    for (const v of vs) if (!v.at) v.at = auto[v.dir] || [W / 2, H / 2];
+  }
+  for (const v of vs) if (!v.at) v.at = [W / 2, H / 2];
+  const toSheet = (v, q) => [v.at[0] + s * (q[0] - v.c[0]), v.at[1] - s * (q[1] - v.c[1])];
+  return { W, H, s, m, views: vs, toSheet };
+}
+
+/* ---------- a dimension's lines ----------
+   L: the layout; got: what the dimension holds to, found on the model ({ pt } for a corner, { c, r, n } for a round
+   edge), or nothing for one of the view's whole size. { lines: [[x1, y1, x2, y2]], arrows: [[tip, from]], text,
+   at: [x, y] (the text's middle), value, hit: [x0, y0, x1, y1] } in sheet millimetres, or null if it cannot be drawn */
+function dimGeom(L, d, got) {
+  const v = L.views.find(x => x.id === d.view);
+  if (!v || !v.box) return null;
+  const S = q => L.toSheet(v, q), s = L.s, G = 1.5;
+  let P, Q, dir = d.dir;
+  if (d.t === 'ext') {
+    // the view's whole size across, under it; or up, to its left
+    if (d.axis === 'x') { P = S([v.box[0], v.box[1]]); Q = S([v.box[2], v.box[1]]); dir = 'h'; } else { P = S([v.box[0], v.box[1]]); Q = S([v.box[0], v.box[3]]); dir = 'v'; }
+  } else if (d.t === 'dia') {
+    const g = got && got.a;
+    if (!g || !g.c || !(g.r > 0)) return null;
+    const C = S(viewPoint(v.dir, g.c)), r = g.r * s, a = (d.ang || 0) * Math.PI / 180, u = [Math.cos(a), -Math.sin(a)], len = Math.max(4, d.off || 8);
+    const p0 = [C[0] - u[0] * r, C[1] - u[1] * r], p1 = [C[0] + u[0] * r, C[1] + u[1] * r], p2 = [C[0] + u[0] * (r + len), C[1] + u[1] * (r + len)];
+    const text = 'Ø' + drwText(2 * g.r), tx = p2[0] + (u[0] >= 0 ? 1 : -1) * (text.length * 1.0 + 1.5);
+    return { lines: [[p0[0], p0[1], p2[0], p2[1]]], arrows: [[p0, p1], [p1, p0]], text, at: [tx, p2[1]], value: 2 * g.r, hit: [Math.min(tx, p2[0]) - 6, p2[1] - 3, Math.max(tx, p2[0]) + 6, p2[1] + 3], centre: C, r };
+  } else {
+    const a = got && got.a, b = got && got.b;
+    if (!a || !b || !a.pt || !b.pt) return null;
+    P = S(viewPoint(v.dir, a.pt)); Q = S(viewPoint(v.dir, b.pt));
+  }
+  const off = d.off;
+  let A, B, value, n;
+  if (dir === 'h') { const y = (d.t === 'ext' ? Math.max(P[1], Q[1]) : (P[1] + Q[1]) / 2) + off; A = [P[0], y]; B = [Q[0], y]; value = Math.abs(Q[0] - P[0]) / s; }
+  else if (dir === 'v') { const x = (d.t === 'ext' ? Math.min(P[0], Q[0]) : (P[0] + Q[0]) / 2) + off; A = [x, P[1]]; B = [x, Q[1]]; value = Math.abs(Q[1] - P[1]) / s; }
+  else { const dx = Q[0] - P[0], dy = Q[1] - P[1], len = Math.hypot(dx, dy) || 1; n = [-dy / len, dx / len]; A = [P[0] + n[0] * off, P[1] + n[1] * off]; B = [Q[0] + n[0] * off, Q[1] + n[1] * off]; value = len / s; }
+  if (!(value > 1e-9)) return null;
+  // each extension line from a little off its point to a little past the dimension line
+  const ext = (p, q) => { const dx = q[0] - p[0], dy = q[1] - p[1], len = Math.hypot(dx, dy); if (len < 1e-6) return null; const u = [dx / len, dy / len]; return [p[0] + u[0] * Math.min(G, len), p[1] + u[1] * Math.min(G, len), q[0] + u[0] * G, q[1] + u[1] * G]; };
+  const lines = [[A[0], A[1], B[0], B[1]], ext(P, A), ext(Q, B)].filter(Boolean), text = drwText(value);
+  const mid = [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2], vert = Math.abs(B[0] - A[0]) < Math.abs(B[1] - A[1]);
+  const at = vert ? [mid[0] - 1.2 - text.length * 0.95, mid[1]] : [mid[0], mid[1] - 2.2];
+  return { lines, arrows: [[A, B], [B, A]], text, at, value, hit: [at[0] - text.length * 1.1 - 1, at[1] - 2.5, at[0] + text.length * 1.1 + 1, at[1] + 2.5], P, Q, A, B };
+}
+
+/* ---------- the sheet, drawn through a pen ----------
+   pen: line(x1, y1, x2, y2, w, dash), poly(run, w, dash) (run: x, y, x, y… in sheet mm), fill(pts), text(x, y, str,
+   size, align, bold). opts: { located: { [dimId]: { a, b } }, date, scale text, source (its name), picked (a
+   dimension's id), hot } */
+function drawSheet(pen, D, data, opts) {
+  opts = opts || {};
+  const L = layoutOf(D, data), { W, H, m, s } = L;
+  // the border, and the title block at the bottom right
+  pen.poly([m, m, W - m, m, W - m, H - m, m, H - m, m, m], 0.5);
+  const tx = W - m - TITLE_W, ty = H - m - TITLE_H, T = D.title || {};
+  pen.poly([tx, ty, W - m, ty, W - m, H - m, tx, H - m, tx, ty], 0.35);
+  pen.line(tx, ty + 14, W - m, ty + 14, 0.25); pen.line(tx, ty + 25, W - m, ty + 25, 0.25); pen.line(tx + 60, ty + 14, tx + 60, H - m, 0.25); pen.line(tx + 105, ty + 14, tx + 105, H - m, 0.25);
+  const cell = (x, y, label, value, big) => { pen.text(x + 1.5, y + 3.2, label, 2, 'l'); if (value) pen.text(x + 1.5, y + (big ? 10.5 : 8.6), String(value).slice(0, big ? 60 : 40), big ? 5 : 3.2, 'l', big); };
+  cell(tx, ty, 'TITLE', T.title || D.name, true);
+  cell(tx, ty + 14, 'DRAWN BY', T.by || ''); cell(tx + 60, ty + 14, 'DATE', opts.date || ''); cell(tx + 105, ty + 14, 'SCALE', scaleText(s));
+  cell(tx, ty + 25, 'MATERIAL', T.material || ''); cell(tx + 60, ty + 25, 'DRAWING NO.', T.number || ''); cell(tx + 105, ty + 25, 'SHEET', D.sheet + ' · mm · third angle');
+  if (T.note) pen.text(m + 3, H - m - 3, T.note.slice(0, 120), 2.6, 'l');
+  if (opts.source) pen.text(W - m - 1.5, ty - 1.5, opts.source + ' · JEKcad', 2, 'r');
+  // the views: what shows, then (if asked) what is behind, dashed
+  for (const v of L.views) {
+    const dat = data && data.views && data.views[v.id];
+    if (!dat || !v.box) { pen.text(v.at[0], v.at[1], 'Nothing to show in the ' + VIEW_DIRS[v.dir].name.toLowerCase() + ' view yet', 3, 'c'); continue; }
+    const run = (r, w, dash) => { const out = new Array(r.length); for (let i = 0; i + 1 < r.length; i += 2) { out[i] = v.at[0] + s * (r[i] - v.c[0]); out[i + 1] = v.at[1] - s * (r[i + 1] - v.c[1]); } pen.poly(out, w, dash); };
+    if (D.hidden) for (const r of dat.hid) run(r, 0.18, [1.2, 0.9]);
+    for (const r of dat.vis) run(r, v.dir === 'iso' ? 0.3 : 0.4);
+    if (opts.labels !== false) pen.text(v.at[0], v.at[1] + (v.h * s) / 2 + (D.dims.some(d => d.view === v.id && d.t === 'ext' && d.axis === 'x') ? 17 : 6), VIEW_DIRS[v.dir].name.toUpperCase(), 2.4, 'c');
+  }
+  // the dimensions
+  const out = { layout: L, dims: [] };
+  for (const d of D.dims) {
+    const g = dimGeom(L, d, opts.located && opts.located[d.id]);
+    if (!g) continue;
+    const hot = opts.picked === d.id, w = hot ? 0.35 : 0.18;
+    for (const l of g.lines) pen.line(l[0], l[1], l[2], l[3], w, null, hot);
+    for (const [tip, from] of g.arrows) { const dx = from[0] - tip[0], dy = from[1] - tip[1], len = Math.hypot(dx, dy) || 1, u = [dx / len, dy / len], a = 2.4, b = 0.55; pen.fill([tip[0], tip[1], tip[0] + u[0] * a - u[1] * b, tip[1] + u[1] * a + u[0] * b, tip[0] + u[0] * a + u[1] * b, tip[1] + u[1] * a - u[0] * b], hot); }
+    pen.text(g.at[0], g.at[1] + 1.1, g.text, 3, 'c', false, hot);
+    out.dims.push({ id: d.id, g });
+  }
+  return out;
+}
+
+/* ---------- a PDF of the sheet, written here ----------
+   One page of the sheet's size, the lines as lines and the text in Helvetica (one of the fonts every PDF reader
+   has), so it prints at its true size and stays sharp. */
+const HELV = [278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584];
+const helvWidth = (str, size) => { let w = 0; for (const ch of str) { const c = ch.charCodeAt(0); w += c >= 32 && c <= 126 ? HELV[c - 32] : c === 0xd8 ? 778 : c === 0xb0 ? 400 : 584; } return w * size / 1000; };
+function pdfOfSheet(D, data, opts) {
+  const [W, H] = SHEETS[D.sheet] || SHEETS.A4, k = 72 / 25.4, f = v => +(+v).toFixed(3), ops = [];
+  let lw = -1, ds = null;
+  const style = (w, dash) => { if (w !== lw) { ops.push(f(w) + ' w'); lw = w; } const d = dash ? dash.map(f).join(' ') : ''; if (d !== ds) { ops.push('[' + d + '] 0 d'); ds = d; } };
+  const esc = str => { let o = ''; for (const ch of str) { const c = ch.charCodeAt(0); o += c === 40 || c === 41 || c === 92 ? '\\' + ch : c >= 32 && c <= 126 ? ch : c <= 255 ? '\\' + c.toString(8).padStart(3, '0') : '?'; } return o; };
+  const pen = {
+    line(x1, y1, x2, y2, w, dash) { style(w || 0.2, dash); ops.push(f(x1) + ' ' + f(y1) + ' m ' + f(x2) + ' ' + f(y2) + ' l S'); },
+    poly(run, w, dash) { if (run.length < 4) return; style(w || 0.2, dash); let o = f(run[0]) + ' ' + f(run[1]) + ' m'; for (let i = 2; i + 1 < run.length; i += 2) o += ' ' + f(run[i]) + ' ' + f(run[i + 1]) + ' l'; ops.push(o + ' S'); },
+    fill(p) { let o = f(p[0]) + ' ' + f(p[1]) + ' m'; for (let i = 2; i + 1 < p.length; i += 2) o += ' ' + f(p[i]) + ' ' + f(p[i + 1]) + ' l'; ops.push(o + ' h f'); },
+    text(x, y, str, size, align, bold) { const w = helvWidth(str, size), x0 = align === 'c' ? x - w / 2 : align === 'r' ? x - w : x; ops.push('BT /' + (bold ? 'F2' : 'F1') + ' ' + f(size) + ' Tf 1 0 0 -1 ' + f(x0) + ' ' + f(y) + ' Tm (' + esc(str) + ') Tj ET'); },
+  };
+  drawSheet(pen, D, data, Object.assign({}, opts, { picked: null }));
+  const stream = '1 J 1 j 0 G 0 g\n' + f(k) + ' 0 0 ' + f(-k) + ' 0 ' + f(H * k) + ' cm\n' + ops.join('\n') + '\n';
+  const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + f(W * k) + ' ' + f(H * k) + '] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>',
+    '<< /Length ' + stream.length + ' >>\nstream\n' + stream + 'endstream',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
+    '<< /Title (' + esc((D.title && D.title.title) || D.name) + ') /Creator (JEKcad) >>'];
+  let out = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
+  const at = [];
+  objs.forEach((o, i) => { at.push(out.length); out += (i + 1) + ' 0 obj\n' + o + '\nendobj\n'; });
+  const xref = out.length;
+  out += 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n' + at.map(a => String(a).padStart(10, '0') + ' 00000 n \n').join('') + 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root 1 0 R /Info 7 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
+  const bytes = new Uint8Array(out.length);
+  for (let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 255;
+  return bytes;
+}
+/* ==========================================================================
    A Part Studio as a file (.jekcad, JSON): its Variables table, its feature list in order, the rollback bar, and its
    parts' names, colours and materials. There are no format migrations: every field has its default here (normDoc),
    so a file from an older JEKcad opens. The features hold what the person chose, never the geometry made from it:
@@ -4419,7 +4638,8 @@ function normFile(d) {
   if (Array.isArray(d.tabs)) {
     for (const t of d.tabs.slice(0, 60)) {
       if (!t || typeof t !== 'object') continue;
-      if (t.kind === 'assembly') tabs.push(Object.assign(normAsm(t, tabs.filter(x => x.kind === 'assembly').length + 1), { id: tid(t) }));
+      if (t.kind === 'drawing') tabs.push(Object.assign(normDrawing(t, tabs.filter(x => x.kind === 'drawing').length + 1), { id: tid(t) }));
+      else if (t.kind === 'assembly') tabs.push(Object.assign(normAsm(t, tabs.filter(x => x.kind === 'assembly').length + 1), { id: tid(t) }));
       else { const s = normDoc(t); tabs.push(Object.assign(s, { id: tid(t), kind: 'studio', name: isStr(t.name, 120) && t.name.trim() ? t.name : 'Part Studio ' + (tabs.filter(x => x.kind === 'studio').length + 1) })); }
     }
   } else { const s = normDoc(d); tabs.push(Object.assign(s, { id: tid({}), kind: 'studio', name: 'Part Studio 1' })); }
@@ -4427,6 +4647,8 @@ function normFile(d) {
   // an assembly's instances are of parts of studios that are there
   const studios = new Set(tabs.filter(t => t.kind === 'studio').map(t => t.id));
   for (const t of tabs) if (t.kind === 'assembly') { t.instances = t.instances.filter(I => studios.has(I.studio)); const live = new Set(t.instances.map(I => I.id)); t.mates = t.mates.filter(m => live.has(m.a.inst) && live.has(m.b.inst)); }
+  // a drawing is of a Part Studio or an Assembly that is there (else of the first Part Studio)
+  for (const t of tabs) if (t.kind === 'drawing' && !tabs.some(x => x.id === t.of && x.kind !== 'drawing')) { t.of = tabs.find(x => x.kind === 'studio').id; t.part = null; t.dims = t.dims.filter(m => m.t === 'ext'); }
   const name = isStr(d.name, 120) && d.name.trim() ? d.name : 'Part Studio 1';
   return { format: CAD_FORMAT, version: FILE_VERSION, name, tabs, active: tabs.some(t => t.id === d.active) ? d.active : tabs[0].id };
 }
@@ -5661,6 +5883,66 @@ function makeKernel(oc) {
     } finally { flush(); }
     return out;
   }
+  /* ---------- a drawing: parts seen square on from a direction, as lines on paper ----------
+     items as an assembly's (a Part Studio's parts are items at the origin). views: [{ id, n, x }]: n towards the
+     eye, x across the paper (up the paper is n × x). Each view comes back as the lines that show and the lines
+     behind (each a run of points, in the view's own millimetres), hidden lines removed by the kernel. */
+  function drawingViews(items, views) {
+    const out = [];
+    try {
+      const shapes = asmBodies(items).map(x => moved(x.b.shape, x.t));
+      for (const v of views) {
+        const res = { id: v.id, vis: [], hid: [] };
+        if (shapes.length) {
+          const hlr = T(new oc.HLRBRep_Algo());
+          for (const s of shapes) hlr.Add(s, 0);
+          hlr.Projector(T(new oc.HLRAlgo_Projector(T(new oc.gp_Ax2(pnt([0, 0, 0]), gdir(v.n), gdir(v.x))))));
+          hlr.Update(); hlr.Hide();
+          const hs = T(new oc.HLRBRep_HLRToShape(hlr));
+          const take = (comp, into) => {
+            if (!comp || comp.IsNull()) return;
+            try { oc.BRepLib.BuildCurves3d(comp); } catch (err) { /* as they are */ }
+            for (const e of subShapes(comp, TA.TopAbs_EDGE)) {
+              try {
+                const c = T(new oc.BRepAdaptor_Curve(e)), t0 = c.FirstParameter(), t1 = c.LastParameter();
+                if (!(Math.abs(t1 - t0) > 1e-12) || !Number.isFinite(t0) || !Number.isFinite(t1)) continue;
+                const n = c.GetType() === oc.GeomAbs_CurveType.GeomAbs_Line ? 1 : 32, run = [];
+                for (let i = 0; i <= n; i++) { const p = T(c.Value(t0 + (t1 - t0) * i / n)); run.push(+p.X().toFixed(6), +p.Y().toFixed(6)); }
+                into.push(run);
+              } catch (err) { /* that edge left out */ }
+            }
+          };
+          take(hs.VCompound(), res.vis); take(hs.OutLineVCompound(), res.vis);
+          take(hs.HCompound(), res.hid); take(hs.OutLineHCompound(), res.hid);
+        }
+        out.push(res);
+      }
+    } finally { flush(); }
+    return out;
+  }
+  /* what a drawing's dimensions hold to, found on the model as it is now. reqs: [{ doc, part, p, q, ref }] (ref: a
+     corner's or an edge's, as refs gives them): a corner's place; a round edge's centre, radius and axis; where the
+     assembly puts them. null where it is gone. And the refs of picks, for a studio that is not the one in hand. */
+  function drawLocate(reqs) {
+    const keepLast = last, out = [];
+    try {
+      const byDoc = new Map();
+      for (const r of reqs) if (!byDoc.has(r.doc.id)) { regen(r.doc, {}); byDoc.set(r.doc.id, last.S); }
+      for (const r of reqs) {
+        const S = byDoc.get(r.doc.id), q = r.q || [0, 0, 0, 1], p = r.p || [0, 0, 0];
+        const put = v => { const [x, y, z, w] = q, ux = [x, y, z], t = v3.mul(v3.cross(ux, v), 2), c = v3.cross(ux, t); return [v[0] + w * t[0] + c[0] + p[0], v[1] + w * t[1] + c[1] + p[1], v[2] + w * t[2] + c[2] + p[2]]; };
+        const turn = v => { const o = put([0, 0, 0]), e = put(v); return v3.sub(e, o); };
+        try {
+          if (r.pick) { const ref = refOf(S, r.pick); out.push({ ref }); continue; }
+          if (r.ref.kind === 'vertex') { out.push({ pt: put(findVertex(S, r.ref)) }); continue; }
+          const hit = findEdge(S, r.ref, true), e = edgesOf(hit.b)[hit.j], c = T(new oc.BRepAdaptor_Curve(e));
+          if (c.GetType() === oc.GeomAbs_CurveType.GeomAbs_Circle) { const ci = T(c.Circle()), ax = T(ci.Axis()); out.push({ c: put(xyz(T(ax.Location()))), r: ci.Radius(), n: turn(xyz(T(ax.Direction()))) }); }
+          else out.push(null);
+        } catch (err) { out.push(null); }
+      }
+    } finally { last = keepLast; flush(); }
+    return out;
+  }
   /* which parts run into each other: each pair that shares some volume, and how much */
   function asmClash(items) {
     const out = [];
@@ -5775,7 +6057,7 @@ function makeKernel(oc) {
     } finally { flush(); }
     return out;
   }
-  return { regen, refs, measure, exportStep, exportStl, project: projectEdges, section: sectionEdges, pierce: piercePoints, asmExport, asmMeasure, asmClash, state: () => last.S };
+  return { regen, refs, measure, exportStep, exportStl, project: projectEdges, section: sectionEdges, pierce: piercePoints, asmExport, asmMeasure, asmClash, drawingViews, drawLocate, state: () => last.S };
 }
 /* ==========================================================================
    Stand-ins for the page in a worker, set up before the app's code runs: whatever it reaches for
@@ -5828,6 +6110,8 @@ function cadRun(K, kind, a) {
   if (kind === 'asmStep' || kind === 'asmStl') return K.asmExport(kind === 'asmStl' ? 'stl' : 'step', a.items, a.fine);
   if (kind === 'asmMeasure') return K.asmMeasure(a.picks);
   if (kind === 'asmClash') return K.asmClash(a.items);
+  if (kind === 'drawing') return K.drawingViews(a.items, a.views);
+  if (kind === 'drawLocate') return K.drawLocate(a.reqs);
   if (kind === 'ping') return true;
   throw new Error('no such request: ' + kind);
 }
@@ -6234,6 +6518,7 @@ const app = {
   file: null,             // the whole document: its name and its tabs (Part Studios and Assemblies)
   doc: null,              // the Part Studio in hand: the tab that is open, or with an Assembly open the studio last open
   asm: null,              // the Assembly that is open, or null
+  drw: null,              // the Drawing that is open, or null
   sel: [], hover: null, filter: 'any', history: [], future: [], result: null, error: null,
   editing: null,          // the feature dialog: { f (the feature as edited), at (its place), isNew, field (the active selection field) }
   sketch: null,           // the sketch being edited: see ui/sketcher.js
@@ -6259,6 +6544,7 @@ function bindTab() {
   const F = app.file, t = F.tabs.find(x => x.id === F.active) || F.tabs[0];
   F.active = t.id;
   app.asm = t.kind === 'assembly' ? t : null;
+  app.drw = t.kind === 'drawing' ? t : null;
   if (t.kind === 'studio') app.doc = t;
   else if (!app.doc || !F.tabs.includes(app.doc)) app.doc = F.tabs.find(x => x.kind === 'studio');
 }
@@ -6306,6 +6592,7 @@ function regenTold(out) { if (regenPending()) return; const w = regenWaiters; re
 async function regenNow() {
   clearTimeout(regenTimer); regenQueued = false;
   if (app.asm && hooks.cadAsmRegen) return hooks.cadAsmRegen();
+  if (app.drw && hooks.cadDrwRegen) return hooks.cadDrwRegen();
   const t0 = performance.now(), opts = regenOpts();
   app.busy = true; emit('busy');
   let out;
@@ -6359,6 +6646,7 @@ function wireMenus() {
 const CAD_ICONS = {
   new: 'M4 1.5h5.5L12.5 4.5V14.5H4Z M9.5 1.5V4.5H12.5', open: 'M1.5 4.5V13.5H13L14.5 7.5H4L2.5 13 M1.5 4.5V2.5H6L7.5 4H12.5V7.5', save: 'M2.5 2.5H11L13.5 5V13.5H2.5Z M5 2.5V6H10V2.5 M5 13.5V9.5H11V13.5',
   export: 'M8 1.5V10 M5 7L8 10L11 7 M2.5 11V14H13.5V11', import: 'M8 10V1.5 M5 4.5L8 1.5L11 4.5 M2.5 11V14H13.5V11', undo: 'M5.5 3.5L2.5 6.5L5.5 9.5 M2.5 6.5H10Q13.5 6.5 13.5 10Q13.5 13.5 10 13.5H6', redo: 'M10.5 3.5L13.5 6.5L10.5 9.5 M13.5 6.5H6Q2.5 6.5 2.5 10Q2.5 13.5 6 13.5H10',
+  drawing: 'M2 2H14V14H2Z M9 10H14 M9 10V14 M4 5H9V8H4Z M4 5V4 M9 5V4 M4 4H9',
   assembly: 'M2 6L6 4L10 6L6 8Z M2 6V10L6 12V8 M10 6V10L6 12 M9 9L12 7.5L15 9L12 10.5Z M9 9V12L12 13.5V10.5 M15 9V12L12 13.5', mate: 'M2 5H8V11H2Z M8 6.5H10 M8 9.5H10 M10 4H14V12H10Z', pin: 'M8 2V9 M5 9H11 M8 9V14 M5.5 2H10.5', flip: 'M3 5H13L10.5 2.5 M13 11H3L5.5 13.5', slider: 'M2 8H14 M5 5H11V11H5Z M2 8L4 6.5 M2 8L4 9.5 M14 8L12 6.5 M14 8L12 9.5',
   trash: 'M2.5 4H13.5 M5.5 4V2.5H10.5V4 M4 4L4.5 14H11.5L12 4', fit: 'M2 6V2H6 M10 2H14V6 M14 10V14H10 M6 14H2V10', check: 'M3 8.5L6.5 12L13 4', cube: 'M8 1.5L14 5V11L8 14.5L2 11V5Z M8 8L14 5 M8 8V14.5 M8 8L2 5',
   sketch: 'M2 14L3 10.5L11 2.5L13.5 5L5.5 13Z M9.5 4L12 6.5', extrude: 'M3 11H11V14H3Z M3 11L6 8H14L11 11 M14 8V11L11 14 M8.5 6.5V1.5 M6.5 3.5L8.5 1.5L10.5 3.5', revolve: 'M8 1.5V14.5 M4 4Q1 8 4 12 M12 4Q15 8 12 12 M10.5 11.5L12 12L12.5 10.5',
@@ -7913,6 +8201,8 @@ function drawOverlay() {
   c.setTransform(pr, 0, 0, pr, 0, 0);
   c.clearRect(0, 0, V.w, V.h);
   c.lineCap = 'round'; c.lineJoin = 'round';
+  // (a drawing open: the overlay is its sheet of paper)
+  if (app.drw && hooks.cadSheet) { hooks.cadSheet(c); V.overlays = []; return; }
   const ed = app.editing, field = ed && ed.field, selKey = x => JSON.stringify(x);
   const selected = new Set(app.sel.filter(s => s.kind === 'plane' || s.kind === 'region').map(selKey));
   // planes
@@ -8387,7 +8677,7 @@ function sketchBar() {
   const bar = document.getElementById('sketchBar');
   if (!bar) return;
   bar.hidden = !app.sketch;
-  document.getElementById('featureBar').hidden = !!app.sketch || !!app.asm;
+  document.getElementById('featureBar').hidden = !!app.sketch || !!app.asm || !!app.drw;
   mirrorPanel();
   if (!app.sketch) return;
   const btn = (id, title, icon, on) => h('button', { type: 'button', class: 'rt-btn rt-icon quiet cad-tool' + (on ? ' on' : ''), 'data-sktool': id, 'data-icon': icon, title, 'aria-label': title, 'aria-pressed': String(!!on), onclick: () => setTool(id) });
@@ -8461,7 +8751,7 @@ const FEATURE_FORMS = {
 const pickOf = (fd, f) => (typeof fd[3].pick === 'function' ? fd[3].pick(f) : fd[3].pick);
 /* ---------- opening ---------- */
 function openFeature(type, opts) {
-  if (app.asm) { toast('Features are made in a Part Studio: open one from the tabs below'); return; }
+  if (app.asm || app.drw) { toast('Features are made in a Part Studio: open one from the tabs below'); return; }
   if (!editGate()) return;
   if (app.sketch) { toast('Finish the sketch first'); return; }
   if (app.editing) closeDialog(false);
@@ -8994,6 +9284,8 @@ function asmItems(ids) {
   const A = app.asm;
   return A ? A.instances.filter(I => (ids ? ids.includes(I.id) : !I.hidden)).map(I => ({ doc: tabOf(I.studio), part: I.part, id: I.id, p: I.p, q: I.q, name: instName(I) })) : [];
 }
+/* a studio's part's mesh, as last made (a drawing's corners and round edges are found on it) */
+function studioMesh(studio, part) { const s = STUDIO.get(studio); return s ? s.parts.find(p => p.id === part) || null : null; }
 /* the mesh of a studio's part as last made (for a connector, which is in the part's own coordinates) */
 function localMesh(I) { const s = STUDIO.get(I.studio); return s ? s.parts.find(p => p.id === I.part) : null; }
 /* a part's mesh moved to where an instance puts it */
@@ -9072,7 +9364,9 @@ function addTab(kind) {
   if (app.sketch) { toast('Finish the sketch first'); return null; }
   checkpoint();
   const n = app.file.tabs.filter(t => t.kind === kind).length + 1;
-  const t = kind === 'assembly' ? normAsm({ name: 'Assembly ' + n }, n) : Object.assign(normDoc({}), { id: sketchId('t'), kind: 'studio', name: 'Part Studio ' + n });
+  // (a drawing is of the tab that is open, or of the first Part Studio if that is a drawing itself)
+  const cur = tabOf(app.file.active), ofTab = cur && cur.kind !== 'drawing' ? cur : studios()[0];
+  const t = kind === 'drawing' ? newDrawing(ofTab.id, n) : kind === 'assembly' ? normAsm({ name: 'Assembly ' + n }, n) : Object.assign(normDoc({}), { id: sketchId('t'), kind: 'studio', name: 'Part Studio ' + n });
   app.file.tabs.push(t);
   changed();
   switchTab(t.id);
@@ -9087,7 +9381,7 @@ function deleteTab(id) {
   const t = tabOf(id);
   if (!t || !editGate()) return false;
   if (t.kind === 'studio' && studios().length === 1) { toast('A document keeps at least one Part Studio'); return false; }
-  const used = t.kind === 'studio' ? app.file.tabs.filter(a => a.kind === 'assembly' && a.instances.some(I => I.studio === id)).map(a => a.name) : [];
+  const used = (t.kind === 'studio' ? app.file.tabs.filter(a => a.kind === 'assembly' && a.instances.some(I => I.studio === id)).map(a => a.name) : []).concat(app.file.tabs.filter(a => a.kind === 'drawing' && a.of === id).map(a => a.name + ' (its dimensions)'));
   if (!confirm('Delete “' + t.name + '”?' + (used.length ? ' Its parts go from ' + used.join(', ') + ' too.' : '') + ' Undo brings it back.')) return false;
   if (app.sketch) { toast('Finish the sketch first'); return false; }
   checkpoint();
@@ -9095,6 +9389,7 @@ function deleteTab(id) {
   app.file.tabs.splice(i, 1);
   for (const a of app.file.tabs) if (a.kind === 'assembly') { a.instances = a.instances.filter(I => I.studio !== id); const live = new Set(a.instances.map(I => I.id)); a.mates = a.mates.filter(m => live.has(m.a.inst) && live.has(m.b.inst)); }
   STUDIO.delete(id);
+  for (const a of app.file.tabs) if (a.kind === 'drawing' && a.of === id) { a.of = studios()[0].id; a.part = null; a.dims = a.dims.filter(d => d.t === 'ext'); }
   if (app.file.active === id) { app.file.active = (app.file.tabs[Math.max(0, i - 1)] || app.file.tabs[0]).id; app.sel = []; app.picked = null; if (app.editing && hooks.cadCloseDialog) hooks.cadCloseDialog(); bindTab(); emit('tab'); }
   changed();
   return true;
@@ -9147,9 +9442,9 @@ function renderTabs() {
   // as JEKray's tabs are: a strip at the foot of the view, the one open marked, a double-click to rename in place,
   // a × on the open one to delete it, dragged along the strip to reorder, and + at the end
   const tabs = app.file.tabs.map(t => {
-    const on2 = t.id === app.file.active, kind = t.kind === 'assembly' ? 'Assembly' : 'Part Studio';
+    const on2 = t.id === app.file.active, kind = t.kind === 'assembly' ? 'Assembly' : t.kind === 'drawing' ? 'Drawing' : 'Part Studio';
     const b = h('button', { type: 'button', class: on2 ? 'on' : '', role: 'tab', 'aria-selected': String(on2), 'data-tab': t.id, 'data-kind': t.kind, title: kind + ': ' + (on2 ? 'double-click to rename. ' : 'show ' + t.name + '. ') + 'Drag to reorder; right-click for more.' },
-      h('span', { class: 'ic2', 'data-icon': t.kind === 'assembly' ? 'assembly' : 'cube' }), t.name);
+      h('span', { class: 'ic2', 'data-icon': t.kind === 'assembly' ? 'assembly' : t.kind === 'drawing' ? 'drawing' : 'cube' }), t.name);
     b.addEventListener('click', e => { if (e.target.classList.contains('x') || b._dragged) { b._dragged = false; return; } switchTab(t.id); });
     b.addEventListener('pointerdown', e => tabDragStart(e, b));
     b.addEventListener('dblclick', () => {
@@ -9164,16 +9459,19 @@ function renderTabs() {
     if (on2 && app.file.tabs.length > 1) { const x = h('span', { class: 'x', title: 'Delete this tab', 'aria-label': 'Delete ' + t.name }, '\u00d7'); x.addEventListener('click', () => deleteTab(t.id)); b.append(x); }
     return b;
   });
-  const add = h('button', { type: 'button', class: 'add', id: 'tabAdd', title: 'Add a Part Studio or an Assembly', 'aria-label': 'Add a tab', 'aria-haspopup': 'menu' }, '+');
-  add.addEventListener('click', () => openTabMenu(add, [['New Part Studio', () => addTab('studio')], ['New Assembly', () => addTab('assembly')]]));
+  const add = h('button', { type: 'button', class: 'add', id: 'tabAdd', title: 'Add a Part Studio, an Assembly or a Drawing', 'aria-label': 'Add a tab', 'aria-haspopup': 'menu' }, '+');
+  add.addEventListener('click', () => openTabMenu(add, [['New Part Studio', () => addTab('studio')], ['New Assembly', () => addTab('assembly')], ['New Drawing', () => addTab('drawing')]]));
   bar.replaceChildren(...tabs, add);
   emit('icons', bar);
   // what an assembly shows in place of the feature bar and the feature list
-  const asm = !!app.asm;
-  const fb = document.getElementById('featureBar'), ab = document.getElementById('asmBar'), ss = document.getElementById('studioSide'), as = document.getElementById('asmSide');
-  if (fb && !app.sketch) fb.hidden = asm;
+  const asm = !!app.asm, drw = !!app.drw;
+  const fb = document.getElementById('featureBar'), ab = document.getElementById('asmBar'), db = document.getElementById('drwBar'), ss = document.getElementById('studioSide'), as = document.getElementById('asmSide'), ds = document.getElementById('drwSide');
+  if (fb && !app.sketch) fb.hidden = asm || drw;
   if (ab) ab.hidden = !asm || !!app.sketch;
-  if (ss) ss.hidden = asm; if (as) as.hidden = !asm;
+  if (db) db.hidden = !drw;
+  if (ss) ss.hidden = asm || drw; if (as) as.hidden = !asm; if (ds) ds.hidden = !drw;
+  // (a drawing is a sheet of paper: the 3D view and its cube are put away)
+  const stage = document.getElementById('stage'); if (stage) stage.classList.toggle('drw', drw);
   if (asm) renderAsm();
 }
 /* ---------- instances ---------- */
@@ -9461,6 +9759,277 @@ function wireAssembly() {
   renderTabs();
 }
 /* ==========================================================================
+   A Drawing tab: a Part Studio's parts, or an Assembly, as views on a sheet with dimensions and a title block. The
+   kernel projects each view with its hidden lines taken out (kept here until the model or the views change); the
+   sheet is drawn on the view's overlay canvas, and written as a PDF from the same drawing. A dimension holds to
+   corners and round edges of the model by the kernel's references, so it follows the model when it changes.
+   ========================================================================== */
+const DR = { tool: 'select', data: null, key: '', located: {}, snaps: [], pick: null, pick2: null, hover: null, sel: null, cam: null, drag: null, mouse: null, drawn: null };
+const drwTab = id => app.file.tabs.find(t => t.id === id);
+const drwViews = D => D.views.map(v => ({ id: v.id, n: VIEW_DIRS[v.dir].n, x: VIEW_DIRS[v.dir].x }));
+/* what the drawing is of, as the kernel is asked: each part with its place */
+async function drwItems(D) {
+  const src = drwTab(D.of);
+  if (!src) return [];
+  if (src.kind === 'studio') {
+    const parts = await studioParts(src);
+    if (!parts) return null;
+    return parts.filter((p, i) => !partLook(src, p.id, i).hidden && (!D.part || p.id === D.part)).map(p => ({ doc: src, part: p.id, id: p.id, p: [0, 0, 0], q: [0, 0, 0, 1] }));
+  }
+  const out = [];
+  for (const I of src.instances) {
+    if (I.hidden) continue;
+    const t = drwTab(I.studio);
+    if (!t || !(await studioParts(t))) continue;
+    out.push({ doc: t, part: I.part, id: I.id, inst: I.id, p: I.p, q: I.q });
+  }
+  return out;
+}
+/* the drawing made: its views from the kernel (when what they show has changed), what its dimensions hold to found
+   on the model, and the corners and round edges a new dimension can be put on */
+async function drwRegen() {
+  const D = app.drw;
+  if (!D) return null;
+  app.busy = true; emit('busy');
+  try {
+    const items = await drwItems(D);
+    if (!items || app.drw !== D) return null;
+    const key = JSON.stringify([items.map(i => [JSON.stringify(i.doc), i.part, i.p, i.q]), D.views.map(v => v.dir + v.id)]);
+    if (key !== DR.key) {
+      const got = await kernelAsk('drawing', { items, views: drwViews(D) }, 'regen');
+      if (!got) return null;
+      if (app.drw !== D) return null;
+      DR.data = { views: Object.fromEntries(got.map(g => [g.id, g])) }; DR.key = key;
+    }
+    DR.items = items;
+    // the corners and round edges of every part, where the drawing has them
+    DR.snaps = [];
+    for (const it of items) {
+      const M = studioMesh(it.doc.id, it.part);
+      if (!M) continue;
+      for (let i = 0; i < M.verts.length / 3; i++) DR.snaps.push({ kind: 'vertex', item: it, index: i, w: placed(it, [M.verts[3 * i], M.verts[3 * i + 1], M.verts[3 * i + 2]]) });
+      for (let j = 0; j < M.edgeGroups.length / 2; j++) {
+        if (!M.edgeKinds || M.edgeKinds[j] !== 'circle') continue;
+        const c = edgeConnector(M, j);
+        if (!c || !c.round) continue;
+        const k = M.edgeGroups[2 * j] * 6, r = Math.hypot(M.seg[k] - c.o[0], M.seg[k + 1] - c.o[1], M.seg[k + 2] - c.o[2]);
+        DR.snaps.push({ kind: 'edge', item: it, index: j, w: placed(it, c.o), n: turned3(it, c.z), r });
+      }
+    }
+    // what each dimension holds to
+    const reqs = [], slots = [];
+    for (const d of D.dims) for (const k of ['a', 'b']) {
+      if (!d[k]) continue;
+      const it = items.find(x => (d[k].inst ? x.inst === d[k].inst : x.part === d[k].ref.part));
+      if (!it) continue;
+      reqs.push({ doc: it.doc, part: it.part, p: it.p, q: it.q, ref: d[k].ref }); slots.push([d.id, k]);
+    }
+    const located = {};
+    if (reqs.length) { const got = await kernelAsk('drawLocate', { reqs }); got.forEach((g, i) => { const [id, k] = slots[i]; (located[id] || (located[id] = {}))[k] = g; }); }
+    if (app.drw !== D) return null;
+    DR.located = located;
+    app.result = { features: [], parts: [], frames: {}, vars: {}, errors: [], drw: true };
+    app.sel = [];
+    app.error = null; app.regenCount++;
+    if (!DR.cam) fitSheet();
+    emit('model', app.result);
+    renderDrw();
+    return app.result;
+  } catch (err) { app.error = err.message; toast('The drawing could not be made: ' + err.message, true); return null; } finally { app.busy = false; emit('busy'); }
+}
+/* ---------- the sheet on the screen ---------- */
+function fitSheet() {
+  const D = app.drw; if (!D) return;
+  const [W, H] = SHEETS[D.sheet], z = Math.min((V.w - 40) / W, (V.h - 70) / H);
+  DR.cam = { z: Math.max(0.2, z), x: (V.w - W * z) / 2, y: (V.h - 30 - H * z) / 2 + 4 };
+}
+const drwScr = p => [DR.cam.x + p[0] * DR.cam.z, DR.cam.y + p[1] * DR.cam.z];
+const drwMm = (sx, sy) => [(sx - DR.cam.x) / DR.cam.z, (sy - DR.cam.y) / DR.cam.z];
+const drwToday = () => new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+const drwSource = D => { const t = drwTab(D.of); return t ? t.name : ''; };
+const drwOpts = D => ({ located: DR.located, date: drwToday(), source: drwSource(D), picked: DR.sel });
+function drawDrw(c) {
+  const D = app.drw; if (!D) return;
+  if (!DR.cam) fitSheet();
+  const [W, H] = SHEETS[D.sheet], z = DR.cam.z, X = v => DR.cam.x + v * z, Y = v => DR.cam.y + v * z;
+  c.save();
+  c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(X(0) + 4, Y(0) + 4, W * z, H * z);
+  c.fillStyle = '#fdfdfb'; c.fillRect(X(0), Y(0), W * z, H * z);
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  const ink = '#141414', hot = '#d2691e';
+  const pen = {
+    line(x1, y1, x2, y2, w, dash, on2) { c.beginPath(); c.setLineDash(dash ? dash.map(v => v * z) : []); c.lineWidth = Math.max(0.6, (w || 0.2) * z); c.strokeStyle = on2 ? hot : ink; c.moveTo(X(x1), Y(y1)); c.lineTo(X(x2), Y(y2)); c.stroke(); },
+    poly(run, w, dash) { if (run.length < 4) return; c.beginPath(); c.setLineDash(dash ? dash.map(v => v * z) : []); c.lineWidth = Math.max(0.6, (w || 0.2) * z); c.strokeStyle = ink; c.moveTo(X(run[0]), Y(run[1])); for (let i = 2; i + 1 < run.length; i += 2) c.lineTo(X(run[i]), Y(run[i + 1])); c.stroke(); },
+    fill(p, on2) { c.beginPath(); c.moveTo(X(p[0]), Y(p[1])); for (let i = 2; i + 1 < p.length; i += 2) c.lineTo(X(p[i]), Y(p[i + 1])); c.closePath(); c.fillStyle = on2 ? hot : ink; c.fill(); },
+    text(x, y, str, size, align, bold, on2) { c.font = (bold ? '700 ' : '') + Math.max(5, size * z) + 'px Helvetica, Arial, sans-serif'; c.textAlign = align === 'c' ? 'center' : align === 'r' ? 'right' : 'left'; c.textBaseline = 'alphabetic'; c.fillStyle = on2 ? hot : ink; c.fillText(str, X(x), Y(y)); },
+  };
+  DR.drawn = drawSheet(pen, D, DR.data, drwOpts(D));
+  c.setLineDash([]);
+  // the dimension being made: its first point, the point under the pointer, and how it would lie
+  const L = DR.drawn.layout, mark = (s, col) => { const v = L.views.find(x => x.id === s.view); if (!v) return; const p = drwScr(L.toSheet(v, viewPoint(v.dir, s.w))); c.beginPath(); if (s.kind === 'edge') c.arc(p[0], p[1], Math.max(3, s.r * L.s * z), 0, 2 * Math.PI); else c.rect(p[0] - 4, p[1] - 4, 8, 8); c.strokeStyle = col; c.lineWidth = 2; c.stroke(); };
+  if (DR.tool === 'dim') { if (DR.hover) mark(DR.hover, '#3b82d6'); if (DR.pick) mark(DR.pick, hot); if (DR.pick2) mark(DR.pick2, hot); }
+  if (DR.tool === 'dim' && DR.pick && DR.pick2 && DR.mouse) {
+    const d = drwPlacing(DR.mouse), g = d && dimGeom(L, d, { a: { pt: DR.pick.w }, b: { pt: DR.pick2.w } });
+    if (g) { c.strokeStyle = hot; c.fillStyle = hot; c.lineWidth = 1; for (const l of g.lines) { c.beginPath(); c.moveTo(X(l[0]), Y(l[1])); c.lineTo(X(l[2]), Y(l[3])); c.stroke(); } c.font = Math.max(5, 3 * z) + 'px Helvetica, Arial, sans-serif'; c.textAlign = 'center'; c.fillText(g.text, X(g.at[0]), Y(g.at[1] + 1.1)); }
+  }
+  c.restore();
+}
+/* the corner or round edge of a view nearest a screen point */
+function drwSnap(sx, sy) {
+  const L = DR.drawn && DR.drawn.layout; if (!L) return null;
+  let best = null, bd = 10;
+  for (const v of L.views) {
+    if (!v.box || v.dir === 'iso') continue;
+    const n = VIEW_DIRS[v.dir].n;
+    for (const s of DR.snaps) {
+      const p = drwScr(L.toSheet(v, viewPoint(v.dir, s.w)));
+      if (s.kind === 'vertex') { const d = Math.hypot(p[0] - sx, p[1] - sy); if (d < bd) { bd = d; best = Object.assign({ view: v.id }, s); } }
+      // a round edge seen end on: by its rim
+      else if (Math.abs(Math.abs(s.n[0] * n[0] + s.n[1] * n[1] + s.n[2] * n[2]) - 1) < 1e-6) { const d = Math.abs(Math.hypot(p[0] - sx, p[1] - sy) - s.r * L.s * DR.cam.z); if (d < Math.min(bd, 7)) { bd = d; best = Object.assign({ view: v.id }, s); } }
+    }
+  }
+  return best;
+}
+/* the dimension two picked corners would make, placed where the pointer is: across if the pointer is above or below
+   them, up if it is beside them, along them with Shift */
+function drwPlacing(m) {
+  const L = DR.drawn.layout, v = L.views.find(x => x.id === DR.pick.view); if (!v) return null;
+  const P = L.toSheet(v, viewPoint(v.dir, DR.pick.w)), Q = L.toSheet(v, viewPoint(v.dir, DR.pick2.w)), mid = [(P[0] + Q[0]) / 2, (P[1] + Q[1]) / 2], q = drwMm(m.sx, m.sy);
+  const dx = Math.abs(Q[0] - P[0]), dy = Math.abs(Q[1] - P[1]);
+  let dir = m.shift ? 'a' : Math.abs(q[1] - mid[1]) >= Math.abs(q[0] - mid[0]) ? 'h' : 'v';
+  if (dir === 'h' && dx < 1e-6) dir = 'v'; if (dir === 'v' && dy < 1e-6) dir = 'h';
+  let off;
+  if (dir === 'h') off = q[1] - mid[1]; else if (dir === 'v') off = q[0] - mid[0];
+  else { const len = Math.hypot(Q[0] - P[0], Q[1] - P[1]) || 1, n = [-(Q[1] - P[1]) / len, (Q[0] - P[0]) / len]; off = (q[0] - P[0]) * n[0] + (q[1] - P[1]) * n[1]; }
+  return { id: 'new', view: v.id, t: 'lin', dir, off };
+}
+async function drwRefs(snaps) {
+  const got = await kernelAsk('drawLocate', { reqs: snaps.map(s => ({ doc: s.item.doc, part: s.item.part, p: s.item.p, q: s.item.q, pick: { part: s.item.part, kind: s.kind, index: s.index } })) });
+  return got.map((g, i) => (g && g.ref ? Object.assign({ ref: g.ref }, snaps[i].item.inst ? { inst: snaps[i].item.inst } : {}) : null));
+}
+const drwDimAt = (sx, sy) => { const q = drwMm(sx, sy); return ((DR.drawn && DR.drawn.dims) || []).find(d => q[0] >= d.g.hit[0] && q[0] <= d.g.hit[2] && q[1] >= d.g.hit[1] && q[1] <= d.g.hit[3]) || null; };
+const drwViewAt = (sx, sy) => { const L = DR.drawn && DR.drawn.layout, q = drwMm(sx, sy); return L ? L.views.find(v => v.box && Math.abs(q[0] - v.at[0]) <= v.w * L.s / 2 + 2 && Math.abs(q[1] - v.at[1]) <= v.h * L.s / 2 + 2) : null; };
+/* ---------- the pointer on the sheet ---------- */
+function drwDown(e, sx, sy) {
+  const D = app.drw; if (!D || !DR.cam) return;
+  if (e.button === 1 || e.button === 2) { DR.drag = { kind: 'pan', x: sx, y: sy }; return; }
+  if (DR.tool === 'dim') return;                       // (a dimension is made on the click's release)
+  const d = drwDimAt(sx, sy), v = d ? null : drwViewAt(sx, sy);
+  DR.sel = d ? d.id : null;
+  if (d) DR.drag = { kind: 'dim', id: d.id, x: sx, y: sy, moved: false };
+  else if (v) DR.drag = { kind: 'view', id: v.id, x: sx, y: sy, moved: false, at: v.at.slice() };
+  emit('view'); renderDrw();
+}
+function drwMove(e, sx, sy) {
+  const D = app.drw; if (!D || !DR.cam) return;
+  DR.mouse = { sx, sy, shift: e.shiftKey };
+  const g = DR.drag;
+  if (g && g.kind === 'pan') { DR.cam.x += sx - g.x; DR.cam.y += sy - g.y; g.x = sx; g.y = sy; emit('view'); return; }
+  if (g && (g.kind === 'dim' || g.kind === 'view')) {
+    const dx = (sx - g.x) / DR.cam.z, dy = (sy - g.y) / DR.cam.z;
+    if (!g.moved) { if (Math.hypot(sx - g.x, sy - g.y) < 4) return; if (!editGate()) { DR.drag = null; return; } checkpoint(); g.moved = true; }
+    if (g.kind === 'view') { const v = D.views.find(x => x.id === g.id); v.at = [g.at[0] + dx, g.at[1] + dy]; }
+    else {
+      const d = D.dims.find(x => x.id === g.id), geo = DR.drawn.dims.find(x => x.id === g.id);
+      if (d && geo) {
+        if (d.t === 'dia') { const q = drwMm(sx, sy), C = geo.g.centre; d.ang = Math.atan2(-(q[1] - C[1]), q[0] - C[0]) * 180 / Math.PI; d.off = Math.max(4, Math.hypot(q[0] - C[0], q[1] - C[1]) - geo.g.r); }
+        else { const dir = d.t === 'ext' ? (d.axis === 'x' ? 'h' : 'v') : d.dir; if (dir === 'h') d.off += dy; else if (dir === 'v') d.off += dx; else { const P = geo.g.P, Q = geo.g.Q, len = Math.hypot(Q[0] - P[0], Q[1] - P[1]) || 1; d.off += dx * (-(Q[1] - P[1]) / len) + dy * ((Q[0] - P[0]) / len); } g.x = sx; g.y = sy; }
+      }
+    }
+    emit('view'); return;
+  }
+  if (DR.tool === 'dim') { DR.hover = DR.pick && DR.pick2 ? null : drwSnap(sx, sy); emit('view'); }
+}
+async function drwUp(e, sx, sy) {
+  const D = app.drw, g = DR.drag; DR.drag = null;
+  if (!D) return;
+  if (g && g.kind !== 'pan' && g.moved) { changed(); return; }
+  if (g) return;
+  if (DR.tool !== 'dim' || e.button !== 0) return;
+  if (DR.pick && DR.pick2) {
+    // the third click places it
+    const d = drwPlacing({ sx, sy, shift: e.shiftKey });
+    if (!d || !editGate()) return;
+    const refs = await drwRefs([DR.pick, DR.pick2]);
+    if (!refs[0] || !refs[1]) { toast('Those corners could not be held to', true); DR.pick = DR.pick2 = null; emit('view'); return; }
+    checkpoint();
+    D.dims.push({ id: sketchId('q'), view: d.view, t: 'lin', dir: d.dir, off: d.off, a: refs[0], b: refs[1] });
+    DR.pick = DR.pick2 = null; changed(); return;
+  }
+  const s = drwSnap(sx, sy);
+  if (!s) { if (!DR.pick) toast('Click a corner of a view, then another, then where the dimension goes; or click a circle for its diameter'); return; }
+  if (s.kind === 'edge' && !DR.pick) {
+    if (!editGate()) return;
+    const refs = await drwRefs([s]);
+    if (!refs[0]) { toast('That circle could not be held to', true); return; }
+    const L = DR.drawn.layout, v = L.views.find(x => x.id === s.view), C = L.toSheet(v, viewPoint(v.dir, s.w)), q = drwMm(sx, sy);
+    checkpoint();
+    D.dims.push({ id: sketchId('q'), view: s.view, t: 'dia', ang: Math.atan2(-(q[1] - C[1]), q[0] - C[0]) * 180 / Math.PI, off: 8, a: refs[0] });
+    changed(); return;
+  }
+  if (s.kind !== 'vertex') return;
+  if (!DR.pick) DR.pick = s;
+  else if (s.view !== DR.pick.view) toast('Both corners are in one view');
+  else if (Math.hypot(s.w[0] - DR.pick.w[0], s.w[1] - DR.pick.w[1], s.w[2] - DR.pick.w[2]) > 1e-9) DR.pick2 = s;
+  emit('view');
+}
+function drwWheel(sx, sy, f) { if (!DR.cam) return; const z = Math.max(0.3, Math.min(40, DR.cam.z / f)), q = drwMm(sx, sy); DR.cam.z = z; DR.cam.x = sx - q[0] * z; DR.cam.y = sy - q[1] * z; emit('view'); }
+function drwKey(k) {
+  const D = app.drw; if (!D) return false;
+  if (k === 'escape') { if (DR.pick || DR.pick2) { DR.pick = DR.pick2 = null; } else if (DR.tool !== 'select') setDrwTool('select'); else DR.sel = null; emit('view'); renderDrw(); return true; }
+  if ((k === 'delete' || k === 'backspace') && DR.sel) { deleteDim(DR.sel); return true; }
+  if (k === 'd') { setDrwTool('dim'); return true; }
+  if (k === 'f') { fitSheet(); emit('view'); return true; }
+  return false;
+}
+function setDrwTool(t) { DR.tool = t; DR.pick = DR.pick2 = DR.hover = null; for (const b of document.querySelectorAll('#drwBar [data-drw]')) b.classList.toggle('on', b.dataset.drw === t); emit('view'); }
+function deleteDim(id) { const D = app.drw; if (!D || !editGate()) return; checkpoint(); D.dims = D.dims.filter(d => d.id !== id); if (DR.sel === id) DR.sel = null; changed(); }
+/* the view's whole size across and up, on the front, top and right views that have none */
+function addOverall() {
+  const D = app.drw; if (!D || !editGate()) return;
+  checkpoint();
+  let n = 0;
+  for (const v of D.views) { if (v.dir === 'iso') continue; for (const axis of v.dir === 'front' ? ['x', 'y'] : v.dir === 'top' ? ['y'] : v.dir === 'right' ? ['x'] : []) if (!D.dims.some(d => d.t === 'ext' && d.view === v.id && d.axis === axis)) { D.dims.push({ id: sketchId('q'), view: v.id, t: 'ext', axis, off: axis === 'x' ? 10 : -10 }); n++; } }
+  if (!n) { app.history.pop(); toast('The overall sizes are on the sheet already'); return; }
+  changed();
+}
+/* ---------- the drawing's side panel ---------- */
+function renderDrw() {
+  const D = app.drw, box = document.getElementById('drwSide');
+  if (!D || !box) return;
+  const set = (fn, quiet) => { if (!editGate()) { renderDrw(); return; } checkpoint(); fn(); if (!quiet) { DR.key = ''; } changed(); };
+  const sel = (id, label, options, value, onPick) => h('div', { class: 'cad-frow' }, h('label', { for: id }, label), h('select', { id, onchange: e => onPick(e.target.value) }, ...options.map(([v, t]) => h('option', Object.assign({ value: v }, String(v) === String(value) ? { selected: '' } : {}), t))));
+  const txt = (key, label) => h('div', { class: 'cad-frow' }, h('label', { for: 'drw-' + key }, label), h('input', { type: 'text', id: 'drw-' + key, value: (D.title && D.title[key]) || '', spellcheck: 'false', maxlength: '120', onkeydown: e => e.stopPropagation(), onchange: e => set(() => { D.title = Object.assign({}, D.title); if (e.target.value.trim()) D.title[key] = e.target.value.trim(); else delete D.title[key]; }, true) }));
+  const src = drwTab(D.of), sources = app.file.tabs.filter(t => t.kind !== 'drawing').map(t => [t.id, (t.kind === 'assembly' ? 'Assembly: ' : 'Part Studio: ') + t.name]);
+  const parts = src && src.kind === 'studio' ? ((DR.partsOf && DR.partsOf.id === src.id ? DR.partsOf.list : []) || []) : [];
+  const L = DR.drawn && DR.drawn.layout;
+  const rows = [h('h2', { class: 'cad-shead' }, 'This drawing'),
+    sel('drw-of', 'Of', sources, D.of, v => set(() => { D.of = v; D.part = null; D.dims = D.dims.filter(d => d.t === 'ext'); })),
+    src && src.kind === 'studio' ? sel('drw-part', 'Part', [['', 'All its parts'], ...parts], D.part || '', v => set(() => { D.part = v || null; D.dims = D.dims.filter(d => d.t === 'ext' || !v || d.a.ref.part === v); })) : null,
+    sel('drw-sheet', 'Sheet', Object.keys(SHEETS).map(k => [k, k + ' (' + SHEETS[k][0] + ' × ' + SHEETS[k][1] + ' mm)']), D.sheet, v => set(() => { D.sheet = v; for (const x of D.views) delete x.at; DR.cam = null; }, true)),
+    sel('drw-scale', 'Scale', [[0, 'To fit' + (L && !D.scale ? ' (' + scaleText(L.s) + ')' : '')], ...[10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02].map(k => [k, scaleText(k)])], D.scale || 0, v => set(() => { D.scale = +v || 0; for (const x of D.views) delete x.at; }, true)),
+    h('label', { class: 'cad-check' }, h('input', Object.assign({ type: 'checkbox', id: 'drw-hidden', onchange: e => set(() => { D.hidden = e.target.checked; }, true) }, D.hidden ? { checked: '' } : {})), ' Show hidden lines, dashed'),
+    h('h2', { class: 'cad-shead' }, 'Views'),
+    h('div', { class: 'cad-drwviews' }, ...Object.keys(VIEW_DIRS).map(k => h('label', { class: 'cad-check' }, h('input', Object.assign({ type: 'checkbox', 'data-view': k, onchange: e => set(() => { if (e.target.checked) D.views.push({ id: sketchId('v'), dir: k }); else { const gone = D.views.filter(v => v.dir === k).map(v => v.id); D.views = D.views.filter(v => v.dir !== k); D.dims = D.dims.filter(d => !gone.includes(d.view)); } for (const x of D.views) delete x.at; }) }, D.views.some(v => v.dir === k) ? { checked: '' } : {})), ' ' + VIEW_DIRS[k].name))),
+    h('h2', { class: 'cad-shead' }, 'Title block'), txt('title', 'Title'), txt('by', 'Drawn by'), txt('material', 'Material'), txt('number', 'Drawing no.'), txt('note', 'Note'),
+    h('h2', { class: 'cad-shead' }, 'Dimensions (' + D.dims.length + ')'),
+    D.dims.length ? h('ul', { class: 'cad-plist', id: 'drwDims' }, ...D.dims.map(d => { const g = DR.drawn && DR.drawn.dims.find(x => x.id === d.id), v = D.views.find(x => x.id === d.view); return h('li', { class: 'cad-irow' + (DR.sel === d.id ? ' picked' : '') + (g ? '' : ' hid'), 'data-dim': d.id, title: g ? 'Click to select; drag it on the sheet to move it' : 'What this held to is no longer on the model', onclick: e => { if (e.target.closest('button')) return; DR.sel = d.id; emit('view'); renderDrw(); } },
+      h('span', { class: 'nm' }, (g ? g.g.text + ' mm' : 'lost') + ' · ' + (v ? VIEW_DIRS[v.dir].name : '?') + (d.t === 'ext' ? ', overall' : '')), h('button', { type: 'button', class: 'cad-eye', title: 'Delete this dimension', 'aria-label': 'Delete this dimension', 'data-icon': 'trash', onclick: () => deleteDim(d.id) })); }))
+      : h('p', { class: 'cad-empty' }, 'None yet. Click Dimension, then two corners of a view and where it goes, or a circle. Overall sizes adds each view’s width and height.')];
+  box.replaceChildren(...rows.filter(Boolean));
+  emit('icons', box);
+}
+/* the sheet as a PDF's bytes and its name (io/files.js makes the file, behind its gate) */
+function drwPdf() { const D = app.drw; return D && DR.data ? { name: D.name, bytes: pdfOfSheet(D, DR.data, drwOpts(D)) } : null; }
+function wireDrawing() {
+  hooks.cadDrwRegen = drwRegen;
+  hooks.cadSheet = c => drawDrw(c);
+  on('tab', () => { DR.cam = null; DR.sel = null; DR.pick = DR.pick2 = null; DR.tool = 'select'; if (app.drw) { DR.key = ''; setDrwTool('select'); } });
+  on('model', () => { if (app.drw) { const src = drwTab(app.drw.of); if (src && src.kind === 'studio') studioParts(src).then(ps => { if (!ps) return; const list = ps.map((p, i) => [p.id, partLook(src, p.id, i).name]); if (!DR.partsOf || DR.partsOf.id !== src.id || JSON.stringify(DR.partsOf.list) !== JSON.stringify(list)) { DR.partsOf = { id: src.id, list }; renderDrw(); } }); } });
+  const bar = document.getElementById('drwBar');
+  if (bar) bar.addEventListener('click', e => { const b = e.target.closest('[data-drw]'); if (!b) return; const k = b.dataset.drw; if (k === 'overall') addOverall(); else if (k === 'fit') { fitSheet(); emit('view'); } else if (k === 'pdf') { if (hooks.cadExportPdf) hooks.cadExportPdf(); } else setDrwTool(k); });
+}
+/* ==========================================================================
    The pointer and the keys on the view. Right-drag orbits (in a sketch too: N looks straight at it again), middle-drag (or Shift with the right button) pans, the
    wheel zooms about the pointer. A left click picks: into the feature dialog's active field when one is open,
    else into the selection: each click adds what it picks or, if it is chosen already, takes it out, and a click on nothing empties it; a left drag from nothing selects by a box. In a sketch the
@@ -9508,6 +10077,7 @@ function wirePointer() {
   over.addEventListener('pointerdown', e => {
     const [sx, sy] = xy(e);
     over.setPointerCapture(e.pointerId);
+    if (app.drw) { drwDown(e, sx, sy); drag = { mode: 'drw' }; return; }
     if (e.button === 2 || e.button === 1) { drag = { mode: e.button === 1 || e.shiftKey ? 'pan' : 'orbit', x: sx, y: sy, moved: false, travel: 0, button: e.button }; return; }
     if (app.sketch && sketchDown(e, sx, sy)) { drag = { mode: 'sketch' }; return; }
     // in an assembly a part is dragged about by its own faces (Ctrl: turned about the line of sight)
@@ -9517,6 +10087,7 @@ function wirePointer() {
   over.addEventListener('pointermove', e => {
     const [sx, sy] = xy(e);
     lastXY = [sx, sy];
+    if (app.drw) { drwMove(e, sx, sy); return; }
     if (drag && (drag.mode === 'orbit' || drag.mode === 'pan')) {
       const dx = sx - drag.x, dy = sy - drag.y; drag.x = sx; drag.y = sy; drag.moved = true; drag.travel += Math.abs(dx) + Math.abs(dy);
       if (drag.travel < 4) return;
@@ -9536,6 +10107,7 @@ function wirePointer() {
   over.addEventListener('pointerup', async e => {
     const [sx, sy] = xy(e), d = drag;
     drag = null;
+    if (app.drw) { await drwUp(e, sx, sy); return; }
     if (!d) return;
     if (d.mode === 'sketch') { sketchUp(e, sx, sy); return; }
     // the right button let go where it went down: in a sketch, what is being drawn ends
@@ -9560,9 +10132,10 @@ function wirePointer() {
     selectPick(p, d.add);
   });
   over.addEventListener('pointerleave', () => { if (app.hover) { app.hover = null; emit('hover'); emit('sel'); } });
-  over.addEventListener('wheel', e => { e.preventDefault(); const [sx, sy] = xy(e); zoomAt(sx, sy, Math.exp(Math.max(-0.5, Math.min(0.5, e.deltaY * (e.deltaMode ? 0.05 : 0.0015))))); }, { passive: false });
+  over.addEventListener('wheel', e => { e.preventDefault(); const [sx, sy] = xy(e); if (app.drw) { drwWheel(sx, sy, Math.exp(Math.max(-0.5, Math.min(0.5, e.deltaY * (e.deltaMode ? 0.05 : 0.0015))))); return; } zoomAt(sx, sy, Math.exp(Math.max(-0.5, Math.min(0.5, e.deltaY * (e.deltaMode ? 0.05 : 0.0015))))); }, { passive: false });
   over.addEventListener('dblclick', async e => {
     const [sx, sy] = xy(e);
+    if (app.drw) return;
     if (app.sketch) { sketchDbl(sx, sy); return; }
     if (app.editing) return;
     if (app.asm) { fit(); return; }
@@ -9593,6 +10166,8 @@ function wirePointer() {
     if (ctrl && k === 'z') { e.preventDefault(); if (app.editing) return; if (e.shiftKey) redo(); else undo(); return; }
     if (ctrl && k === 'y') { e.preventDefault(); if (!app.editing) redo(); return; }
     if (ctrl) return;
+    // (a drawing open: its own keys, and none of the Part Studio's)
+    if (app.drw) { if (drwKey(k)) e.preventDefault(); return; }
     if (k === 'escape') { if (app.editing) closeDialog(); else if (app.sel.length || app.picked) { app.sel = []; app.picked = null; emit('sel'); emit('picked'); } return; }
     if (k === 'enter' && app.editing && !app.editing.sketchPlane) { okDialog(); return; }
     // Delete, with whole parts selected (the Parts filter, or their rows): they are deleted
@@ -9619,8 +10194,13 @@ async function normalToSel() {
 /* ==========================================================================
    The version, and what is new in it (Help › What’s new)
    ========================================================================== */
-const APP_VERSION = '0.8.0';
+const APP_VERSION = '0.9.0';
 const NEWS = [
+  { v: '0.9.0', date: '12 Nov 2026', items: [
+    '<b>Drawings</b>: a new kind of tab. Front, top, right and isometric views of a Part Studio or an Assembly on a sheet, with hidden lines removed.',
+    'Dimensions on a drawing follow the model: overall sizes in one click, or click two corners and a place, or a circle for its diameter.',
+    'A title block, and <b>Export PDF</b> at true size.',
+  ] },
   { v: '0.8.0', date: '11 Nov 2026', items: [
     'Fixed: a fillet or chamfer on a whole face could leave a broken part where the size did not fit every edge. The edges it fits are now done, the rest are left square, and the feature says how many.',
     '<b>Regions understand the model</b>: a sketched shape that runs over the edge of a face, or over a part the sketch’s plane passes through, is cut there, so each piece is picked separately. For Extrude, Revolve, Sweep and Loft.',
@@ -9784,6 +10364,7 @@ async function importStep(file) {
 /* ---------- exports: STEP and STL, of every part or one ---------- */
 async function exportParts(fmt, ids) {
   if (!accountGate('export ' + (fmt === 'stl' ? 'STL' : 'STEP') + ' files')) return false;
+  if (app.drw) { toast('A drawing exports as a PDF. For STEP or STL, open the Part Studio or the Assembly it is of.', true); return false; }
   // an assembly: its parts where they are placed (the ones selected, or all that show), as one file
   const items = app.asm ? asmItems(ids && ids.length ? ids : null) : null;
   const parts = app.asm ? items : app.result ? app.result.parts : [];
@@ -9798,7 +10379,18 @@ async function exportParts(fmt, ids) {
     return true;
   } catch (err) { toast('Could not export: ' + err.message, true); return false; }
 }
+/* a drawing's sheet as a PDF (a free account's, as every export is) */
+function exportPdf() {
+  if (!accountGate('export a PDF')) return false;
+  const out = drwPdf();
+  if (!out) { toast('Open a Drawing tab first: the + at the foot of the view adds one', true); return false; }
+  downloadFile(safeName(out.name) + '.pdf', out.bytes, 'application/pdf');
+  track('export', 'cad-pdf');
+  toast('Exported ' + safeName(out.name) + '.pdf');
+  return true;
+}
 function wireFiles() {
+  hooks.cadExportPdf = exportPdf;
   hooks.cadSaveLater = scheduleSave;
   on('exportPart', x => exportParts(x.fmt, [x.id]));
   const stage = document.getElementById('stage');
@@ -11099,7 +11691,7 @@ const saved = restoreSaved();
 setFile(saved || {});
 on('icons', el => cadIcons(el));
 hooks.cadCloseDialog = () => closeDialog();
-wireMenus(); wireSketcher(); wireDialog(); wirePanel(); wireAssembly(); wirePointer(); wireFiles(); wireCube(); wireFly(); wireNews(); wireCadAccount(); wireShare(); wireCloud(); wireUsage();
+wireMenus(); wireSketcher(); wireDialog(); wirePanel(); wireAssembly(); wireDrawing(); wirePointer(); wireFiles(); wireCube(); wireFly(); wireNews(); wireCadAccount(); wireShare(); wireCloud(); wireUsage();
 /* the bar's buttons and menus */
 const click = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
 for (const b of document.querySelectorAll('[data-feature]')) b.addEventListener('click', () => { closeMenus(); openFeature(b.dataset.feature); });
@@ -11194,6 +11786,7 @@ window.JEKcad = {
   deleteFeature, moveFeature, setRollback, exportParts, importStep, saveFile, kernel: kernelAsk, cloudPush,
   pickAt, pickHere, overlayPick, selectPick, project, toScreen, fit, viewFrom, setMode, png: viewPng, sketchOn: () => !!app.sketch,
   share: cadShare, shareHash: cadShareHash, readShare: cadReadShare, openShare: cadOpenShare,
+  dr: DR, addOverall, deleteDim, drwPdf, fitSheet, setDrwTool, exportPdf,
   as: AS, addTab, switchTab, renameTab, deleteTab, addInstance, poseInstance, mateOpen, matePick, mateApply, mateEdit, checkClash, triadPoints,
   flyStart, flyStop, flyTurn, cubePart, turnStep, deletePart, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
 };

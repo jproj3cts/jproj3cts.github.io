@@ -2,6 +2,7 @@ import { evalExpr, evalVars, VAR_NAME } from './units.js';
 import { normCons, normDims, sketchId, solveSketch } from './sketch.js';
 import { normEnts } from './sketch-tools.js';
 import { normAsm } from './assembly.js';
+import { normDrawing } from './drawing.js';
 
 /* ==========================================================================
    A Part Studio as a file (.jekcad, JSON): its Variables table, its feature list in order, the rollback bar, and its
@@ -117,7 +118,8 @@ export function normFile(d) {
   if (Array.isArray(d.tabs)) {
     for (const t of d.tabs.slice(0, 60)) {
       if (!t || typeof t !== 'object') continue;
-      if (t.kind === 'assembly') tabs.push(Object.assign(normAsm(t, tabs.filter(x => x.kind === 'assembly').length + 1), { id: tid(t) }));
+      if (t.kind === 'drawing') tabs.push(Object.assign(normDrawing(t, tabs.filter(x => x.kind === 'drawing').length + 1), { id: tid(t) }));
+      else if (t.kind === 'assembly') tabs.push(Object.assign(normAsm(t, tabs.filter(x => x.kind === 'assembly').length + 1), { id: tid(t) }));
       else { const s = normDoc(t); tabs.push(Object.assign(s, { id: tid(t), kind: 'studio', name: isStr(t.name, 120) && t.name.trim() ? t.name : 'Part Studio ' + (tabs.filter(x => x.kind === 'studio').length + 1) })); }
     }
   } else { const s = normDoc(d); tabs.push(Object.assign(s, { id: tid({}), kind: 'studio', name: 'Part Studio 1' })); }
@@ -125,6 +127,8 @@ export function normFile(d) {
   // an assembly's instances are of parts of studios that are there
   const studios = new Set(tabs.filter(t => t.kind === 'studio').map(t => t.id));
   for (const t of tabs) if (t.kind === 'assembly') { t.instances = t.instances.filter(I => studios.has(I.studio)); const live = new Set(t.instances.map(I => I.id)); t.mates = t.mates.filter(m => live.has(m.a.inst) && live.has(m.b.inst)); }
+  // a drawing is of a Part Studio or an Assembly that is there (else of the first Part Studio)
+  for (const t of tabs) if (t.kind === 'drawing' && !tabs.some(x => x.id === t.of && x.kind !== 'drawing')) { t.of = tabs.find(x => x.kind === 'studio').id; t.part = null; t.dims = t.dims.filter(m => m.t === 'ext'); }
   const name = isStr(d.name, 120) && d.name.trim() ? d.name : 'Part Studio 1';
   return { format: CAD_FORMAT, version: FILE_VERSION, name, tabs, active: tabs.some(t => t.id === d.active) ? d.active : tabs[0].id };
 }

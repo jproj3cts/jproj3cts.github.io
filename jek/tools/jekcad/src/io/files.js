@@ -1,6 +1,7 @@
 import { EMBED, TEST_MODE } from '../../../jekray/src/core/constants.js';
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { accountGate, keepHere } from '../../../jekray/src/ui/pro.js';
+import { drwPdf } from '../ui/drawing.js';
 import { asmItems } from '../ui/assembly.js';
 import { editGate } from '../ui/app.js';
 import { track } from '../../../jekray/src/io/usage.js';
@@ -82,6 +83,7 @@ export async function importStep(file) {
 /* ---------- exports: STEP and STL, of every part or one ---------- */
 export async function exportParts(fmt, ids) {
   if (!accountGate('export ' + (fmt === 'stl' ? 'STL' : 'STEP') + ' files')) return false;
+  if (app.drw) { toast('A drawing exports as a PDF. For STEP or STL, open the Part Studio or the Assembly it is of.', true); return false; }
   // an assembly: its parts where they are placed (the ones selected, or all that show), as one file
   const items = app.asm ? asmItems(ids && ids.length ? ids : null) : null;
   const parts = app.asm ? items : app.result ? app.result.parts : [];
@@ -96,7 +98,18 @@ export async function exportParts(fmt, ids) {
     return true;
   } catch (err) { toast('Could not export: ' + err.message, true); return false; }
 }
+/* a drawing's sheet as a PDF (a free account's, as every export is) */
+export function exportPdf() {
+  if (!accountGate('export a PDF')) return false;
+  const out = drwPdf();
+  if (!out) { toast('Open a Drawing tab first: the + at the foot of the view adds one', true); return false; }
+  downloadFile(safeName(out.name) + '.pdf', out.bytes, 'application/pdf');
+  track('export', 'cad-pdf');
+  toast('Exported ' + safeName(out.name) + '.pdf');
+  return true;
+}
 export function wireFiles() {
+  hooks.cadExportPdf = exportPdf;
   hooks.cadSaveLater = scheduleSave;
   on('exportPart', x => exportParts(x.fmt, [x.id]));
   const stage = document.getElementById('stage');

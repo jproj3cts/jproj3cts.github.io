@@ -148,6 +148,14 @@
         <span class="rt-qsep" aria-hidden="true"></span>
         <button type="button" class="rt-btn quiet cad-fbtn" data-asm="clash" data-icon="measure" title="Check which parts run into each other as they are placed">Interference</button>
       </div>
+      <div class="rt-row cad-fbar" id="drwBar" role="group" aria-label="Drawing" hidden>
+        <button type="button" class="rt-btn quiet cad-fbtn on" data-drw="select" data-icon="select" title="Select: drag a view or a dimension to move it (Esc)">Select</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="dim" data-icon="dim" title="Dimension (D): click two corners of a view, then where it goes; or click a circle for its diameter">Dimension</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="overall" data-icon="measure" title="Add each view’s overall width and height">Overall sizes</button>
+        <span class="rt-qsep" aria-hidden="true"></span>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="fit" data-icon="fit" title="Fit the sheet in the window (F)">Fit sheet</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="pdf" data-icon="export" data-need="account" data-what="export a PDF" title="Export the sheet as a PDF, at its true size">Export PDF</button>
+      </div>
       <div class="rt-row cad-fbar cad-skbar" id="sketchBar" role="group" aria-label="Sketch tools" hidden></div>
     </div>
 
@@ -160,6 +168,7 @@
           <ul class="cad-plist" id="partsList"></ul>
         </div>
         <div id="asmSide" hidden></div>
+        <div id="drwSide" hidden></div>
       </aside>
       <button type="button" class="cad-sidetab" id="sideTab" aria-controls="side" aria-expanded="true" title="Hide the feature list" aria-label="Hide the feature list"><span aria-hidden="true">‹</span></button>
       <div class="rt-stage cad-stage" id="stage">

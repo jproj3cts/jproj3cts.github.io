@@ -2,6 +2,7 @@ import { hooks } from '../../../jekray/src/core/hooks.js';
 import { h } from '../../../jekray/src/ui/dom.js';
 import { MATE_KINDS, MATE_NAMES, edgeConnector, faceConnector, normAsm, pickConnector, placed, qFromEuler, qToEuler, qabout, qnormal, qtimes, solveMates, turned3 } from '../core/assembly.js';
 import { normDoc, partLook } from '../core/doc.js';
+import { newDrawing } from '../core/drawing.js';
 import { sketchId } from '../core/sketch.js';
 import { evalExpr, fmtNum } from '../core/units.js';
 import { kernelAsk } from '../page/kernel.js';
@@ -22,7 +23,7 @@ export const AS = { mate: null, drag: null, insertBusy: false, clash: null };
 const tabOf = id => app.file.tabs.find(t => t.id === id);
 const studios = () => app.file.tabs.filter(t => t.kind === 'studio');
 /* a studio's parts, regenerated if it has changed since they were last made */
-async function studioParts(t) {
+export async function studioParts(t) {
   const key = JSON.stringify(t), had = STUDIO.get(t.id);
   if (had && had.key === key) return had.parts;
   const out = await kernelAsk('regen', { doc: t, opts: {} }, 'regen');
@@ -35,6 +36,8 @@ export function asmItems(ids) {
   const A = app.asm;
   return A ? A.instances.filter(I => (ids ? ids.includes(I.id) : !I.hidden)).map(I => ({ doc: tabOf(I.studio), part: I.part, id: I.id, p: I.p, q: I.q, name: instName(I) })) : [];
 }
+/* a studio's part's mesh, as last made (a drawing's corners and round edges are found on it) */
+export function studioMesh(studio, part) { const s = STUDIO.get(studio); return s ? s.parts.find(p => p.id === part) || null : null; }
 /* the mesh of a studio's part as last made (for a connector, which is in the part's own coordinates) */
 function localMesh(I) { const s = STUDIO.get(I.studio); return s ? s.parts.find(p => p.id === I.part) : null; }
 /* a part's mesh moved to where an instance puts it */
@@ -113,7 +116,9 @@ export function addTab(kind) {
   if (app.sketch) { toast('Finish the sketch first'); return null; }
   checkpoint();
   const n = app.file.tabs.filter(t => t.kind === kind).length + 1;
-  const t = kind === 'assembly' ? normAsm({ name: 'Assembly ' + n }, n) : Object.assign(normDoc({}), { id: sketchId('t'), kind: 'studio', name: 'Part Studio ' + n });
+  // (a drawing is of the tab that is open, or of the first Part Studio if that is a drawing itself)
+  const cur = tabOf(app.file.active), ofTab = cur && cur.kind !== 'drawing' ? cur : studios()[0];
+  const t = kind === 'drawing' ? newDrawing(ofTab.id, n) : kind === 'assembly' ? normAsm({ name: 'Assembly ' + n }, n) : Object.assign(normDoc({}), { id: sketchId('t'), kind: 'studio', name: 'Part Studio ' + n });
   app.file.tabs.push(t);
   changed();
   switchTab(t.id);
@@ -128,7 +133,7 @@ export function deleteTab(id) {
   const t = tabOf(id);
   if (!t || !editGate()) return false;
   if (t.kind === 'studio' && studios().length === 1) { toast('A document keeps at least one Part Studio'); return false; }
-  const used = t.kind === 'studio' ? app.file.tabs.filter(a => a.kind === 'assembly' && a.instances.some(I => I.studio === id)).map(a => a.name) : [];
+  const used = (t.kind === 'studio' ? app.file.tabs.filter(a => a.kind === 'assembly' && a.instances.some(I => I.studio === id)).map(a => a.name) : []).concat(app.file.tabs.filter(a => a.kind === 'drawing' && a.of === id).map(a => a.name + ' (its dimensions)'));
   if (!confirm('Delete “' + t.name + '”?' + (used.length ? ' Its parts go from ' + used.join(', ') + ' too.' : '') + ' Undo brings it back.')) return false;
   if (app.sketch) { toast('Finish the sketch first'); return false; }
   checkpoint();
@@ -136,6 +141,7 @@ export function deleteTab(id) {
   app.file.tabs.splice(i, 1);
   for (const a of app.file.tabs) if (a.kind === 'assembly') { a.instances = a.instances.filter(I => I.studio !== id); const live = new Set(a.instances.map(I => I.id)); a.mates = a.mates.filter(m => live.has(m.a.inst) && live.has(m.b.inst)); }
   STUDIO.delete(id);
+  for (const a of app.file.tabs) if (a.kind === 'drawing' && a.of === id) { a.of = studios()[0].id; a.part = null; a.dims = a.dims.filter(d => d.t === 'ext'); }
   if (app.file.active === id) { app.file.active = (app.file.tabs[Math.max(0, i - 1)] || app.file.tabs[0]).id; app.sel = []; app.picked = null; if (app.editing && hooks.cadCloseDialog) hooks.cadCloseDialog(); bindTab(); emit('tab'); }
   changed();
   return true;
@@ -188,9 +194,9 @@ export function renderTabs() {
   // as JEKray's tabs are: a strip at the foot of the view, the one open marked, a double-click to rename in place,
   // a × on the open one to delete it, dragged along the strip to reorder, and + at the end
   const tabs = app.file.tabs.map(t => {
-    const on2 = t.id === app.file.active, kind = t.kind === 'assembly' ? 'Assembly' : 'Part Studio';
+    const on2 = t.id === app.file.active, kind = t.kind === 'assembly' ? 'Assembly' : t.kind === 'drawing' ? 'Drawing' : 'Part Studio';
     const b = h('button', { type: 'button', class: on2 ? 'on' : '', role: 'tab', 'aria-selected': String(on2), 'data-tab': t.id, 'data-kind': t.kind, title: kind + ': ' + (on2 ? 'double-click to rename. ' : 'show ' + t.name + '. ') + 'Drag to reorder; right-click for more.' },
-      h('span', { class: 'ic2', 'data-icon': t.kind === 'assembly' ? 'assembly' : 'cube' }), t.name);
+      h('span', { class: 'ic2', 'data-icon': t.kind === 'assembly' ? 'assembly' : t.kind === 'drawing' ? 'drawing' : 'cube' }), t.name);
     b.addEventListener('click', e => { if (e.target.classList.contains('x') || b._dragged) { b._dragged = false; return; } switchTab(t.id); });
     b.addEventListener('pointerdown', e => tabDragStart(e, b));
     b.addEventListener('dblclick', () => {
@@ -205,16 +211,19 @@ export function renderTabs() {
     if (on2 && app.file.tabs.length > 1) { const x = h('span', { class: 'x', title: 'Delete this tab', 'aria-label': 'Delete ' + t.name }, '\u00d7'); x.addEventListener('click', () => deleteTab(t.id)); b.append(x); }
     return b;
   });
-  const add = h('button', { type: 'button', class: 'add', id: 'tabAdd', title: 'Add a Part Studio or an Assembly', 'aria-label': 'Add a tab', 'aria-haspopup': 'menu' }, '+');
-  add.addEventListener('click', () => openTabMenu(add, [['New Part Studio', () => addTab('studio')], ['New Assembly', () => addTab('assembly')]]));
+  const add = h('button', { type: 'button', class: 'add', id: 'tabAdd', title: 'Add a Part Studio, an Assembly or a Drawing', 'aria-label': 'Add a tab', 'aria-haspopup': 'menu' }, '+');
+  add.addEventListener('click', () => openTabMenu(add, [['New Part Studio', () => addTab('studio')], ['New Assembly', () => addTab('assembly')], ['New Drawing', () => addTab('drawing')]]));
   bar.replaceChildren(...tabs, add);
   emit('icons', bar);
   // what an assembly shows in place of the feature bar and the feature list
-  const asm = !!app.asm;
-  const fb = document.getElementById('featureBar'), ab = document.getElementById('asmBar'), ss = document.getElementById('studioSide'), as = document.getElementById('asmSide');
-  if (fb && !app.sketch) fb.hidden = asm;
+  const asm = !!app.asm, drw = !!app.drw;
+  const fb = document.getElementById('featureBar'), ab = document.getElementById('asmBar'), db = document.getElementById('drwBar'), ss = document.getElementById('studioSide'), as = document.getElementById('asmSide'), ds = document.getElementById('drwSide');
+  if (fb && !app.sketch) fb.hidden = asm || drw;
   if (ab) ab.hidden = !asm || !!app.sketch;
-  if (ss) ss.hidden = asm; if (as) as.hidden = !asm;
+  if (db) db.hidden = !drw;
+  if (ss) ss.hidden = asm || drw; if (as) as.hidden = !asm; if (ds) ds.hidden = !drw;
+  // (a drawing is a sheet of paper: the 3D view and its cube are put away)
+  const stage = document.getElementById('stage'); if (stage) stage.classList.toggle('drw', drw);
   if (asm) renderAsm();
 }
 /* ---------- instances ---------- */

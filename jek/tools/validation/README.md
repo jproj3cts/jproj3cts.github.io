@@ -47,6 +47,12 @@ scripts that made them. The page itself runs JEKray live against these files.
 | `ref/glass-pulse.json` | `scripts/glass_pulse.py` | Sellmeier GDD and TOD (Malitson 1965; Schott N-SF10) and a Gaussian pulse's duration after the glass, by Fourier transform |
 | `ref/ppln-tuning.json` | `scripts/ppln_tuning.py` | Gayer et al., Appl. Phys. B 91, 343 (2008) and Boyd & Kleinman (1968): the temperature tuning curve of SHG in 20 mm of MgO:PPLN |
 | `ref/cavity-basics.json` | `scripts/cavity_basics.py` | The Airy sum of round trips (Born & Wolf §7.6): free spectral range (group path), finesse, linewidth and build-up of two linear cavities and a ring |
+| `ref/talbot.json` | `scripts/talbot.py` | The Talbot effect (Rayleigh, Phil. Mag. 11, 196 (1881)): a sinusoidal amplitude grating's three orders as tilted Gaussian beams in closed form (Goodman, Introduction to Fourier Optics, ch. 4) |
+| `ref/embedded-gaussian.json` | `scripts/embedded_gaussian.py` | Siegman's embedded Gaussian (Lasers, ch. 17; Proc. SPIE 1224, 2 (1990)): an M² = 4 beam's width in free space and through a lens, by the embedded q and by the second-moment matrix law |
+| `ref/fibre-coupling.json` | `scripts/fibre_coupling.py` | Joyce & DeLoach, Appl. Opt. 23, 4187 (1984): a Gaussian beam's overlap with a single-mode fibre's mode (Marcuse's) against offset, tilt, waist and axial offset, in closed form |
+| `ref/fibre-mfd.json` | `scripts/fibre_mfd.py` | Marcuse, Bell Syst. Tech. J. 56, 703 (1977): the mode-field radius against V, and the exact LP01 mode's best Gaussian, solved independently |
+| `ref/abcd-beams.json` | `scripts/abcd_beams.py` | Kogelnik & Li's ABCD law: a Gaussian beam through a thick N-BK7 lens both ways round, and off a concave mirror at 15° (Siegman, Lasers, ch. 15) |
+| `ref/collimator-pair.json` | `scripts/collimator_pair.py` | Fibre to fibre through two collimating lenses: the beams' overlap in closed form against the gap, the focal lengths and an offset |
 
 ## Making them again
 
@@ -99,6 +105,12 @@ numpy instead.
     python scripts/glass_pulse.py
     python scripts/ppln_tuning.py
     python scripts/cavity_basics.py
+    python scripts/talbot.py
+    python scripts/embedded_gaussian.py
+    python scripts/fibre_coupling.py
+    python scripts/fibre_mfd.py
+    python scripts/abcd_beams.py
+    python scripts/collimator_pair.py
 
 ## Rules
 

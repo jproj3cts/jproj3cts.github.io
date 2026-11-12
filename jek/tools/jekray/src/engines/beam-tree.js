@@ -183,8 +183,11 @@ export function* popRunGen(beams, srcs, opts = {}) {
     const job = todo.pop();
     if (repeats.has(job.i)) continue;
     const b = beams[job.i], src = bySrc.get(b.src), eng = engine.get(b.src);
-    if (count[eng] >= (eng === '2d' ? POP_MAX_SEGS_2D : POP_MAX_SEGS)) { truncated = true; continue; }
-    count[eng]++;
+    // the cap is each mode's: a beam of M^2 above 1 runs the same tree once per mode (as fieldCost counts it), so its
+    // modes past the first must not share the first's segments, or the weaker ones are dropped after a surface or two
+    const ck = eng + (job.mode ? '|m' + job.mode : '');
+    if ((count[ck] || 0) >= (eng === '2d' ? POP_MAX_SEGS_2D : POP_MAX_SEGS)) { truncated = true; continue; }
+    count[ck] = (count[ck] || 0) + 1;
     const lam0 = b.nm * 1e-6, q = [b.qr, b.qi];
     let F0 = job.F;
     if (!F0 && b.fan) {

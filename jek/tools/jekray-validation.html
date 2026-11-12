@@ -2247,6 +2247,74 @@ const ALL_CASES = [
       return { checks, benches, plots, notes: 'JEKray takes the temperature as 295 K for the Johnson noise, and so does the reference. The noise is checked part by part as JEKray reports it over the noise bandwidth; the photodiode’s signal to noise is its photocurrent squared over the total. The lock-in’s noise on X comes from the density it finds at the lowest frequency of its grid, 0.01 Hz, after the mixer has moved the noise beside 1 kHz down to it.' };
     },
   },
+  {
+    id: 'mie', area: 'Scattering', title: 'Lorenz–Mie scattering by a sphere',
+    kind: 'Independent code', ref: 'mie.json', script: 'mie_reference.py',
+    cite: 'C. F. Bohren and D. R. Huffman, Absorption and Scattering of Light by Small Particles (Wiley, 1983), chapter 4 and Appendix A; W. J. Wiscombe, “Improved Mie scattering algorithms”, Applied Optics 19, 1505–1509 (1980).',
+    what: 'A homogeneous sphere in a plane wave: the extinction, scattering, absorption and back-scattering efficiencies, the asymmetry g, and the amplitude functions S₁(θ) and S₂(θ). Six spheres: the 300 nm silica sphere at 1550 nm (x = 0.608, m = 1.444), Bohren and Huffman’s test sphere (x = 5.213, m = 1.55), x = 10 with m = 1.5, an absorbing sphere (x = 1, m = 1.5 + 1i), a large weakly absorbing one (x = 50, m = 1.33 + 0.01i) and a metal-like one (x = 2, m = 0.5 + 10i). The reference is a Mie calculation written for this page on scipy’s spherical Bessel functions, with no recurrence of its own, which reproduces Bohren and Huffman’s published Q_ext = Q_sca = 3.10543 and Q_back = 2.92534 and agrees with the miepython package to 10⁻⁸. JEKray sums the series with its own recurrences (the logarithmic derivative downward, Wiscombe’s number of terms).',
+    tolerance: 'Q_ext, Q_sca, Q_back and g each within 1 × 10⁻⁶ of the reference; Q_abs within 1 × 10⁻⁶ of Q_ext; S₁ and S₂ every 5° (for three of the spheres) within 1 × 10⁻⁶ of the largest amplitude.',
+    async run(J, R) {
+      const checks = [], plots = [];
+      for (const c of R.cases) {
+        const M = J.mie(c.x, c.m[0], c.m[1], c.S1re ? R.theta : []);
+        for (const [key, name] of [['Qext', 'Q_ext'], ['Qsca', 'Q_sca'], ['Qback', 'Q_back'], ['g', 'g']]) checks.push(check(c.name + ': ' + name, c[key], M[key], { rel: 1e-6 }));
+        checks.push(check(c.name + ': Q_abs', c.Qabs, M.Qabs, { abs: 1e-6 * c.Qext }));
+        if (!c.S1re) continue;
+        let d1 = 0, d2 = 0, top = 0;
+        R.theta.forEach((t, i) => {
+          d1 = Math.max(d1, Math.hypot(M.S[i][0] - c.S1re[i], M.S[i][1] - c.S1im[i])); d2 = Math.max(d2, Math.hypot(M.S[i][2] - c.S2re[i], M.S[i][3] - c.S2im[i]));
+          top = Math.max(top, Math.hypot(c.S1re[i], c.S1im[i]), Math.hypot(c.S2re[i], c.S2im[i]));
+        });
+        checks.push(check(c.name + ': S₁(θ), worst difference over the largest amplitude', 0, d1 / top, { abs: 1e-6 }));
+        checks.push(check(c.name + ': S₂(θ), worst difference over the largest amplitude', 0, d2 / top, { abs: 1e-6 }));
+        if (/Bohren/.test(c.name)) plots.push(plot({ title: 'Bohren and Huffman’s sphere: |S₁|² and |S₂|² against the scattering angle', xlabel: 'scattering angle (°)', ylabel: '|S|²', logY: true,
+          series: [{ name: '|S₁|², reference', x: R.theta, y: c.S1re.map((v, i) => v * v + c.S1im[i] ** 2), colour: REF_C, dots: true }, { name: '|S₁|², JEKray', x: R.theta, y: M.S.map(s => s[0] * s[0] + s[1] * s[1]), colour: GOT_C },
+            { name: '|S₂|², reference', x: R.theta, y: c.S2re.map((v, i) => v * v + c.S2im[i] ** 2), colour: '#6a3d9a', dots: true }, { name: '|S₂|², JEKray', x: R.theta, y: M.S.map(s => s[2] * s[2] + s[3] * s[3]), colour: '#b8860b' }] }));
+        await idle();
+      }
+      // the same sphere on a bench: a wide beam is a plane wave at the particle
+      const data = bench('A 300 nm silica sphere in a wide 1550 nm beam', [
+        { type: 'source', name: 'Laser', x: -20, y: 0, angle: 0, wavelength: 1550, width: 1.6, gauss: true, w0: 0.5, z0: 0, popN: 256, pol: 'p', rays: 1, power: 100 },
+        { type: 'screen', name: 'Particle', x: 1, y: 0, angle: 180, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum' }], { minPower: 1e-6 });
+      J.load(data); const S = J.scatter('Particle');
+      return { checks, plots, benches: [['The 300 nm sphere on a bench', data]],
+        notes: 'On the bench, with fused silica’s own index at 1550 nm (' + fmt(S.np[0], 6) + '), the sphere’s scattering cross-section is ' + fmt(S.Csca * 1e18, 5) + ' nm², ' + fmt(100 * S.fwd, 4) + '% of its light goes forward, and a single dipole (Rayleigh) would give ' + fmt(100 * (S.rayleigh.Csca / S.Csca - 1), 2) + '% more. ' +
+          'Before this case was written, the same reference found a fault in JEKray’s first Mie code, now fixed. It started the downward recurrence of the logarithmic derivative 15 orders above |mx|, as Bohren and Huffman’s program does, and for a large sphere that absorbs little that leaves an error: 3 × 10⁻⁶ in Q_ext at x = 100, m = 1.33 + 10⁻⁵i, and 1 × 10⁻⁴ in Q_back at x = 100, m = 1.5. It now starts 8|mx|^⅓ + 16 orders up. The amplitudes here follow Bohren and Huffman’s sign of time, exp(−iωt), in which an absorbing index has a positive imaginary part.' };
+    },
+  },
+  {
+    id: 'dda-rod', area: 'Scattering', title: 'A dielectric rod as an array of dipoles',
+    kind: 'Independent code', ref: 'dda-rod.json', script: 'dda_rod.py',
+    cite: 'E. M. Purcell and C. R. Pennypacker, “Scattering and absorption of light by nonspherical dielectric grains”, Astrophysical Journal 186, 705–714 (1973); B. T. Draine and J. Goodman, “Beyond Clausius–Mossotti: wave propagation on a polarizable point lattice and the discrete dipole approximation”, Astrophysical Journal 405, 685–697 (1993).',
+    what: 'A fused-silica rod 1 µm long and 200 nm across, with flat ends, in a plane wave at 1550 nm: its extinction and scattering cross-sections, the pattern in the plane of the wave and the rod’s axis, and the ratio of the light sent straight on to the light sent straight back. Three settings: the wave square to the axis with its field along the rod; the same with its field across the rod; and the wave along the axis. JEKray runs its dipole array at the lattice the Scattering tab chooses, 10 dipoles across the rod (4000 dipoles). The reference is not an established code: ADDA could not be built where these files were made. It is a second discrete-dipole calculation written in Python for this page, sharing the method and the polarisability (Draine and Goodman’s lattice dispersion relation) but none of the code: the dipoles’ fields by FFT convolution, scipy’s solver, and nine lattices from 12 to 32 dipoles across (6,720 to 129,920 dipoles), each cross-section taken from the straight line through the nine against the spacing, read at zero spacing. The script checks itself against Mie for spheres of 300 nm and 1 µm (within 1%). So this case tests JEKray’s implementation and how far its default lattice is from the method’s limit; the method itself is tested by the spheres against Mie.',
+    tolerance: 'C_ext and C_sca within 3% in each setting; |C_abs| below 10⁻³ of C_ext (the rod is lossless); the pattern within 3% of its peak (the first two settings); the forward-to-back ratio within 4%.',
+    async run(J, R) {
+      const checks = [], plots = [], benches = [];
+      const sets = [{ pol: 'p', az: 90, tag: 'Field along the rod' }, { pol: 's', az: 90, tag: 'Field across the rod' }, { pol: 's', az: 0, tag: 'Wave along the rod' }];
+      const said = [];
+      for (let i = 0; i < 3; i++) {
+        const Rf = R.settings[i], st = sets[i];
+        const data = bench('Silica rod, 1 µm × 200 nm, 1550 nm: ' + st.tag.toLowerCase(), [
+          { type: 'source', name: 'Laser', x: -20, y: 0, angle: 0, wavelength: R.lam * 1e9, width: 1.6, gauss: true, w0: 0.5, z0: 0, popN: 256, pol: st.pol, rays: 1, power: 100 },
+          { type: 'screen', name: 'Rod', x: 1, y: 0, angle: 180, length: 0.02, absorb: false, trap: 'sphere', trapShape: 'cylinder', trapMat: 'Fused silica', trapR: R.D * 0.5e9, trapLen: R.L * 1e9, trapAz: st.az, trapTilt: 0, trapMed: 'vacuum' }], { minPower: 1e-6 });
+        J.load(data); const S = J.scatter('Rod');
+        benches.push([st.tag, data]);
+        checks.push(check(st.tag + ': C_ext', Rf.Cext * 1e18, S.Cext * 1e18, { rel: 0.03 }, ' nm²'));
+        checks.push(check(st.tag + ': C_sca', Rf.Csca * 1e18, S.Csca * 1e18, { rel: 0.03 }, ' nm²'));
+        checks.push(check(st.tag + ': C_abs over C_ext', 0, S.Cabs / S.Cext, { abs: 1e-3 }));
+        // the pattern as a differential cross-section: in the bench plane for the first two (the wave and the axis lie in it), out of it for the third
+        const cut = (i < 2 ? S.cutIn.I : S.cutOut.I).map(v => v / S.I0), got = R.theta.map(t => cut[t]), peak = Math.max(...Rf.cut);
+        if (i < 2) checks.push(check(st.tag + ': the pattern, worst difference over its peak', 0, Math.max(...got.map((v, k) => Math.abs(v - Rf.cut[k]))) / peak, { abs: 0.03 }));
+        checks.push(check(st.tag + ': forward over back', Rf.fwdBack, cut[0] / cut[180], { rel: 0.04 }));
+        if (i < 2) plots.push(plot({ title: st.tag + ': differential cross-section in the plane of the wave and the rod', xlabel: 'angle from the wave’s direction (°)', ylabel: 'dC/dΩ (nm²/sr)', yMin: 0,
+          series: [{ name: 'Reference (zero spacing)', x: R.theta, y: Rf.cut.map(v => v * 1e18), colour: REF_C, dots: true }, { name: 'JEKray, 10 dipoles across', x: cut.map((_, k) => k).slice(0, 360), y: cut.slice(0, 360).map(v => v * 1e18), colour: GOT_C }] }));
+        said.push(st.tag.toLowerCase() + ' ' + S.dda.N + ' dipoles, ' + S.dda.iters + ' iterations');
+        await idle();
+      }
+      return { checks, plots, benches,
+        notes: 'JEKray’s runs: ' + said.join('; ') + '. The reference’s nine lattices scatter about their straight line by ' + R.settings.map(s => fmt(100 * s.scatter, 2) + '%').join(', ') + ' of C_ext in the three settings: a cubic lattice’s outline of a round rod is jagged, and the cross-section wanders with it from one lattice to the next. That is the reference’s own uncertainty, well inside the tolerance. JEKray’s default lattice reads a little high because it is coarser. With the wave along the rod the light sent straight back is ' + fmt(100 / R.settings[2].fwdBack, 2) + '% of that sent straight on, close to a minimum of the pattern, which makes that ratio the most sensitive number here.' };
+    },
+  },
 ];
 
 /* ---------- Running and reporting ---------- */

@@ -57,6 +57,8 @@ scripts that made them. The page itself runs JEKray live against these files.
 | `ref/abcd-beams.json` | `scripts/abcd_beams.py` | Kogelnik & Li's ABCD law: a Gaussian beam through a thick N-BK7 lens both ways round, and off a concave mirror at 15° (Siegman, Lasers, ch. 15) |
 | `ref/collimator-pair.json` | `scripts/collimator_pair.py` | Fibre to fibre through two collimating lenses: the beams' overlap in closed form against the gap, the focal lengths and an offset |
 | `ref/fbg-erdogan.json` | `scripts/fbg_erdogan.py` | Erdogan, J. Lightwave Technol. 15, 1277 (1997): a uniform fibre Bragg grating's coupled-mode equations, integrated numerically and checked against his closed forms |
+| `ref/mie.json` | `scripts/mie_reference.py` | Lorenz-Mie scattering by a sphere (Bohren & Huffman, Absorption and Scattering of Light by Small Particles (1983), ch. 4): an independent calculation on scipy's spherical Bessel functions, checked against their Appendix A test case and, when it is installed, against miepython |
+| `ref/dda-rod.json` | `scripts/dda_rod.py` | A silica rod in a plane wave by the discrete dipole approximation (Purcell & Pennypacker 1973; Draine & Goodman 1993): an independent calculation written in the script (FFT convolution, scipy's solver, nine lattices extrapolated to zero spacing), checked there against Mie for a sphere. Not an established code: ADDA could not be built where it was made |
 
 ## Making them again
 
@@ -118,6 +120,8 @@ numpy instead.
     python scripts/fibre_mfd.py
     python scripts/abcd_beams.py
     python scripts/collimator_pair.py
+    python scripts/mie_reference.py                  # compares with miepython too if it is installed (pip install miepython)
+    python scripts/dda_rod.py                        # about ten minutes; needs mie_reference.py beside it
     python scripts/fbg_erdogan.py
 
 ## Rules

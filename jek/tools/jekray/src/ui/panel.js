@@ -637,7 +637,7 @@ function renderPanelBody(el) {
   }
   if (!el) {
     const F = selFibre();
-    if (F && panel === mainPanel) { (F.wg ? PIC_UI.wgPanel : F.wire ? ELEC_UI.wirePanel : fibreLinkPanel)(F); panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, routeField(F))); }   // PIC hook
+    if (F && panel === mainPanel) { (F.wg ? PIC_UI.wgPanel : F.wire ? ELEC_UI.wirePanel : fibreLinkPanel)(F); panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, routeField(F))); if (!F.wg) panel.append(coloursRows([F], ['lineColour'])); }   // PIC hook; a fibre's or a wire's own colour
     else { renderOverview(); sectionise(panel, 'bench'); }
     return;
   }

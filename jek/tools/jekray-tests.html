@@ -12718,6 +12718,31 @@ const TESTS = [
     },
   },
   {
+    name: 'A fibre and a wire in colours of their own; the light in a fibre goes black with the figure’s light',
+    why: 'a fibre laser joined to a fibre photodetector, its output wired to an oscilloscope: the fibre given #0a7a2a and the wire #123456 are stroked in them in a journal figure (and not without); a colour that is not one is dropped on loading; with Parts black and white and Light black nothing on the figure is in colour, the light in the fibre included (it used to stay pink) (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc();
+      const bench = (fc, wc) => ({ format: 'jekray', version: 1, name: 'Fibre colours', elements: [{ type: 'fcomp', kind: 'laser', id: 'L', name: 'L', x: 0, y: 0, angle: 0, wavelength: 1550, power: 1 },
+        { type: 'fcomp', kind: 'pd', id: 'P', name: 'P', x: 60, y: 0, angle: 0 }, { type: 'elec', kind: 'scope', id: 'O', name: 'O', x: 110, y: 0, angle: 0 }],
+        fibres: [Object.assign({ id: 'f1', a: ['L', 0], b: ['P', 0] }, fc ? { lineColour: fc } : {}), Object.assign({ id: 'w1', a: ['P', 1], b: ['O', 0] }, wc ? { lineColour: wc } : {})] });
+      const fig = o => { try { W.localStorage.setItem('jek-rt-figure', JSON.stringify({ preset: 'journal', journal: Object.assign({ width: 174, names: 'none', scaleBar: false }, o) })); } catch (err) { /* fine */ }
+        D.getElementById('btnExportFigure').click(); const dlg = D.getElementById('figureDialog'); dlg.querySelector('.rt-figtabs [data-preset="journal"]').click(); const s = dlg.figSvg || ''; dlg.close();
+        return [...new Set([...new W.DOMParser().parseFromString(s, 'image/svg+xml').querySelectorAll('path, text')].flatMap(e => [e.getAttribute('stroke'), e.getAttribute('fill')]).filter(v => v && v !== 'none'))]; };
+      const grey = c => c.slice(1, 3) === c.slice(3, 5) && c.slice(3, 5) === c.slice(5, 7);
+      try {
+        J.load(bench('#0a7a2a', '#123456'));
+        const kept = J.project().fibres.map(F => F.lineColour).join(), own = fig({}), bw = fig({ parts: 'bw', mono: true }), bwLit = fig({ parts: 'bw' });
+        const drawn = kept === '#0a7a2a,#123456' && own.includes('#0a7a2a') && own.includes('#123456');
+        const black = bw.length > 1 && bw.every(grey) && bwLit.some(c => !grey(c));                  // all grey with the light black; the light in the fibre still in colour otherwise
+        J.load(bench('not a colour', ''));
+        const plain = J.project().fibres.every(F => F.lineColour === undefined), def = fig({}), dropped = plain && !def.includes('#0a7a2a') && !def.includes('#123456');
+        if (!(drawn && black && dropped)) console.log('fibre colours', JSON.stringify({ kept, drawn, black, dropped, own, bw, bwLit }));
+        return drawn && black && dropped ? 1 : 0;
+      } finally { try { W.localStorage.removeItem('jek-rt-figure'); } catch (err) { /* fine */ } }
+    },
+  },
+  {
     name: 'A part’s panel, Colours: a colour picked sets it, Default takes it away, Undo brings each back; several parts picked take one colour together',
     why: 'a lens and a mirror: the lens’s panel has a Colours section with Line colour and Fill colour, each reading "default" with Default disabled; picking #ff0000 as the line colour gives the lens lineColour #ff0000 (one Undo step: Undo leaves it without, Redo with); Default deletes the field and Undo brings #ff0000 back; with both parts picked, a fill colour picked in the group’s panel is given to both, and its Default takes it from both (1 when all hold)',
     want: 1, tol: 0, unit: '',

@@ -1039,9 +1039,11 @@ function sharedFields(list) {
    drawn: render.js tinted). */
 const PART_COLOURS = [['lineColour', 'Line colour', 'Every line of the part, and the words in its body, in this colour. Its name, its ports and the outline of a selected part stay as they are.', '#000000'],
   ['fillColour', 'Fill colour', 'The part’s body in this colour, as see-through as it is drawn now: glass stays clear.', '#ffffff']];
-export function coloursRows(list) {
+export function coloursRows(list, only) {
   const rows = h('div', { class: 'rt-rows rt-partcols' });
-  for (const [key, label, title, blank] of PART_COLOURS) {
+  for (const [key, label, title0, blank] of PART_COLOURS) {
+    if (only && !only.includes(key)) continue;
+    const title = only ? 'This fibre or wire drawn in this colour, on the bench and in exports. The light in a fibre keeps its own.' : title0;
     const id = 'rtf' + setFid(fid + 1), same = () => list.every(e => (e[key] || '') === (list[0][key] || '')), cur = () => (same() ? list[0][key] || '' : null);
     const col = h('input', { id, type: 'color', title, 'data-colour': key });
     const state = h('span', { class: 'rt-colstate' });

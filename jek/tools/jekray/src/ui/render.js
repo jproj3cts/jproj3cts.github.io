@@ -1542,12 +1542,13 @@ function drawFibres() {
     if (!segs) return;
     const sel = F.id === selFibreId;
     // PIC hook: waveguides in green; ELEC hook: wires in yellow, thinner
-    tracePath(segs); ctx.strokeStyle = linkInk(F.wg ? PIC.GREEN : F.wire ? ELEC.YELLOW : FIBRE_COLOUR); ctx.lineWidth = (sel ? 4 : 3) - (F.wg ? 0.8 : F.wire ? 1.4 : 0); ctx.stroke();
+    tracePath(segs); ctx.strokeStyle = linkInk(F.lineColour || (F.wg ? PIC.GREEN : F.wire ? ELEC.YELLOW : FIBRE_COLOUR)); /* its own colour, when it has one */ ctx.lineWidth = (sel ? 4 : 3) - (F.wg ? 0.8 : F.wire ? 1.4 : 0); ctx.stroke();
     if (F.wire) { if (sel) drawFibreNodes(F, segs); return; }
     const L = lights[i];
     if (L.colour && L.mw > 1e-9 * top) {
-      tracePath(segs); ctx.save(); ctx.globalAlpha = 0.25 + 0.75 * Math.sqrt(L.mw / top); ctx.strokeStyle = L.colour; ctx.lineWidth = 1.6;
-      ctx.shadowColor = L.colour; ctx.shadowBlur = 6; ctx.stroke(); ctx.restore();
+      const lc = figure && figure.mono ? figure.mono : L.colour;                 // the light in it, in the figure's one ink when its light is
+      tracePath(segs); ctx.save(); ctx.globalAlpha = 0.25 + 0.75 * Math.sqrt(L.mw / top); ctx.strokeStyle = lc; ctx.lineWidth = 1.6;
+      ctx.shadowColor = lc; ctx.shadowBlur = 6; ctx.stroke(); ctx.restore();
     }
     if (sel) drawFibreNodes(F, segs);
   });

@@ -11973,7 +11973,7 @@ function normFibres(list, els) {
       used.add(pkey(...b));
       const pt = v => Array.isArray(v) && v.length === 2 && v.every(isFinite) ? [+v[0], +v[1]] : [0, 0];
       const path = Array.isArray(F.path) ? F.path.filter(n => n && isFinite(n.x) && isFinite(n.y)).map(n => ({ x: +n.x, y: +n.y, h1: pt(n.h1), h2: pt(n.h2) })) : [];
-      out.push(Object.assign({ id: typeof F.id === 'string' ? F.id : uid(), a, b, wire: true, path }, F.route === 'square' ? { route: 'square' } : {}));
+      out.push(Object.assign({ id: typeof F.id === 'string' ? F.id : uid(), a, b, wire: true, path }, F.route === 'square' ? { route: 'square' } : {}, partHex(F.lineColour) ? { lineColour: partHex(F.lineColour) } : {}));   // its own colour, when given one
       continue;
     }
     if (!a || !b || used.has(pkey(...a)) || used.has(pkey(...b)) || pkey(...a) === pkey(...b)) continue;
@@ -11992,6 +11992,8 @@ function normFibres(list, els) {
       conn: CONNS[F.conn] ? F.conn : 'splice',
       key: num(F.key, 0), beat: Math.max(0.1, num(F.beat, 4)), per: clamp(num(F.per, 25), 0, 60), seed: Math.round(num(F.seed, 1)),
       path, ta: isFinite(F.ta) && F.ta !== null ? Math.max(0, +F.ta) : null, tb: isFinite(F.tb) && F.tb !== null ? Math.max(0, +F.tb) : null,
+      // its own colour on the bench and in exports, when given one
+      ...(partHex(F.lineColour) ? { lineColour: partHex(F.lineColour) } : {}),
       // wound round a radius (mm), turns times: its bend loss (core/bend.js)
       ...(isFinite(F.bendR) && F.bendR > 0 ? { bendR: clamp(+F.bendR, 1, 1000), turns: isFinite(F.turns) && F.turns > 0 ? clamp(+F.turns, 0.01, 1e5) : 1 } : {}),
       wg: F.wg ? PIC.normWg(F.wg) : undefined,                                               // PIC hook: a waveguide on a chip
@@ -17572,12 +17574,13 @@ function drawFibres() {
     if (!segs) return;
     const sel = F.id === selFibreId;
     // PIC hook: waveguides in green; ELEC hook: wires in yellow, thinner
-    tracePath(segs); ctx.strokeStyle = linkInk(F.wg ? PIC.GREEN : F.wire ? ELEC.YELLOW : FIBRE_COLOUR); ctx.lineWidth = (sel ? 4 : 3) - (F.wg ? 0.8 : F.wire ? 1.4 : 0); ctx.stroke();
+    tracePath(segs); ctx.strokeStyle = linkInk(F.lineColour || (F.wg ? PIC.GREEN : F.wire ? ELEC.YELLOW : FIBRE_COLOUR)); /* its own colour, when it has one */ ctx.lineWidth = (sel ? 4 : 3) - (F.wg ? 0.8 : F.wire ? 1.4 : 0); ctx.stroke();
     if (F.wire) { if (sel) drawFibreNodes(F, segs); return; }
     const L = lights[i];
     if (L.colour && L.mw > 1e-9 * top) {
-      tracePath(segs); ctx.save(); ctx.globalAlpha = 0.25 + 0.75 * Math.sqrt(L.mw / top); ctx.strokeStyle = L.colour; ctx.lineWidth = 1.6;
-      ctx.shadowColor = L.colour; ctx.shadowBlur = 6; ctx.stroke(); ctx.restore();
+      const lc = figure && figure.mono ? figure.mono : L.colour;                 // the light in it, in the figure's one ink when its light is
+      tracePath(segs); ctx.save(); ctx.globalAlpha = 0.25 + 0.75 * Math.sqrt(L.mw / top); ctx.strokeStyle = lc; ctx.lineWidth = 1.6;
+      ctx.shadowColor = lc; ctx.shadowBlur = 6; ctx.stroke(); ctx.restore();
     }
     if (sel) drawFibreNodes(F, segs);
   });
@@ -30051,7 +30054,7 @@ function renderPanelBody(el) {
   }
   if (!el) {
     const F = selFibre();
-    if (F && panel === mainPanel) { (F.wg ? PIC_UI.wgPanel : F.wire ? ELEC_UI.wirePanel : fibreLinkPanel)(F); panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, routeField(F))); }   // PIC hook
+    if (F && panel === mainPanel) { (F.wg ? PIC_UI.wgPanel : F.wire ? ELEC_UI.wirePanel : fibreLinkPanel)(F); panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, routeField(F))); if (!F.wg) panel.append(coloursRows([F], ['lineColour'])); }   // PIC hook; a fibre's or a wire's own colour
     else { renderOverview(); sectionise(panel, 'bench'); }
     return;
   }
@@ -31126,9 +31129,11 @@ function sharedFields(list) {
    drawn: render.js tinted). */
 const PART_COLOURS = [['lineColour', 'Line colour', 'Every line of the part, and the words in its body, in this colour. Its name, its ports and the outline of a selected part stay as they are.', '#000000'],
   ['fillColour', 'Fill colour', 'The part’s body in this colour, as see-through as it is drawn now: glass stays clear.', '#ffffff']];
-function coloursRows(list) {
+function coloursRows(list, only) {
   const rows = h('div', { class: 'rt-rows rt-partcols' });
-  for (const [key, label, title, blank] of PART_COLOURS) {
+  for (const [key, label, title0, blank] of PART_COLOURS) {
+    if (only && !only.includes(key)) continue;
+    const title = only ? 'This fibre or wire drawn in this colour, on the bench and in exports. The light in a fibre keeps its own.' : title0;
     const id = 'rtf' + setFid(fid + 1), same = () => list.every(e => (e[key] || '') === (list[0][key] || '')), cur = () => (same() ? list[0][key] || '' : null);
     const col = h('input', { id, type: 'color', title, 'data-colour': key });
     const state = h('span', { class: 'rt-colstate' });
@@ -57035,7 +57040,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>A part\u2019s own colours</b>: every part\u2019s panel has a <b>Colours</b> section with a <b>Line colour</b> and a <b>Fill colour</b> (and Default, to go back). The part is drawn in them on the bench and in every export; its glass stays as see-through as it was. Several parts selected together take a colour at once. <b>Export figure</b>, Journal and Technical drawing, has <b>Parts</b>: In their colours, or <b>Black and white</b> (black lines, white fills, the light still in its colour unless Light is Black too).',
+    '<b>A part\u2019s own colours</b>: every part\u2019s panel has a <b>Colours</b> section with a <b>Line colour</b> and a <b>Fill colour</b> (and Default, to go back). The part is drawn in them on the bench and in every export; its glass stays as see-through as it was. Several parts selected together take a colour at once. <b>Export figure</b>, Journal and Technical drawing, has <b>Parts</b>: In their colours, or <b>Black and white</b> (black lines, white fills, the light still in its colour unless Light is Black too, the light inside a fibre with it). A fibre or a wire has a <b>Line colour</b> of its own too: click it, and it is in its panel.',
     '<b>Export figure</b>, Journal and Technical drawing: the names are all one size (a name scaled on the bench no longer carries its scale into the figure), each is set clear of the parts and of the other names, with a thin line to its part when it has to go further out, a name at the edge is no longer cut, and the ports’ names are left out unless <b>Port names</b> is set to Shown. A bench too crowded for names is numbered, with a key under the figure (<b>Names</b>).',
     'Faster on benches with a multimode fibre and a broad spectrum (an amplifier’s spontaneous emission, a modulator’s sidebands): the light coupled back into a multimode tip is worked out once for each beam that has not moved, and many times faster when it has; in 3D, beams that run the same path at the same size are drawn as one envelope. A fibre EOM no longer puts sidebands on an amplifier’s spontaneous emission (a slice of it is far wider than the drive frequency, so they changed nothing but the number of beams to follow). A bench that took 13 s to open and 8 to 12 s to answer a moved part now takes under 2 s and about a third of a second, with the same readings.',
     '<b>Scattering by a particle</b>: a screen’s new <b>Scattering</b> tab gives the light one small particle scatters. A sphere is worked out exactly (Lorenz–Mie); a rod with flat or round ends or a spheroid, at any orientation, as an array of dipoles (the discrete dipole approximation, run in the background with a Stop); and a single dipole (Rayleigh) is kept beside them to compare. The light is what the bench puts on the particle: a tight focus as its full vector field, every sample of its pupil a plane wave onto the particle, so the particle may sit off the focus; a gentler beam as a plane wave; beams of one laser added as fields. It reads the scattering, extinction and absorption cross-sections, efficiencies and asymmetry, the power scattered, the forward and back shares and the share a lens of a given NA would collect, with polar plots in the bench plane and out of it and a map over every direction. The particle is the Trap tab’s, now with a shape, gold, silver and aluminium among its materials, and water as a medium. In 3D the particle is drawn in its shape and orientation, enlarged so it shows. In a script, <code>JEKray.scatter(name)</code> and <code>JEKray.mie(x, mr, mi, angles)</code>. A new example, <b>Light scattered by a 300 nm sphere</b>, and two cases on the validation page.',

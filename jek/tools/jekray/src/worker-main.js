@@ -35,6 +35,7 @@ import './core/gradient.js';
 import './core/assembly.js';
 import './core/beams-hom.js';
 import './core/colour.js';
+import './core/part-colours.js';
 import './core/fan-edge.js';
 import './core/src-tag.js';
 import './core/exercise-benches.js';

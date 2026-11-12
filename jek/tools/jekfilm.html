@@ -537,6 +537,12 @@
   .rt-pairbox > input { font-family: var(--jek-mono); font-size: 0.875rem; font-variant-numeric: tabular-nums; color: var(--jek-ink); background: var(--rt-surface); border: 1px solid var(--jek-line-2); border-radius: 2px; }
   .rt-pairbox > input:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
   .rt-f input[type=color] { padding: 0.15rem; height: 2.1rem; cursor: pointer; }
+  /* a part's own colours: the colour, what it is set to, and Default */
+  .rt-partcol .rt-colpick { display: flex; align-items: center; gap: 0.4rem; }
+  .rt-partcol .rt-colpick input[type=color] { flex: none; width: 2.6rem; height: 1.75rem; }
+  .rt-partcol .rt-colpick input.unset { opacity: 0.35; }
+  .rt-partcol .rt-colstate { flex: 1; min-width: 0; font-family: var(--jek-mono); font-size: 0.8rem; color: var(--jek-ink-soft); }
+  .rt-partcol .rt-colpick .rt-btn { flex: none; padding: 0.15rem 0.5rem; }
   .rt-f input:focus, .rt-f select:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
   .rt-check { display: flex; align-items: center; gap: 0.4rem; font-weight: 500; cursor: pointer; }
   .rt-f .rt-check input { width: auto; flex: none; padding: 0; margin: 0; }   /* a checkbox inside a field, as in a sweep */

@@ -28,7 +28,7 @@ import { snapVal } from './pointer.js';
 import { CONNS, FIBRE_N, netPower, pkey, portName, portsOf } from '../engines/fibre.js';
 import { signalSection } from './instruments.js';
 import { refNm } from './optimise.js';
-import { helpLine, bindSync, fid, numInput, panel, param, renderPanel, selectBox, selectField, setFid, syncPanel, vs } from './panel.js';
+import { helpLine, beginEdit, bindSync, endEdit, fid, numInput, panel, param, renderPanel, selectBox, selectField, setFid, syncPanel, vs } from './panel.js';
 import { h } from './dom.js';
 import {
   askForGlass, askForMaterial, axisFont, diffractionSection, drawAxes, glassNote, materialOptions, pickMaterial, plotArea,
@@ -1033,6 +1033,34 @@ function sharedFields(list) {
   }
   return rows.length ? h('div', { class: 'rt-rows' }, ...rows) : null;
 }
+/* ---------- Colours: a part's own line and fill colour on the bench and in exported pictures ----------
+   One row for each, for one part or for several picked together: the colour, and Default, which takes it away so the
+   part is drawn as the tool draws it (state/elements.js keeps lineColour and fillColour only when set; how they are
+   drawn: render.js tinted). */
+const PART_COLOURS = [['lineColour', 'Line colour', 'Every line of the part, and the words in its body, in this colour. Its name, its ports and the outline of a selected part stay as they are.', '#000000'],
+  ['fillColour', 'Fill colour', 'The part’s body in this colour, as see-through as it is drawn now: glass stays clear.', '#ffffff']];
+export function coloursRows(list) {
+  const rows = h('div', { class: 'rt-rows rt-partcols' });
+  for (const [key, label, title, blank] of PART_COLOURS) {
+    const id = 'rtf' + setFid(fid + 1), same = () => list.every(e => (e[key] || '') === (list[0][key] || '')), cur = () => (same() ? list[0][key] || '' : null);
+    const col = h('input', { id, type: 'color', title, 'data-colour': key });
+    const state = h('span', { class: 'rt-colstate' });
+    const def = h('button', { class: 'rt-btn', type: 'button', 'data-default': key, title: 'Back to the colour the tool draws it in',
+      onclick: () => { checkpoint(); for (const e of list) delete e[key]; changed(false); } }, 'Default');
+    col.addEventListener('input', () => { beginEdit(); for (const e of list) e[key] = col.value; changed(false); });
+    col.addEventListener('change', endEdit);
+    bindSync(col, () => {
+      const v = cur();
+      if (document.activeElement !== col || v) col.value = v || blank;
+      col.classList.toggle('unset', !v);
+      state.textContent = v === null ? 'mixed' : v ? '' : 'default';
+      col.title = title + (v ? ' Now ' + v + '.' : '');
+      def.disabled = v === '';
+    });
+    rows.append(h('div', { class: 'rt-f rt-partcol' }, h('label', { for: id }, label), h('span', { class: 'rt-colpick' }, col, state, def)));
+  }
+  return rows;
+}
 /* several selected: what can be done to them together */
 export function groupPanel(list) {
   panel.append(h('h2', null, h('span', null, list.length + ' elements'), h('span', { class: 'kind' }, 'selected')));
@@ -1049,6 +1077,7 @@ export function groupPanel(list) {
   panel.append(h('h3', null, 'Move and turn them together'), groupMovePanel(list));
   const shared = sharedFields(list);
   if (shared) panel.append(h('h3', null, 'Set them all'), shared);
+  { const cl = list.filter(e => e.type !== 'draw'); if (cl.length) panel.append(h('h3', null, 'Colours'), coloursRows(cl)); }
   // a group can turn about one of its parts (a lighthouse's ring, a polygon scanner): its Spin turns the rest about it,
   // and plays as a sweep like any setting
   if (list.length > 1 && list.every(e => e.group && e.group === list[0].group)) {

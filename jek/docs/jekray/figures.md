@@ -2,14 +2,14 @@
 layout: docs
 title: Figures for papers, drawings and slides
 permalink: /jek/docs/jekray/figures/
-description: "File › Export figure: the bench as a journal figure (85 or 174 mm wide, white, line art, names in Helvetica at a size in points, lines at least 0.5 pt, a scale bar; PDF, SVG or 600 dpi PNG), a technical drawing on an A4 or A3 sheet (to a standard scale, the parts' centres dimensioned, numbered callouts, a parts list and a title block), or a 16:9 or 4:3 slide. And the Draw palette's lines, arrows, shapes and notes for marking a figure up."
+description: "File › Export figure: the bench as a journal figure (85 or 174 mm wide, white, line art in the parts' colours or black and white, names in Helvetica at a size in points, lines at least 0.5 pt, a scale bar; PDF, SVG or 600 dpi PNG), a technical drawing on an A4 or A3 sheet (to a standard scale, the parts' centres dimensioned, numbered callouts, a parts list and a title block), or a 16:9 or 4:3 slide. And the Draw palette's lines, arrows, shapes and notes for marking a figure up."
 ---
 
 <p class="dx-lead"><strong>File › Export figure…</strong> makes the bench into a figure for where it is going: a column of a journal, a drawing to build from, or a slide. Each kind is drawn afresh for its page, not shrunk from the screen, so its words and lines come out at the sizes asked for. A preview beside the choices shows the figure as it will come down.</p>
 
 ## Journal
 
-White, with no breadboard holes, the parts as line art and the light in its own colour or in black (**Light**). It is cut to the parts, and made the width of a column: **Single column, 85 mm** or **Double column, 174 mm** (a figure taller than 230 mm is made narrower to fit a page). The parts' names are in Helvetica at the size chosen (6 to 10 pt, 8 pt as most journals ask) whatever the bench's size, and no line is thinner than 0.5 pt, so nothing vanishes in print. Every name is that one size, even one made larger or smaller on the bench. Each is set beside its part where it is clear of the other parts and the other names: under it, over it or at either side, and further out on a crowded bench, joined to its part by a thin line. The ports' names (in, out, 1, 2) are left out unless **Port names** is set to **Shown**.
+White, with no breadboard holes, the parts as line art and the light in its own colour or in black (**Light**). **Parts** chooses how the parts are drawn: **In their colours** (the tool's, or the line and fill colour a part was given under **Colours** in its panel) or **Black and white**, where every part, port, fibre, wire and waveguide has black lines and white fills whatever colours it was given. Glass keeps its transparency, the light keeps its colour unless **Light** is Black too, and drawings keep the colours they were made with. It is cut to the parts, and made the width of a column: **Single column, 85 mm** or **Double column, 174 mm** (a figure taller than 230 mm is made narrower to fit a page). The parts' names are in Helvetica at the size chosen (6 to 10 pt, 8 pt as most journals ask) whatever the bench's size, and no line is thinner than 0.5 pt, so nothing vanishes in print. Every name is that one size, even one made larger or smaller on the bench. Each is set beside its part where it is clear of the other parts and the other names: under it, over it or at either side, and further out on a crowded bench, joined to its part by a thin line. The ports' names (in, out, 1, 2) are left out unless **Port names** is set to **Shown**.
 
 On a crowded bench the names do not all fit beside their parts at a size that can be read. **Names** chooses what happens: **Beside the parts, numbered if crowded** (the default) switches to a number beside each part and a key under the figure when a name would lie on something or more than a fifth of them would have to be led out; **Beside the parts** and **Numbered, with a key** fix it either way; **None** leaves them out. The parts are numbered from left to right. A **scale bar** goes under it, a round length in mm.
 
@@ -25,7 +25,7 @@ An **A4** or **A3** sheet, landscape, framed, with the bench drawn to a standard
 - **Callouts**: a numbered balloon for each part, led to its centre, numbered from left to right; and a **parts list** beside the drawing, each part's number, name, kind, position (x, y in mm) and angle. Without callouts the parts carry their names instead.
 - A **title block**: the title (the bench's name unless you give one), the tab, the scale, the units, the sheet, the date, who drew it (optional) and that it was drawn with JEKray.
 
-The light is drawn in grey (or in its colour), the parts in black. PDF, SVG, or PNG at 300 dpi.
+The light is drawn in grey (or in its colour: **Light**), and the parts in their colours or in black and white (**Parts**, as for a journal figure). PDF, SVG, or PNG at 300 dpi.
 
 ## Presentation
 

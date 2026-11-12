@@ -134,6 +134,8 @@ A person may instead ask for a **part pack**: a set of ready-made parts and glas
 
 Every element has "type", "id" (any unique string), "name", "x", "y" (mm) and "angle" (degrees), and "bench" (a tab id) when there are several tabs. The other fields are listed with the value the tool uses if you leave them out. Leave out anything you do not need to change.
 
+Any element but a drawing may also have "lineColour" and "fillColour", each "#rrggbb": its own colours on the bench and in exported pictures. Every line of the part is drawn in the line colour and its body in the fill colour, as see-through as the tool draws it. Leave them out and the part is drawn in the tool’s own colours. They change nothing about the light.
+
 ### "source": Source
 
 A light source: a fan of rays and, its field starting from a Gaussian beam ("gauss": true, a new source’s) or from even illumination across the fan, a diffracted field that can be shown; the bench’s light turns the rays or the beams off.

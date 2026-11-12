@@ -35,6 +35,7 @@
   "core/assembly.js",
   "core/beams-hom.js",
   "core/colour.js",
+  "core/part-colours.js",
   "core/fan-edge.js",
   "core/src-tag.js",
   "core/exercise-benches.js",

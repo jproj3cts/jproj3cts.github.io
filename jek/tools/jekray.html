@@ -568,6 +568,12 @@
   .rt-pairbox > input { font-family: var(--jek-mono); font-size: 0.875rem; font-variant-numeric: tabular-nums; color: var(--jek-ink); background: var(--rt-surface); border: 1px solid var(--jek-line-2); border-radius: 2px; }
   .rt-pairbox > input:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
   .rt-f input[type=color] { padding: 0.15rem; height: 2.1rem; cursor: pointer; }
+  /* a part's own colours: the colour, what it is set to, and Default */
+  .rt-partcol .rt-colpick { display: flex; align-items: center; gap: 0.4rem; }
+  .rt-partcol .rt-colpick input[type=color] { flex: none; width: 2.6rem; height: 1.75rem; }
+  .rt-partcol .rt-colpick input.unset { opacity: 0.35; }
+  .rt-partcol .rt-colstate { flex: 1; min-width: 0; font-family: var(--jek-mono); font-size: 0.8rem; color: var(--jek-ink-soft); }
+  .rt-partcol .rt-colpick .rt-btn { flex: none; padding: 0.15rem 0.5rem; }
   .rt-f input:focus, .rt-f select:focus { outline: none; border-color: var(--jek-cyan); box-shadow: var(--jek-focus); }
   .rt-check { display: flex; align-items: center; gap: 0.4rem; font-weight: 500; cursor: pointer; }
   .rt-f .rt-check input { width: auto; flex: none; padding: 0; margin: 0; }   /* a checkbox inside a field, as in a sweep */
@@ -9712,6 +9718,50 @@ function wavelengthColour(nm) {
   return '#' + h(r) + h(g) + h(b);
 }
 
+/* ==========================================================================
+   A part's own colours on the bench
+   Any part may carry "lineColour" and "fillColour" ("#rrggbb"); one left out is drawn as the tool draws it.
+   The renderer (ui/render.js, tinted) draws such a part with every stroke in its line colour and every fill
+   in its fill colour, each keeping the opacity of the colour it stands in for: see-through glass stays
+   see-through, and what was drawn with nothing stays nothing.
+   ========================================================================== */
+
+/* a colour as a part keeps it: "#rrggbb" in lower case ("#rgb" written out), or '' for none */
+function partHex(v) {
+  if (typeof v !== 'string') return '';
+  const s = v.trim().toLowerCase();
+  if (/^#[0-9a-f]{6}$/.test(s)) return s;
+  if (/^#[0-9a-f]{3}$/.test(s)) return '#' + s[1] + s[1] + s[2] + s[2] + s[3] + s[3];
+  return '';
+}
+/* how opaque a CSS colour is, 0 to 1, read from its text: hex with or without alpha, rgb()/rgba()/hsl()/hsla()
+   with commas or spaces and a slash, "transparent"; a named colour, or anything that is not text (a gradient,
+   a pattern), is opaque */
+function colourAlpha(c) {
+  if (typeof c !== 'string') return 1;
+  const s = c.trim().toLowerCase();
+  if (s === 'transparent') return 0;
+  if (s[0] === '#') {
+    const a = s.length === 5 ? parseInt(s[4], 16) / 15 : s.length === 9 ? parseInt(s.slice(7), 16) / 255 : 1;
+    return isFinite(a) ? a : 1;
+  }
+  const m = /^(?:rgb|hsl)a?\(([^)]*)\)$/.exec(s);
+  if (!m) return 1;
+  const p = m[1].split(/[\s,/]+/).filter(Boolean);
+  if (p.length < 4) return 1;
+  const a = p[3].endsWith('%') ? parseFloat(p[3]) / 100 : parseFloat(p[3]);
+  return isFinite(a) ? Math.min(1, Math.max(0, a)) : 1;
+}
+/* the colour hex ("#rrggbb") standing in for c, as opaque as c was; c itself where it was nothing at all */
+const tintMemoPart = new Map();
+function partTint(c, hex) {
+  const key = typeof c === 'string' ? c + '|' + hex : null;
+  if (key && tintMemoPart.has(key)) return tintMemoPart.get(key);
+  const a = colourAlpha(c);
+  const out = a <= 0 ? c : a >= 1 ? hex : 'rgba(' + parseInt(hex.slice(1, 3), 16) + ',' + parseInt(hex.slice(3, 5), 16) + ',' + parseInt(hex.slice(5, 7), 16) + ',' + (+a.toFixed(4)) + ')';
+  if (key) { if (tintMemoPart.size > 4000) tintMemoPart.clear(); tintMemoPart.set(key, out); }
+  return out;
+}
 /* A ray fan's field is a uniform top-hat of its width; its edge rises over a distance (10% to 90%). Automatically just
    enough for the field grid to hold it without ringing: 8% of the width on 256 points, less on a finer grid. Or as set,
    0 for a hard edge (which rings on the grid, about 1% across the middle). */
@@ -11693,6 +11743,8 @@ function normElementBase(e) {
   };
   if (e.locked === true) base.locked = true;                  // held in place: not moved by dragging or the arrow keys
   if (e.hide3d === true) base.hide3d = true;                  // not drawn in the 3D view (the light still meets it)
+  // its own colours on the bench and in exported pictures (core/part-colours.js): kept only when set, so a part without them is drawn as ever
+  if (e.type !== 'draw') { const lc = partHex(e.lineColour), fc = partHex(e.fillColour); if (lc) base.lineColour = lc; if (fc) base.fillColour = fc; }
   // its height above the breadboard (mm), kept only when not the beam height (see zOf)
   if (isFinite(e.z) && e.z !== null && +e.z !== 75) base.z = clamp(+e.z, 0, 2000);
   // a free-space part tipped up (+) or down out of the bench plane, degrees (see setTip)
@@ -13957,7 +14009,7 @@ const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + project.maxBounces + 
 // what changes nothing in the light: a part's name and where it is written, its import notes, drawings; where a
 // fibre component or a chip part sits (their networks are solved by what joins what: a fibre's length is its own
 // setting), and the way a fibre or waveguide is drawn across the bench
-const COSMETIC = new Set(['hide3d', 'label', 'name', 'assumed', 'design', 'source']);
+const COSMETIC = new Set(['hide3d', 'label', 'name', 'assumed', 'design', 'source', 'lineColour', 'fillColour']);
 const PLACED = new Set(['x', 'y', 'angle']), DRAWN = new Set(['path', 'ta', 'tb', 'route']);
 function keyCut(k, v) {
   if (COSMETIC.has(k)) return undefined;
@@ -16076,7 +16128,8 @@ const themeDark = () => themePref === 'dark' || (themePref === 'system' && sysDa
 const hexRgb = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16));
 const benchStyle = () => (project && project.style) || {};
 /* A figure being drawn (io/figure.js): plain (no bench colour or holes; the paper white), its labels at a size,
-   in a font, or none, its light in black (mono), no scale bar or credit of the bench's own */
+   in a font, or none, its light in black (mono), its parts in black lines and white fills (partsBw: see tinted),
+   no scale bar or credit of the bench's own */
 let figure = null;
 function setFigure(f) { return (figure = f); }
 const benchBg = () => figure && figure.bg ? figure.bg : themeDark() ? BENCH_DEFAULT : BENCH_PAPER;
@@ -17320,15 +17373,16 @@ function roundRect(w, hh, r) {
 /* where the port names were drawn this frame, in css px: the parts' names keep off them */
 const portLabelBoxes = [];
 const keepOffLabel = box => { portLabelBoxes.push(box); };
-function drawPorts(el) {
+function drawPorts(el) { untinted(() => drawPortsNow(el)); }
+function drawPortsNow(el) {
   const ps = portsOf(el), used = portsInUse(), s = V().scale, r = clamp(1.1 * s, 3, 6);
   ELEC_UI.drawExtras(el);                                                                       // ELEC hook
   ps.forEach((P, i) => {
     if (P.elec) return;
     const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i));
     ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
-    ctx.fillStyle = on ? FIBRE_COLOUR : portFill(); ctx.fill();
-    ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 1.4;                  // (the ring's colour first: a joined port's fill is the same ink)
+    ctx.fillStyle = on ? FIBRE_COLOUR : portFill(); ctx.fill(); ctx.stroke();
     if (ps.length > 1 && s > 3 && !(figure && figure.ports === false)) {                  // named when it has company (a figure may leave them out): other fibre ports, or electrical ones
       // the name just outside the port, above it, upright whatever the part's angle
       ctx.fillStyle = 'rgba(244,199,220,0.9)'; ctx.font = '9px ' + getCss('--jek-mono');
@@ -17518,7 +17572,7 @@ function drawFibres() {
     if (!segs) return;
     const sel = F.id === selFibreId;
     // PIC hook: waveguides in green; ELEC hook: wires in yellow, thinner
-    tracePath(segs); ctx.strokeStyle = F.wg ? PIC.GREEN : F.wire ? ELEC.YELLOW : FIBRE_COLOUR; ctx.lineWidth = (sel ? 4 : 3) - (F.wg ? 0.8 : F.wire ? 1.4 : 0); ctx.stroke();
+    tracePath(segs); ctx.strokeStyle = linkInk(F.wg ? PIC.GREEN : F.wire ? ELEC.YELLOW : FIBRE_COLOUR); ctx.lineWidth = (sel ? 4 : 3) - (F.wg ? 0.8 : F.wire ? 1.4 : 0); ctx.stroke();
     if (F.wire) { if (sel) drawFibreNodes(F, segs); return; }
     const L = lights[i];
     if (L.colour && L.mw > 1e-9 * top) {
@@ -17609,8 +17663,81 @@ function filterColour(el) {
   if (el.ftype === 'bandpass') return wavelengthColour(el.centre);
   return wavelengthColour(el.ftype === 'longpass' ? el.edge + 60 : el.edge - 60);
 }
+/* ---------- A part in its own colours ----------
+   A part with a line or a fill colour of its own (lineColour, fillColour: its panel's Colours), and every part of a
+   figure whose parts are black and white (figure.partsBw), is drawn through a stand-in for the context: every stroke
+   colour the part sets becomes its line colour and every fill colour its fill colour, each as opaque as the colour it
+   stands in for (core/part-colours.js partTint), so glass stays see-through and nothing stays nothing. A gradient or a
+   pattern set as a fill becomes the fill colour. The words in the part's body are in the line colour, and so is a fill
+   in the stroke's own colour (`c.fillStyle = c.strokeStyle`: a dot, an electrode, a mirror's bar: ink, not a body;
+   inkFill for one given its colour outright). The same on the canvas and in a VecCtx. A part without colours is
+   drawn straight on the context and costs nothing.
+   Left as they are: the outline of a selected part, the part's name beside it, its ports and their names (drawn
+   untinted), the red "!" and the light. In black and white the ports, the fibres, wires and waveguides are black and
+   white too; drawings keep the colours they were given. */
+const BW_LINE = '#000000', BW_FILL = '#ffffff';
+const partsBw = () => !!(figure && figure.partsBw);
+// a link's (a fibre's, a wire's, a waveguide's) own colour, black in black and white
+const linkInk = c => partsBw() ? partTint(c, BW_LINE) : c;
+let tintReal = null, tintLine = '', tintFill = '', tintSelInk = null, tintOff = 0, tintRawFill = null, tintRawStroke = null, tintInk = false;
+const tintStack = [], tintFns = new Map();
+let tintFnsOf = null, tintProxyOf = null, tintProxy = null;
+function tintedText(...a) {
+  const t = tintReal, keep = t.fillStyle;
+  if (tintOff || !tintLine) { t.fillStyle = tintRawFill; t.fillText(...a); }       // as the part wrote it (a light bench's dark words and all)
+  else { t.fillStyle = partTint(tintRawFill, tintLine); Object.getPrototypeOf(t).fillText.apply(t, a); }   // in the line colour itself, not darkened for paper
+  t.fillStyle = keep;
+}
+const TINT = {
+  get(t, k) {
+    if (k === 'fillText') return tintedText;
+    const v = t[k];
+    if (typeof v !== 'function') return v;
+    let f = tintFns.get(k);
+    if (!f) {
+      f = k === 'save' ? () => { tintStack.push([tintRawFill, tintRawStroke]); t.save(); } : k === 'restore' ? () => { if (tintStack.length) [tintRawFill, tintRawStroke] = tintStack.pop(); t.restore(); } : v.bind(t);
+      tintFns.set(k, f);
+    }
+    return f;
+  },
+  set(t, k, v) {
+    if (k === 'strokeStyle') { tintRawStroke = v; if (!tintOff && tintLine && v !== tintSelInk) v = partTint(v, tintLine); }
+    else if (k === 'fillStyle') {
+      const ink = tintInk || v === tintRawStroke || v === t.strokeStyle;         // ink: a fill in the line's colour (as the part gave it, or read back)
+      tintRawFill = v;
+      if (!tintOff) {
+        if (ink) { if (tintLine && v !== tintSelInk) v = partTint(v, tintLine); }
+        else if (tintFill) v = partTint(v, tintFill);
+      }
+    }
+    t[k] = v;
+    return true;
+  },
+};
+function tinted(line, fill, selInkNow, fn) {
+  const real = ctx;
+  if (tintReal || !real) return fn();                     // already in a part's colours
+  if (tintProxyOf !== real) { tintFns.clear(); tintProxy = new Proxy(real, TINT); tintProxyOf = real; }
+  tintReal = real; tintLine = line || ''; tintFill = fill || ''; tintSelInk = selInkNow; tintOff = 0; tintRawFill = real.fillStyle; tintRawStroke = null; tintStack.length = 0;
+  ctx = tintProxy;
+  try { return fn(); } finally { ctx = real; tintReal = null; tintSelInk = null; }
+}
+/* what a part draws that is not its body (its ports and their names): in the tool's own colours, unless the whole
+   figure is black and white */
+function untinted(fn) {
+  if (!tintReal || partsBw()) return fn();
+  tintOff++;
+  try { return fn(); } finally { tintOff--; }
+}
+/* a fill that is ink (a solid mark with no outline: a transducer, an arrowhead), so in the part's line colour */
+function inkFill(c) {
+  tintInk = true;
+  try { ctx.fillStyle = c; } finally { tintInk = false; }
+}
 function draw(el) {
-  drawBody(el);
+  if (partsBw() && el.type !== 'draw') { tinted(BW_LINE, BW_FILL, null, () => { drawBody(el); if (el.type !== 'fcomp') ELEC_UI.drawExtras(el); }); return; }
+  if ((el.lineColour || el.fillColour) && el.type !== 'draw') tinted(el.lineColour, el.fillColour, el.id === selectedId || extraSel.has(el.id) ? selInk() : null, () => drawBody(el));
+  else drawBody(el);
   if (el.type !== 'fcomp') ELEC_UI.drawExtras(el);                                               // ELEC hook: electrical ports on optical parts
 }
 function drawBody(el) {
@@ -25979,10 +26106,11 @@ function elecDraw(el, sel) {
   // which ports are named on the bench: any on a side with more than one, and any not plainly "in" or "out"
   const named = (P, i) => (P.elec === 'in' ? K.ins.length : K.outs.length) > 1 || !['in', 'out'].includes(names[i]);
   const fs = clamp(1.7 * s, 8, 11);
-  ports.forEach((P, i) => {
+  // the ports and their names, in the tool's own colours whatever the part's (render.js untinted)
+  untinted(() => ports.forEach((P, i) => {
     const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i));
     c.beginPath(); c.arc(X, Y, r, 0, 2 * Math.PI);
-    c.fillStyle = on || P.elec === 'out' ? ELEC_YELLOW : portFill(); c.fill(); c.strokeStyle = ELEC_YELLOW; c.lineWidth = 1.4; c.stroke();
+    c.strokeStyle = ELEC_YELLOW; c.lineWidth = 1.4; c.fillStyle = on || P.elec === 'out' ? ELEC_YELLOW : portFill(); c.fill(); c.stroke();
     if (named(P, i) && s > 2.2 && !(figure && figure.ports === false)) {
       // the name just outside the port, away from the part, upright whatever the part's angle
       c.save(); c.font = fs + 'px ' + getCss('--jek-mono'); c.fillStyle = INK;
@@ -25990,14 +26118,14 @@ function elecDraw(el, sel) {
       c.textAlign = Math.abs(ox) < 0.3 ? 'center' : ox > 0 ? 'left' : 'right'; c.textBaseline = 'bottom';
       c.fillText(names[i], X + ox * out, Y + oy * out - 3); c.restore();
     }
-  });
+  }));
 }
 /* a node: a yellow dot on the wiring, its input and output either side; it hands on what it is given */
 function drawNode(el, sel) {
   const s = V().scale, X = sx(el.x), Y = sy(el.y), r = clamp(NODE_R * s, 7, 12);
   ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
   ctx.fillStyle = bodyFill(DARK); ctx.fill(); ctx.strokeStyle = sel ? selInk() : ELEC_YELLOW; ctx.lineWidth = sel ? 2.4 : 1.6; ctx.stroke();
-  ctx.beginPath(); ctx.arc(X, Y, NODE_PORT, 0, 2 * Math.PI); ctx.fillStyle = ELEC_YELLOW; ctx.fill();
+  ctx.beginPath(); ctx.arc(X, Y, NODE_PORT, 0, 2 * Math.PI); inkFill(ELEC_YELLOW); ctx.fill();
 }
 /* ---------- panels ---------- */
 function elecPanelFor(el) {
@@ -26086,7 +26214,7 @@ function elecDrawExtras(el) {
   X.forEach((P, k) => {
     const Q = portWorld(el, base + k), on = used.has(pkey(el.id, base + k));
     ctx.beginPath(); ctx.arc(sx(Q.x), sy(Q.y), r, 0, 2 * Math.PI);
-    ctx.fillStyle = on || P.elec === 'out' ? ELEC_YELLOW : portFill(); ctx.fill(); ctx.strokeStyle = ELEC_YELLOW; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.strokeStyle = ELEC_YELLOW; ctx.lineWidth = 1.4; ctx.fillStyle = on || P.elec === 'out' ? ELEC_YELLOW : portFill(); ctx.fill(); ctx.stroke();
     keepOffLabel({ x: sx(Q.x) - r - 1, y: sy(Q.y) - r - 1, w: 2 * r + 2, h: 2 * r + 2 });                      // the part's name keeps off the port
     // its name beside it, outside the part, upright
     if (V().scale > 2.2 && !(figure && figure.ports === false)) {
@@ -26234,15 +26362,15 @@ function picDraw(el, sel) {
     c.save(); c.font = clamp(1.6 * s, 8, 11) + 'px ' + getCss('--jek-mono'); c.fillStyle = '#bfe8cc'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, sx(x), sy(y)); c.restore();
   }
   const used = portsInUse(), r = clamp(1.1 * s, 3, 6);
-  ports.forEach((P, i) => {
+  untinted(() => ports.forEach((P, i) => {
     const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i)), col = P.chip ? PIC_GREEN : FIBRE_COLOUR;
     c.beginPath(); c.arc(X, Y, r, 0, 2 * Math.PI);
-    c.fillStyle = on ? col : portFill(); c.fill(); c.strokeStyle = col; c.lineWidth = 1.4; c.stroke();
+    c.strokeStyle = col; c.lineWidth = 1.4; c.fillStyle = on ? col : portFill(); c.fill(); c.stroke();
     if (ports.length > 1 && s > 3) {
       c.save(); c.fillStyle = '#bfe8cc'; c.font = '9px ' + getCss('--jek-mono'); c.textAlign = Q.dx > 0 ? 'left' : 'right'; c.textBaseline = 'bottom';
       c.fillText(names[i], X + Q.dx * (r + 3), Y - 3); c.restore();
     }
-  });
+  }));
 }
 /* ---------- panels ---------- */
 const wgSelect = (get, set) => selectField('Waveguide', Object.entries(PIC_WG).map(([k, v]) => [k, v.name]), get, set, { wide: true });
@@ -29983,6 +30111,8 @@ function renderPanelBody(el) {
   if (U && !(horn && (el.type === 'source' || el.type === 'detector')) && !(el.mod && U.noModPanel)) U.panel(el);
   if (matesOf(el).length) matesPanel(el);                                                    // its mates (ui/mate3d.js)
   if (el.type !== 'elec' && el.type !== 'draw') ELEC_UI.opticPanel(el);                                 // ELEC hook
+  // its own line and fill colour on the bench and in exported pictures, folded until wanted (a drawing has its own)
+  if (el.type !== 'draw') panel.append(h('h3', { 'data-shut': '' }, 'Colours'), coloursRows([el]));
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },
       h('span', null, 'Part of ' + c.name + ': ' + c.kind + ', FSR ' + fmtHz(c.fsr) + (c.finesse ? ', finesse ' + (+c.finesse.toPrecision(3)) : '')),
@@ -30990,6 +31120,34 @@ function sharedFields(list) {
   }
   return rows.length ? h('div', { class: 'rt-rows' }, ...rows) : null;
 }
+/* ---------- Colours: a part's own line and fill colour on the bench and in exported pictures ----------
+   One row for each, for one part or for several picked together: the colour, and Default, which takes it away so the
+   part is drawn as the tool draws it (state/elements.js keeps lineColour and fillColour only when set; how they are
+   drawn: render.js tinted). */
+const PART_COLOURS = [['lineColour', 'Line colour', 'Every line of the part, and the words in its body, in this colour. Its name, its ports and the outline of a selected part stay as they are.', '#000000'],
+  ['fillColour', 'Fill colour', 'The part’s body in this colour, as see-through as it is drawn now: glass stays clear.', '#ffffff']];
+function coloursRows(list) {
+  const rows = h('div', { class: 'rt-rows rt-partcols' });
+  for (const [key, label, title, blank] of PART_COLOURS) {
+    const id = 'rtf' + setFid(fid + 1), same = () => list.every(e => (e[key] || '') === (list[0][key] || '')), cur = () => (same() ? list[0][key] || '' : null);
+    const col = h('input', { id, type: 'color', title, 'data-colour': key });
+    const state = h('span', { class: 'rt-colstate' });
+    const def = h('button', { class: 'rt-btn', type: 'button', 'data-default': key, title: 'Back to the colour the tool draws it in',
+      onclick: () => { checkpoint(); for (const e of list) delete e[key]; changed(false); } }, 'Default');
+    col.addEventListener('input', () => { beginEdit(); for (const e of list) e[key] = col.value; changed(false); });
+    col.addEventListener('change', endEdit);
+    bindSync(col, () => {
+      const v = cur();
+      if (document.activeElement !== col || v) col.value = v || blank;
+      col.classList.toggle('unset', !v);
+      state.textContent = v === null ? 'mixed' : v ? '' : 'default';
+      col.title = title + (v ? ' Now ' + v + '.' : '');
+      def.disabled = v === '';
+    });
+    rows.append(h('div', { class: 'rt-f rt-partcol' }, h('label', { for: id }, label), h('span', { class: 'rt-colpick' }, col, state, def)));
+  }
+  return rows;
+}
 /* several selected: what can be done to them together */
 function groupPanel(list) {
   panel.append(h('h2', null, h('span', null, list.length + ' elements'), h('span', { class: 'kind' }, 'selected')));
@@ -31006,6 +31164,7 @@ function groupPanel(list) {
   panel.append(h('h3', null, 'Move and turn them together'), groupMovePanel(list));
   const shared = sharedFields(list);
   if (shared) panel.append(h('h3', null, 'Set them all'), shared);
+  { const cl = list.filter(e => e.type !== 'draw'); if (cl.length) panel.append(h('h3', null, 'Colours'), coloursRows(cl)); }
   // a group can turn about one of its parts (a lighthouse's ring, a polygon scanner): its Spin turns the rest about it,
   // and plays as a sweep like any setting
   if (list.length > 1 && list.every(e => e.group && e.group === list[0].group)) {
@@ -50990,7 +51149,8 @@ function wireDataExport() {
 }
 /* ==========================================================================
    File › Export figure…: the bench as a figure made for where it is going.
-   - Journal: white, no holes, the parts as line art, the light in its colour or black, the names in
+   - Journal: white, no holes, the parts as line art (in their colours, or black lines and white fills), the light in
+     its colour or black, the names in
      Helvetica all at one size in points, each clear of the parts and of the other names (render.js
      drawLabels, figure.tidy), the ports' names left out unless asked for; on a bench too crowded for that, numbers
      beside the parts and a key under the figure; 85 mm wide (a single column) or 174 mm (two), lines no thinner than
@@ -51005,8 +51165,8 @@ const FIG_MM = 72 / 25.4;                                              // points
 const FIG_FONT = 'Helvetica, Arial, sans-serif', FIG_INK = '#111', FIG_SOFT = '#5b6570';
 const FIGURE_PRESETS = [['journal', 'Journal'], ['technical', 'Technical drawing'], ['slides', 'Presentation']];
 const FIGURE_DEFAULTS = {
-  journal: { width: 85, mono: false, names: 'auto', pt: 8, ports: false, scaleBar: true, fmt: 'pdf' },
-  technical: { sheet: 'A4', mono: true, dims: true, callouts: true, title: '', by: '', fmt: 'pdf' },
+  journal: { width: 85, mono: false, parts: 'colour', names: 'auto', pt: 8, ports: false, scaleBar: true, fmt: 'pdf' },
+  technical: { sheet: 'A4', mono: true, parts: 'colour', dims: true, callouts: true, title: '', by: '', fmt: 'pdf' },
   slides: { size: '169', fmt: 'png' },
 };
 
@@ -51085,7 +51245,7 @@ function journalFigure(o) {
   const numW = meas.measureText(String(parts.length) + ' ').width + o.pt * 0.4, colW = Math.max(...parts.map(e => meas.measureText(e.name).width), 1) + numW + o.pt * 1.6;
   const cols = Math.max(1, Math.floor(Wpt / colW)), rows = Math.ceil(parts.length / cols), rowH = o.pt * 1.35, keyH = rows * rowH + o.pt;
   const draw = key => {
-    const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#111', font: FIG_FONT, tidy: true, ports: !!o.ports, labels: o.names === 'none' ? false : undefined, numbers: key ? new Map(parts.map((e, i) => [e.id, i + 1])) : null };
+    const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#111', partsBw: o.parts === 'bw', font: FIG_FONT, tidy: true, ports: !!o.ports, labels: o.names === 'none' ? false : undefined, numbers: key ? new Map(parts.map((e, i) => [e.id, i + 1])) : null };
     const under = bar + (key ? keyH : 0);
     return Object.assign(figFitted(fig, o.pt, b => Math.min(Wpt / b.w, (maxH - under) / b.h)), { fig, key, under });
   };
@@ -51125,7 +51285,7 @@ function technicalFigure(o) {
   const A = { x: M + 12, y: M + 12, w: SW - 2 * M - RC - 30, h: SH - 2 * M - 24 };
   const top = callouts ? 26 : 0, under = (callouts ? 26 : 0) + (o.dims ? 30 : 0), right = o.dims ? 40 : 0;
   const D = { x: A.x + 4, y: A.y + top, w: A.w - right - 8, h: A.h - top - under };
-  const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#8a9099', font: FIG_FONT, tidy: true, ports: false, labels: callouts ? false : undefined };   // the light grey, the parts black
+  const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#8a9099', partsBw: o.parts === 'bw', font: FIG_FONT, tidy: true, ports: false, labels: callouts ? false : undefined };   // the light grey; the parts in their colours, or black and white
   const per = () => V().scale;                                        // canvas pixels a millimetre
   let ratio = FIG_SCALES[FIG_SCALES.length - 1];
   const scaleOf = b => {
@@ -51325,12 +51485,12 @@ async function exportFigure(preset, o) {
 /* ---- the dialog ---- */
 const FIG_KEY = 'jek-rt-figure';
 const FIG_FIELDS = {
-  journal: [['width', 'Width', [[85, 'Single column, 85 mm'], [174, 'Double column, 174 mm']]], ['mono', 'Light', [[false, 'In its colour'], [true, 'Black']]],
+  journal: [['width', 'Width', [[85, 'Single column, 85 mm'], [174, 'Double column, 174 mm']]], ['mono', 'Light', [[false, 'In its colour'], [true, 'Black']]], ['parts', 'Parts', [['colour', 'In their colours'], ['bw', 'Black and white']]],
     ['names', 'Names', [['auto', 'Beside the parts, numbered if crowded'], ['beside', 'Beside the parts'], ['key', 'Numbered, with a key'], ['none', 'None']]],
     ['pt', 'Size', [[6, '6 pt'], [7, '7 pt'], [8, '8 pt'], [9, '9 pt'], [10, '10 pt']]], ['ports', 'Port names', [[false, 'Left out'], [true, 'Shown']]], ['scaleBar', 'Scale bar', [[true, 'Yes'], [false, 'No']]],
     ['fmt', 'As', [['pdf', 'PDF (vector)'], ['svg', 'SVG (vector)'], ['png', 'PNG, 600 dpi']]]],
   technical: [['sheet', 'Sheet', [['A4', 'A4'], ['A3', 'A3']]], ['dims', 'Dimensions', [[true, 'Between the parts’ centres'], [false, 'None']]],
-    ['callouts', 'Callouts', [[true, 'Numbered, with a parts list'], [false, 'The parts’ names']]], ['mono', 'Light', [[true, 'Black'], [false, 'In its colour']]],
+    ['callouts', 'Callouts', [[true, 'Numbered, with a parts list'], [false, 'The parts’ names']]], ['mono', 'Light', [[true, 'Grey'], [false, 'In its colour']]], ['parts', 'Parts', [['colour', 'In their colours'], ['bw', 'Black and white']]],
     ['title', 'Title', 'text'], ['by', 'Drawn by', 'text'], ['fmt', 'As', [['pdf', 'PDF (vector)'], ['svg', 'SVG (vector)'], ['png', 'PNG, 300 dpi']]]],
   slides: [['size', 'Slide', [['169', '16:9, 1920 × 1080'], ['43', '4:3, 1600 × 1200']]], ['fmt', 'As', [['png', 'PNG'], ['svg', 'SVG (vector)'], ['pdf', 'PDF (vector)']]]],
 };
@@ -51475,7 +51635,7 @@ const AI_ANGLE = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].guide.angle
 const AI_WHAT = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].guide.what]));
 /* each field: its meaning, units and limits, as the tool reads them */
 const AI_FIELDS = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].guide.fields]));
-const AI_SKIP = new Set(['beamView', 'beamScale', 'emitView', 'id', 'type', 'name', 'x', 'y', 'z', 'angle', 'bench', 'sweeps', 'colour', 'colourAuto', 'absorb', 'retardCustom', 'source', 'locked', 'group', 'label']);
+const AI_SKIP = new Set(['beamView', 'beamScale', 'emitView', 'id', 'type', 'name', 'x', 'y', 'z', 'angle', 'bench', 'sweeps', 'colour', 'colourAuto', 'absorb', 'retardCustom', 'source', 'locked', 'group', 'label', 'lineColour', 'fillColour']);
 function aiDefaults(type) { return normElementBase({ type, name: 'x' }); }
 /* the fields of each type that the guide must describe: what the tool itself reads */
 function aiFieldsOf(type) {
@@ -51491,7 +51651,8 @@ const mdCell = v => String(v).replace(/\|/g, '\\|').replace(/\n/g, ' ');
 function aiReference() {
   const L = [];
   L.push('## Element reference', '',
-    'Every element has "type", "id" (any unique string), "name", "x", "y" (mm) and "angle" (degrees), and "bench" (a tab id) when there are several tabs. The other fields are listed with the value the tool uses if you leave them out. Leave out anything you do not need to change.', '');
+    'Every element has "type", "id" (any unique string), "name", "x", "y" (mm) and "angle" (degrees), and "bench" (a tab id) when there are several tabs. The other fields are listed with the value the tool uses if you leave them out. Leave out anything you do not need to change.', '',
+    'Any element but a drawing may also have "lineColour" and "fillColour", each "#rrggbb": its own colours on the bench and in exported pictures. Every line of the part is drawn in the line colour and its body in the fill colour, as see-through as the tool draws it. Leave them out and the part is drawn in the tool\u2019s own colours. They change nothing about the light.', '');
   for (const t of Object.keys(TYPE_LABEL)) {
     const d = aiDefaults(t), F = AI_FIELDS[t] || {};
     L.push('### "' + t + '": ' + TYPE_LABEL[t], '', AI_WHAT[t] || '', '', '**angle:** ' + (AI_ANGLE[t] || ''), '', '| field | default | meaning |', '|---|---|---|');
@@ -56874,6 +57035,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>A part\u2019s own colours</b>: every part\u2019s panel has a <b>Colours</b> section with a <b>Line colour</b> and a <b>Fill colour</b> (and Default, to go back). The part is drawn in them on the bench and in every export; its glass stays as see-through as it was. Several parts selected together take a colour at once. <b>Export figure</b>, Journal and Technical drawing, has <b>Parts</b>: In their colours, or <b>Black and white</b> (black lines, white fills, the light still in its colour unless Light is Black too).',
     '<b>Export figure</b>, Journal and Technical drawing: the names are all one size (a name scaled on the bench no longer carries its scale into the figure), each is set clear of the parts and of the other names, with a thin line to its part when it has to go further out, a name at the edge is no longer cut, and the ports’ names are left out unless <b>Port names</b> is set to Shown. A bench too crowded for names is numbered, with a key under the figure (<b>Names</b>).',
     'Faster on benches with a multimode fibre and a broad spectrum (an amplifier’s spontaneous emission, a modulator’s sidebands): the light coupled back into a multimode tip is worked out once for each beam that has not moved, and many times faster when it has; in 3D, beams that run the same path at the same size are drawn as one envelope. A fibre EOM no longer puts sidebands on an amplifier’s spontaneous emission (a slice of it is far wider than the drive frequency, so they changed nothing but the number of beams to follow). A bench that took 13 s to open and 8 to 12 s to answer a moved part now takes under 2 s and about a third of a second, with the same readings.',
     '<b>Scattering by a particle</b>: a screen’s new <b>Scattering</b> tab gives the light one small particle scatters. A sphere is worked out exactly (Lorenz–Mie); a rod with flat or round ends or a spheroid, at any orientation, as an array of dipoles (the discrete dipole approximation, run in the background with a Stop); and a single dipole (Rayleigh) is kept beside them to compare. The light is what the bench puts on the particle: a tight focus as its full vector field, every sample of its pupil a plane wave onto the particle, so the particle may sit off the focus; a gentler beam as a plane wave; beams of one laser added as fields. It reads the scattering, extinction and absorption cross-sections, efficiencies and asymmetry, the power scattered, the forward and back shares and the share a lens of a given NA would collect, with polar plots in the bench plane and out of it and a map over every direction. The particle is the Trap tab’s, now with a shape, gold, silver and aluminium among its materials, and water as a medium. In 3D the particle is drawn in its shape and orientation, enlarged so it shows. In a script, <code>JEKray.scatter(name)</code> and <code>JEKray.mie(x, mr, mi, angles)</code>. A new example, <b>Light scattered by a 300 nm sphere</b>, and two cases on the validation page.',

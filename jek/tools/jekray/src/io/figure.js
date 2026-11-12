@@ -14,7 +14,8 @@ import { track } from './usage.js';
 
 /* ==========================================================================
    File › Export figure…: the bench as a figure made for where it is going.
-   - Journal: white, no holes, the parts as line art, the light in its colour or black, the names in
+   - Journal: white, no holes, the parts as line art (in their colours, or black lines and white fills), the light in
+     its colour or black, the names in
      Helvetica all at one size in points, each clear of the parts and of the other names (render.js
      drawLabels, figure.tidy), the ports' names left out unless asked for; on a bench too crowded for that, numbers
      beside the parts and a key under the figure; 85 mm wide (a single column) or 174 mm (two), lines no thinner than
@@ -29,8 +30,8 @@ const FIG_MM = 72 / 25.4;                                              // points
 const FIG_FONT = 'Helvetica, Arial, sans-serif', FIG_INK = '#111', FIG_SOFT = '#5b6570';
 export const FIGURE_PRESETS = [['journal', 'Journal'], ['technical', 'Technical drawing'], ['slides', 'Presentation']];
 export const FIGURE_DEFAULTS = {
-  journal: { width: 85, mono: false, names: 'auto', pt: 8, ports: false, scaleBar: true, fmt: 'pdf' },
-  technical: { sheet: 'A4', mono: true, dims: true, callouts: true, title: '', by: '', fmt: 'pdf' },
+  journal: { width: 85, mono: false, parts: 'colour', names: 'auto', pt: 8, ports: false, scaleBar: true, fmt: 'pdf' },
+  technical: { sheet: 'A4', mono: true, parts: 'colour', dims: true, callouts: true, title: '', by: '', fmt: 'pdf' },
   slides: { size: '169', fmt: 'png' },
 };
 
@@ -109,7 +110,7 @@ function journalFigure(o) {
   const numW = meas.measureText(String(parts.length) + ' ').width + o.pt * 0.4, colW = Math.max(...parts.map(e => meas.measureText(e.name).width), 1) + numW + o.pt * 1.6;
   const cols = Math.max(1, Math.floor(Wpt / colW)), rows = Math.ceil(parts.length / cols), rowH = o.pt * 1.35, keyH = rows * rowH + o.pt;
   const draw = key => {
-    const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#111', font: FIG_FONT, tidy: true, ports: !!o.ports, labels: o.names === 'none' ? false : undefined, numbers: key ? new Map(parts.map((e, i) => [e.id, i + 1])) : null };
+    const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#111', partsBw: o.parts === 'bw', font: FIG_FONT, tidy: true, ports: !!o.ports, labels: o.names === 'none' ? false : undefined, numbers: key ? new Map(parts.map((e, i) => [e.id, i + 1])) : null };
     const under = bar + (key ? keyH : 0);
     return Object.assign(figFitted(fig, o.pt, b => Math.min(Wpt / b.w, (maxH - under) / b.h)), { fig, key, under });
   };
@@ -149,7 +150,7 @@ function technicalFigure(o) {
   const A = { x: M + 12, y: M + 12, w: SW - 2 * M - RC - 30, h: SH - 2 * M - 24 };
   const top = callouts ? 26 : 0, under = (callouts ? 26 : 0) + (o.dims ? 30 : 0), right = o.dims ? 40 : 0;
   const D = { x: A.x + 4, y: A.y + top, w: A.w - right - 8, h: A.h - top - under };
-  const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#8a9099', font: FIG_FONT, tidy: true, ports: false, labels: callouts ? false : undefined };   // the light grey, the parts black
+  const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#8a9099', partsBw: o.parts === 'bw', font: FIG_FONT, tidy: true, ports: false, labels: callouts ? false : undefined };   // the light grey; the parts in their colours, or black and white
   const per = () => V().scale;                                        // canvas pixels a millimetre
   let ratio = FIG_SCALES[FIG_SCALES.length - 1];
   const scaleOf = b => {
@@ -349,12 +350,12 @@ export async function exportFigure(preset, o) {
 /* ---- the dialog ---- */
 const FIG_KEY = 'jek-rt-figure';
 const FIG_FIELDS = {
-  journal: [['width', 'Width', [[85, 'Single column, 85 mm'], [174, 'Double column, 174 mm']]], ['mono', 'Light', [[false, 'In its colour'], [true, 'Black']]],
+  journal: [['width', 'Width', [[85, 'Single column, 85 mm'], [174, 'Double column, 174 mm']]], ['mono', 'Light', [[false, 'In its colour'], [true, 'Black']]], ['parts', 'Parts', [['colour', 'In their colours'], ['bw', 'Black and white']]],
     ['names', 'Names', [['auto', 'Beside the parts, numbered if crowded'], ['beside', 'Beside the parts'], ['key', 'Numbered, with a key'], ['none', 'None']]],
     ['pt', 'Size', [[6, '6 pt'], [7, '7 pt'], [8, '8 pt'], [9, '9 pt'], [10, '10 pt']]], ['ports', 'Port names', [[false, 'Left out'], [true, 'Shown']]], ['scaleBar', 'Scale bar', [[true, 'Yes'], [false, 'No']]],
     ['fmt', 'As', [['pdf', 'PDF (vector)'], ['svg', 'SVG (vector)'], ['png', 'PNG, 600 dpi']]]],
   technical: [['sheet', 'Sheet', [['A4', 'A4'], ['A3', 'A3']]], ['dims', 'Dimensions', [[true, 'Between the parts’ centres'], [false, 'None']]],
-    ['callouts', 'Callouts', [[true, 'Numbered, with a parts list'], [false, 'The parts’ names']]], ['mono', 'Light', [[true, 'Black'], [false, 'In its colour']]],
+    ['callouts', 'Callouts', [[true, 'Numbered, with a parts list'], [false, 'The parts’ names']]], ['mono', 'Light', [[true, 'Grey'], [false, 'In its colour']]], ['parts', 'Parts', [['colour', 'In their colours'], ['bw', 'Black and white']]],
     ['title', 'Title', 'text'], ['by', 'Drawn by', 'text'], ['fmt', 'As', [['pdf', 'PDF (vector)'], ['svg', 'SVG (vector)'], ['png', 'PNG, 300 dpi']]]],
   slides: [['size', 'Slide', [['169', '16:9, 1920 × 1080'], ['43', '4:3, 1600 × 1200']]], ['fmt', 'As', [['png', 'PNG'], ['svg', 'SVG (vector)'], ['pdf', 'PDF (vector)']]]],
 };

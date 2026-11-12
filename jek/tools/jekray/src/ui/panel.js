@@ -21,7 +21,7 @@ import { ELEC_UI } from './elec.js';
 import { PIC_UI } from './pic.js';
 import { PART_UI } from './parts/registry.js';
 import { updateReadouts } from './readouts.js';
-import { fibreLinkPanel, groupPanel, rfHornPanel } from './panels.js';
+import { coloursRows, fibreLinkPanel, groupPanel, rfHornPanel } from './panels.js';
 import { assumedBox } from './plots.js';
 import { renderOverview, setBenchTab } from './panel-cavity.js';
 import { cavitiesOf } from '../engines/cavity.js';
@@ -697,6 +697,8 @@ function renderPanelBody(el) {
   if (U && !(horn && (el.type === 'source' || el.type === 'detector')) && !(el.mod && U.noModPanel)) U.panel(el);
   if (matesOf(el).length) matesPanel(el);                                                    // its mates (ui/mate3d.js)
   if (el.type !== 'elec' && el.type !== 'draw') ELEC_UI.opticPanel(el);                                 // ELEC hook
+  // its own line and fill colour on the bench and in exported pictures, folded until wanted (a drawing has its own)
+  if (el.type !== 'draw') panel.append(h('h3', { 'data-shut': '' }, 'Colours'), coloursRows([el]));
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },
       h('span', null, 'Part of ' + c.name + ': ' + c.kind + ', FSR ' + fmtHz(c.fsr) + (c.finesse ? ', finesse ' + (+c.finesse.toPrecision(3)) : '')),

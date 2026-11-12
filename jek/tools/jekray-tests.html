@@ -12664,6 +12664,89 @@ const TESTS = [
       return ran && same && stopped ? 1 : 0;
     },
   },
+  { group: 'Parts in their own colours' },
+  {
+    name: 'A part with a line and a fill colour is drawn in them, as see-through as before; the parts without are untouched',
+    why: 'a source, a lens and a mirror, exported as the layout’s SVG twice: as an old bench has them (no colour fields), and with the lens given lineColour #b0005a and fillColour #0050b0. The first has neither colour and its elements keep no colour field; the second differs from it only in the lens’s own paths, each the same path at the same opacity with only its colour changed (its glass, 0.16 opaque, is still 0.16 opaque); a colour that is not "#rrggbb" is dropped on loading and "#ABC" is kept as #aabbcc (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const bench = col => ({ format: 'jekray', version: 1, name: 'Colours', elements: [{ type: 'source', id: 'S', name: 'Src', x: 0, y: 0, angle: 0, wavelength: 633 },
+        Object.assign({ type: 'lens', id: 'L', name: 'L', x: 50, y: 0, angle: 0, f: 50, length: 20 }, col || {}), { type: 'mirror', id: 'M', name: 'M', x: 100, y: 0, angle: 180, length: 20 }] });
+      J.load(bench()); const a = J.layoutSvg().split('\n');
+      const old = !/#b0005a|#0050b0/.test(a.join('')) && J.project().elements.every(e => !('lineColour' in e) && !('fillColour' in e));
+      J.load(bench({ lineColour: '#b0005a', fillColour: '#0050b0' })); const b = J.layoutSvg().split('\n');
+      const kept = J.byName('L').lineColour === '#b0005a' && J.byName('L').fillColour === '#0050b0' && !('lineColour' in J.byName('M'));
+      const diff = a.map((l, i) => [l, b[i]]).filter(([x, y]) => x !== y), bare = l => String(l).replace(/#[0-9a-f]{6}/g, '#');
+      const only = a.length === b.length && diff.length >= 2 && diff.every(([x, y]) => bare(x) === bare(y) && /#b0005a|#0050b0/.test(y));
+      const line = diff.some(([, y]) => /stroke="#b0005a"/.test(y)), fill = diff.some(([x, y]) => /fill="#0050b0" fill-opacity="0\.16"/.test(y) && /fill-opacity="0\.16"/.test(x));
+      J.load(bench({ lineColour: 'red', fillColour: '#ABC' }));
+      const norm = !('lineColour' in J.byName('L')) && J.byName('L').fillColour === '#aabbcc';
+      if (!(old && kept && only && line && fill && norm)) console.log('part colours', { old, kept, only, line, fill, norm, n: [a.length, b.length], diff: diff.slice(0, 6) });
+      return old && kept && only && line && fill && norm ? 1 : 0;
+    },
+  },
+  {
+    name: 'Export figure, Parts: Black and white: every part, port and fibre in black lines and white fills, the light still in its colour',
+    why: 'a lens with colours of its own, a mirror, a fibre coupler joined to a fibre photodetector, and an oscilloscope, as a journal figure with Parts set to Black and white: with no light on the bench every path is stroked #000000 and filled #ffffff, or #000000 where it is a solid mark (the lens’s own colours overridden, its glass still 0.16 opaque), and every word is black; with a 633 nm source added the light is drawn in a colour, as it is with Parts in their colours, where the lens has its own colours again; with Light set to Black as well nothing on the figure has a colour; the technical drawing takes the same choice (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc();
+      const bench = src => ({ format: 'jekray', version: 1, name: 'Black and white', elements: [...(src ? [{ type: 'source', id: 'S', name: 'Src', x: 0, y: 0, angle: 0, wavelength: 633 }] : []),
+        { type: 'lens', id: 'L', name: 'L', x: 50, y: 0, angle: 0, f: 50, length: 20, lineColour: '#b0005a', fillColour: '#0050b0' }, { type: 'mirror', id: 'M', name: 'M', x: 100, y: 0, angle: 160, length: 20 },
+        { type: 'fcomp', kind: 'coupler', id: 'C', name: 'C', x: 0, y: -50, angle: 0 }, { type: 'fcomp', kind: 'pd', id: 'P', name: 'P', x: 60, y: -50, angle: 0 }, { type: 'elec', kind: 'scope', id: 'O', name: 'O', x: 100, y: -50, angle: 0 }],
+        fibres: [{ a: ['C', 2], b: ['P', 0] }] });
+      const fig = (preset, o) => { try { W.localStorage.setItem('jek-rt-figure', JSON.stringify({ preset, [preset]: o })); } catch (err) { /* fine */ }
+        D.getElementById('btnExportFigure').click(); const dlg = D.getElementById('figureDialog'); dlg.querySelector('.rt-figtabs [data-preset="' + preset + '"]').click(); const s = dlg.figSvg || ''; dlg.close();
+        return [...new W.DOMParser().parseFromString(s, 'image/svg+xml').querySelectorAll('path, text')]; };
+      const inks = (els, at) => [...new Set(els.map(e => e.getAttribute(at)).filter(v => v && v !== 'none'))].sort();
+      const grey = c => c.slice(1, 3) === c.slice(3, 5) && c.slice(3, 5) === c.slice(5, 7);
+      try {
+        J.load(bench(false));
+        const dark = fig('journal', { width: 174, parts: 'bw', names: 'beside', scaleBar: false }), paths = dark.filter(e => e.tagName === 'path'), words = dark.filter(e => e.tagName === 'text');
+        const bw = paths.length > 20 && inks(paths, 'stroke').join() === '#000000' && inks(paths, 'fill').join() === '#000000,#ffffff' && words.length >= 5 && inks(words, 'fill').join() === '#000000';
+        const glass = paths.some(e => e.getAttribute('fill') === '#ffffff' && e.getAttribute('fill-opacity') === '0.16');
+        const opts = !!D.querySelector('#figureDialog') && (() => { D.getElementById('btnExportFigure').click(); const dlg = D.getElementById('figureDialog'), s = dlg.querySelector('select[data-key="parts"]'), ok = !!s && [...s.options].map(o => o.value).join() === 'colour,bw'; dlg.close(); return ok; })();
+        J.load(bench(true));
+        const lit = fig('journal', { width: 174, parts: 'bw', names: 'none', scaleBar: false }), col = fig('journal', { width: 174, parts: 'colour', names: 'none', scaleBar: false }), mono = fig('journal', { width: 174, parts: 'bw', mono: true, names: 'none', scaleBar: false });
+        const light = inks(lit, 'stroke').some(c => !grey(c)) && !inks(lit, 'stroke').includes('#b0005a') && !inks(lit, 'fill').includes('#0050b0');
+        const own = inks(col, 'stroke').includes('#b0005a') && inks(col, 'fill').includes('#0050b0') && inks(lit, 'stroke').filter(c => !grey(c)).every(c => inks(col, 'stroke').includes(c));
+        const none = [...inks(mono, 'stroke'), ...inks(mono, 'fill')].every(grey);
+        const tech = o => inks(fig('technical', Object.assign({ sheet: 'A4', mono: true, dims: false, callouts: false }, o)), 'stroke'), sheet = !tech({ parts: 'bw' }).includes('#b0005a') && tech({ parts: 'colour' }).includes('#b0005a');
+        if (!(bw && glass && opts && light && own && none && sheet)) console.log('black and white', JSON.stringify({ bw, glass, opts, light, own, none, sheet, n: paths.length, strokes: inks(paths, 'stroke'), fills: inks(paths, 'fill'), words: inks(words, 'fill'), lit: inks(lit, 'stroke'), mono: inks(mono, 'stroke') }));
+        return bw && glass && opts && light && own && none && sheet ? 1 : 0;
+      } finally { try { W.localStorage.removeItem('jek-rt-figure'); } catch (err) { /* fine */ } }
+    },
+  },
+  {
+    name: 'A part’s panel, Colours: a colour picked sets it, Default takes it away, Undo brings each back; several parts picked take one colour together',
+    why: 'a lens and a mirror: the lens’s panel has a Colours section with Line colour and Fill colour, each reading "default" with Default disabled; picking #ff0000 as the line colour gives the lens lineColour #ff0000 (one Undo step: Undo leaves it without, Redo with); Default deletes the field and Undo brings #ff0000 back; with both parts picked, a fill colour picked in the group’s panel is given to both, and its Default takes it from both (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc(), frame = () => new Promise(r => W.requestAnimationFrame(() => W.requestAnimationFrame(r)));
+      J.load({ format: 'jekray', version: 1, name: 'Colours', elements: [{ type: 'lens', id: 'L', name: 'L', x: 50, y: 0, angle: 0, f: 50, length: 20 }, { type: 'mirror', id: 'M', name: 'M', x: 100, y: 0, angle: 180, length: 20 }] });
+      const inp = k => D.querySelector('#panel input[type=color][data-colour="' + k + '"]'), def = k => D.querySelector('#panel button[data-default="' + k + '"]');
+      const pick = (k, v) => { const i = inp(k); i.value = v; i.dispatchEvent(new W.Event('input', { bubbles: true })); i.dispatchEvent(new W.Event('change', { bubbles: true })); };
+      J.select('L'); await frame();
+      const heads = [...D.querySelectorAll('#panel h3')].map(x => x.textContent.trim()), states = [...D.querySelectorAll('#panel .rt-partcol .rt-colstate')].map(x => x.textContent);
+      const shown = heads.includes('Colours') && !!inp('lineColour') && !!inp('fillColour') && states.join() === 'default,default' && def('lineColour').disabled && def('fillColour').disabled;
+      pick('lineColour', '#ff0000'); await frame();
+      const set = J.byName('L').lineColour === '#ff0000' && !('fillColour' in J.byName('L')) && !def('lineColour').disabled && inp('lineColour').value === '#ff0000' && D.querySelector('#panel .rt-partcol .rt-colstate').textContent === '';
+      J.undo(); const undone = !('lineColour' in J.byName('L'));
+      J.redo(); const redone = J.byName('L').lineColour === '#ff0000';
+      J.select('L'); await frame();
+      def('lineColour').click(); await frame();
+      const cleared = !('lineColour' in J.byName('L')) && def('lineColour').disabled;
+      J.undo(); const back = J.byName('L').lineColour === '#ff0000';
+      J.selectMany(['L', 'M']); await frame();
+      const mixed = !!inp('lineColour') && D.querySelector('#panel .rt-partcol .rt-colstate').textContent === 'mixed';
+      pick('fillColour', '#00aa55'); await frame();
+      const both = J.byName('L').fillColour === '#00aa55' && J.byName('M').fillColour === '#00aa55' && J.byName('L').lineColour === '#ff0000';
+      def('fillColour').click(); await frame();
+      const neither = !('fillColour' in J.byName('L')) && !('fillColour' in J.byName('M'));
+      if (!(shown && set && undone && redone && cleared && back && mixed && both && neither)) console.log('colours panel', { shown, set, undone, redone, cleared, back, mixed, both, neither, heads, states });
+      return shown && set && undone && redone && cleared && back && mixed && both && neither ? 1 : 0;
+    },
+  },
 ];
 /* ---------- Lasers, cells and fibre benches ---------- */
 const rigJ = () => document.getElementById('rig').contentWindow.JEKray;

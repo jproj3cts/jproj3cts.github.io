@@ -24,7 +24,7 @@ export const AI_ANGLE = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].guid
 export const AI_WHAT = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].guide.what]));
 /* each field: its meaning, units and limits, as the tool reads them */
 export const AI_FIELDS = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].guide.fields]));
-const AI_SKIP = new Set(['beamView', 'beamScale', 'emitView', 'id', 'type', 'name', 'x', 'y', 'z', 'angle', 'bench', 'sweeps', 'colour', 'colourAuto', 'absorb', 'retardCustom', 'source', 'locked', 'group', 'label']);
+const AI_SKIP = new Set(['beamView', 'beamScale', 'emitView', 'id', 'type', 'name', 'x', 'y', 'z', 'angle', 'bench', 'sweeps', 'colour', 'colourAuto', 'absorb', 'retardCustom', 'source', 'locked', 'group', 'label', 'lineColour', 'fillColour']);
 function aiDefaults(type) { return normElementBase({ type, name: 'x' }); }
 /* the fields of each type that the guide must describe: what the tool itself reads */
 export function aiFieldsOf(type) {
@@ -40,7 +40,8 @@ const mdCell = v => String(v).replace(/\|/g, '\\|').replace(/\n/g, ' ');
 function aiReference() {
   const L = [];
   L.push('## Element reference', '',
-    'Every element has "type", "id" (any unique string), "name", "x", "y" (mm) and "angle" (degrees), and "bench" (a tab id) when there are several tabs. The other fields are listed with the value the tool uses if you leave them out. Leave out anything you do not need to change.', '');
+    'Every element has "type", "id" (any unique string), "name", "x", "y" (mm) and "angle" (degrees), and "bench" (a tab id) when there are several tabs. The other fields are listed with the value the tool uses if you leave them out. Leave out anything you do not need to change.', '',
+    'Any element but a drawing may also have "lineColour" and "fillColour", each "#rrggbb": its own colours on the bench and in exported pictures. Every line of the part is drawn in the line colour and its body in the fill colour, as see-through as the tool draws it. Leave them out and the part is drawn in the tool\u2019s own colours. They change nothing about the light.', '');
   for (const t of Object.keys(TYPE_LABEL)) {
     const d = aiDefaults(t), F = AI_FIELDS[t] || {};
     L.push('### "' + t + '": ' + TYPE_LABEL[t], '', AI_WHAT[t] || '', '', '**angle:** ' + (AI_ANGLE[t] || ''), '', '| field | default | meaning |', '|---|---|---|');

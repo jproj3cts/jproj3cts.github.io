@@ -4,7 +4,7 @@ import { V, deg } from '../state/project.js';
 import { FIBRE_COLOUR, getEl } from '../state/elements.js';
 import { frame, toWorld } from '../core/mask.js';
 import { lastTrace } from '../engines/trace.js';
-import { bodyFill, ctx, getCss, portFill, portsInUse, removeFibre, selInk, sx, sy } from './render.js';
+import { bodyFill, ctx, getCss, portFill, portsInUse, removeFibre, selInk, sx, sy, untinted } from './render.js';
 import { netPower, pkey, portWorld } from '../engines/fibre.js';
 import {
   C_NM, LAM0, PIC_DARK, PIC_GREEN, PIC_KINDS, PIC_WG, PMAP, PSYM, PVAL, chipOf, coarseToFine, laserNms,
@@ -47,15 +47,15 @@ function picDraw(el, sel) {
     c.save(); c.font = clamp(1.6 * s, 8, 11) + 'px ' + getCss('--jek-mono'); c.fillStyle = '#bfe8cc'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, sx(x), sy(y)); c.restore();
   }
   const used = portsInUse(), r = clamp(1.1 * s, 3, 6);
-  ports.forEach((P, i) => {
+  untinted(() => ports.forEach((P, i) => {
     const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i)), col = P.chip ? PIC_GREEN : FIBRE_COLOUR;
     c.beginPath(); c.arc(X, Y, r, 0, 2 * Math.PI);
-    c.fillStyle = on ? col : portFill(); c.fill(); c.strokeStyle = col; c.lineWidth = 1.4; c.stroke();
+    c.strokeStyle = col; c.lineWidth = 1.4; c.fillStyle = on ? col : portFill(); c.fill(); c.stroke();
     if (ports.length > 1 && s > 3) {
       c.save(); c.fillStyle = '#bfe8cc'; c.font = '9px ' + getCss('--jek-mono'); c.textAlign = Q.dx > 0 ? 'left' : 'right'; c.textBaseline = 'bottom';
       c.fillText(names[i], X + Q.dx * (r + 3), Y - 3); c.restore();
     }
-  });
+  }));
 }
 /* ---------- panels ---------- */
 const wgSelect = (get, set) => selectField('Waveguide', Object.entries(PIC_WG).map(([k, v]) => [k, v.name]), get, set, { wide: true });

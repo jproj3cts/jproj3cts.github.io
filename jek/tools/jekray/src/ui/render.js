@@ -4,6 +4,7 @@ import { fmtHz, fmtLen } from '../core/format.js';
 import { hornGeom } from '../core/rf.js';
 import { beamAt, m2Env } from '../core/beams-hom.js';
 import { wavelengthColour } from '../core/colour.js';
+import { partTint } from '../core/part-colours.js';
 import { DOVE_RATIO, V, deg, extraSel, project, selectedId, setExtraSel, setSelectedId } from '../state/project.js';
 import { FIBRE_COLOUR, getEl, lightOf, selected, srcBody } from '../state/elements.js';
 import { benchName, linkPartner, onTab } from '../state/tabs.js';
@@ -97,7 +98,8 @@ export const themeDark = () => themePref === 'dark' || (themePref === 'system' &
 const hexRgb = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16));
 const benchStyle = () => (project && project.style) || {};
 /* A figure being drawn (io/figure.js): plain (no bench colour or holes; the paper white), its labels at a size,
-   in a font, or none, its light in black (mono), no scale bar or credit of the bench's own */
+   in a font, or none, its light in black (mono), its parts in black lines and white fills (partsBw: see tinted),
+   no scale bar or credit of the bench's own */
 export let figure = null;
 export function setFigure(f) { return (figure = f); }
 export const benchBg = () => figure && figure.bg ? figure.bg : themeDark() ? BENCH_DEFAULT : BENCH_PAPER;
@@ -1341,15 +1343,16 @@ export function roundRect(w, hh, r) {
 /* where the port names were drawn this frame, in css px: the parts' names keep off them */
 const portLabelBoxes = [];
 export const keepOffLabel = box => { portLabelBoxes.push(box); };
-export function drawPorts(el) {
+export function drawPorts(el) { untinted(() => drawPortsNow(el)); }
+function drawPortsNow(el) {
   const ps = portsOf(el), used = portsInUse(), s = V().scale, r = clamp(1.1 * s, 3, 6);
   ELEC_UI.drawExtras(el);                                                                       // ELEC hook
   ps.forEach((P, i) => {
     if (P.elec) return;
     const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i));
     ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
-    ctx.fillStyle = on ? FIBRE_COLOUR : portFill(); ctx.fill();
-    ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 1.4;                  // (the ring's colour first: a joined port's fill is the same ink)
+    ctx.fillStyle = on ? FIBRE_COLOUR : portFill(); ctx.fill(); ctx.stroke();
     if (ps.length > 1 && s > 3 && !(figure && figure.ports === false)) {                  // named when it has company (a figure may leave them out): other fibre ports, or electrical ones
       // the name just outside the port, above it, upright whatever the part's angle
       ctx.fillStyle = 'rgba(244,199,220,0.9)'; ctx.font = '9px ' + getCss('--jek-mono');
@@ -1539,7 +1542,7 @@ function drawFibres() {
     if (!segs) return;
     const sel = F.id === selFibreId;
     // PIC hook: waveguides in green; ELEC hook: wires in yellow, thinner
-    tracePath(segs); ctx.strokeStyle = F.wg ? PIC.GREEN : F.wire ? ELEC.YELLOW : FIBRE_COLOUR; ctx.lineWidth = (sel ? 4 : 3) - (F.wg ? 0.8 : F.wire ? 1.4 : 0); ctx.stroke();
+    tracePath(segs); ctx.strokeStyle = linkInk(F.wg ? PIC.GREEN : F.wire ? ELEC.YELLOW : FIBRE_COLOUR); ctx.lineWidth = (sel ? 4 : 3) - (F.wg ? 0.8 : F.wire ? 1.4 : 0); ctx.stroke();
     if (F.wire) { if (sel) drawFibreNodes(F, segs); return; }
     const L = lights[i];
     if (L.colour && L.mw > 1e-9 * top) {
@@ -1630,8 +1633,81 @@ export function filterColour(el) {
   if (el.ftype === 'bandpass') return wavelengthColour(el.centre);
   return wavelengthColour(el.ftype === 'longpass' ? el.edge + 60 : el.edge - 60);
 }
+/* ---------- A part in its own colours ----------
+   A part with a line or a fill colour of its own (lineColour, fillColour: its panel's Colours), and every part of a
+   figure whose parts are black and white (figure.partsBw), is drawn through a stand-in for the context: every stroke
+   colour the part sets becomes its line colour and every fill colour its fill colour, each as opaque as the colour it
+   stands in for (core/part-colours.js partTint), so glass stays see-through and nothing stays nothing. A gradient or a
+   pattern set as a fill becomes the fill colour. The words in the part's body are in the line colour, and so is a fill
+   in the stroke's own colour (`c.fillStyle = c.strokeStyle`: a dot, an electrode, a mirror's bar: ink, not a body;
+   inkFill for one given its colour outright). The same on the canvas and in a VecCtx. A part without colours is
+   drawn straight on the context and costs nothing.
+   Left as they are: the outline of a selected part, the part's name beside it, its ports and their names (drawn
+   untinted), the red "!" and the light. In black and white the ports, the fibres, wires and waveguides are black and
+   white too; drawings keep the colours they were given. */
+const BW_LINE = '#000000', BW_FILL = '#ffffff';
+export const partsBw = () => !!(figure && figure.partsBw);
+// a link's (a fibre's, a wire's, a waveguide's) own colour, black in black and white
+const linkInk = c => partsBw() ? partTint(c, BW_LINE) : c;
+let tintReal = null, tintLine = '', tintFill = '', tintSelInk = null, tintOff = 0, tintRawFill = null, tintRawStroke = null, tintInk = false;
+const tintStack = [], tintFns = new Map();
+let tintFnsOf = null, tintProxyOf = null, tintProxy = null;
+function tintedText(...a) {
+  const t = tintReal, keep = t.fillStyle;
+  if (tintOff || !tintLine) { t.fillStyle = tintRawFill; t.fillText(...a); }       // as the part wrote it (a light bench's dark words and all)
+  else { t.fillStyle = partTint(tintRawFill, tintLine); Object.getPrototypeOf(t).fillText.apply(t, a); }   // in the line colour itself, not darkened for paper
+  t.fillStyle = keep;
+}
+const TINT = {
+  get(t, k) {
+    if (k === 'fillText') return tintedText;
+    const v = t[k];
+    if (typeof v !== 'function') return v;
+    let f = tintFns.get(k);
+    if (!f) {
+      f = k === 'save' ? () => { tintStack.push([tintRawFill, tintRawStroke]); t.save(); } : k === 'restore' ? () => { if (tintStack.length) [tintRawFill, tintRawStroke] = tintStack.pop(); t.restore(); } : v.bind(t);
+      tintFns.set(k, f);
+    }
+    return f;
+  },
+  set(t, k, v) {
+    if (k === 'strokeStyle') { tintRawStroke = v; if (!tintOff && tintLine && v !== tintSelInk) v = partTint(v, tintLine); }
+    else if (k === 'fillStyle') {
+      const ink = tintInk || v === tintRawStroke || v === t.strokeStyle;         // ink: a fill in the line's colour (as the part gave it, or read back)
+      tintRawFill = v;
+      if (!tintOff) {
+        if (ink) { if (tintLine && v !== tintSelInk) v = partTint(v, tintLine); }
+        else if (tintFill) v = partTint(v, tintFill);
+      }
+    }
+    t[k] = v;
+    return true;
+  },
+};
+function tinted(line, fill, selInkNow, fn) {
+  const real = ctx;
+  if (tintReal || !real) return fn();                     // already in a part's colours
+  if (tintProxyOf !== real) { tintFns.clear(); tintProxy = new Proxy(real, TINT); tintProxyOf = real; }
+  tintReal = real; tintLine = line || ''; tintFill = fill || ''; tintSelInk = selInkNow; tintOff = 0; tintRawFill = real.fillStyle; tintRawStroke = null; tintStack.length = 0;
+  ctx = tintProxy;
+  try { return fn(); } finally { ctx = real; tintReal = null; tintSelInk = null; }
+}
+/* what a part draws that is not its body (its ports and their names): in the tool's own colours, unless the whole
+   figure is black and white */
+export function untinted(fn) {
+  if (!tintReal || partsBw()) return fn();
+  tintOff++;
+  try { return fn(); } finally { tintOff--; }
+}
+/* a fill that is ink (a solid mark with no outline: a transducer, an arrowhead), so in the part's line colour */
+export function inkFill(c) {
+  tintInk = true;
+  try { ctx.fillStyle = c; } finally { tintInk = false; }
+}
 export function draw(el) {
-  drawBody(el);
+  if (partsBw() && el.type !== 'draw') { tinted(BW_LINE, BW_FILL, null, () => { drawBody(el); if (el.type !== 'fcomp') ELEC_UI.drawExtras(el); }); return; }
+  if ((el.lineColour || el.fillColour) && el.type !== 'draw') tinted(el.lineColour, el.fillColour, el.id === selectedId || extraSel.has(el.id) ? selInk() : null, () => drawBody(el));
+  else drawBody(el);
   if (el.type !== 'fcomp') ELEC_UI.drawExtras(el);                                               // ELEC hook: electrical ports on optical parts
 }
 function drawBody(el) {

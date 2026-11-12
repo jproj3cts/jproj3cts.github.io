@@ -3,6 +3,7 @@ import { assemblies, normAssemblies } from '../core/assembly.js';
 import { liveMates, normMates } from '../core/mates.js';
 import { hooks } from '../core/hooks.js';
 import { normModRef } from '../core/modulators.js';
+import { partHex } from '../core/part-colours.js';
 import { applyRf, normRf } from '../core/rf.js';
 import { applyPulse, isLaserLike, syncLine } from '../core/pulses.js';
 import { RF } from '../parts/rf.js';
@@ -92,6 +93,8 @@ export function normElementBase(e) {
   };
   if (e.locked === true) base.locked = true;                  // held in place: not moved by dragging or the arrow keys
   if (e.hide3d === true) base.hide3d = true;                  // not drawn in the 3D view (the light still meets it)
+  // its own colours on the bench and in exported pictures (core/part-colours.js): kept only when set, so a part without them is drawn as ever
+  if (e.type !== 'draw') { const lc = partHex(e.lineColour), fc = partHex(e.fillColour); if (lc) base.lineColour = lc; if (fc) base.fillColour = fc; }
   // its height above the breadboard (mm), kept only when not the beam height (see zOf)
   if (isFinite(e.z) && e.z !== null && +e.z !== 75) base.z = clamp(+e.z, 0, 2000);
   // a free-space part tipped up (+) or down out of the bench plane, degrees (see setTip)

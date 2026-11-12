@@ -54,8 +54,13 @@ export async function openBench(data) {
     screen(name) { ensure(); return plain(E.SS.screenStats(byName(name))); },
     /* the light a screen's particle scatters (trap: 'sphere'): the model, cross-sections (m²), powers (W), the pattern and the far field */
     async scatter(name, opts) { ensure(); const SC = await import('./src/engines/scatter.js'), S = SC.scatterNow(byName(name), opts); return S ? SC.scatterPlain(S) : null; },
+    /* where a Particle part's scattered light goes on the bench: a row for each part that catches some, and what none does */
+    scattered(name) {
+      ensure(); const el = byName(name), R = E.TRACE.lastTrace.scat && E.TRACE.lastTrace.scat.parts[el.id];
+      return R ? plain({ state: R.state, Psca: R.Psca, rows: R.rows.map(r => ({ name: r.name, share: r.share, P: r.P, followed: r.followed, halfDeg: r.halfDeg })), lost: R.lost, lostShare: R.lostShare }) : null;
+    },
     /* a photodetector's or receiving horn's reading */
-    detector(name) { ensure(); const el = byName(name), r = E.FF.detectorReading(el); return plain({ mw: r.mw, V: r.V, snr: r.snr, ifMw: r.ifMw, mds: r.mds, field: r.field }); },
+    detector(name) { ensure(); const el = byName(name), r = E.FF.detectorReading(el); return plain({ mw: r.mw, X: r.X, Y: r.Y, scattered: r.scat ? { mw: r.scat.mw, interference: r.scat.cross } : null, V: r.V, snr: r.snr, ifMw: r.ifMw, mds: r.mds, field: r.field }); },
     /* a spectrometer's reading: the peak and its width (nm), the resolution, the power through its entrance (mW) and its share, counts, SNR */
     spectrometer(name) { ensure(); const r = E.SPEC.specReading(byName(name)); return plain({ peak: r.peak, fwhm: r.fwhm, resolution: r.R, mw: r.mw, share: r.share, counts: r.counts, saturated: r.sat, snr: r.snr, lines: r.lines.map(L => ({ nm: L.nm, mw: L.mw })) }); },
     /* an RF lens, disc or mirror on its axis as an antenna, from the bench's diffracted field */

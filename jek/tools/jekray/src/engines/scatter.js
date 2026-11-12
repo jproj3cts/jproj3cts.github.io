@@ -1,11 +1,14 @@
 import { C_SI } from '../core/cells.js';
-import { EPS0, particleIndex, particleOf } from '../core/traps.js';
+import { BEAM_Z, IN_WORKER } from '../core/constants.js';
+import { EPS0, particleAz, particleIndex, particleOf } from '../core/traps.js';
+import { beamAt } from '../core/beams-hom.js';
 import { mieCoeffs, mieQ, mieTable } from '../core/mie.js';
 import { ddaAlpha, ddaExtAbs, ddaFar, ddaPlan, ddaPlaneWave, ddaSolver } from '../core/dda.js';
 import { Z0_OHM, coneGrid, dipoleFar, farPower, farPowerAlong, mieFarWaves, smallAlpha, sphereGrid, sphereTotals } from '../core/scatter.js';
-import { deg } from '../state/project.js';
-import { lastTrace } from './trace.js';
-import { popRun } from './beam-tree.js';
+import { deg, project } from '../state/project.js';
+import { allSources, beamOn, getEl } from '../state/elements.js';
+import { lastTrace, zOf } from './trace.js';
+import { popKeyOf, popRun } from './beam-tree.js';
 import { popScreenPrep, screenDom, trapBeams, trapLegAt, trapMedium, trapSolve } from './diffraction.js';
 
 /* ---------- The light a particle scatters ----------
@@ -28,12 +31,52 @@ export const SCAT_MODELS = ['auto', 'rayleigh', 'mie', 'dda'];
 export const SCAT_DIRS = ['fwd', 'back', 'side', 'up', 'angle'];
 export const SCAT_NMAX = 12000;           // dipoles in a run, unless more across are asked for
 export const SCAT_NHARD = 24000;          // and never more than this
+const WAVE_BINS = 20;                    // a focus's waves on the bench: bins across its pupil each way (waveInt)
 const SCAT_TINY = 0.1;                    // |m| k (half the longest dimension) under which Auto takes the single dipole
 
-const scatFields = el => [el.trapShape, el.trapLen, el.trapAz, el.trapTilt, el.scatModel, el.scatDip, el.scatAt, el.scatDx, el.scatDy, el.scatDz, el.scatNA, el.scatDir, el.scatAng];
+const scatFields = el => [el.trapShape, el.trapLen, particleAz(el), el.trapTilt, el.scatModel, el.scatDip, el.scatAt, el.scatDx, el.scatDy, el.scatDz, el.scatNA, el.scatDir, el.scatAng];
+/* A Particle part is a point of the bench, in whatever light reaches it: the beams of a trace that pass it, each
+   with where along it the particle is nearest (t), how far the particle is off its axis in the bench plane (x, to
+   the beam's left) and above it (dz), and the beam's irradiance there against the others'. A beam counts when the
+   particle is within three of its radii of its axis there (20 um at least). Level beams only: one that rises
+   out of the plane is left out. */
+export function particleBeams(el, B = lastTrace.beams || []) {
+  const out = [], z = zOf(el);
+  B.forEach((b, i) => {
+    if (b.fan || b.bench !== el.bench || b.uz || b.d3) return;
+    const rx = el.x - b.x0, ry = el.y - b.y0, t = rx * b.dx + ry * b.dy, x = -rx * b.dy + ry * b.dx, dz = z - (b.z0 !== undefined ? b.z0 : BEAM_Z);
+    if (t < 0 || t > b.len) return;
+    const bw = beamAt(b.qr + t, b.qi, b.n, b.nm, 1), w = bw ? bw.w : 0, r2 = x * x + dz * dz, reach = Math.max(0.02, 3 * w);
+    if (!(w > 0) || r2 > reach * reach) return;
+    out.push({ i, t, x, dz, w, I: Math.max(0, b.w === undefined ? 1 : b.w) * Math.max(0, b.lmw || 0) * Math.exp(-2 * r2 / (w * w)) / (w * w) });
+  });
+  return out;
+}
+function particlePrep(el) {
+  const B = lastTrace.beams || [], near = particleBeams(el, B);
+  if (!near.length) return null;
+  const keep = new Set();
+  for (let { i } of near) while (i >= 0 && !keep.has(i)) { keep.add(i); i = B[i].parent; }
+  const ids = new Set([...keep].map(i => B[i].src));
+  const srcs = allSources().filter(e => ids.has(e.id));
+  const kept = [...keep].sort((x, y) => x - y).map(i => B[i]);
+  const key = el.id + '|' + [el.x, el.y, el.z] + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, beamOn(e)])) + JSON.stringify(project.cavityLock || {})
+    + '|trap' + JSON.stringify([el.trap, el.trapMat, el.trapR, el.trapRho, el.trapMed, el.trapP, el.trapT, el.trapShape, el.trapLen]);
+  return { keep, srcs, key };
+}
+/* the strongest of them in a field run, as screenDom gives a screen's: { dom: { sg }, len, x, dz } */
+function particleDom(el, R) {
+  const near = particleBeams(el).sort((a, b) => b.I - a.I);
+  for (const q of near) { const sg = R.segs.find(s => s.i === q.i); if (sg) return { dom: { sg }, len: q.t, x: q.x, dz: q.dz, w: q.w }; }
+  return null;
+}
 /* what a scattering run depends on, as popScreenPrep gives it for the screen's field, with
    the particle's own settings; null where there is no particle or no light */
 export function scatterPrep(el) {
+  if (el && el.type === 'particle') {
+    const job = particlePrep(el);
+    return job ? { keep: job.keep, srcs: job.srcs, key: job.key + '|scat' + JSON.stringify(scatFields(el)) } : null;
+  }
   if (!el || el.type !== 'screen' || el.trap !== 'sphere') return null;
   const job = popScreenPrep(el);
   return job ? { keep: job.keep, srcs: job.srcs, key: job.key + '|scat' + JSON.stringify(scatFields(el)) } : null;
@@ -66,7 +109,7 @@ function fromFrame(fr, v, step, out) {
    launch: { n, d, E } with d each wave's direction and E its field at C (V/m, exp(-i w t)),
    and what was made of each beam. nMed scales the fields as the trap does. */
 export function scatterWaves(parts, C, nMed, size) {
-  const byL = new Map(), notes = { varies: false, pupils: 0, plane: 0 };
+  const byL = new Map(), notes = { varies: false, pupils: 0, plane: 0 }, refs = new Map();
   for (const q of parts) {
     const b = q.b, rx = C[0] - b.x0, ry = C[1] - b.y0, pz = rx * b.dx + ry * b.dy, px = -rx * b.dy + ry * b.dx, py = C[2];
     const s = Math.sqrt(2 * q.Pw * 1e6 / (nMed * EPS0 * C_SI)), ax = [-b.dy, b.dx];
@@ -105,6 +148,10 @@ export function scatterWaves(parts, C, nMed, size) {
     }
     if (!byL.has(q.coh)) byL.set(q.coh, { d: [], E: [] });
     const L = byL.get(q.coh);
+    // this beam's own field at the centre: the launch's strongest is what the scattered light's phase is held against
+    { const e0 = [0, 0, 0, 0, 0, 0]; for (let o = 0; o < E.length; o++) e0[o % 6] += E[o];
+      const I0 = e0.reduce((a, v) => a + v * v, 0), r0 = refs.get(q.coh);
+      if (!r0 || I0 > r0.I) refs.set(q.coh, { I: I0, E: e0, beam: q.sg ? q.sg.i : -1, src: b.src, lmw: b.lmw, nm: b.nm, coh: q.coh }); }
     for (const v of d) L.d.push(v);
     for (const v of E) L.E.push(v);
   }
@@ -119,6 +166,7 @@ export function scatterWaves(parts, C, nMed, size) {
     keep.forEach((o, i) => { for (let m = 0; m < 3; m++) d[3 * i + m] = L.d[3 * o + m]; for (let m = 0; m < 6; m++) E[6 * i + m] = L.E[6 * o + m]; });
     launches.push({ n: keep.length, d, E });
   }
+  [...byL.keys()].forEach((c, i) => { launches[i].ref = refs.get(c); });
   return { launches, notes };
 }
 // the waves' sum at the centre: [xr, xi, yr, yi, zr, zi]
@@ -147,9 +195,11 @@ export function scatterModel(el, P, k, mAbs) {
 /* The run, as a generator: it yields { stage, ... } as it goes (so a worker can report and be
    stopped) and returns the answer, or { error }. R is the field run of scatterPrep's beams. */
 export function* scatterGen(el, R, opts) {
-  const t0 = Date.now(), sd = screenDom(el, R);
+  const isPart = el.type === 'particle', t0 = Date.now(), sd = isPart ? particleDom(el, R) : screenDom(el, R);
   if (!sd) return { error: 'no beam' };
   const { dom, len } = sd, b0 = dom.sg.b, nm = b0.nm;
+  // (a Particle part: the trap's and the beams' reach round it is three radii of its strongest beam, as particleBeams takes them)
+  if (isPart) el = Object.assign(Object.create(el), { length: 2 * Math.max(0.02, 3 * sd.w) });
   const P = particleOf(el), nBench = b0.n, nMed = trapMedium(el, nBench, nm);
   const [npr, npi] = particleIndex(el.trapMat, nm), mr = npr / nMed, mi = npi / nMed, mAbs = Math.hypot(mr, mi);
   const k = 2 * Math.PI * nMed / (nm * 1e-9), Z = Z0_OHM / nMed, aEq = P.rEq * 1e-9, area = Math.PI * aEq * aEq;
@@ -159,11 +209,13 @@ export function* scatterGen(el, R, opts) {
   const TB = trapBeams(el, R, dom, len, { reach: 3.2, M: 64 });
   if (!TB.parts.length) return { error: 'no focused beam' };
   const d0 = [b0.dx, b0.dy, 0], a0 = [-b0.dy, b0.dx, 0], up = [0, 0, 1];
-  let at = [0, 0, 0], atTrap = false, trapMiss = false;
-  if (el.scatAt === 'trap') {
+  // (a Particle part sits where it is put: off the beam's axis by what it is)
+  let at = isPart ? [sd.x, sd.dz, 0] : [0, 0, 0], atTrap = false, trapMiss = false, trapRaw = null;
+  if (el.scatAt === 'trap' || isPart) {
     let T = null;
     try { T = trapSolve(el, R, dom, len); } catch (err) { T = null; }
-    if (T && T.trap) { at = [T.x, T.y, T.z]; atTrap = true; } else trapMiss = true;
+    if (isPart && T) trapRaw = T.error ? { error: T.error } : Object.assign({}, T, { nm });
+    if (el.scatAt === 'trap') { if (T && T.trap) { at = [T.x, T.y, T.z]; atTrap = true; } else trapMiss = true; }
   }
   at = [at[0] + (el.scatDx || 0) * 1e-3, at[1] + (el.scatDy || 0) * 1e-3, at[2] + (el.scatDz || 0) * 1e-3];
   const C = [TB.P0[0] + at[0] * a0[0] + at[2] * d0[0], TB.P0[1] + at[0] * a0[1] + at[2] * d0[1], at[1]];
@@ -178,7 +230,7 @@ export function* scatterGen(el, R, opts) {
   { const l = Math.sqrt(abs2(pol)); pol = l > 0 ? pol.map(v => v / l) : [a0[0], 0, a0[1], 0, 0, 0]; }
   const single = launches.length === 1 && launches[0].n === 1;
   // the particle's axis and its frame
-  const az = (el.trapAz || 0) * deg, tl = (el.trapTilt || 0) * deg, axis = [Math.cos(tl) * Math.cos(az), Math.cos(tl) * Math.sin(az), Math.sin(tl)];
+  const az = (particleAz(el) || 0) * deg, tl = (el.trapTilt || 0) * deg, axis = [Math.cos(tl) * Math.cos(az), Math.cos(tl) * Math.sin(az), Math.sin(tl)];
   const body = frameOn(axis);
   const flags = [];
   if (Math.abs(nMed - nBench) > 1e-3) flags.push('medium');
@@ -187,7 +239,9 @@ export function* scatterGen(el, R, opts) {
   if (trapMiss) flags.push('notrap');
   const out = { model, auto: pick.auto, shape: P.shape, D: P.D * 1e9, L: P.L * 1e9, rEq: P.rEq, mat: el.trapMat, np: [npr, npi], m: [mr, mi], nMed, nBench, nm, k,
     x: k * aEq, kL: k * Math.max(P.D, P.L) / 2, area, I0, E2, at: { x: at[0], y: at[1], z: at[2], trap: atTrap }, beams: TB.parts.length, launches: launches.length,
-    waves: launches.reduce((a, L) => a + L.n, 0), pupils: W.notes.pupils, plane: W.notes.plane, single, dir: d0, pol, axis, flags };
+    waves: launches.reduce((a, L) => a + L.n, 0), pupils: W.notes.pupils, plane: W.notes.plane, single, dir: d0, pol, axis, flags,
+    // where the particle is on the bench (mm; z its height above the breadboard), and the trap there (a Particle part's Trap tab)
+    pos: [C[0], C[1], (b0.z0 !== undefined ? b0.z0 : BEAM_Z) + C[2]], elPos: [el.x, el.y, zOf(el)], ...(trapRaw ? { trapRaw } : {}) };
   // Rayleigh's answer beside whichever model runs, and Mie's for the sphere of the same volume
   const aSm = smallAlpha(P.V, P.shape === 'sphere' ? 1 : P.L / P.D, mr, mi, k);
   const smallP = e => {            // p = alpha E, alpha a tensor about the axis: [6]
@@ -271,6 +325,42 @@ export function* scatterGen(el, R, opts) {
     }
     if (!D.converged) flags.push('noconv');
   }
+  // A focus's plane waves and the scattered light, direction by direction: where wave o goes on, the scattered field along
+  // d_o meets it, and the two interfere there by -(4 pi / k) Im(conj(E_o) . F(d_o)) / 2Z watts (the optical theorem, one wave at
+  // a time: their sum is -P_ext). Kept for a focus (more than one wave), so the bench can put each wave's share where its ray
+  // lands (engines/scatter-light.js): a detector that takes in the beam reads the extinction, and one split in two the
+  // particle's place
+  const waveInt = launches.map((L, i) => {
+    if (L.n < 2) return null;
+    const F = fars[i](L.d), p = new Float64Array(L.n), e2 = new Float64Array(L.n);
+    let ext = 0;
+    for (let o = 0; o < L.n; o++) {
+      let sm = 0;
+      for (let q = 0; q < 6; q += 2) { sm += L.E[6 * o + q] * F[6 * o + q + 1] - L.E[6 * o + q + 1] * F[6 * o + q]; e2[o] += L.E[6 * o + q] ** 2 + L.E[6 * o + q + 1] ** 2; }
+      p[o] = -4 * Math.PI / k * sm / (2 * Z);
+      ext = Math.max(ext, Math.abs(L.d[3 * o] * a0[0] + L.d[3 * o + 1] * a0[1]), Math.abs(L.d[3 * o + 2]));
+    }
+    // The waves are a pupil's samples, a thousand or more: gathered WAVE_BINS across the pupil each way (about the beam's
+    // axis, so no bin lies across it), each bin one ray along its waves' mean way (weighted by their power), polarised as
+    // its strongest wave is, with the sum of their shares
+    const dl = ext > 0 ? 2 * ext / WAVE_BINS : 1, bins = new Map();
+    for (let o = 0; o < L.n; o++) {
+      const a = L.d[3 * o] * a0[0] + L.d[3 * o + 1] * a0[1], c = L.d[3 * o + 2], fw = L.d[3 * o] * d0[0] + L.d[3 * o + 1] * d0[1] >= 0;
+      const key = (Math.floor(a / dl) + 64) * 256 + (Math.floor(c / dl) + 64) + (fw ? 0 : 65536);
+      let B = bins.get(key); if (!B) bins.set(key, B = { p: 0, w: 0, d: [0, 0, 0], top: -1, o: 0 });
+      B.p += p[o]; B.w += e2[o]; for (let q = 0; q < 3; q++) B.d[q] += e2[o] * L.d[3 * o + q];
+      if (e2[o] > B.top) { B.top = e2[o]; B.o = o; }
+    }
+    const n = bins.size, d = new Float32Array(3 * n), pb = new Float64Array(n), e = new Float32Array(6 * n);
+    let j = 0;
+    for (const B of bins.values()) {
+      const l = Math.hypot(B.d[0], B.d[1], B.d[2]) || 1, le = Math.sqrt(B.top) || 1;
+      for (let q = 0; q < 3; q++) d[3 * j + q] = B.d[q] / l;
+      for (let q = 0; q < 6; q++) e[6 * j + q] = L.E[6 * B.o + q] / le;
+      pb[j++] = B.p;
+    }
+    return { n, d, p: pb, e };
+  });
   yield { stage: 'pattern' };
   // the pattern in the light as it is: over the sphere (the axis along the strongest beam), on two cuts, into the cone
   const nT = Math.max(36, Math.min(96, 2 * Math.ceil(out.kL + 8))), G = sphereGrid(nT, 2 * nT, a0, up, d0), nG = nT * 2 * nT;
@@ -296,13 +386,26 @@ export function* scatterGen(el, R, opts) {
   { const Ic = farPower(fars.map(f => f(CG.dirs)), CG.w.length); let s = 0; for (let i = 0; i < Ic.length; i++) s += Ic[i] * CG.w[i]; out.collect = { P: s / (2 * Z), frac: tot.total > 0 ? s / tot.total : 0, halfDeg: half / deg, na: el.scatNA, dir: el.scatDir, axis: cAxis }; }
   out.map = { nT, nP: 2 * nT, theta: Array.from(G.mu, v => Math.acos(v) / deg), phi: Array.from(G.phi, v => v / deg), I: Float32Array.from(IG, v => v / (2 * Z)) };
   // the far field itself: F (volts; E = F e^{ikr}/r in V/m) at the map's directions, a launch each, in the world's x, y (the bench) and z (up)
-  out.far = { axes: [a0, up, d0], mu: Array.from(G.mu), phi: Array.from(G.phi), F: FG.map(F => Float32Array.from(F)) };
+  // refs: each launch's strongest beam (its number in the trace, its source and line, its coherence family) and that beam's own
+  // field at the particle, which the scattered light's phase on the bench is held against (engines/scatter-light.js)
+  out.far = { axes: [a0, up, d0], mu: Array.from(G.mu), phi: Array.from(G.phi), F: FG.map(F => Float32Array.from(F)), refs: launches.map(L => L.ref || null), waves: waveInt };
   out.ms = Date.now() - t0;
   return out;
 }
 /* The answers kept, a screen each, under the key they were worked out for: the page's worker fills it (ui/scatter.js),
    and scatterNow; the data export and the 3D view read it */
 export const scatCache = new Map();
+/* An answer taken into the cache. The bench's trace launches a Particle part's scattered light from the answer kept
+   for it, so the trace's key counts the answers taken (scatRevNow): a new one is a new trace. */
+let scatRev = 0;
+export const scatRevNow = () => scatRev;
+export function scatKeep(id, key, S) { scatCache.set(id, { key, S }); const el = getEl(id); if (el && el.type === 'particle') scatRev++; }
+/* How a trace gets an answer it does not have: 'sync', worked out there and then (Node, the tests, a script's
+   worker); 'async', the page's own worker is asked and the last answer stands meanwhile (ui/scatter.js); 'off',
+   none (the other workers, which trace a bench for something else). */
+let scatMode = null;
+export const scatModeNow = () => scatMode || (IN_WORKER ? 'off' : 'sync');
+export function setScatMode(m) { scatMode = m; }
 export function scatterCached(el) { const J = scatterPrep(el), c = J && scatCache.get(el.id); return c && c.key === J.key ? c.S : null; }
 /* an answer as plain numbers and lists (a script's, a file's) */
 export const scatterPlain = S => JSON.parse(JSON.stringify(S, (k, v) => (ArrayBuffer.isView(v) ? Array.from(v) : v)));
@@ -318,6 +421,6 @@ export function scatterNow(el, opts) {
   const job = scatterPrep(el);
   if (!job) return null;
   const S = scatterRun(el, popRun(lastTrace.beams, job.srcs, { keep: job.keep }), opts);
-  scatCache.set(el.id, { key: job.key, S });
+  scatKeep(el.id, job.key, S);
   return S;
 }

@@ -17,6 +17,14 @@ A photodiode takes in $$\lvert E\rvert^2$$ over its active area, a disc of the d
 
 A diode can instead be read through its diffracted field, which is slower but right where rays are not: fringes, or a focus smaller than the diode's edges.
 
+### A split detector
+
+Tick **Split in four** and the readout adds **Right less left** and **Top less bottom**: the light on one half of the face less the light on the other, in mW and as a share of the sum. Right and left are across the face in the bench plane. A beam off the middle of the face shows in them, and so does the interference of a particle's forward scatter with the beam that drives it, which moves with the particle.
+
+### A particle's scattered light
+
+Light scattered by a [Particle](/jek/docs/jekray/free-space/scattering/) arrives as a cone of rays that carry the scattered field. The detector adds their power, and adds their field to the beams of the same laser that land on it. The readout's **Scattered light** line gives the scattered power and what the interference adds or takes.
+
 ### Responsivity
 
 The photocurrent is

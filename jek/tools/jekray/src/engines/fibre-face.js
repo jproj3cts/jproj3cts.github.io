@@ -1,13 +1,13 @@
 import { BEAM_Z, clamp } from '../core/constants.js';
 import { C_NM_GHZ, responsivity, rfBeam } from '../core/rf.js';
 import { HORN_FIELDS } from '../core/horns.js';
-import { cohModes, lagOf, splitRoot } from '../core/coherence.js';
+import { cohGamma, cohModes, lagOf, splitRoot } from '../core/coherence.js';
 import { hermite, m2Of } from '../core/pulses.js';
 import { fanFromGauss, srcModes } from '../core/beams-hom.js';
 import { deg } from '../state/project.js';
 import { beamOn, benchNms, getEl } from '../state/elements.js';
 import { frame, toLocal, toLocalDir } from '../core/mask.js';
-import { lastTrace, raysLaunched, rollFrame, sourceLines, tipFrame, zOf } from './trace.js';
+import { lastTrace, polFrame, raysLaunched, rollFrame, sourceLines, tipFrame, zOf } from './trace.js';
 import { QEig, QRot, beamQ, beamQM, cavEventABCD, ccInv, mfree, qThrough } from './cavity.js';
 import { detectorFieldResult, viaCavity } from './pd-cavity.js';
 
@@ -85,6 +85,14 @@ function faceArrivalsOf(el) {
   const B = lastTrace.beams || [], out = [], f = frame(el);
   B.forEach((b, i) => {
     if (b.endEl !== el.id || b.fan || b.dx * f.c + b.dy * f.s >= 0) return;
+    beamArrivals(el, B, i, b, out);
+  });
+  return out;
+}
+/* beam i of the trace as it lands on a face: b is the beam itself, or the beam cut short where a face that is not
+   a part stands in it (beamFieldAt) */
+function beamArrivals(el, B, i, b, out) {
+  {
     const src = getEl(b.src);
     if (!src || !beamOn(src)) return;
     const lam0 = b.nm * 1e-6;
@@ -93,9 +101,22 @@ function faceArrivalsOf(el) {
     chain.reverse();
     const r0 = B[chain[0]];
     let qy = [r0.qr / r0.n, r0.qi / r0.n];
-    for (let c = 0; c < chain.length && qy; c++) {
-      const bb = B[chain[c]];
-      if (c > 0) { const m = cavEventABCD(bb.ev, lam0); qy = m ? qThrough(m.y, qy) : null; }
+    // gj: what arg(q) jumps by at the parts the beam has passed, across and up, added up along its way. A beam's Gouy
+    // phase builds up only as it travels; the field below writes it as arg(q) at the face, which holds these jumps too (a lens
+    // changes q at once and the phase not at all). Two branches of one beam through the same parts share them, so nothing
+    // else here needs them; light that leaves the beam part way (a particle's scattered light) is set against the beam
+    // with them taken out (scatOnDisc)
+    let gj = 0, qyOk = true;
+    const arg = q => Math.atan2(q[1], q[0]);
+    for (let c = 0; c < chain.length; c++) {
+      const bb = c === chain.length - 1 ? b : B[chain[c]];
+      if (c > 0) {
+        const pb = B[chain[c - 1]], jx = arg([bb.qr / bb.n, bb.qi / bb.n]) - arg([(pb.qr + (pb.len3 || pb.len)) / pb.n, pb.qi / pb.n]);
+        let jy = jx;
+        if (qy) { const m = cavEventABCD(bb.ev, lam0), q2 = m ? qThrough(m.y, qy) : null; if (q2 && qyOk) jy = arg(q2) - arg(qy); qy = q2; }
+        if (!qy) qyOk = false;
+        gj += jx + jy;
+      }
       if (qy) qy = qThrough(mfree(bb.len3 || bb.len, bb.n), qy);
     }
     const bL = b.len3 || b.len;                    // along the beam: in 3D, for a leg that rises
@@ -107,7 +128,7 @@ function faceArrivalsOf(el) {
     const split = share < 0.999;
     // a beam whose axes were turned on its way: its whole Q (see beamQ)
     const QG = beamQ(B, i, lam0);
-    const A = { b, src, lam0, qx, qy: qy || qx, ...(QG ? { Q: QG } : {}), u0, v0, vs, ldx, ldy, J: split ? b.J.map(v => v * Math.sqrt(share)) : b.J, coh: split ? b.coh + '#split' + i : b.coh, opl: (b.opl || 0) + b.n * bL, gpl: (b.gpl || 0) + (b.ng || b.n) * bL, lag: lagOf(src), nm: b.nm, fo: b.fo || 0 };
+    const A = { b, src, lam0, qx, qy: qy || qx, ...(QG ? { Q: QG } : {}), u0, v0, vs, ldx, ldy, gj, J: split ? b.J.map(v => v * Math.sqrt(share)) : b.J, coh: split ? b.coh + '#split' + i : b.coh, opl: (b.opl || 0) + b.n * bL, gpl: (b.gpl || 0) + (b.ng || b.n) * bL, lag: lagOf(src), nm: b.nm, fo: b.fo || 0 };
     // a beam of M^2 above 1: its Hermite-Gauss modes, each a launch of its own; a higher-order
     // mode, its coherent sum of them
     const modes = srcModes(src);
@@ -118,8 +139,21 @@ function faceArrivalsOf(el) {
     const withModes = (A2, c0) => { const c = launch(c0), QM = beamQM(B, i, lam0, c, (src.roll || 0) * deg); return QM ? Object.assign(A2, { comps: QM.comps, QM }) : Object.assign(A2, { comps: c }); };
     if (modes.length === 1) out.push(modes[0].c.length === 1 && !modes[0].c[0][0] && !modes[0].c[0][1] && !src.roll ? A : withModes(A, modes[0].c));
     else modes.forEach(({ w, c }, k) => out.push(withModes(Object.assign({}, A, { J: b.J.map(v => v * Math.sqrt(w)), coh: b.coh + '#m' + k }), c)));
-  });
-  return out;
+  }
+}
+/* One Gaussian beam's field at a point of the bench it passes (Z the height above the breadboard), exactly as a
+   face standing there square to the beam would read it: [s re, s im, p re, p im] in the faces' convention
+   (arrivalField's), per root of area, with the arrival it was read from. Null for a beam that is several modes
+   adding as powers (M^2 above 1): it has no one phase. A particle's scattered light takes its phase from this, so
+   it adds to the same beam on a detector as a field (engines/scatter-light.js). */
+export function beamFieldAt(i, X, Y, Z) {
+  const B = lastTrace.beams || [], b = B[i];
+  if (!b || b.fan || b.d3 || b.uz) return null;
+  const t = (X - b.x0) * b.dx + (Y - b.y0) * b.dy, out = [];
+  const el = { id: '~point', type: 'detector', x: X, y: Y, z: Z, angle: Math.atan2(-b.dy, -b.dx) / deg, length: 1 };
+  beamArrivals(el, B, i, Object.assign({}, b, { len: t }), out);
+  if (out.length !== 1) return null;
+  return { A: out[0], E: arrivalField(out[0], 0, 0) };
 }
 export const qW = (q, lam0) => Math.sqrt(-lam0 / (Math.PI * (-q[1] / (q[0] * q[0] + q[1] * q[1]))));
 /* Where a face's arrivals are worth sampling: four beam radii round each, across (u) and up (v),
@@ -199,6 +233,159 @@ export function arrivalField(A, u, v0) {
   const J = A.J;
   // the tracer's Jones vector, conjugated into this convention
   return [c * J[0] + sn * J[1], sn * J[0] - c * J[1], c * J[2] + sn * J[3], sn * J[2] - c * J[3]];
+}
+/* ---------- A particle's scattered light on a face ----------
+   The cones the trace launched from a Particle part (engines/scatter-light.js) arrive as rays, kept apart from the
+   rays a face records (lastTrace.scat.hits). Each ray of a cone landed with two companions a hair to either side of
+   it at launch; the three give the area dA the ray's tube has on the face, so the ray's power p is a field of
+   amplitude sqrt(p / dA) there, with the ray's own polarisation and the phase of its optical path. An integral
+   over the face of that field against anything smooth is then a sum over the rays, f(u_i, v_i) sqrt(p_i dA_i):
+   so it adds to the Gaussian beams of its own coherence family as a field, on a photodiode (and each half of
+   one) and in a fibre's mode. Geometric: right where the cone is wide on the face against a wavelength, as it is
+   after a collimating lens or straight from the particle, and not at a focus (a fibre's mode is taken a little
+   way back from the tip for that: scatModeAmp). Two cones on one face add as powers with each other.
+   Gives the cones on a face: [{ src, coh, lmw (mW a ray of unit power carries), nm, gpl0, lag, rays: [{ u, v (on the
+   face, mm), pw, dA (0 when a companion missed), E (the field's vector on the bench's axes, 6 numbers, in the
+   faces' convention, |E|^2 = pw), opl, d (its way), h (the three hits) }] }] */
+const facePoint = (el, f, x, y, z) => {
+  let [lx, u] = toLocal(f, x, y), v = z - zOf(el);
+  if (el.tip || el.roll) { const F = { tip: (el.tip || 0) * deg, roll: (el.roll || 0) * deg }, [, qz0] = tipFrame(F, lx, v); [u, v] = rollFrame(F, u, qz0); }
+  return [u, v];
+};
+export function scatFace(el) {
+  const SC = lastTrace.scat, H = SC && SC.hits && SC.hits[el.id];
+  if (!H || !H.length) return [];
+  return deviceMemo(el, () => {
+    const f = frame(el), bySrc = new Map();
+    for (const h of H) {
+      let M = bySrc.get(h.sid); if (!M) bySrc.set(h.sid, M = new Map());
+      const k = Math.floor(h.k / 3) + '|' + h.path;
+      let T = M.get(k); if (!T) M.set(k, T = [null, null, null]);
+      T[h.k % 3] = h;
+    }
+    const out = [];
+    for (const [sid, M] of bySrc) {
+      const src = getEl(sid), sc = src && src.scat;
+      if (!sc) continue;
+      if (sc.wave) {
+        // a focus's own waves: each ray's place on the face and the share of its power that reached it
+        const rays = [];
+        for (const T of M.values()) for (const h of T) if (h) { const [u, v] = facePoint(el, f, h.x, h.y, h.z), J = h.J; rays.push({ u, v, k: h.k, T: J[0] * J[0] + J[1] * J[1] + J[2] * J[2] + J[3] * J[3] }); }
+        out.push({ src, wave: true, coh: sc.coh, part: sc.part, launch: sc.launch, p: sc.p, nm: src.wavelength, rays });
+        continue;
+      }
+      const k0 = 2 * Math.PI / (src.wavelength * 1e-6), rays = [];
+      for (const T of M.values()) {
+        const h = T[0];
+        if (!h) continue;
+        const [u, v] = facePoint(el, f, h.x, h.y, h.z), J = h.J, pw = J[0] * J[0] + J[1] * J[1] + J[2] * J[2] + J[3] * J[3];
+        let dA = 0;
+        if (T[1] && T[2]) {
+          const [u1, v1] = facePoint(el, f, T[1].x, T[1].y, T[1].z), [u2, v2] = facePoint(el, f, T[2].x, T[2].y, T[2].z);
+          dA = Math.abs((u1 - u) * (v2 - v) - (v1 - v) * (u2 - u)) / (sc.eps * sc.eps) * src.vRays[3 * Math.floor(h.k / 3)].sa;
+        }
+        // conj(J e^{i k opl}) on the ray's own s and p, as a vector
+        const ph = k0 * h.opl, c = Math.cos(ph), sn = Math.sin(ph), [S, P] = polFrame(h.d, h.par ? -1 : 1);
+        const sR = J[0] * c - J[1] * sn, sI = -(J[0] * sn + J[1] * c), pR = J[2] * c - J[3] * sn, pI = -(J[2] * sn + J[3] * c);
+        rays.push({ u, v, pw, dA, opl: h.opl, d: h.d, h: T, E: [sR * S[0] + pR * P[0], sI * S[0] + pI * P[0], sR * S[1] + pR * P[1], sI * S[1] + pI * P[1], sR * S[2] + pR * P[2], sI * S[2] + pI * P[2]] });
+      }
+      if (rays.length) out.push({ src, coh: sc.coh, lmw: src.vLp, nm: src.wavelength, gpl0: sc.gpl0, lag: sc.lag, gj0: sc.gj0, part: sc.part, launch: sc.launch, rays });
+    }
+    return out;
+  }, 'scat');
+}
+/* a Gaussian arrival's field at a point of the face as a vector on the bench's axes (6 numbers, the faces' convention) */
+export function arrivalVec(A, u, v) {
+  const E = arrivalField(A, u, v), b = A.b, [S, P] = polFrame(b.d3 ? b.d3 : [b.dx, b.dy, b.uz || 0], b.par ? -1 : 1);
+  return [E[0] * S[0] + E[2] * P[0], E[1] * S[0] + E[3] * P[0], E[0] * S[1] + E[2] * P[1], E[1] * S[1] + E[3] * P[1], E[0] * S[2] + E[2] * P[2], E[1] * S[2] + E[3] * P[2]];
+}
+/* A Gaussian arrival's phase at a point of the face, less what arrivalField gives it: arrivalField writes the wavefront as
+   the parabola x^2/2R, and a beam far from its waist has a sphere's, R (sqrt(1 + x^2/R^2) - 1). The difference, x^4/8R^3,
+   is nothing to the Gaussian beams themselves, which all carry it alike, but a ray from a particle has its exact path,
+   so the beam it is added to is given its sphere (each way across by its own radius; a beam with its axes turned or of
+   higher modes is left as it is). As the phase to turn conj(E_beam) E by: +k times the difference. */
+function frontFix(A, u, v0) {
+  if (A.Q || A.QM || A.comps) return 0;
+  const k = 2 * Math.PI / A.lam0, hx = A.vs ? 1 / Math.sqrt(1 + A.vs * A.vs) : 1, ez = (A.vs || 0) * hx;
+  const du = u - A.u0, dv = v0 - (A.v0 || 0), xb = du * A.ldx, v = A.vs ? hx * dv - ez * A.ldy * du : dv;
+  const iR = q => q[0] / (q[0] * q[0] + q[1] * q[1]), cx = iR(A.qx), cy = iR(A.qy);
+  const sag = (c, r2) => (Math.abs(c) < 1e-12 ? 0 : (Math.sqrt(1 + c * c * r2) - 1) / c - 0.5 * c * r2);
+  // one sphere when the beam is round, else each way on its own
+  return k * (Math.abs(cx - cy) <= 1e-6 * Math.max(Math.abs(cx), Math.abs(cy)) ? sag(cx, xb * xb + v * v) : sag(cx, xb * xb) + sag(cy, v * v));
+}
+/* Scattered light on a round face of radius a: its own power, and what it adds by interfering with the Gaussian
+   beams of its family that land there, each also as right less left (X, along the face in the bench plane) and
+   top less bottom (Y). In mW: { mw, cross, X, Y, byNm: [[nm, mW]], cones }. */
+export function scatOnDisc(el, a) {
+  const cones = scatFace(el), out = { mw: 0, cross: 0, X: 0, Y: 0, byNm: [], cones: cones.filter(C => !C.wave).length };
+  if (!cones.length) return out;
+  const arr = faceArrivals(el);
+  // a launch whose light at the particle is a focus's plane waves: its interference with the unscattered beam is those waves'
+  // (each where its ray landed), and is not taken from the Gaussian beam again
+  const byWave = new Set();
+  for (const C of cones) {
+    if (!C.wave) continue;
+    byWave.add(C.part + '|' + C.launch);
+    let cross = 0, X = 0, Y = 0;
+    for (const r of C.rays) { if (r.u * r.u + r.v * r.v > a * a) continue; const t = C.p[r.k] * r.T * 1e3; cross += t; X += Math.sign(r.u) * t; Y += Math.sign(r.v) * t; }
+    out.mw += cross; out.cross += cross; out.X += X; out.Y += Y; out.byNm.push([C.nm, cross]);
+  }
+  for (const C of cones) {
+    if (C.wave) continue;
+    const inD = C.rays.filter(r => r.u * r.u + r.v * r.v <= a * a);
+    let p = 0, x = 0, y = 0;
+    for (const r of inD) { p += r.pw; x += Math.sign(r.u) * r.pw; y += Math.sign(r.v) * r.pw; }
+    const mw = p * C.lmw;
+    let X = x * C.lmw, Y = y * C.lmw, cross = 0;
+    if (C.coh && !byWave.has(C.part + '|' + C.launch)) for (const A of arr) {
+      if (A.b.coh !== C.coh || A.coh.indexOf('#m') >= 0) continue;
+      const g = cohGamma(splitRoot(A.src)), sc = Math.sqrt(Math.max(0, A.b.lmw) * C.lmw);
+      // (the beam's Gouy phase from the particle to here, as it builds up, not as arg(q) writes it: see gj)
+      const dg = 0.5 * ((C.gj0 || 0) - (A.gj || 0));
+      for (const r of inD) {
+        if (!(r.dA > 0)) continue;
+        const Eg = arrivalVec(A, r.u, r.v);
+        // conj(E_beam) . E_scattered
+        let re = 0, im = 0; for (let q = 0; q < 6; q += 2) { re += Eg[q] * r.E[q] + Eg[q + 1] * r.E[q + 1]; im += Eg[q] * r.E[q + 1] - Eg[q + 1] * r.E[q]; }
+        // (the beam's wavefront as the sphere it is, where the field above writes its parabola: the rays' own paths are exact)
+        const fx = frontFix(A, r.u, r.v), cf = Math.cos(dg + fx), sf = Math.sin(dg + fx);
+        const t = 2 * (re * cf - im * sf) * Math.sqrt(r.dA) * (g ? g(A.gpl + A.lag - (C.gpl0 + r.opl + C.lag)) : 1) * sc;
+        cross += t; X += Math.sign(r.u) * t; Y += Math.sign(r.v) * t;
+      }
+    }
+    out.mw += mw + cross; out.cross += cross; out.X += X; out.Y += Y; out.byNm.push([C.nm, mw + cross]);
+  }
+  return out;
+}
+/* A cone's overlap with a single-mode fibre's mode (1/e^2 radius wf at the tip), as amplitudes on s (up) and p
+   (along the face): [s re, s im, p re, p im], whose squares add to the share of a unit ray's power taken in. Where
+   the cone comes to a focus on the tip its rays' tubes have no area there, so the overlap is taken on a plane 30
+   Rayleigh ranges of the mode back from the tip, where the mode is a wide converging beam and the rays are apart
+   (free space is assumed that far back; a tip tipped out of the plane is taken level). */
+export function scatModeAmp(el, C, wf) {
+  const f = frame(el), lam0 = C.nm * 1e-6, k = 2 * Math.PI / lam0, zR = Math.PI * wf * wf / lam0, n = C.rays.length;
+  let ru = 0; for (const r of C.rays) ru += r.u * r.u + r.v * r.v;
+  const back = Math.sqrt(ru / Math.max(1, n)) < 3 * wf ? 30 * zR : 0;
+  const A = { lam0, qx: [-back, zR], qy: [-back, zR], u0: 0, v0: 0, vs: 0, ldx: 1, ldy: 0, J: [1, 0, 0, 0], opl: -back };
+  const o = [0, 0, 0, 0], at = h => {
+    const [u, v] = facePoint(el, f, h.x, h.y, h.z), [ldx, ldy] = toLocalDir(f, h.d[0], h.d[1]), s = back / Math.max(1e-9, Math.abs(ldx));
+    return [u - ldy * s, v - h.d[2] * s, s];
+  };
+  for (const r of C.rays) {
+    const T = r.h;
+    if (!T[1] || !T[2]) continue;
+    const [u, v, s] = at(T[0]), [u1, v1] = at(T[1]), [u2, v2] = at(T[2]);
+    const sa = C.src.vRays[3 * Math.floor(T[0].k / 3)].sa, eps = C.src.scat.eps, dA = Math.abs((u1 - u) * (v2 - v) - (v1 - v) * (u2 - u)) / (eps * eps) * sa;
+    if (!(dA > 0)) continue;
+    // the mode there, real and positive at the tip itself: arrivalField's Gaussian turned by a quarter wave
+    const m = arrivalField(A, u, v), Mr = -m[1], Mi = m[0];
+    // the ray's field carried back that far: e^{+iks} on the faces' convention
+    const c = Math.cos(k * s), sn = Math.sin(k * s), g = Math.sqrt(dA);
+    const comp = (er, ei) => { const br = er * c - ei * sn, bi = er * sn + ei * c; return [g * (Mr * br + Mi * bi), g * (Mr * bi - Mi * br)]; };
+    const es = comp(r.E[4], r.E[5]), ep = comp(-r.E[0] * f.s + r.E[2] * f.c, -r.E[1] * f.s + r.E[3] * f.c);
+    o[0] += es[0]; o[1] += es[1]; o[2] += ep[0]; o[3] += ep[1];
+  }
+  return o;
 }
 export function groupsOf(arr) {
   const g = new Map(), out = [];
@@ -300,19 +487,27 @@ function mmShareOf(el, A) {
 export function fibreCoupling(el) {
   if (el.mm) return deviceMemo(el, () => {
     const arr = faceArrivals(el);
-    if (!arr.length) return null;
+    if (!arr.length && !scatFace(el).length) return null;
     let inMw = 0, coupledMw = 0, pinS = 0, gotS = 0;
     for (const A of arr) {
       const pin = A.J[0] ** 2 + A.J[1] ** 2 + A.J[2] ** 2 + A.J[3] ** 2, got = pin * mmShare(el, A), P = A.b.lmw;
       pinS += pin; gotS += got; inMw += pin * P; coupledMw += got * P;
     }
-    return { eff: pinS > 0 ? gotS / pinS : 0, mw: coupledMw, inMw, mode: null, share: gotS, mm: true };
+    // a particle's scattered light: its rays that land on the core within the acceptance angle
+    const f = frame(el), aC = el.core / 2 * 1e-3, thA = Math.asin(Math.min(1, el.na));
+    for (const C of scatFace(el)) if (!C.wave) for (const r of C.rays) {
+      const [ldx] = toLocalDir(f, r.d[0], r.d[1]), ok = r.u * r.u + r.v * r.v <= aC * aC && Math.acos(Math.min(1, Math.abs(ldx))) <= thA;
+      inMw += r.pw * C.lmw; if (ok) coupledMw += r.pw * C.lmw;
+    }
+    return { eff: inMw > 0 && pinS === 0 ? coupledMw / inMw : pinS > 0 ? gotS / pinS : 0, mw: coupledMw, inMw, mode: null, share: gotS, mm: true };
   });
   return deviceMemo(el, () => {
-    const arr = faceArrivals(el);
-    if (!arr.length) return null;
+    const arr = faceArrivals(el), cones = scatFace(el).filter(C => !C.wave), used = new Set();
+    if (!arr.length && !cones.length) return null;
     const N = 96;
     let inMw = 0, coupledMw = 0, arrivingShare = 0, coupledShare = 0, mode = null;
+    // a particle's scattered light with no beam of its laser here: what its mode overlap takes in, a cone at a time
+    const modeAt = nm => { let m = fibreMode(el.core, el.na, nm); if (el.coll > 0) m = Object.assign({}, m, { w: tipModeW(el, nm) }); return m; };
     for (const G of groupsOf(arr)) {
       const nm = G[0].nm;
       mode = fibreMode(el.core, el.na, nm); if (el.coll > 0) mode = Object.assign({}, mode, { w: tipModeW(el, nm) });
@@ -328,12 +523,29 @@ export function fibreCoupling(el) {
           cs[0] += E[0] * M; cs[1] += E[1] * M; cp[0] += E[2] * M; cp[1] += E[3] * M;
         }
       }
+      const P = G[0].b.lmw;           // amplitudes are against the laser's own source, this line's share of it
+      // scattered light of the same laser adds to the overlap as a field (its amplitudes against this line's)
+      for (const C of cones) {
+        if (!C.coh || C.coh !== G[0].b.coh || G[0].coh.indexOf('#m') >= 0 || used.has(C) || !(P > 0)) continue;
+        used.add(C);
+        const o = scatModeAmp(el, C, wf), k = Math.sqrt(C.lmw / P) / (d * d), dg = 0.5 * ((C.gj0 || 0) - (G[0].gj || 0)), c = Math.cos(dg), sn = Math.sin(dg);
+        cs[0] += k * (o[0] * c - o[1] * sn); cs[1] += k * (o[0] * sn + o[1] * c); cp[0] += k * (o[2] * c - o[3] * sn); cp[1] += k * (o[2] * sn + o[3] * c);
+        for (const r of C.rays) pin += r.pw * C.lmw / P;
+      }
       const got = (cs[0] ** 2 + cs[1] ** 2 + cp[0] ** 2 + cp[1] ** 2) * d * d * d * d;
       arrivingShare += pin; coupledShare += got;
-      const P = G[0].b.lmw;           // amplitudes are against the laser's own source, this line's share of it
       inMw += pin * P; coupledMw += got * P;
     }
-    return { eff: arrivingShare > 0 ? coupledShare / arrivingShare : 0, mw: coupledMw, inMw, mode, share: coupledShare };
+    let scMw = 0;
+    for (const C of cones) {
+      if (used.has(C)) continue;
+      mode = modeAt(C.nm);
+      const o = scatModeAmp(el, C, mode.w), got = o[0] ** 2 + o[1] ** 2 + o[2] ** 2 + o[3] ** 2;
+      let pin = 0; for (const r of C.rays) pin += r.pw;
+      inMw += pin * C.lmw; coupledMw += got * C.lmw; scMw += got * C.lmw;
+      if (arrivingShare === 0) { arrivingShare = pin; coupledShare = got; }
+    }
+    return { eff: inMw > 0 && cones.length ? coupledMw / inMw : arrivingShare > 0 ? coupledShare / arrivingShare : 0, mw: coupledMw, inMw, mode, share: coupledShare, ...(cones.length ? { scat: cones.length } : {}) };
   });
 }
 /* A receiving horn takes in the overlap of the arriving field with its own aperture mode: the
@@ -423,21 +635,32 @@ export function detectorReading(el) {
     if (viaCavity(el) && !F) pending = true;       // being worked out: the tracer's figure meanwhile
     if (F) { P = F.mw; I = F.mw * responsivity(el, F.nm || benchNms()[0]); }
     // Gaussian launches: |E|^2 over the active disc, fields added within each launch
+    // (X, Y: the light right of the face's middle less that left of it, and above less below, as a split or quadrant diode's
+    // halves would read: a cell of the grid the middle runs through is shared between the sides)
+    let X = 0, Y = 0, SCA = null;
     if (!F) for (const G of groupsOf(faceArrivals(el))) {
       const [u0, u1, v0, v1] = arrivalWindow(G, a);
       if (!(u1 > u0) || !(v1 > v0)) continue;
       // while the cavity's field is worked out in the worker, the figure meanwhile on a coarser grid
       const N = pending ? 48 : 128, du = (u1 - u0) / N, dv = (v1 - v0) / N;
-      let pw = 0;
+      let pw = 0, px = 0, py = 0;
       for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
         const u = u0 + (i + 0.5) * du, v = v0 + (j + 0.5) * dv;
         if (u * u + v * v > a * a) continue;
         let e0 = 0, e1 = 0, e2 = 0, e3 = 0;
         for (const A of G) { const E = arrivalField(A, u, v); e0 += E[0]; e1 += E[1]; e2 += E[2]; e3 += E[3]; }
-        pw += e0 * e0 + e1 * e1 + e2 * e2 + e3 * e3;
+        const c = e0 * e0 + e1 * e1 + e2 * e2 + e3 * e3;
+        pw += c; px += c * clamp(2 * u / du, -1, 1); py += c * clamp(2 * v / dv, -1, 1);
       }
       const mw = pw * du * dv * G[0].b.lmw;
       P += mw; I += mw * responsivity(el, G[0].nm);
+      X += px * du * dv * G[0].b.lmw; Y += py * du * dv * G[0].b.lmw;
+    }
+    // a particle's scattered light: its own power, and its interference with the beams of its laser that land here
+    if (!F) {
+      SCA = scatOnDisc(el, a);
+      P += SCA.mw; X += SCA.X; Y += SCA.Y;
+      for (const [nm, mw] of SCA.byNm) I += mw * responsivity(el, nm);
     }
     // ray fans, ray by ray: each launched ray carries its share of its source's power
     const hits = (lastTrace.screens[el.id] || []).filter(t => !t.chief);
@@ -453,7 +676,7 @@ export function detectorReading(el) {
     const q = 1.602176634e-19, kT = 1.380649e-23 * 295, B = Math.PI / 2 * el.bandwidth, Ia = I * 1e-3;
     const i2 = 2 * q * (Ia + el.dark * 1e-9) * B + (el.gain > 0 ? 4 * kT * B / el.gain : 0) + (el.ampNoise * 1e-12) ** 2 * B;
     const noiseI = Math.sqrt(i2), V = Ia * el.gain;
-    return { mw: P, mA: I, V: Math.min(V, el.vmax), sat: V > el.vmax, noiseV: noiseI * el.gain, noiseI, pending, field: !!F,
+    return { mw: P, mA: I, V: Math.min(V, el.vmax), sat: V > el.vmax, noiseV: noiseI * el.gain, noiseI, pending, field: !!F, X, Y, ...(SCA && SCA.cones ? { scat: { mw: SCA.mw, cross: SCA.cross, cones: SCA.cones } } : {}),
       snr: Ia > 0 ? 20 * Math.log10(Ia / noiseI) : null };
   });
 }

@@ -1175,6 +1175,128 @@
     }
    ]
   },
+  "particle": {
+   "label": "Particle",
+   "what": "One small particle at a point of the bench: a sphere, a rod or a spheroid, in whatever light reaches it. Its Scattering tab gives its cross-sections and the light it scatters (Lorenz–Mie for a sphere, a dipole array for a rod), its Trap tab the optical trap the light makes for it. The scattered light goes to the parts that catch it, as light of the laser that drives the particle: a lens collimates it, a photodetector reads it with the unscattered beam as fields. The light itself passes the particle untouched.",
+   "angle": "the direction of a rod’s or spheroid’s axis in the bench plane (a sphere has none).",
+   "fields": [
+    {
+     "k": "trap",
+     "def": "\"sphere\"",
+     "meaning": ""
+    },
+    {
+     "k": "trapMat",
+     "def": "\"Fused silica\"",
+     "meaning": "the particle’s material: a glass (\"Fused silica\", \"Polystyrene\" and so on), or \"Au\", \"Ag\", \"Al\" (metals, which absorb: their measured complex index)."
+    },
+    {
+     "k": "trapR",
+     "def": "150",
+     "meaning": "the particle’s radius, nm: half its diameter (for a rod or spheroid, half the diameter across its axis)."
+    },
+    {
+     "k": "trapRho",
+     "def": "2200",
+     "meaning": "its density, kg/m³."
+    },
+    {
+     "k": "trapMed",
+     "def": "\"bench\"",
+     "meaning": "\"bench\" (the index where the light is), \"vacuum\", \"air\" (with trapP) or \"water\"."
+    },
+    {
+     "k": "trapShape",
+     "def": "\"sphere\"",
+     "meaning": "\"sphere\", \"cylinder\" (a rod with flat ends), \"capsule\" (a rod with round ends) or \"spheroid\"."
+    },
+    {
+     "k": "trapLen",
+     "def": "1000",
+     "meaning": "nm: a rod’s or spheroid’s whole length along its axis."
+    },
+    {
+     "k": "trapTilt",
+     "def": "0",
+     "meaning": "degrees: its axis tilted up out of the bench plane (90: straight up)."
+    },
+    {
+     "k": "trapP",
+     "def": "1013.25",
+     "meaning": "mbar: the air’s pressure, for trapMed \"air\"."
+    },
+    {
+     "k": "trapT",
+     "def": "295",
+     "meaning": "K: the temperature the trap’s depth is compared with."
+    },
+    {
+     "k": "scatModel",
+     "def": "\"auto\"",
+     "meaning": "\"auto\" (Mie for a sphere, a dipole array for other shapes, Rayleigh when tiny), \"rayleigh\", \"mie\" or \"dda\"."
+    },
+    {
+     "k": "scatDip",
+     "def": "0",
+     "meaning": "dipoles across the smallest dimension of a dipole array (0 chooses)."
+    },
+    {
+     "k": "scatAt",
+     "def": "\"part\"",
+     "meaning": "\"part\": the particle is where the part is; \"trap\": where the optical trap nearest the part holds it."
+    },
+    {
+     "k": "scatDx",
+     "def": "0",
+     "meaning": "µm: moved from there across the strongest beam, in the bench plane."
+    },
+    {
+     "k": "scatDy",
+     "def": "0",
+     "meaning": "µm: moved up out of the plane."
+    },
+    {
+     "k": "scatDz",
+     "def": "0",
+     "meaning": "µm: moved along the beam."
+    },
+    {
+     "k": "scatNA",
+     "def": "0.5",
+     "meaning": "the numerical aperture of the cone the Scattering tab’s Collected figure is for."
+    },
+    {
+     "k": "scatDir",
+     "def": "\"fwd\"",
+     "meaning": "that cone’s direction: \"fwd\", \"back\", \"side\", \"up\" or \"angle\" (with scatAng)."
+    },
+    {
+     "k": "scatAng",
+     "def": "0",
+     "meaning": "degrees: the cone’s direction on the bench, for scatDir \"angle\"."
+    },
+    {
+     "k": "scatScale",
+     "def": "\"log\"",
+     "meaning": "\"log\" or \"lin\": the pattern plots’ scale."
+    },
+    {
+     "k": "scatView",
+     "def": "\"in\"",
+     "meaning": "\"in\" (the bench plane), \"out\" (the plane out of it through the beam) or \"map\" (every direction)."
+    },
+    {
+     "k": "scatLight",
+     "def": "true",
+     "meaning": "true puts the scattered light on the bench: a cone to each part with a clear line to the particle, with the far field’s amplitude, phase and polarisation, coherent with the driving laser. false leaves the bench as it is without it."
+    },
+    {
+     "k": "scatFan",
+     "def": "true",
+     "meaning": "true draws a faint fan of the scattered light in every direction, as bright as the pattern is; a picture only, never part of a reading."
+    }
+   ]
+  },
   "link": {
    "label": "Link plane",
    "what": "One of a pair of link planes joining two tabs: the pair is one plane seen from two benches.",

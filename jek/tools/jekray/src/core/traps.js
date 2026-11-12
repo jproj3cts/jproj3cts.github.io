@@ -61,6 +61,8 @@ export const particleIndex = (mat, nm) => (METAL_NK[mat] ? metalNK(mat, nm) : [r
 /* The particle a screen holds (trap: 'sphere'): its shape, its diameter D and whole length L
    along its axis (m; a sphere's are equal), its volume and the radius of the sphere of that
    volume (nm), which is what the Trap tab's dipole stands for when it is not a sphere */
+/* the direction of its axis in the bench plane, degrees: a Particle part's own angle, a screen's particle's trapAz */
+export const particleAz = el => (el.type === 'particle' ? el.angle : el.trapAz);
 export function particleOf(el) {
   const shape = ['cylinder', 'capsule', 'spheroid'].includes(el.trapShape) ? el.trapShape : 'sphere';
   const D = 2 * el.trapR * 1e-9, L = shape === 'sphere' ? D : Math.max(shape === 'capsule' ? D : 0, (el.trapLen || 2 * el.trapR) * 1e-9), V = ddaVolume(shape, D, L);

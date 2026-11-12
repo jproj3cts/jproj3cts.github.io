@@ -538,6 +538,38 @@ A periodically poled nonlinear crystal (MgO:PPLN or PPKTP) that doubles the freq
 | axis | `"s"` | "s" (z axis out of the bench plane: s light converts) or "p". |
 | faces | `"ar"` | "ar" (end faces anti-reflection coated, 0.1%; the default) or "bare". |
 
+### "particle": Particle
+
+One small particle at a point of the bench: a sphere, a rod or a spheroid, in whatever light reaches it. Its Scattering tab gives its cross-sections and the light it scatters (Lorenz–Mie for a sphere, a dipole array for a rod), its Trap tab the optical trap the light makes for it. The scattered light goes to the parts that catch it, as light of the laser that drives the particle: a lens collimates it, a photodetector reads it with the unscattered beam as fields. The light itself passes the particle untouched.
+
+**angle:** the direction of a rod’s or spheroid’s axis in the bench plane (a sphere has none).
+
+| field | default | meaning |
+|---|---|---|
+| trap | `"sphere"` |  |
+| trapMat | `"Fused silica"` | the particle’s material: a glass ("Fused silica", "Polystyrene" and so on), or "Au", "Ag", "Al" (metals, which absorb: their measured complex index). |
+| trapR | `150` | the particle’s radius, nm: half its diameter (for a rod or spheroid, half the diameter across its axis). |
+| trapRho | `2200` | its density, kg/m³. |
+| trapMed | `"bench"` | "bench" (the index where the light is), "vacuum", "air" (with trapP) or "water". |
+| trapShape | `"sphere"` | "sphere", "cylinder" (a rod with flat ends), "capsule" (a rod with round ends) or "spheroid". |
+| trapLen | `1000` | nm: a rod’s or spheroid’s whole length along its axis. |
+| trapTilt | `0` | degrees: its axis tilted up out of the bench plane (90: straight up). |
+| trapP | `1013.25` | mbar: the air’s pressure, for trapMed "air". |
+| trapT | `295` | K: the temperature the trap’s depth is compared with. |
+| scatModel | `"auto"` | "auto" (Mie for a sphere, a dipole array for other shapes, Rayleigh when tiny), "rayleigh", "mie" or "dda". |
+| scatDip | `0` | dipoles across the smallest dimension of a dipole array (0 chooses). |
+| scatAt | `"part"` | "part": the particle is where the part is; "trap": where the optical trap nearest the part holds it. |
+| scatDx | `0` | µm: moved from there across the strongest beam, in the bench plane. |
+| scatDy | `0` | µm: moved up out of the plane. |
+| scatDz | `0` | µm: moved along the beam. |
+| scatNA | `0.5` | the numerical aperture of the cone the Scattering tab’s Collected figure is for. |
+| scatDir | `"fwd"` | that cone’s direction: "fwd", "back", "side", "up" or "angle" (with scatAng). |
+| scatAng | `0` | degrees: the cone’s direction on the bench, for scatDir "angle". |
+| scatScale | `"log"` | "log" or "lin": the pattern plots’ scale. |
+| scatView | `"in"` | "in" (the bench plane), "out" (the plane out of it through the beam) or "map" (every direction). |
+| scatLight | `true` | true puts the scattered light on the bench: a cone to each part with a clear line to the particle, with the far field’s amplitude, phase and polarisation, coherent with the driving laser. false leaves the bench as it is without it. |
+| scatFan | `true` | true draws a faint fan of the scattered light in every direction, as bright as the pattern is; a picture only, never part of a reading. |
+
 ### "link": Link plane
 
 One of a pair of link planes joining two tabs: the pair is one plane seen from two benches.

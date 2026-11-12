@@ -1,3 +1,5 @@
+import { changed } from '../actions.js';
+import { checkpoint } from '../tabs.js';
 import { DETECTOR_MATERIALS } from '../../core/rf.js';
 import { detR } from '../../state/elements.js';
 import { frame, toWorld } from '../../core/mask.js';
@@ -39,6 +41,12 @@ function detectorPanel(el) {
     selectField('Material', Object.entries(DETECTOR_MATERIALS).map(([k, v]) => [k, v.name]), () => el.material, v => { el.material = v; }));
   if (el.material === 'custom') rows.append(param('Responsivity (A/W)', el, 'resp', { wide: true }));
   rows.append(param('Diameter (mm)', el, 'length'));
+  {
+    // a split diode: the readout adds the difference of its halves
+    const q = h('input', { type: 'checkbox' }); q.checked = el.quad === true;
+    q.onchange = () => { checkpoint(); if (q.checked) el.quad = true; else delete el.quad; changed(false); };
+    rows.append(h('label', { class: 'rt-check wide' }, q, 'Split in four (reads right less left, top less bottom)'));
+  }
   panel.append(rows);
   if (el.diode) panel.append(h('div', { class: 'rt-rows' }, param('Bandwidth (Hz)', el, 'bandwidth'), param('Dark (nA)', el, 'dark')));   // a bare diode: no amplifier
   else {

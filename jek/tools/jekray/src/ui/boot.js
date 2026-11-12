@@ -100,6 +100,7 @@ import { endTour, nameInput, openDemo, startNewBench, startTour, tour, TOURS, to
 import { modAsk, modLoad, modPrepare, modReset, wireMods } from '../io/mods.js';
 import { FW, TW, WORKERS_OK, fieldWorker, fwMismatch, fwProject, fwRequest, newAppWorker } from '../page/workers.js';
 import { scatterPlain, scatterPrep } from '../engines/scatter.js';
+import { wireScatter } from './scatter.js';
 import { drawingSvgText, drawingsPdfBlob, lensDrawings } from './lens-drawing.js';
 import { partFiles } from './lens-make.js';
 import { reportPdfBlob } from './lens-report.js';
@@ -141,7 +142,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireFilmCoats(); wireMods(); wireView3d(); wireMate3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline, vecLightLayer: () => lightLayer }); wireCommands(); wireRecent();
+wireRender(); wireScatter(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireFilmCoats(); wireMods(); wireView3d(); wireMate3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline, vecLightLayer: () => lightLayer }); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 

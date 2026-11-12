@@ -236,7 +236,7 @@ export function trapReport(el, T) {
   const out = { I, dx: T.x, dy: T.y, dz: T.z, fx: T.fx, fy: T.fy, fz: T.fz, k: T.k, U: T.U, depthK: -T.U / KB, depthHz: -T.U / HPL,
     trap: T.trap, converged: T.converged, nMed: T.nMed, nBench: T.nBench, beams: T.beams, launches: T.launches, skipped: T.skipped, mass: T.mass, away: T.away };
   if (T.isAtom) {
-    const nm = el.trap && lastTraceNm(el);
+    const nm = el.trap && (T.nm || lastTraceNm(el));
     out.sc = T.alpha[1] * T.E2 / (2 * HBAR);                            // photons/s
     const k = 2 * Math.PI / (nm * 1e-9), Erec = HBAR * HBAR * k * k / (2 * T.mass);
     out.heat = (2 * Erec / KB) * out.sc / 3;
@@ -250,7 +250,7 @@ export function trapReport(el, T) {
     out.np = S.np; out.kap = S.kap || 0; out.m = S.m; out.ka = S.ka;
     const rEq = particleOf(el).rEq;
     // damping by the medium, and each direction's quality factor
-    const water = Math.abs(T.nMed - refIndex({ glass: 'Water' }, lastTraceNm(el))) < 0.01;
+    const water = Math.abs(T.nMed - refIndex({ glass: 'Water' }, T.nm || lastTraceNm(el))) < 0.01;
     if (el.trapMed === 'air') { const g = gasDamping(rEq, T.mass, el.trapP, el.trapT); out.G = g.G; out.mfp = g.l; out.Kn = g.Kn; out.dampBy = 'air'; }
     else if ((el.trapMed === 'bench' || el.trapMed === 'water') && water) { out.G = waterDamping(rEq, T.mass, el.trapT); out.dampBy = 'water'; }
     else { out.G = 0; out.dampBy = el.trapMed === 'vacuum' ? 'vacuum' : 'none'; }

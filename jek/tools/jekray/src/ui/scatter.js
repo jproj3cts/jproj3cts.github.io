@@ -6,8 +6,11 @@ import { SPHERE_DENSITY, TRAP_ATOMS, particleOf } from '../core/traps.js';
 import { deg } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { modDelta } from '../engines/mods.js';
-import { SCAT_NMAX, scatCache, scatterNow, scatterPrep } from '../engines/scatter.js';
-import { getCss, inkA } from './render.js';
+import { SCAT_NMAX, scatCache, scatKeep, scatterNow, scatterPrep, setScatMode } from '../engines/scatter.js';
+import { lastTrace } from '../engines/trace.js';
+import { trapReport } from '../engines/screen-stats.js';
+import { project } from '../state/project.js';
+import { getCss, inkA, requestRender } from './render.js';
 import { bindSync, fid, helpLine, numInput, panel, param, selectField, setFid, syncPanel, vs } from './panel.js';
 import { h } from './dom.js';
 import { axisFont, drawAxes, magma, plotArea, plotCsv, plotSaveRow } from './plots.js';
@@ -33,7 +36,8 @@ function scatWorker() {
       if (m.prog) { J.prog = m.prog; syncPanel(); return; }
       SCW.job = null;
       if (!m.ok) { console.warn('JEKray scattering worker:', m.err); scatFail(); return; }
-      if (m.out && m.out.S) scatCache.set(J.elId, { key: m.out.key, S: m.out.S });
+      // (a Particle part's answer is what the bench's trace launches its scattered light from: kept, the bench is drawn again)
+      if (m.out && m.out.S) { scatKeep(J.elId, m.out.key, m.out.S); requestRender(); }
       syncPanel(); scatPump();
     };
     w.onerror = e => { e.preventDefault(); scatFail(); };
@@ -44,6 +48,7 @@ function scatWorker() {
 // the worker cannot be relied on: the page does the work itself from here on
 function scatFail() {
   SCW.failed = true;
+  setScatMode('sync');
   if (SCW.w) SCW.w.terminate();
   SCW.w = null; SCW.job = null;
   syncPanel();
@@ -96,11 +101,23 @@ function scatStop(el) {
 }
 function scatGo(el) { SCW.stopped.delete(el.id); syncPanel(); }
 
-const PARTICLE_SHAPES = [['sphere', 'A sphere'], ['cylinder', 'A rod with flat ends'], ['capsule', 'A rod with round ends'], ['spheroid', 'A spheroid']];
+export const PARTICLE_SHAPES = [['sphere', 'A sphere'], ['cylinder', 'A rod with flat ends'], ['capsule', 'A rod with round ends'], ['spheroid', 'A spheroid']];
 export const particleMats = () => [...Object.keys(GLASS).filter(g => g !== 'Water').map(g => [g, g]), ...Object.entries(METAL_NAMES).map(([k, n]) => [k, n + ' (absorbing)'])];
 /* the particle's own rows, as the Scattering tab gives them (the Trap tab has the sphere's) */
 function particleRows(el) {
   const rows = h('div', { class: 'rt-rows' });
+  if (el.type === 'particle') {
+    // a Particle part: what it is made of is on its own tab; here the model, where it is and the cone the Collected figure is for
+    const sph = el.trapShape === 'sphere';
+    rows.append(selectField('Model', [['auto', 'Auto'], ['rayleigh', 'Rayleigh (one dipole)'], ['mie', 'Mie (a sphere, exact)'], ['dda', 'Dipole array']], () => el.scatModel, v => { el.scatModel = v; }));
+    if (el.scatModel === 'dda' || (el.scatModel === 'auto' && !sph)) rows.append(param('Dipoles across (0: chosen)', el, 'scatDip', { noSweep: true }));
+    rows.append(selectField('Where it is', [['part', 'Where the part is'], ['trap', 'Where the trap holds it']], () => el.scatAt, v => { el.scatAt = v; }, { wide: true }),
+      param('Moved across (µm)', el, 'scatDx'), param('Moved up (µm)', el, 'scatDy'), param('Moved along the beam (µm)', el, 'scatDz'));
+    rows.append(param('Collecting NA', el, 'scatNA'),
+      selectField('Collected from', [['fwd', 'Ahead (the beam’s way)'], ['back', 'Behind (back along it)'], ['side', 'The side, in the plane'], ['up', 'Above'], ['angle', 'A direction on the bench']], () => el.scatDir, v => { el.scatDir = v; }));
+    if (el.scatDir === 'angle') rows.append(param('Direction (°)', el, 'scatAng'));
+    return rows;
+  }
   const isP = el.trap === 'sphere';
   rows.append(selectField('Particle', [['none', el.trap in TRAP_ATOMS ? 'None (the Trap tab is set for atoms)' : 'None'], ...PARTICLE_SHAPES],
     () => (isP ? el.trapShape : 'none'), v => { if (v === 'none') el.trap = 'none'; else { el.trap = 'sphere'; el.trapShape = v; } }, { wide: true }));
@@ -169,10 +186,37 @@ function scatterRows(el, S) {
     rows.push(['Rayleigh would give', 'scattering ' + scatArea(S.rayleigh.Csca) + ', ' + (Math.abs(off) < 5e-4 ? 'the same' : scatSig(100 * Math.abs(off), 2) + '% ' + (off > 0 ? 'more' : 'less')) + ', and as much back as forward']);
   }
   if (S.model === 'dda' && S.shape === 'sphere') rows.push(['Mie gives', 'scattering ' + scatArea(S.mieEq.Csca) + ': the dipole array is ' + scatSig(100 * (S.Csca / S.mieEq.Csca - 1), 2) + '% from it']);
-  if (S.at.trap) rows.push(['Where', 'where the trap holds it: ' + fmtLen(Math.abs(S.at.z)) + (S.at.z >= 0 ? ' past the screen' : ' before it') + ' along the beam']);
+  if (S.at.trap) rows.push(['Where', 'where the trap holds it: ' + fmtLen(Math.abs(S.at.z)) + (S.at.z >= 0 ? (el.type === 'particle' ? ' past the part' : ' past the screen') : ' before it') + ' along the beam']);
   for (const f of S.flags) if (FLAG_TEXT[f]) rows.push(['', FLAG_TEXT[f]]);
   return rows;
 }
+/* A Particle part: where its scattered light goes on the bench, a row for each part that catches some (its share of the
+   scattered power and the power, as launched into the part's aperture) and one for what no part catches */
+function caughtRows(el) {
+  const R = lastTrace.scat && lastTrace.scat.parts && lastTrace.scat.parts[el.id], rows = [];
+  if (el.scatLight === false) return [['On the bench', 'Its scattered light is not sent to the parts (the Particle tab turns it on).']];
+  if (!R || R.state === 'dark' || R.state === 'none') return rows;
+  if (R.state === 'wait') return [['On the bench', 'Working out the scattered light…']];
+  for (const r of R.rows) rows.push([r.name, scatPct(r.share) + ' of the scattered power, ' + scatPw(r.P) + (r.followed ? '' : ' (not traced on: only the ' + R.rows.filter(q => q.followed).length + ' parts that catch most are)')]);
+  rows.push(['Not collected', scatPct(R.lostShare) + ', ' + scatPw(R.lost) + (R.rows.length ? '' : ': no part has a clear line to the particle')]);
+  if (R.state === 'stale') rows.push(['', 'From before the last change: being worked out again.']);
+  return rows;
+}
+/* A Particle part's trap, from its scattering run (which solves the trap where it is): { T, busy } as the Trap tab takes them */
+export function particleTrapLater(el) {
+  const A = scatterLater(el), S = A.S;
+  return { T: S && S.trapRaw ? trapReport(el, S.trapRaw) : S && S.error ? { error: S.error === 'no beam' ? 'no focused beam' : S.error } : null, busy: !!A.busy, none: !!A.none };
+}
+/* The bench's trace launches each Particle part's scattered light from the answer kept for it. Where that answer is from
+   before the last change (or there is none yet), the worker is asked for a new one; when it comes the bench is drawn
+   again with it. Called as the bench is drawn. */
+export function scatterKeepUp() {
+  const P = lastTrace.scat && lastTrace.scat.parts;
+  if (!P) return;
+  for (const el of project.elements) if (el.type === 'particle' && el.scatLight !== false && P[el.id] && (P[el.id].state === 'stale' || P[el.id].state === 'wait')) scatterLater(el);
+}
+/* the page's wiring: where there are workers a trace does not wait for a scattering run */
+export function wireScatter() { if (!TEST_MODE && WORKERS_OK) setScatMode('async'); }
 const SCAT_DB = 40;        // a log plot's depth
 /* the pattern on one cut as a polar plot: the angle as on the bench (or from the beam, up), the radius the intensity */
 function drawPolar(cv, el, S, which) {
@@ -266,6 +310,7 @@ function drawScatMap(cv, el, S) {
 }
 /* The screen's Scattering tab */
 export function scatterSection(el) {
+  const isPart = el.type === 'particle';
   panel.append(h('h3', null, 'Scattering'));
   panel.append(particleRows(el));
   if (el.trap !== 'sphere') {
@@ -273,15 +318,17 @@ export function scatterSection(el) {
     return;
   }
   const status = h('div', { class: 'rt-scatrun', role: 'status', 'aria-live': 'polite', style: 'display:none;align-items:center;gap:0.6rem;margin-top:0.6rem;font-size:0.8125rem;color:var(--jek-ink-soft)' });
-  const box = h('div', { class: 'rt-readout' });
+  const box = h('div', { class: 'rt-readout' }), goes = h('div', { class: 'rt-readout', 'data-scat-goes': '' });
   const views = [['in', 'In the bench plane'], ['out', 'Out of the plane'], ['map', 'Every direction']];
   const tabs = h('div', { class: 'rt-inline', style: 'margin:0.5rem 0 0.3rem;flex-wrap:wrap;column-gap:0.8rem;row-gap:0.2rem' });
   const cv = h('canvas', { style: 'width:100%;display:block' });
-  let last = null, sigT = '', sigS = '';
+  let last = null, sigT = '', sigS = '', sigG = '';
   const draw = () => { const v = vs(el).scatView || el.scatView; if (v === 'map') drawScatMap(cv, el, last); else drawPolar(cv, el, last, v); [...tabs.children].forEach((b, i) => { b.style.fontWeight = views[i][0] === v ? '700' : '600'; b.style.textDecoration = views[i][0] === v ? 'underline' : 'none'; }); };
   for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { vs(el).scatView = key; draw(); } }, text));
   const scale = h('div', { class: 'rt-rows', style: 'margin-top:0.3rem' }, selectField('Scale', [['log', 'Logarithmic, ' + SCAT_DB + ' dB'], ['lin', 'Linear']], () => el.scatScale, v => { el.scatScale = v; }, { rebuild: false }));
-  panel.append(status, box, tabs, h('div', { class: 'rt-plot' }, cv), plotSaveRow(cv, true), scale);
+  panel.append(status, box);
+  if (isPart) panel.append(h('h3', null, 'Where the light goes'), goes);
+  panel.append(tabs, h('div', { class: 'rt-plot' }, cv), plotSaveRow(cv, true), scale);
   let drawnW = -1;
   new ResizeObserver(() => requestAnimationFrame(() => { const w = cv.clientWidth; if (w && Math.abs(w - drawnW) > 0.5) { drawnW = w; draw(); } })).observe(cv);
   bindSync(box, () => {
@@ -295,7 +342,11 @@ export function scatterSection(el) {
       st = [what, 'stop'];
     } else if (A.stopped) st = ['Stopped.', 'run'];
     else if (A.S && A.S.error) st = ['No scattering: ' + (A.S.error === 'no beam' || A.S.error === 'no focused beam' || A.S.error === 'no light' ? 'no Gaussian beam through here has a field to take.' : A.S.error), ''];
-    else if (A.none) st = ['No Gaussian beam reaches this screen.', ''];
+    else if (A.none) st = [isPart ? 'No Gaussian beam passes the particle (within three beam radii of it).' : 'No Gaussian beam reaches this screen.', ''];
+    if (isPart) {
+      const gr = caughtRows(el), s3 = JSON.stringify(gr);
+      if (s3 !== sigG) { sigG = s3; goes.replaceChildren(h('dl', null, ...gr.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
+    }
     const s1 = JSON.stringify(st);
     if (s1 !== sigT) {
       sigT = s1;
@@ -314,8 +365,14 @@ export function scatterSection(el) {
     }
   });
   const P = particleOf(el);
+  if (isPart) {
+    panel.append(helpLine('The light the particle scatters, and the parts that catch it.', ['Lorenz–Mie is exact for a sphere of any size; a dipole array (the discrete dipole approximation) takes a rod or a spheroid; Rayleigh is one dipole, right only for a particle much smaller than the wavelength. Auto takes Mie for a sphere and the dipole array for other shapes. ',
+      'The light is every Gaussian beam that passes within three of its radii of the particle. A steep focus (NA above 0.3) is its full vector field, as plane waves from its pupil; a gentler beam is one plane wave where the particle is. Beams of one laser add as fields; separate lasers as powers. ',
+      'Where the light goes: each part with a clear line to the particle is sent a cone of rays carrying the scattered field, and its row gives the share of the scattered power that enters its aperture. What no part catches is one figure. The plots and the Collected figure are the pattern itself, whatever is on the bench.'], 'note', 'margin-top:0.4rem'));
+    return;
+  }
   panel.append(helpLine('The light the particle scatters, from the beams through this screen.', ['Three models. Lorenz–Mie is exact for a homogeneous sphere of any size. A dipole array (the discrete dipole approximation) takes any shape: the particle as point dipoles on a cubic lattice, each driven by the light and by all the others, their polarisability from the lattice dispersion relation; good to a few percent while |m|kd stays under about 0.5 and the lattice draws the shape (10 dipoles across unless set; ' + SCAT_NMAX + ' dipoles at most unless more across are asked for), and poor for metals. Rayleigh is one dipole, right only for a particle much smaller than the wavelength; Auto takes it only then. ',
     'The light is every beam through the screen’s region, as the Trap tab takes them. A steep focus (NA above 0.3) is its full vector field: each sample of its pupil is a plane wave onto the particle with its own direction, polarisation and phase, and a sphere’s scattered field is the sum of every wave’s Mie field, added as fields, so the particle may sit off the focus. A gentler beam is taken as one plane wave where the particle is. Beams of one laser add as fields; separate lasers as powers. ',
-    'Cross-sections and efficiencies are a plane wave’s (for a shape that is not a sphere: along the strongest beam, polarised as the light at the particle is); the powers, the forward and back shares, the collected fraction and the plots are for the light as it is. The collected fraction is the scattered power into a cone of the numerical aperture set, about the direction chosen. One particle, alone: nothing the scattered light meets afterwards is counted, and the light is not put back on the bench.' +
+    'Cross-sections and efficiencies are a plane wave’s (for a shape that is not a sphere: along the strongest beam, polarised as the light at the particle is); the powers, the forward and back shares, the collected fraction and the plots are for the light as it is. The collected fraction is the scattered power into a cone of the numerical aperture set, about the direction chosen. One particle, alone: nothing the scattered light meets afterwards is counted, and a screen’s particle sends no light onto the bench. A Particle part (Add, Active and atomic) does: its scattered light goes on to the lenses, detectors and fibres that can see it.' +
     (P.shape !== 'sphere' ? ' The Trap tab takes this particle as the sphere of its volume.' : '')], 'note', 'margin-top:0.4rem'));
 }

@@ -85,7 +85,7 @@ export function partSpecRec(D, films, o) {
   pstable(pg, [{ label: 'Face', w: 34 }, { label: 'Radius (mm)', w: 70, align: 'right', mono: true }, { label: 'Clear Ø', w: 52, align: 'right', mono: true }, { label: 'Finish', w: 62 }, { label: 'Form 3/', w: 56, mono: true },
     { label: 'Scratch-dig', w: 58, mono: true }, { label: 'Chamfer', w: 60 }, { label: 'Coating', w: 107 }],
     D.surfaces.map(s => ['S' + s.n, s.R === null ? 'Flat' : (s.R < 0 ? '−' : '') + pmf(Math.abs(s.R)), pmf(s.clear), PART_FINISHES[s.finish] || '—',
-      s.finish === 'ground' ? '—' : '3/' + pmf(s.form, 2) + '(' + pmf(s.irr, 2) + ')', s.sd || '—', s.chamfer !== undefined ? '≤ ' + pmf(s.chamfer, 2) + ' × 45°' : '—', fname(s).slice(0, 26)]));
+      s.finish === 'ground' ? '—' : '3/' + pmf(s.form, 2) + '(' + pmf(s.irr, 2) + ')', s.sd || '—', s.chamfer !== undefined ? '≤ ' + pmf(s.chamfer, 2) + ' × 45°' : '—', (t => (t.length > 24 ? t.slice(0, 23) + '…' : t))(fname(s))]));
   pshead(pg, 'Coatings');
   const coated = D.surfaces.filter(s => s.coat);
   if (!coated.length) pspara(pg, 'No face is coated.');

@@ -30,6 +30,12 @@ scripts that made them. The page itself runs JEKray live against these files.
 | `ref/rigrod.json` | `scripts/rigrod.py` | Rigrod, J. Appl. Phys. 36, 2487 (1965): a laser's output against its output coupling, checked by integrating the two saturating waves |
 | `ref/pdh-black.json` | `scripts/pdh_black.py` | Black, Am. J. Phys. 69, 79 (2001): the Pound-Drever-Hall reflected power and beats, every sideband order |
 | `ref/photonic-circuits.json` | `scripts/photonic_circuits.py` | Closed forms for rings (Bogaerts et al. 2012; Yariv 2000), a Mach-Zehnder and a directional coupler; two small circuits solved by SAX 0.18.2 (github.com/flaport/sax) |
+| `ref/prism-dispersion.json` | `scripts/prism_dispersion.py` | A prism's deviation and its minimum (Hecht, Optics, 4th ed., §5.5.1), N-BK7 and N-SF11 from Schott's Sellmeier coefficients |
+| `ref/grating-equation.json` | `scripts/grating_equation.py` | The grating equation (Born & Wolf, §8.6.1): every propagating order, Littrow, the angular dispersion |
+| `ref/conic-mirrors.json` | `scripts/conic_mirrors.py` | A spherical mirror's exact longitudinal aberration (Hecht, §5.4) and the foci of the paraboloid, ellipsoid and hyperboloid, checked by exact rays |
+| `ref/jones-calculus.json` | `scripts/jones_calculus.py` | Jones, J. Opt. Soc. Am. 31, 488 (1941): polarisers and wave plates as 2 x 2 matrices, Malus's law |
+| `ref/wollaston.json` | `scripts/wollaston.py` | A calcite Wollaston prism's two beams by exact refraction, calcite's indices from Ghosh, Opt. Commun. 163, 95 (1999) |
+| `ref/tir-rhomb.json` | `scripts/tir_rhomb.py` | Total internal reflection's phase between s and p, and Fresnel's rhomb (Born & Wolf, §1.5.4), N-BK7 |
 
 ## Making them again
 
@@ -65,6 +71,12 @@ numpy instead.
     ELECSUS=/path/to/ElecSus python scripts/faraday_elecsus.py
     ELECSUS=/path/to/ElecSus python scripts/davll_elecsus.py
     python scripts/sat_abs.py
+    python scripts/prism_dispersion.py
+    python scripts/grating_equation.py
+    python scripts/conic_mirrors.py
+    python scripts/jones_calculus.py
+    python scripts/wollaston.py
+    python scripts/tir_rhomb.py
 
 ## Rules
 

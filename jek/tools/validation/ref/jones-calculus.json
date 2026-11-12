@@ -1,0 +1,1216 @@
+{
+ "rows": [
+  {
+   "group": "malus",
+   "label": "p light, polariser at 0\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 1.0
+  },
+  {
+   "group": "malus",
+   "label": "p light, polariser at 15\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "polariser",
+     "axis": 15
+    }
+   ],
+   "T": 0.9330127018922196
+  },
+  {
+   "group": "malus",
+   "label": "p light, polariser at 30\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "polariser",
+     "axis": 30
+    }
+   ],
+   "T": 0.7500000000000003
+  },
+  {
+   "group": "malus",
+   "label": "p light, polariser at 45\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "polariser",
+     "axis": 45
+    }
+   ],
+   "T": 0.5000000000000001
+  },
+  {
+   "group": "malus",
+   "label": "p light, polariser at 60\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "polariser",
+     "axis": 60
+    }
+   ],
+   "T": 0.2500000000000001
+  },
+  {
+   "group": "malus",
+   "label": "p light, polariser at 75\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "polariser",
+     "axis": 75
+    }
+   ],
+   "T": 0.06698729810778066
+  },
+  {
+   "group": "malus",
+   "label": "p light, polariser at 90\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 3.749399456654644e-33
+  },
+  {
+   "group": "malus2",
+   "label": "unpolarised, polarisers at 0\u00b0 and 0\u00b0",
+   "input": "unpol",
+   "parts": [
+    {
+     "type": "polariser",
+     "axis": 0
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 0.5
+  },
+  {
+   "group": "malus2",
+   "label": "unpolarised, polarisers at 0\u00b0 and 30\u00b0",
+   "input": "unpol",
+   "parts": [
+    {
+     "type": "polariser",
+     "axis": 0
+    },
+    {
+     "type": "polariser",
+     "axis": 30
+    }
+   ],
+   "T": 0.37500000000000017
+  },
+  {
+   "group": "malus2",
+   "label": "unpolarised, polarisers at 0\u00b0 and 45\u00b0",
+   "input": "unpol",
+   "parts": [
+    {
+     "type": "polariser",
+     "axis": 0
+    },
+    {
+     "type": "polariser",
+     "axis": 45
+    }
+   ],
+   "T": 0.25000000000000006
+  },
+  {
+   "group": "malus2",
+   "label": "unpolarised, polarisers at 0\u00b0 and 60\u00b0",
+   "input": "unpol",
+   "parts": [
+    {
+     "type": "polariser",
+     "axis": 0
+    },
+    {
+     "type": "polariser",
+     "axis": 60
+    }
+   ],
+   "T": 0.12500000000000006
+  },
+  {
+   "group": "malus2",
+   "label": "unpolarised, polarisers at 0\u00b0 and 90\u00b0",
+   "input": "unpol",
+   "parts": [
+    {
+     "type": "polariser",
+     "axis": 0
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 1.874699728327322e-33
+  },
+  {
+   "group": "three",
+   "label": "unpolarised, polarisers at 0\u00b0, 0\u00b0 and 90\u00b0",
+   "input": "unpol",
+   "parts": [
+    {
+     "type": "polariser",
+     "axis": 0
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 1.874699728327322e-33
+  },
+  {
+   "group": "three",
+   "label": "unpolarised, polarisers at 0\u00b0, 22.5\u00b0 and 90\u00b0",
+   "input": "unpol",
+   "parts": [
+    {
+     "type": "polariser",
+     "axis": 0
+    },
+    {
+     "type": "polariser",
+     "axis": 22.5
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 0.06250000000000003
+  },
+  {
+   "group": "three",
+   "label": "unpolarised, polarisers at 0\u00b0, 45\u00b0 and 90\u00b0",
+   "input": "unpol",
+   "parts": [
+    {
+     "type": "polariser",
+     "axis": 0
+    },
+    {
+     "type": "polariser",
+     "axis": 45
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 0.125
+  },
+  {
+   "group": "three",
+   "label": "unpolarised, polarisers at 0\u00b0, 67.5\u00b0 and 90\u00b0",
+   "input": "unpol",
+   "parts": [
+    {
+     "type": "polariser",
+     "axis": 0
+    },
+    {
+     "type": "polariser",
+     "axis": 67.5
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 0.06250000000000003
+  },
+  {
+   "group": "three",
+   "label": "unpolarised, polarisers at 0\u00b0, 90\u00b0 and 90\u00b0",
+   "input": "unpol",
+   "parts": [
+    {
+     "type": "polariser",
+     "axis": 0
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 1.874699728327322e-33
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 0\u00b0, polariser at 0\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 0,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 1.0
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 0\u00b0, polariser at 45\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 0,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 45
+    }
+   ],
+   "T": 0.5000000000000001
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 0\u00b0, polariser at 90\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 0,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 3.749399456654644e-33
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 15\u00b0, polariser at 0\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 15,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 0.8750000000000002
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 15\u00b0, polariser at 45\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 15,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 45
+    }
+   ],
+   "T": 0.71650635094611
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 15\u00b0, polariser at 90\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 15,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 0.12499999999999997
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 30\u00b0, polariser at 0\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 30,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 0.6250000000000002
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 30\u00b0, polariser at 45\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 30,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 45
+    }
+   ],
+   "T": 0.71650635094611
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 30\u00b0, polariser at 90\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 30,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 0.37499999999999994
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 45\u00b0, polariser at 0\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 45,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 0.5000000000000001
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 45\u00b0, polariser at 45\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 45,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 45
+    }
+   ],
+   "T": 0.5000000000000001
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 45\u00b0, polariser at 90\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 45,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 0.4999999999999999
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 60\u00b0, polariser at 0\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 60,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 0.6250000000000001
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 60\u00b0, polariser at 45\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 60,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 45
+    }
+   ],
+   "T": 0.2834936490538906
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 60\u00b0, polariser at 90\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 60,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 0.37500000000000006
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 75\u00b0, polariser at 0\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 75,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 0.8750000000000002
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 75\u00b0, polariser at 45\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 75,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 45
+    }
+   ],
+   "T": 0.2834936490538906
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 75\u00b0, polariser at 90\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 75,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 0.12499999999999994
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 90\u00b0, polariser at 0\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 90,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 1.0
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 90\u00b0, polariser at 45\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 90,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 45
+    }
+   ],
+   "T": 0.5000000000000001
+  },
+  {
+   "group": "qwp",
+   "label": "p light, quarter-wave plate at 90\u00b0, polariser at 90\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 90,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 3.749399456654644e-33
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 0\u00b0, polariser at 0\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 0,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 1.0
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 0\u00b0, polariser at 45\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 0,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 45
+    }
+   ],
+   "T": 0.5000000000000001
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 0\u00b0, polariser at 90\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 0,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 3.749399456654644e-33
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 10\u00b0, polariser at 0\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 10,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 0.8830222215594888
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 10\u00b0, polariser at 45\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 10,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 45
+    }
+   ],
+   "T": 0.8213938048432696
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 10\u00b0, polariser at 90\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 10,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 0.11697777844051097
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 22.5\u00b0, polariser at 0\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 22.5,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 0.4999999999999999
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 22.5\u00b0, polariser at 45\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 22.5,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 45
+    }
+   ],
+   "T": 1.0
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 22.5\u00b0, polariser at 90\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 22.5,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 0.5000000000000001
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 30\u00b0, polariser at 0\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 30,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 0.2500000000000001
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 30\u00b0, polariser at 45\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 30,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 45
+    }
+   ],
+   "T": 0.9330127018922194
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 30\u00b0, polariser at 90\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 30,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 0.7499999999999999
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 45\u00b0, polariser at 0\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 45,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 4.3618890785590135e-32
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 45\u00b0, polariser at 45\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 45,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 45
+    }
+   ],
+   "T": 0.5000000000000001
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 45\u00b0, polariser at 90\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 45,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 1.0
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 60\u00b0, polariser at 0\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 60,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 0.24999999999999978
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 60\u00b0, polariser at 45\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 60,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 45
+    }
+   ],
+   "T": 0.06698729810778078
+  },
+  {
+   "group": "hwp",
+   "label": "p light, half-wave plate at 60\u00b0, polariser at 90\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 60,
+     "retard": 0.5
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 0.7500000000000003
+  },
+  {
+   "group": "any",
+   "label": "p light, 0.3-wave plate at 30\u00b0, polariser at 0\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 30,
+     "retard": 0.3
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 0.5091186271093948
+  },
+  {
+   "group": "any",
+   "label": "p light, 0.3-wave plate at 30\u00b0, polariser at 20\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 30,
+     "retard": 0.3
+    },
+    {
+     "type": "polariser",
+     "axis": 20
+    }
+   ],
+   "T": 0.6891580268392433
+  },
+  {
+   "group": "any",
+   "label": "p light, 0.3-wave plate at 30\u00b0, polariser at 40\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 30,
+     "retard": 0.3
+    },
+    {
+     "type": "polariser",
+     "axis": 40
+    }
+   ],
+   "T": 0.7806882835537108
+  },
+  {
+   "group": "any",
+   "label": "p light, 0.3-wave plate at 30\u00b0, polariser at 60\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 30,
+     "retard": 0.3
+    },
+    {
+     "type": "polariser",
+     "axis": 60
+    }
+   ],
+   "T": 0.7408813728906052
+  },
+  {
+   "group": "any",
+   "label": "p light, 0.3-wave plate at 30\u00b0, polariser at 80\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 30,
+     "retard": 0.3
+    },
+    {
+     "type": "polariser",
+     "axis": 80
+    }
+   ],
+   "T": 0.5883633907537262
+  },
+  {
+   "group": "any",
+   "label": "p light, 0.3-wave plate at 30\u00b0, polariser at 100\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 30,
+     "retard": 0.3
+    },
+    {
+     "type": "polariser",
+     "axis": 100
+    }
+   ],
+   "T": 0.3944991960334805
+  },
+  {
+   "group": "any",
+   "label": "p light, 0.3-wave plate at 30\u00b0, polariser at 120\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 30,
+     "retard": 0.3
+    },
+    {
+     "type": "polariser",
+     "axis": 120
+    }
+   ],
+   "T": 0.24999999999999994
+  },
+  {
+   "group": "any",
+   "label": "p light, 0.3-wave plate at 30\u00b0, polariser at 140\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 30,
+     "retard": 0.3
+    },
+    {
+     "type": "polariser",
+     "axis": 140
+    }
+   ],
+   "T": 0.22247858240703042
+  },
+  {
+   "group": "any",
+   "label": "p light, 0.3-wave plate at 30\u00b0, polariser at 160\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 30,
+     "retard": 0.3
+    },
+    {
+     "type": "polariser",
+     "axis": 160
+    }
+   ],
+   "T": 0.3248125204128085
+  },
+  {
+   "group": "pair",
+   "label": "p light, quarter-wave plates at 45\u00b0 and \u221245\u00b0, polariser at 0\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 45,
+     "retard": 0.25
+    },
+    {
+     "type": "waveplate",
+     "axis": -45,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 1.0
+  },
+  {
+   "group": "pair",
+   "label": "p light, quarter-wave plates both at 45\u00b0, polariser at 0\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 45,
+     "retard": 0.25
+    },
+    {
+     "type": "waveplate",
+     "axis": 45,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 0
+    }
+   ],
+   "T": 2.8503763176931085e-32
+  },
+  {
+   "group": "pair",
+   "label": "p light, quarter-wave plates at 45\u00b0 and \u221245\u00b0, polariser at 30\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 45,
+     "retard": 0.25
+    },
+    {
+     "type": "waveplate",
+     "axis": -45,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 30
+    }
+   ],
+   "T": 0.7500000000000003
+  },
+  {
+   "group": "pair",
+   "label": "p light, quarter-wave plates both at 45\u00b0, polariser at 30\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 45,
+     "retard": 0.25
+    },
+    {
+     "type": "waveplate",
+     "axis": 45,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 30
+    }
+   ],
+   "T": 0.2500000000000001
+  },
+  {
+   "group": "pair",
+   "label": "p light, quarter-wave plates at 45\u00b0 and \u221245\u00b0, polariser at 90\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 45,
+     "retard": 0.25
+    },
+    {
+     "type": "waveplate",
+     "axis": -45,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 6.837265806298464e-32
+  },
+  {
+   "group": "pair",
+   "label": "p light, quarter-wave plates both at 45\u00b0, polariser at 90\u00b0",
+   "input": "p",
+   "parts": [
+    {
+     "type": "waveplate",
+     "axis": 45,
+     "retard": 0.25
+    },
+    {
+     "type": "waveplate",
+     "axis": 45,
+     "retard": 0.25
+    },
+    {
+     "type": "polariser",
+     "axis": 90
+    }
+   ],
+   "T": 1.0
+  }
+ ]
+}

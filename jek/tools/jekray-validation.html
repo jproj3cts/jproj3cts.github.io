@@ -611,6 +611,230 @@ const ALL_CASES = [
     },
   },
   {
+    id: 'prism-dispersion', area: 'Rays and lenses', title: 'A prism’s minimum deviation against wavelength',
+    kind: 'Textbook closed form', ref: 'prism-dispersion.json', script: 'prism_dispersion.py',
+    cite: 'E. Hecht, Optics (4th ed., 2002), §5.5.1 (dispersing prisms); the indices from Schott’s Sellmeier coefficients for N-BK7 and N-SF11.',
+    what: 'An equilateral prism of N-BK7 and one of N-SF11, 20 mm faces, and a single ray at six wavelengths from 404.7 to 1014 nm. A ray meeting the first face at incidence i leaves deviated by D(i) = i + arcsin(n sin(A − arcsin(sin i / n))) − A, least when it crosses the prism symmetrically: D_min = 2 arcsin(n sin(A/2)) − A, at incidence (D_min + A)/2. JEKray is not told where the minimum is: the case turns the ray and finds the least deviation by golden-section search, then compares the deviation and the incidence it found. It also compares the deviation at fixed incidences of 40° to 70° (those that leave the prism) and the index JEKray takes for each glass. The script checks its indices against Schott’s catalogue n_d (1.51680 and 1.78472).',
+    tolerance: 'Each index within 2 × 10⁻⁶; the minimum deviation and each fixed-incidence deviation within 0.001°; the incidence at the minimum within 0.01°.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [], rad = Math.PI / 180, s = 20, hh = s * Math.sqrt(3) / 2;
+      // the prism's apex points up (angle 90): the ray comes in through the left face, whose middle is at (−s/4, h/6), and is bent down
+      const mk = (glass, nm, psi) => bench('Equilateral ' + glass + ' prism, ' + nm + ' nm, ray at ' + fmt(psi, 6) + '° (minimum deviation)', [
+        { type: 'source', name: 'Ray', x: -s / 4 - 40 * Math.cos(psi * rad), y: hh / 6 - 40 * Math.sin(psi * rad), angle: psi, wavelength: nm, width: 0, rays: 1, pol: 's' },
+        { type: 'prism', name: 'Prism', x: 0, y: 0, angle: 90, shape: 'equilateral', size: s, material: { glass } }], { minPower: 0.5 });
+      // the ray through the prism is the first path: the source, the two faces and on (the faces' partial reflections follow it as paths of their own)
+      const devOf = (glass, nm, psi) => { const P = paths(J, mk(glass, nm, psi)); if (!P.length || P[0].length !== 8) return NaN; const [x0, y0, x1, y1] = lastSeg(P[0]); return psi - Math.atan2(y1 - y0, x1 - x0) / rad; };
+      for (const G of R.glasses) {
+        const range = G.glass === 'N-BK7' ? [5, 35] : [30, 55], got = [];
+        for (const r of G.rows) {
+          checks.push(check(G.glass + ': index at ' + r.nm + ' nm', r.n, J.index({ glass: G.glass }, r.nm), { abs: 2e-6 }));
+          let [lo, hi] = range;
+          const D = psi => { const v = devOf(G.glass, r.nm, psi); return Number.isFinite(v) ? v : Infinity; };
+          for (let i = 0; i < 60; i++) { const m1 = lo + 0.381966 * (hi - lo), m2 = lo + 0.618034 * (hi - lo); if (D(m1) < D(m2)) hi = m2; else lo = m1; }
+          const psi = (lo + hi) / 2, dmin = D(psi);
+          got.push(dmin);
+          checks.push(check(G.glass + ', ' + r.nm + ' nm: minimum deviation', r.dmin_deg, dmin, { abs: 0.001 }, '°'));
+          checks.push(check(G.glass + ', ' + r.nm + ' nm: incidence at the minimum', r.imin_deg, psi + 30, { abs: 0.01 }, '°'));
+          for (const f of r.fixed) checks.push(check(G.glass + ', ' + r.nm + ' nm: deviation at incidence ' + f.i_deg + '°', f.D_deg, devOf(G.glass, r.nm, f.i_deg - 30), { abs: 0.001 }, '°'));
+          if (Math.abs(r.nm - 587.5618) < 1e-3) benches.push([G.glass + ' at 587.6 nm, minimum deviation', mk(G.glass, r.nm, +psi.toFixed(6))]);
+          await idle();
+        }
+        plots.push(plot({ title: 'Minimum deviation of an equilateral ' + G.glass + ' prism', xlabel: 'wavelength (nm)', ylabel: 'minimum deviation (°)',
+          series: [{ name: 'Closed form, Schott’s index', x: G.rows.map(r => r.nm), y: G.rows.map(r => r.dmin_deg), colour: REF_C }, { name: 'JEKray', x: G.rows.map(r => r.nm), y: got, colour: GOT_C, dots: true }] }));
+      }
+      return { checks, benches, plots, notes: 'Incidence is counted from the first face’s normal; the ray leaves through the second face, the third (the base) unused. The search runs over the ray’s direction between bounds chosen so the ray leaves the prism (5° to 35° above the bench’s x axis for N-BK7, 30° to 55° for N-SF11), which bracket the minimum for every wavelength here.' };
+    },
+  },
+  {
+    id: 'grating-equation', area: 'Rays and lenses', title: 'The grating equation, Littrow and angular dispersion',
+    kind: 'Textbook closed form', ref: 'grating-equation.json', script: 'grating_equation.py',
+    cite: 'M. Born and E. Wolf, Principles of Optics (7th ed., 1999), §8.6.1 (the diffraction grating).',
+    what: 'A ruled grating sends order m along β with mλ/d = sin α + sin β in reflection (α and β from the normal, positive on the side the light comes from, so the zeroth order is the mirror’s) and mλ/d = sin β − sin α in transmission. Every order that propagates (|sin β| < 1), for reflection gratings of 600 and 1200 lines/mm at 400 to 1064 nm and incidences from −20° to 45°, and a 300 lines/mm transmission grating at 532 and 1550 nm. In Littrow the order comes back along the light, sin α = mλ/2d, for four gratings and orders. And the angular dispersion dβ/dλ = m/(d cos β) at fixed incidence, the spread the camera mirror of a Czerny–Turner spectrometer turns into distance, for five settings. JEKray traces one ray onto the grating and reports each order it sends out; the dispersion is taken from its angles at λ ± 0.01 nm.',
+    tolerance: 'Every propagating order found; each angle within 0.0001°; the angular dispersion within 0.01%.',
+    async run(J, R) {
+      const checks = [], benches = [], rad = Math.PI / 180;
+      // the grating at the origin facing +x; the light comes in at alpha from its normal (reflection) or through it from −x (transmission)
+      const mk = (mode, lpmm, nm, a) => bench('Grating, ' + lpmm + ' lines/mm, ' + mode + ', ' + nm + ' nm at ' + a + '°', [
+        mode === 'reflect'
+          ? { type: 'source', name: 'Ray', x: +(100 * Math.cos(a * rad)).toFixed(9), y: +(100 * Math.sin(a * rad)).toFixed(9), angle: a + 180, wavelength: nm, width: 0, rays: 1, pol: 's' }
+          : { type: 'source', name: 'Ray', x: +(-100 * Math.cos(a * rad)).toFixed(9), y: +(-100 * Math.sin(a * rad)).toFixed(9), angle: a, wavelength: nm, width: 0, rays: 1, pol: 's' },
+        { type: 'grating', name: 'Grating', x: 0, y: 0, angle: mode === 'reflect' ? 0 : 180, length: 20, lpmm, mode, blaze: nm / 2, eff: 100 }], { minPower: 1e-6 });
+      // each order's angle from the normal (+x), anticlockwise: the pieces of ray that start on the grating
+      const betas = d => { J.load(d); J.trace(); return J.rayPaths().filter(q => Math.hypot(q[0], q[1]) < 1e-6 && q.length >= 4).map(q => Math.atan2(q[3] - q[1], q[2] - q[0]) / rad).sort((a, b) => a - b); };
+      let nOrd = 0, worst = 0;
+      for (const c of R.cases) {
+        const d = mk(c.mode, c.lpmm, c.nm, c.alpha_deg), got = betas(d), ref = c.orders.map(o => o.beta_deg).sort((a, b) => a - b);
+        const tag = c.lpmm + ' lines/mm ' + (c.mode === 'reflect' ? 'reflection' : 'transmission') + ' grating, ' + c.nm + ' nm at ' + c.alpha_deg + '°';
+        checks.push(check(tag + ': orders that propagate', ref.length, got.length, { abs: 0 }));
+        if (got.length === ref.length) ref.forEach((b, i) => { checks.push(check(tag + ': order ' + c.orders.slice().sort((p, q) => p.beta_deg - q.beta_deg)[i].m, b, got[i], { abs: 1e-4 }, '°')); nOrd++; worst = Math.max(worst, Math.abs(got[i] - b)); });
+        if (c.lpmm === 600 && c.nm === 632.8 && c.alpha_deg === 10) benches.push(['600 lines/mm at 632.8 nm, 10°', d]);
+        if (c.mode === 'transmit' && c.nm === 532 && c.alpha_deg === 0) benches.push(['300 lines/mm transmission, 532 nm', d]);
+        await idle();
+      }
+      for (const L of R.littrow) {
+        const d = mk('reflect', L.lpmm, L.nm, L.alpha_deg), got = betas(d), near = got.reduce((a, b) => Math.abs(b - L.alpha_deg) < Math.abs(a - L.alpha_deg) ? b : a, Infinity);
+        checks.push(check('Littrow, ' + L.lpmm + ' lines/mm at ' + L.nm + ' nm, order ' + L.m + ' at ' + fmt(L.alpha_deg, 7) + '°: the order back along the light', L.alpha_deg, near, { abs: 1e-4 }, '°'));
+        if (L.lpmm === 1800) benches.push(['Littrow, 1800 lines/mm at 780.24 nm', d]);
+      }
+      for (const D of R.dispersion) {
+        const pick = list => list.reduce((a, b) => Math.abs(b - D.beta_deg) < Math.abs(a - D.beta_deg) ? b : a, Infinity);
+        const bp = pick(betas(mk('reflect', D.lpmm, D.nm + 0.01, D.alpha_deg))), bm = pick(betas(mk('reflect', D.lpmm, D.nm - 0.01, D.alpha_deg)));
+        checks.push(check('Angular dispersion, ' + D.lpmm + ' lines/mm, ' + D.nm + ' nm at ' + D.alpha_deg + '°, order ' + D.m, D.dbeta_dlambda_deg_per_nm, (bp - bm) / 0.02, { rel: 1e-4 }, '°/nm'));
+      }
+      return { checks, benches, notes: nOrd + ' orders compared, the largest difference ' + fmt(worst, 3) + '°. Each order’s number is the reference’s, matched to JEKray’s orders by angle. The blaze is set to half the wavelength so every order carries some light (a sawtooth blazed at the wavelength itself puts nothing in the others), and the bench keeps rays down to 10⁻⁶% so none is dropped.' };
+    },
+  },
+  {
+    id: 'conic-mirrors', area: 'Rays and lenses', title: 'A sphere’s spherical aberration, and the foci of the conics',
+    kind: 'Textbook closed form', ref: 'conic-mirrors.json', script: 'conic_mirrors.py',
+    cite: 'E. Hecht, Optics (4th ed., 2002), §5.4 (aspherical and spherical mirrors); the focal property of the conic sections.',
+    what: 'Four concave mirrors of vertex radius 200 mm. A sphere: a ray parallel to the axis at height h meets it at θ = arcsin(h/R) from its normal and crosses the axis R − R/(2 cos θ) from the vertex, short of the paraxial focus by the longitudinal spherical aberration, 2.63 mm at h = 45 mm. A paraboloid (conic constant k = −1) sends every height to R/2. An ellipsoid (k = −0.5) and a hyperboloid (k = −2), of eccentricity e = √−k, image a point at their focus R/(1 + e) on R/(1 − e): the ellipsoid’s second focus 683 mm out, the hyperboloid’s virtual one 483 mm behind it. JEKray traces exact rays, collimated at heights of 2 to 45 mm either side of the axis, or from the point in a fan of ±20° and ±24°, and each reflected ray’s crossing of the axis is compared (for the hyperboloid, its line carried back behind the mirror).',
+    tolerance: 'Every crossing within 0.1 µm.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [], Rv = R.R_mm;
+      const mirror = k => ({ type: 'mirror', name: k === 0 ? 'Sphere' : k === -1 ? 'Paraboloid' : k > -1 ? 'Ellipsoid' : 'Hyperboloid', x: 0, y: 0, angle: 180, length: 100, R: Rv, k });
+      const collimated = k => bench('Concave ' + mirror(k).name.toLowerCase() + ', R 200 mm, rays parallel to the axis', [
+        ...R.sphere.flatMap(r => [r.h, -r.h]).map(h => ({ type: 'source', name: 'h ' + h, x: -300, y: h, angle: 0, wavelength: 587.6, width: 0, rays: 1, pol: 's' })), mirror(k)], { minPower: 0.5 });
+      // the vertex is at x = 0 and the light comes from −x: a crossing at x is −x from the vertex
+      const cross = d => paths(J, d).map(p => ({ h: p[1], z: -axisCross(p) }));
+      const ds = collimated(0), cs = cross(ds), lsa = [];
+      for (const r of R.sphere) for (const sg of [1, -1]) {
+        const c = cs.find(q => Math.abs(q.h - sg * r.h) < 1e-9);
+        checks.push(check('Sphere: ray at ' + (sg * r.h) + ' mm crosses the axis, from the vertex', r.z_mm, c ? c.z : NaN, { abs: 1e-4 }, ' mm'));
+        if (sg > 0) lsa.push(c ? Rv / 2 - c.z : NaN);
+      }
+      benches.push(['Sphere', ds]);
+      const dp = collimated(-1), cp = cross(dp);
+      let worstP = 0; for (const c of cp) worstP = Math.max(worstP, Math.abs(c.z - R.paraboloid.focus_mm));
+      checks.push(check('Paraboloid: ' + cp.length + ' rays at 2 to 45 mm, largest distance from R/2', 0, cp.length === 2 * R.sphere.length ? worstP : NaN, { abs: 1e-4 }, ' mm'));
+      benches.push(['Paraboloid', dp]);
+      plots.push(plot({ title: 'Longitudinal spherical aberration of a concave sphere, R = 200 mm', xlabel: 'ray height (mm)', ylabel: 'R/2 − axis crossing (mm)',
+        series: [{ name: 'Exact geometry', x: R.sphere.map(r => r.h), y: R.sphere.map(r => r.lsa_mm), colour: REF_C, width: 2.4 }, { name: 'JEKray, sphere', x: R.sphere.map(r => r.h), y: lsa, colour: GOT_C, dots: true },
+          { name: 'JEKray, paraboloid', x: cp.filter(c => c.h > 0).map(c => c.h), y: cp.filter(c => c.h > 0).map(c => Rv / 2 - c.z), colour: '#6a3d9a', dots: true }] }));
+      for (const key of ['ellipsoid', 'hyperboloid']) {
+        const C = R[key], half = Math.max(...C.half_angles_deg), n = 2 * C.half_angles_deg.length + 1;
+        const d = bench('Concave ' + key + ', R 200 mm, k ' + C.k + ': a point at its focus ' + fmt(C.source_mm, 6) + ' mm out', [
+          { type: 'source', name: 'Point', x: -C.source_mm, y: 0, angle: 0, wavelength: 587.6, width: 0, divergence: 2 * half, rays: 4 * n - 3, pol: 's' }, mirror(C.k)], { minPower: 0.5 });
+        const cc = paths(J, d).filter(p => Math.abs(p[3]) > 1e-6).map(p => ({ z: -axisCross(p) }));       // (the ray along the axis comes straight back, and has no crossing)
+        let worst = 0; for (const c of cc) worst = Math.max(worst, Math.abs(c.z - C.image_mm));
+        checks.push(check(key[0].toUpperCase() + key.slice(1) + ': ' + cc.length + ' rays within ±' + half + '°, largest distance of a crossing from ' + fmt(C.image_mm, 6) + ' mm', 0, cc.length >= 4 ? worst : NaN, { abs: 1e-4 }, ' mm'));
+        benches.push([key[0].toUpperCase() + key.slice(1), d]);
+      }
+      return { checks, benches, plots, notes: 'The ray along the axis itself, which comes straight back, has no crossing and is left out of the point sources’ counts.' };
+    },
+  },
+  {
+    id: 'jones', area: 'Rays and lenses', title: 'Polarisers and wave plates: Malus’s law and Jones’s calculus',
+    kind: 'Paper: closed forms', ref: 'jones-calculus.json', script: 'jones_calculus.py',
+    cite: 'R. C. Jones, “A new calculus for the treatment of optical systems. I. Description and discussion of the calculus”, Journal of the Optical Society of America 31, 488–493 (1941).',
+    what: 'In Jones’s calculus light is a two-component vector and each ideal part a 2 × 2 matrix: a polariser at θ projects onto its axis, a plate of retardance Γ multiplies its slow component by e^{2πiΓ}. The power passed, worked out in the script with numpy’s complex matrices and checked against the closed forms: Malus’s law cos²θ for p light through one polariser; unpolarised light through two, ½cos²θ, and three at 0°, θ and 90°, ⅛sin²2θ; p light through a quarter-wave plate at 0° to 90°, then a polariser at 0°, 45° or 90° (cos²θ cos²(φ − θ) + sin²θ sin²(φ − θ)); a half-wave plate at θ, which turns the light to 2θ (cos²(φ − 2θ)); a 0.3-wave plate at 30° against the polariser’s angle; and two quarter-wave plates, crossed (they cancel) and parallel (a half-wave plate). JEKray’s ray carries its own Jones vector through each part; the share of the launched power reaching a screen is compared. 71 settings.',
+    tolerance: 'Each transmitted share within 1 × 10⁻⁹: the parts are ideal on both sides, so only rounding may differ.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      const mk = row => bench('Jones: ' + row.label, [
+        { type: 'source', name: 'Light', x: -40, y: 0, angle: 0, wavelength: 633, width: 0, rays: 1, pol: row.input === 'unpol' ? 'unpolarised' : row.input },
+        ...row.parts.map((p, i) => p.type === 'polariser'
+          ? { type: 'polariser', name: 'Polariser ' + (i + 1), x: 15 * i, y: 0, angle: 0, length: 25.4, axis: p.axis }
+          : { type: 'waveplate', name: 'Plate ' + (i + 1), x: 15 * i, y: 0, angle: 0, length: 25.4, retard: p.retard, axis: p.axis }),
+        { type: 'screen', name: 'Screen', x: 80, y: 0, angle: 180, length: 10 }], { minPower: 1e-9 });
+      const got = {};
+      for (const row of R.rows) {
+        const d = mk(row); J.load(d); J.trace();
+        const T = J.hitsOn('Screen').reduce((t, q) => t + q.w, 0);
+        (got[row.group] = got[row.group] || []).push(T);
+        checks.push(check(row.label, row.T, T, { abs: 1e-9 }));
+        if (['p light, polariser at 30°', 'unpolarised, polarisers at 0°, 45° and 90°', 'p light, quarter-wave plate at 30°, polariser at 45°', 'p light, half-wave plate at 22.5°, polariser at 45°'].includes(row.label)) benches.push([row.label, d]);
+      }
+      const M = R.rows.filter(r => r.group === 'malus'), A = R.rows.filter(r => r.group === 'any');
+      const ang = s => +/at (\d+)°$/.exec(s)[1];
+      plots.push(plot({ title: 'Malus’s law, and a 0.3-wave plate at 30° before the polariser', xlabel: 'polariser axis from p (°)', ylabel: 'power passed', yMin: 0, yMax: 1,
+        series: [{ name: 'Jones: one polariser', x: M.map(r => ang(r.label)), y: M.map(r => r.T), colour: REF_C, width: 2.4 }, { name: 'Jones: 0.3-wave plate first', x: A.map(r => ang(r.label)), y: A.map(r => r.T), colour: '#6a3d9a', width: 2.4, dash: '4 3' },
+          { name: 'JEKray', x: M.map(r => ang(r.label)), y: got.malus, colour: GOT_C, dots: true }, { name: 'JEKray', x: A.map(r => ang(r.label)), y: got.any, colour: '#b8860b', dots: true }] }));
+      return { checks, benches, plots, notes: 'Axes are counted from p (in the bench plane) as JEKray counts them, the same way for polarisers and plates. Every quantity compared is a power, which does not depend on the sign convention chosen for the retardance or the phase. A setting that passes nothing (crossed polarisers) reaches the screen with no ray at all, read as 0.' };
+    },
+  },
+  {
+    id: 'wollaston', area: 'Rays and lenses', title: 'A calcite Wollaston prism: the two beams against wavelength',
+    kind: 'Paper: dispersion formula, exact refraction', ref: 'wollaston.json', script: 'wollaston.py',
+    cite: 'G. Ghosh, “Dispersion-equation coefficients for the refractive index and birefringence of calcite and quartz crystals”, Optics Communications 163, 95–102 (1999).',
+    what: 'A Wollaston prism of two calcite wedges, 10 mm across, cut at 15°, 30° and 45°, at six wavelengths from 400 to 1550 nm. The first wedge has its optic axis across the beam in the bench plane and the second out of it, so the light polarised in the plane is extraordinary in the first wedge and ordinary in the second, and s the other way round; square to each axis, each sees n_e or n_o exactly, from Ghosh’s dispersion formula. Snell’s law at the diagonal and again at the exit face gives each beam’s angle; the script works it with vectors, independently of JEKray. Light polarised at 45° goes in square to the first face, and the angle each beam leaves at and the split between them are compared. The thin-prism estimate, 2 arcsin((n_o − n_e) tan θ), is quoted for scale.',
+    tolerance: 'Each beam’s angle and the split within 0.0001°.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      const mk = (w, nm) => bench('Wollaston prism, calcite, ' + w + '° wedges, ' + nm + ' nm', [
+        { type: 'source', name: 'Light at 45°', x: -30, y: 0, angle: 0, wavelength: nm, width: 0, rays: 1, pol: 'linear', polAngle: 45 },
+        { type: 'crystal', name: 'Wollaston', x: 0, y: 0, angle: 0, shape: 'wollaston', crystal: 'calcite', size: 10, wedge: w },
+        { type: 'screen', name: 'Screen', x: 60, y: 0, angle: 180, length: 60 }], { minPower: 0.5 });
+      const split = {};
+      for (const r of R.rows) {
+        const d = mk(r.wedge_deg, r.nm); J.load(d);
+        const rays = J.rays(), last = pick => { const L = rays.filter(pick); if (!L.length) return NaN; const q = L.reduce((a, b) => b.points[b.points.length - 1][0] > a.points[a.points.length - 1][0] ? b : a); return q.angle; };
+        const ap = last(q => q.sShare !== null && q.sShare < 1e-6 && q.w > 0.01), as = last(q => q.sShare !== null && q.sShare > 1 - 1e-6 && q.w > 0.01);
+        const tag = r.wedge_deg + '° wedges, ' + r.nm + ' nm';
+        checks.push(check(tag + ': p beam leaves at', r.p_deg, ap, { abs: 1e-4 }, '°'));
+        checks.push(check(tag + ': s beam leaves at', r.s_deg, as, { abs: 1e-4 }, '°'));
+        checks.push(check(tag + ': split', r.split_deg, as - ap, { abs: 1e-4 }, '°'));
+        (split[r.wedge_deg] = split[r.wedge_deg] || []).push(as - ap);
+        if (r.nm === 632.8) benches.push([r.wedge_deg + '° wedges, 632.8 nm', d]);
+        await idle();
+      }
+      const W = [...new Set(R.rows.map(r => r.wedge_deg))], cols = [REF_C, '#6a3d9a', '#2e7d32'];
+      plots.push(plot({ title: 'Split between the beams of a calcite Wollaston prism', xlabel: 'wavelength (nm)', ylabel: 'split (°)',
+        series: [...W.map((w, i) => ({ name: 'Ghosh’s indices, ' + w + '°', x: R.rows.filter(r => r.wedge_deg === w).map(r => r.nm), y: R.rows.filter(r => r.wedge_deg === w).map(r => r.split_deg), colour: cols[i], width: 2.4 })),
+          ...W.map(w => ({ name: 'JEKray, ' + w + '°', x: R.rows.filter(r => r.wedge_deg === w).map(r => r.nm), y: split[w], colour: GOT_C, dots: true }))] }));
+      return { checks, benches, plots, notes: 'Angles are anticlockwise from the incoming beam, with the diagonal running from the lower corner of the entrance face to the upper corner of the exit face, as JEKray cuts its Wollaston prism. JEKray takes calcite’s indices from the same paper, so what this case tests is the birefringent trace: which polarisation sees which index in each wedge, and the refraction at the diagonal and the exit face. At 45° the thin-prism estimate is ' + fmt(R.rows.find(r => r.wedge_deg === 45 && r.nm === 632.8).thin_deg, 5) + '° at 632.8 nm against the exact ' + fmt(R.rows.find(r => r.wedge_deg === 45 && r.nm === 632.8).split_deg, 5) + '°.' };
+    },
+  },
+  {
+    id: 'tir-rhomb', area: 'Rays and lenses', title: 'Total internal reflection’s phase, and Fresnel’s rhomb',
+    kind: 'Textbook closed form', ref: 'tir-rhomb.json', script: 'tir_rhomb.py',
+    cite: 'M. Born and E. Wolf, Principles of Optics (7th ed., 1999), §1.5.4 (total reflection, and Fresnel’s rhomb).',
+    what: 'Light inside N-BK7 meeting its face beyond the critical angle (41.25° at 587.6 nm) is reflected whole, s and p alike, each with its own phase; the phase between them is tan(δ/2) = cos θ √(sin²θ − 1/n²) / sin²θ, largest (46.4°) at 51.1°. One reflection at 42° to 85°: a glass triangle, the light square to its first face, reflected inside at θ and leaving square to the third, so only the reflection changes the polarisation. Light polarised at 45° leaves elliptical, its degree of circular polarisation |S₃|/S₀ = sin δ, from which δ is read. Then Fresnel’s rhomb, a parallelogram of N-BK7 cut at 55.22°, where δ = 45°: two reflections give 90°, and light at 45° leaves circular. Against wavelength the rhomb’s δ drifts as the index does, from 91.3° at 400 nm to 89.0° at 1064 nm, and the normalised Stokes parameters of the light leaving are compared: S₁ = 0, |S₂| = |cos 2δ| and |S₃| = |sin 2δ|.',
+    tolerance: 'One reflection’s δ within 0.01°, with s and p reflected whole (their power ratio 1 within 10⁻⁹); the rhomb’s S₁, |S₂| and |S₃| within 10⁻⁴.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [], rad = Math.PI / 180;
+      const stokes = name => { const H = J.hitsOn(name); if (H.length !== 1) return null; const q = H[0], ss = q.sr * q.sr + q.si * q.si, pp = q.pr * q.pr + q.pi * q.pi;
+        return { S0: ss + pp, S1: (pp - ss) / (ss + pp), S2: 2 * (q.sr * q.pr + q.si * q.pi) / (ss + pp), S3: 2 * (q.sr * q.pi - q.si * q.pr) / (ss + pp), ratio: pp / ss }; };
+      const centre = V => [V.reduce((t, p) => t + p[0], 0) / V.length, V.reduce((t, p) => t + p[1], 0) / V.length];
+      // one reflection: the face through the origin at theta to the light, entrance square to it 10 mm before, exit square to the reflected light 10 mm after
+      const single = (th, nm) => {
+        const t = th * rad, a = 10, b = 10, ct = Math.cos(t) / Math.sin(t), d2 = [-Math.cos(2 * t), Math.sin(2 * t)];
+        const V = [[-a, -a * ct], [b, b * ct], [-a, (b - a * Math.cos(2 * t)) / Math.sin(2 * t)]], [cx, cy] = centre(V);
+        return bench('Total internal reflection in N-BK7 at ' + th + '°, ' + nm + ' nm', [
+          { type: 'source', name: 'Light at 45°', x: -30, y: 0, angle: 0, wavelength: nm, width: 0, rays: 1, pol: 'linear', polAngle: 45 },
+          { type: 'prism', name: 'N-BK7 triangle', x: +cx.toFixed(9), y: +cy.toFixed(9), angle: 0, shape: 'polygon', verts: V.map(p => [+(p[0] - cx).toFixed(9), +(p[1] - cy).toFixed(9)]), material: { glass: 'N-BK7' } },
+          { type: 'screen', name: 'Screen', x: +(40 * d2[0]).toFixed(9), y: +(40 * d2[1]).toFixed(9), angle: Math.atan2(-d2[1], -d2[0]) / rad, length: 10 }], { minPower: 0.5 });
+      };
+      const got = [];
+      for (const r of R.single) {
+        const d = single(r.theta_deg, R.nm); J.load(d); J.trace(); const S = stokes('Screen');
+        const dl = S ? Math.asin(Math.min(1, Math.abs(S.S3))) / rad : NaN; got.push(dl);
+        checks.push(check('One reflection at ' + r.theta_deg + '°: phase between s and p', r.delta_deg, dl, { abs: 0.01 }, '°'));
+        checks.push(check('One reflection at ' + r.theta_deg + '°: p power over s power', 1, S ? S.ratio : NaN, { abs: 1e-9 }));
+        if (r.theta_deg === 50) benches.push(['One reflection at 50°', d]);
+        await idle();
+      }
+      plots.push(plot({ title: 'Phase between s and p on total reflection in N-BK7, 587.6 nm', xlabel: 'angle of incidence inside the glass (°)', ylabel: 'δ (°)', yMin: 0,
+        series: [{ name: 'Born and Wolf §1.5.4', x: R.single.map(r => r.theta_deg), y: R.single.map(r => r.delta_deg), colour: REF_C, width: 2.4 }, { name: 'JEKray', x: R.single.map(r => r.theta_deg), y: got, colour: GOT_C, dots: true }] }));
+      // the rhomb: long faces 10 mm apart, cut at theta; built with its faces level, then turned so the light inside meets them at theta
+      const th = R.rhomb_angle_deg * rad, H = 10, tn = Math.tan(th), ctn = 1 / tn, phi = -(Math.PI / 2 - th), co = Math.cos(phi), si = Math.sin(phi);
+      const turn = ([x, y]) => [x * co - (y - H / 2) * si, x * si + (y - H / 2) * co];      // the entry point (0, H/2) to the origin
+      const V = [[-H / 2 * ctn, H], [H / 2 * ctn, 0], [2 * H * tn + H / 2 * ctn, 0], [2 * H * tn - H / 2 * ctn, H]].map(turn), [cx, cy] = centre(V), [ex, ey] = turn([2 * H * tn, H / 2]);
+      const rhomb = nm => bench('Fresnel’s rhomb, N-BK7 cut at ' + fmt(R.rhomb_angle_deg, 6) + '°, ' + nm + ' nm', [
+        { type: 'source', name: 'Light at 45°', x: -30, y: 0, angle: 0, wavelength: nm, width: 0, rays: 1, pol: 'linear', polAngle: 45 },
+        { type: 'prism', name: 'Fresnel rhomb', x: +cx.toFixed(9), y: +cy.toFixed(9), angle: 0, shape: 'polygon', verts: V.map(p => [+(p[0] - cx).toFixed(9), +(p[1] - cy).toFixed(9)]), material: { glass: 'N-BK7' } },
+        { type: 'screen', name: 'Screen', x: +(ex + 30).toFixed(9), y: +ey.toFixed(9), angle: 180, length: 10 }], { minPower: 0.5 });
+      for (const r of R.rhomb) {
+        const d = rhomb(r.nm); J.load(d); J.trace(); const S = stokes('Screen'), tag = 'Rhomb at ' + r.nm + ' nm (δ ' + fmt(r.delta_total_deg, 5) + '°)';
+        checks.push(check(tag + ': S₁', 0, S ? S.S1 : NaN, { abs: 1e-4 }));
+        checks.push(check(tag + ': |S₂|', r.S2_abs, S ? Math.abs(S.S2) : NaN, { abs: 1e-4 }));
+        checks.push(check(tag + ': |S₃|', r.S3_abs, S ? Math.abs(S.S3) : NaN, { abs: 1e-4 }));
+        if (Math.abs(r.nm - 587.5618) < 1e-3) benches.push(['Fresnel’s rhomb, 587.6 nm', d]);
+      }
+      return { checks, benches, plots, notes: 'The faces the light crosses are bare and met square on, where s and p are passed alike, so they change the power but not the polarisation. What is compared does not depend on how p is counted after a reflection (that turns S₂ and S₃ over, not their size). The other angle where δ = 45° is ' + fmt(R.other_45_deg, 5) + '°; Fresnel’s rhomb uses the larger, where δ changes more slowly with the index.' };
+    },
+  },
+  {
     id: 'rb-absorption', area: 'Atoms', title: 'Absorption spectra of natural rubidium',
     kind: 'Independent code', ref: 'rb-elecsus.json', script: 'rb_elecsus.py',
     cite: 'ElecSus: M. A. Zentile et al., Computer Physics Communications 189, 162 (2015), whose model was tested against measured absolute absorption in P. Siddons et al., J. Phys. B 41, 155004 (2008).',

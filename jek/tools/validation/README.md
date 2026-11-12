@@ -30,6 +30,11 @@ scripts that made them. The page itself runs JEKray live against these files.
 | `ref/rigrod.json` | `scripts/rigrod.py` | Rigrod, J. Appl. Phys. 36, 2487 (1965): a laser's output against its output coupling, checked by integrating the two saturating waves |
 | `ref/pdh-black.json` | `scripts/pdh_black.py` | Black, Am. J. Phys. 69, 79 (2001): the Pound-Drever-Hall reflected power and beats, every sideband order |
 | `ref/photonic-circuits.json` | `scripts/photonic_circuits.py` | Closed forms for rings (Bogaerts et al. 2012; Yariv 2000), a Mach-Zehnder and a directional coupler; two small circuits solved by SAX 0.18.2 (github.com/flaport/sax) |
+| `ref/corrugated-horn.json` | `scripts/corrugated_horn.py` | Wylde, IEE Proc. H 131, 258 (1984), and Goldsmith, Quasioptical Systems (1998), ch. 6–7: the HE11 field's fundamental Gaussian, a corrugated receiver's coupling and the far field, by quadrature |
+| `ref/gaussian-coupling.json` | `scripts/gaussian_coupling.py` | Goldsmith, Quasioptical Systems (1998), ch. 4: two Gaussian horns' coupling against separation, waist mismatch, offset and tilt |
+| `ref/fibre-ring-coherence.json` | `scripts/fibre_ring_coherence.py` | A fibre ring's through power (Yariv, Electron. Lett. 36, 321 (2000)); a fibre Mach-Zehnder's visibility against a Lorentzian or Gaussian laser line (Goodman, Statistical Optics (1985), ch. 5) |
+| `ref/aom-heterodyne.json` | `scripts/aom_heterodyne.py` | An AOM's Bragg angle, its shift seen as a heterodyne beat (single and double pass), and its sin² efficiency against drive |
+| `ref/detection-electronics.json` | `scripts/detection_electronics.py` | Shot (Schottky 1918), Johnson (Johnson; Nyquist 1928) and amplifier noise over a single pole's noise bandwidth; Butterworth filters (scipy.signal); a lock-in's ENBW, noise and phase |
 
 ## Making them again
 
@@ -65,6 +70,11 @@ numpy instead.
     ELECSUS=/path/to/ElecSus python scripts/faraday_elecsus.py
     ELECSUS=/path/to/ElecSus python scripts/davll_elecsus.py
     python scripts/sat_abs.py
+    python scripts/corrugated_horn.py
+    python scripts/gaussian_coupling.py
+    python scripts/fibre_ring_coherence.py
+    python scripts/aom_heterodyne.py
+    python scripts/detection_electronics.py
 
 ## Rules
 

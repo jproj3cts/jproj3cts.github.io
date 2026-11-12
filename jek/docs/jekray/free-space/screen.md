@@ -3,7 +3,7 @@ layout: docs
 title: Screen
 permalink: /jek/docs/jekray/free-space/screen/
 redirect_from: /jek/docs/jekray2d/free-space/screen/
-description: The JEKray screen, which records the rays and the field arriving on its face, and reads out spots, profiles, the PSF and MTF, aberrations, pulses and optical traps.
+description: The JEKray screen, which records the rays and the field arriving on its face, and reads out spots, profiles, the PSF and MTF, aberrations, pulses, optical traps and the light a particle scatters.
 element: { palette: Free space, type: screen }
 ---
 
@@ -85,6 +85,10 @@ $$
 
 From the brightest point, Newton's method on the force finds where it is zero. The stiffness there gives the trap frequencies each way. The tab also gives the depth (in kelvin, and in units of $$kT$$), the scattering rate and recoil heating, and for a sphere the damping by the gas around it.
 
+### Scattering
+
+The **Scattering** tab gives the light the screen's particle scatters: a sphere by Lorenz–Mie theory, a rod or spheroid as an array of dipoles. The particle is the Trap tab's sphere, with a shape of its own. See [Scattering by a particle](/jek/docs/jekray/free-space/scattering/).
+
 ## Phosphor screen
 
 **Phosphor** in the picker (beside Screen) is a screen whose face glows where the light lands and keeps glowing after the light has moved on, so a beam swept across it, by a sweep or by dragging a part, leaves a fading trail. It records the light and gives every readout an ordinary screen does.
@@ -118,3 +122,4 @@ The glow is drawn, not measured: it is the same however strong the light, and it
 
 - [Source](/jek/docs/jekray/free-space/source/), for what launches the light.
 - [Photodetector](/jek/docs/jekray/free-space/detector/), for an electrical signal from the light.
+- [Scattering by a particle](/jek/docs/jekray/free-space/scattering/), for the Scattering tab's models.

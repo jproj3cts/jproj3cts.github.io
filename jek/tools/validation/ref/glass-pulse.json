@@ -1,0 +1,60 @@
+{
+ "source": "Sellmeier GDD and TOD (fused silica: Malitson 1965; N-SF10: Schott) and the duration of a Gaussian pulse after the glass, by Fourier transform with the whole spectral phase",
+ "cases": [
+  {
+   "glass": "N-SF10",
+   "L_mm": 10.0,
+   "nm": 800.0,
+   "tau0_fs": 20.0,
+   "n": 1.711297333147729,
+   "GDD_fs2": 1565.2371525195324,
+   "TOD_fs3": 1025.2188076265156,
+   "tau_fs": 217.7238287450674,
+   "tau_gdd_only_fs": 217.90770470517833
+  },
+  {
+   "glass": "N-SF10",
+   "L_mm": 25.0,
+   "nm": 800.0,
+   "tau0_fs": 50.0,
+   "n": 1.711297333147729,
+   "GDD_fs2": 3913.092866908604,
+   "TOD_fs3": 2563.0570235080086,
+   "tau_fs": 222.65395744197906,
+   "tau_gdd_only_fs": 222.67412832114607
+  },
+  {
+   "glass": "Fused silica",
+   "L_mm": 25.0,
+   "nm": 800.0,
+   "tau0_fs": 30.0,
+   "n": 1.4533172548587419,
+   "GDD_fs2": 904.049992742431,
+   "TOD_fs3": 687.4470273032784,
+   "tau_fs": 88.73545433722461,
+   "tau_gdd_only_fs": 88.77460278165807
+  },
+  {
+   "glass": "Fused silica",
+   "L_mm": 50.0,
+   "nm": 1030.0,
+   "tau0_fs": 40.0,
+   "n": 1.4500438058602083,
+   "GDD_fs2": 948.6289175886972,
+   "TOD_fs3": 2057.336132565979,
+   "tau_fs": 76.76369119114186,
+   "tau_gdd_only_fs": 76.96480630541046
+  },
+  {
+   "glass": "Fused silica",
+   "L_mm": 5.0,
+   "nm": 800.0,
+   "tau0_fs": 10.0,
+   "n": 1.4533172548587419,
+   "GDD_fs2": 180.80999295004102,
+   "TOD_fs3": 137.48706351179862,
+   "tau_fs": 50.94497383642456,
+   "tau_gdd_only_fs": 51.11882901657409
+  }
+ ]
+}

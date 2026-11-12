@@ -59,9 +59,9 @@ test('41K: field-free saturation is the Zeeman model at B -> 0, line by line', (
   }
 });
 
-test('41K ground state: Breit-Rabi in a field, and a dipole trap’s polarisability like 39K’s', () => {
-  // the model's ground-state g_J is the free electron's (it takes g_L, g_S as they are)
-  const dE = 2 * ATOM_ISO.K41.Ag, gJ = 2.00231930436, gI = -0.00007790600, I = 1.5;
+test('41K, 87Rb and Cs ground states: Breit-Rabi in a field (measured g_J), and a dipole trap’s polarisability like 39K’s', () => {
+  // the model's ground-state g_J is the measured one (Tiecke's, as for 39K), not the free electron's
+  const dE = 2 * ATOM_ISO.K41.Ag, gJ = 2.00229421, gI = -0.00007790600, I = 1.5;
   near(dE, 254.0138704, 1e-6, 'hyperfine splitting, MHz');
   for (const B of [0, 30, 300, 3000]) {
     const x = (gJ - gI) * MU_B * B / dE;
@@ -71,6 +71,20 @@ test('41K ground state: Breit-Rabi in a field, and a dipole trap’s polarisabil
       const want = Math.abs(Math.abs(m) - (I + 0.5)) < 1e-9 ? [base + dE / 2 * (1 + Math.sign(m) * x)]
         : [-1, 1].map(pm => base + pm * dE / 2 * Math.sqrt(1 + 4 * m * x / (2 * I + 1) + x * x));
       assert.ok(want.some(v => Math.abs(v - st.E) < 1e-6 * (1 + Math.abs(v))), 'B ' + B + ' mF ' + m + ': ' + st.E + ' vs ' + want);
+    }
+  }
+  // Rb 87 and Cs with Steck's measured g_J: every level within 1 kHz of Breit-Rabi up to 3000 G
+  // (with the free electron's g_S caesium's were 0.46 MHz off at 3000 G)
+  for (const [iso, A, gJs, gIs, Is] of [['Rb87', 3417.341305452145, 2.00233113, -0.0009951414, 1.5], ['Cs133', 2298.1579425, 2.00254032, -0.00039885395, 3.5]]) {
+    const dEs = A * (Is + 0.5);
+    for (const B of [300, 3000]) {
+      const x = (gJs - gIs) * MU_B * B / dEs;
+      for (const st of zeemanStates(iso, 'S', B)) {
+        const m = st.mF, base = -dEs / (2 * (2 * Is + 1)) + gIs * MU_B * m * B;
+        const want = Math.abs(Math.abs(m) - (Is + 0.5)) < 1e-9 ? [base + dEs / 2 * (1 + Math.sign(m) * x)]
+          : [-1, 1].map(pm => base + pm * dEs / 2 * Math.sqrt(1 + 4 * m * x / (2 * Is + 1) + x * x));
+        assert.ok(want.some(v => Math.abs(v - st.E) < 1e-3), iso + ' B ' + B + ' mF ' + m + ': ' + st.E + ' vs ' + want);
+      }
     }
   }
   const [r41] = trapAlpha('K41', 1064, 'avg'), [r39] = trapAlpha('K39', 1064, 'avg');

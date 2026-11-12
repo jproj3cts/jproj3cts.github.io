@@ -41,6 +41,12 @@ scripts that made them. The page itself runs JEKray live against these files.
 | `ref/fibre-ring-coherence.json` | `scripts/fibre_ring_coherence.py` | A fibre ring's through power (Yariv, Electron. Lett. 36, 321 (2000)); a fibre Mach-Zehnder's visibility against a Lorentzian or Gaussian laser line (Goodman, Statistical Optics (1985), ch. 5) |
 | `ref/aom-heterodyne.json` | `scripts/aom_heterodyne.py` | An AOM's Bragg angle, its shift seen as a heterodyne beat (single and double pass), and its sin² efficiency against drive |
 | `ref/detection-electronics.json` | `scripts/detection_electronics.py` | Shot (Schottky 1918), Johnson (Johnson; Nyquist 1928) and amplifier noise over a single pole's noise bandwidth; Butterworth filters (scipy.signal); a lock-in's ENBW, noise and phase |
+| `ref/breit-rabi.json` | `scripts/breit_rabi.py` | Breit & Rabi, Phys. Rev. 38, 2082 (1931): the ground-state levels of 87Rb and Cs in a field, with Steck's constants; the clock shifts checked against Steck's 575.15 and 427.45 Hz/G² |
+| `ref/lattice.json` | `scripts/lattice.py` | Grimm et al. (2000), the standing-wave trap: a retro-reflected 1064 nm beam's depth and trap frequencies for 87Rb, with Safronova et al.'s polarisability |
+| `ref/prism-pair.json` | `scripts/prism_pair.py` | Fork, Martinez & Gordon, Opt. Lett. 9, 150 (1984): a Brewster pair of N-SF10 prisms by exact ray trace, GDD and TOD against separation, and their closed form for the slope |
+| `ref/glass-pulse.json` | `scripts/glass_pulse.py` | Sellmeier GDD and TOD (Malitson 1965; Schott N-SF10) and a Gaussian pulse's duration after the glass, by Fourier transform |
+| `ref/ppln-tuning.json` | `scripts/ppln_tuning.py` | Gayer et al., Appl. Phys. B 91, 343 (2008) and Boyd & Kleinman (1968): the temperature tuning curve of SHG in 20 mm of MgO:PPLN |
+| `ref/cavity-basics.json` | `scripts/cavity_basics.py` | The Airy sum of round trips (Born & Wolf §7.6): free spectral range (group path), finesse, linewidth and build-up of two linear cavities and a ring |
 
 ## Making them again
 
@@ -87,6 +93,12 @@ numpy instead.
     python scripts/fibre_ring_coherence.py
     python scripts/aom_heterodyne.py
     python scripts/detection_electronics.py
+    python scripts/breit_rabi.py
+    python scripts/lattice.py
+    python scripts/prism_pair.py
+    python scripts/glass_pulse.py
+    python scripts/ppln_tuning.py
+    python scripts/cavity_basics.py
 
 ## Rules
 

@@ -8351,7 +8351,7 @@ const TESTS = [
   },
   {
     name: 'A journal figure’s names: all one size, none on another or on a part, none cut at the edge, the ports’ names left out',
-    why: 'the fibre Michelson with long names, some scaled up and some down and dragged onto their neighbours on the bench, and four free-space parts 9 mm apart: on the figure every name is Helvetica at 8 pt (a name’s own scale is the screen’s business), no two names’ boxes overlap, each lies inside the page, and no port is named (in, out, 1, 2) unless Port names is set to Shown (1 when all hold)',
+    why: 'the fibre Michelson with long names, some scaled up and some down and dragged onto their neighbours on the bench, and four free-space parts 9 mm apart: on the figure every name is Helvetica at the same 8 pt (a name’s own scale is the screen’s business), no two names’ boxes overlap, each lies inside the page, and no port is named (in, out, 1, 2) unless Port names is set to Shown (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const W = rigWin(), D = rigDoc();
@@ -8370,7 +8370,7 @@ const TESTS = [
         const pw = parseFloat(root.getAttribute('width')), ph = parseFloat(root.getAttribute('height'));
         const cx = D.createElement('canvas').getContext('2d'); cx.font = '8px Helvetica, Arial, sans-serif';
         const texts = [...doc.querySelectorAll('text')], named = texts.filter(t => all.includes(t.textContent));
-        const one = named.length === all.length && named.every(t => Math.abs(parseFloat(t.getAttribute('font-size')) - 8) < 0.05);
+        const sizes = named.map(t => parseFloat(t.getAttribute('font-size'))), one = named.length === all.length && sizes.every(v => Math.abs(v - sizes[0]) < 1e-6 && Math.abs(v - 8) < 0.25);   // 8 pt to the 3% the figure's scale is settled to
         const boxes = named.map(t => { const w = cx.measureText(t.textContent).width, x = parseFloat(t.getAttribute('x')), y = parseFloat(t.getAttribute('y')), a = t.getAttribute('text-anchor'); const l = a === 'middle' ? x - w / 2 : a === 'end' ? x - w : x; return { x: l, y: y - 6.2, w, h: 8 }; });
         let apart = true; for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) { const a = boxes[i], b = boxes[j]; if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) apart = false; }
         const inside = boxes.every(b => b.x >= -0.5 && b.x + b.w <= pw + 0.5 && b.y >= -0.5 && b.y + b.h <= ph + 0.5);

@@ -22,6 +22,8 @@ import { sagInPlane } from '../core/sag.js';
    The light runs left to right, as on the element data: a radius is positive with its centre to the right.
    ========================================================================== */
 const DRAW_LAMBDA = 632.8e-6, DRAW_ARCMIN = 180 * 60 / Math.PI;
+/* a part-wide make setting where the part gives one, else the tolerance settings' (or null) */
+const MK0 = (opts, k, t) => (opts.make && opts.make.from[k] !== 'tol' ? opts.make[k] : t);
 
 export const drawSag = sagInPlane;      // the section drawn is in the plane of the fields (core/sag.js)
 const vdOf = m => { const nd = refIndex(m, 587.56), nF = refIndex(m, 486.13), nC = refIndex(m, 656.27); return nF !== nC ? (nd - 1) / (nF - nC) : Infinity; };
@@ -32,17 +34,22 @@ export function rfDrawableParts(P) { return P.parts.map((p, pi) => p.kind === 'l
 export function drawableParts(P) { return P.parts.map((p, pi) => p.kind === 'lens' || p.kind === 'window' ? pi : -1).filter(pi => pi >= 0); }
 
 /* the drawing's content for part pi of P: opts { name, dia (its full diameter, mm), T (the tolerance
-   settings, or none) } */
+   settings, or none), make (core/part-make.js partMakeOf, its faces in the order drawn: finish, form, scratch-dig,
+   chamfer and the part's tolerances, which take the place of T's where given), coats (each face's coating as the
+   drawing names it, in the order drawn) } */
 export function drawingData(P, pi, opts) {
   opts = opts || {};
   const sps = surfaceParts(P), k0 = sps.findIndex(s => s.pi === pi), part = P.parts[pi], n = part.n, T = opts.T || null;
   const S = P.surfaces.slice(k0, k0 + n), G = P.gaps.slice(k0, k0 + n - 1), M = P.materials.slice(k0, k0 + n - 1);
   const dia = opts.dia > 0 ? opts.dia : 2 * Math.max(...S.map(s => s.semi || 0)), rim = dia / 2;
   const on = k => T && T[k] && T[k].on && T[k].v > 0 ? T[k].v : null;
-  const fr = on('rad'), thk = on('thk'), dec = on('dec'), tilt = on('tilt'), dn = on('ind'), dv = on('abbe'), irr = on('irr');
+  const frT = on('rad'), thk = MK0(opts, 'ctTol', on('thk')), dec = on('dec'), tilt = on('tilt'), dn = on('ind'), dv = on('abbe'), irrT = on('irr');
+  const MK = opts.make || null;
   const surfaces = S.map((s, j) => {
-    const h = isFinite(s.semi) && s.semi > 0 ? s.semi : rim, R = s.R;
-    const c = s.coat || s.mcoat, coat = c && c.mode === 'mirror' ? (c.metal && c.metal !== 'ideal' ? 'Mirror (' + c.metal + ')' : 'Mirror') : '';
+    const h = isFinite(s.semi) && s.semi > 0 ? s.semi : rim, R = s.R, fm = MK && MK.faces[j];
+    const c = s.coat || s.mcoat, coat = opts.coats && opts.coats[j] ? opts.coats[j] : c && c.mode === 'mirror' ? (c.metal && c.metal !== 'ideal' ? 'Mirror (' + c.metal + ')' : 'Mirror') : '';
+    // what the face is made to, where the part says: a fine-ground face has no form or surface quality asked of it
+    const ground = fm && fm.finish === 'ground', fr = fm ? (ground ? null : fm.form) : frT, irr = fm ? (ground ? null : fm.irr) : irrT;
     const out = { n: k0 + j + 1, R, k: s.k || 0, A: (s.A || []).filter(a => a), a2: s.a2 || 0, odd: s.odd && s.odd.some(a => a) ? s.odd.slice() : null, clear: 2 * h, hole: 2 * (s.hole || s.obs || 0), coat,
       sagClear: drawSag(s, h), sagRim: drawSag(s, rim) };
     // convex or concave as the glass sees it: a front face (glass after it) convex with its centre behind it
@@ -57,7 +64,9 @@ export function drawingData(P, pi, opts) {
     if (irr !== null) out.irr = irr;
     // the aspheric terms' sag at the clear radius, beyond the conic
     if (out.A.length) { let d = 0, p = h * h * h * h; for (const a of s.A || []) { d += a * p; p *= h * h; } out.asphDep = d; }
-    if (tilt !== null || dec !== null) out.centring = (tilt || 0) + (dec && R ? dec / Math.abs(R) * DRAW_ARCMIN : 0);
+    if (MK && MK.from.cent !== 'tol') out.centring = MK.cent;                     // the part's own, or the commercial grade
+    else if (tilt !== null || dec !== null) out.centring = (tilt || 0) + (dec && R ? dec / Math.abs(R) * DRAW_ARCMIN : 0);
+    if (fm) { out.finish = fm.finish; out.sd = ground ? null : fm.sd; out.chamfer = fm.chamfer; }
     return out;
   });
   const elements = [];
@@ -97,7 +106,8 @@ export function drawingData(P, pi, opts) {
   });
   surfaces.forEach(s => { if (!isFinite(s.sagRim)) notes.push('Surface ' + s.n + ' does not reach the lens’s full diameter: its sphere is smaller.'); });
   elements.forEach(e => { if (!e.air && !e.stack && isFinite(e.et) && e.et < 0.5) notes.push('The glass after surface ' + surfaces[e.from].n + ' is ' + (e.et <= 0 ? 'nothing' : 'only ' + (+e.et.toFixed(3)) + ' mm') + ' thick at its edge.'); });
-  return { name: opts.name || 'Lens', kind: part.kind, dia, surfaces, elements, stacks, length: G.reduce((a, b) => a + b, 0), toleranced: !!T && [fr, thk, dec, tilt, dn, dv, irr].some(v => v !== null), notes };
+  return { name: opts.name || 'Lens', kind: part.kind, dia, diaTol: MK ? MK.diaTol : null, qty: MK ? MK.qty : null, made: !!MK, surfaces, elements, stacks, length: G.reduce((a, b) => a + b, 0),
+    toleranced: !!MK || (!!T && [frT, thk, dec, tilt, dn, dv, irrT].some(v => v !== null)), notes };
 }
 
 /* An RF lens's drawing: the same sheet, with what an RF lens is made to in place of an optical shop's terms.

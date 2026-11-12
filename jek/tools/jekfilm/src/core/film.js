@@ -1,7 +1,7 @@
 import { coatPreset, qwot } from '../../../jekray/src/core/coatings.js';
-import { coatSpec, coatToStack } from '../../../jekray/src/core/coatdesign.js';
+import { coatAngles, coatCurve, coatSpec, coatToStack, coatWant } from '../../../jekray/src/core/coatdesign.js';
 import { METAL_NK } from '../../../jekray/src/core/metals.js';
-import { normTol } from './film-tol.js';
+import { normFilmTol } from './film-tol.js';
 import { normMake } from './film-make.js';
 
 /* ==========================================================================
@@ -70,7 +70,7 @@ export function normFilm(d) {
     R: fnum(s.R, 0, 100, 50), edge: fnum(s.edge, 100, 20000, design), passBelow: s.passBelow !== false };
   const layers = (Array.isArray(d.layers) ? d.layers : []).slice(0, 200).filter(L => L && typeof L === 'object')
     .map(L => ({ n: fnum(L.n, 1, 10, 1.38), d: fnum(L.d, 0, 1e6, 100), ...(METAL_NK[L.metal] ? { metal: L.metal } : {}) }));
-  return { format: FILM_FORMAT, version: FILM_VERSION, name: String(d.name || 'Untitled coating').slice(0, 120), spec, layers, tol: normTol(d.tol), make: normMake(d.make) };
+  return { format: FILM_FORMAT, version: FILM_VERSION, name: String(d.name || 'Untitled coating').slice(0, 120), spec, layers, tol: normFilmTol(d.tol), make: normMake(d.make) };
 }
 /* a new coating: a single MgF2 layer on N-BK7, anti-reflection over the visible */
 export function newFilm(name) {
@@ -106,3 +106,8 @@ export const dsSci = v => { const [m, e] = v.toExponential(2).split('e'); return
 export const dsFix = (v, dp) => (!isFinite(v) ? '—' : v === 0 || Math.abs(v) >= Math.pow(10, 1 - dp) ? v.toFixed(dp) : dsSci(v));
 /* the file's text */
 export const filmText = f => JSON.stringify(normFilm(f), null, 2);
+/* the curves drawn: square on and at the largest angle against wavelength, the target; s and p against the angle */
+export function filmCurves(f) {
+  const spec = filmSpec(f), c0 = coatCurve(f.layers, spec, spec.theta0), ct = spec.theta > spec.theta0 ? coatCurve(f.layers, spec, spec.theta) : null, A = coatAngles(f.layers, spec);
+  return { spec, nms: c0.nms, R0: c0.R, Rt: ct ? ct.R : null, want: c0.nms.map(nm => coatWant(spec, nm)), A };
+}

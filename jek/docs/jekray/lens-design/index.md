@@ -269,11 +269,44 @@ The **Drawings** tab gives each lens and window a drawing on an A4 sheet in the 
 | Clear aperture | the surface's clear diameter |
 | Conic, Aspheric, Aspheric departure | where the surface has them; the terms in the notes |
 | 3/ Surface form | $$3/A(B)$$: $$A$$ fringes of power, $$B$$ of irregularity, "-" where not set |
-| 4/ Centring | the surface's tilt in arcminutes: the lens tilt tolerance plus the decentre tolerance over its radius |
+| 4/ Centring | the surface's tilt in arcminutes: the lens tilt tolerance plus the decentre tolerance over its radius, or the part's own centring |
+| Finish | polished, or fine ground (a fine-ground face has no surface form or scratch-dig) |
+| Coating | the face's coating by name; a [JEKfilm](/jek/docs/jekray/jekfilm/) coating is marked \* and its requirements are written in the notes, in the manner of ISO 10110-9 |
+| Scratch-dig | surface quality to MIL-PRF-13830B, as scratch number and dig number (60-40) |
+| Chamfer | the widest protective chamfer at the face's edge, at 45° |
 | Material, Index nd, Abbe number Vd | the glass, with the index and Abbe number tolerances |
 | Centre and edge thickness | the glass's, the edge from the two sags at the full diameter |
 
 A glass under half a millimetre at its edge, or a sphere that does not reach the full diameter, is noted. A title block gives the lens, its assembly, the scale, the date and the bench. **Save as SVG**, **Save as PDF** and **All as one PDF** are vector: lines stay lines at any zoom.
+
+#### Make the part
+
+Under the drawing, **Make the part** sets what the lens or window is made to, and writes everything an optics maker needs to quote and make it.
+
+| setting | what it is | when not set |
+|---|---|---|
+| Quantity | how many to make | 10 |
+| Diameter tolerance | the diameter may be up to this much under, never over, so the part fits its mount (+0/−) | 0.1 mm |
+| Centre thickness tolerance | ± on each centre thickness | the tolerance settings' thickness, else 0.1 mm |
+| Centring 4/ | each surface's tilt to the part's axis, arcminutes | the tolerance settings' (each surface its own), else 3′ |
+| Finish | polished or fine ground, face by face | polished |
+| Power 3/A and irregularity (B) | surface form, fringes at 632.8 nm over the clear aperture | the tolerance settings', else 5 and 1 |
+| Scratch-dig | surface quality to MIL-PRF-13830B | 60-40 |
+| Chamfer | the widest protective chamfer, mm at 45° | 0.2 mm |
+
+A value not set is shown in grey and follows the design's tolerance settings where they give one, else the commercial grade in the last column. Type one to set it on the part, or clear it to follow them again. The settings are kept with the lens on the bench and saved in the .jekray file.
+
+To coat a face with a coating designed in [JEKfilm](/jek/docs/jekray/jekfilm/), choose it in the face's **Coating** list in the element data: the bench folder's JEKfilm coatings are listed with ◆, and **A JEKfilm coating from a file…** reads a .jekfilm from your computer. The face keeps the coating's layers and what it was designed to: its band, angles, limits and durability.
+
+**Make the part** downloads one zip of PDFs:
+
+| file | what it holds |
+|---|---|
+| *part* - drawing.pdf | the drawing, as above |
+| *part* - part specification.pdf | the order: the part and its quantity, its glass, diameter, thicknesses and centring with their tolerances, each face's radius, clear aperture, finish, surface form, scratch-dig, chamfer and coating, and the documents enclosed |
+| *part* - S*n* coating - *name*.pdf | each JEKfilm coating on it, the same two-page coating specification JEKfilm writes, with its tolerance run and yield |
+
+A face with a thin-film stack but no JEKfilm specification (one typed in by hand, or put on before faces kept their specification) is listed in the part specification as having none: put the coating on again from JEKfilm to include it. Making the part needs a free account, as the drawings do.
 
 **Checked against.** A biconvex lens's edge thickness by hand; CX and CC on biconvex, plano-concave and cemented lenses; the radius tolerance against the tolerancing's own change of radius for the same fringes.
 

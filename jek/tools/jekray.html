@@ -1694,6 +1694,18 @@
   .rt-lasp1 > td { border: 0; padding: 0; }
   .rt-ldraw .rt-lbar { margin: 0 0 0.6rem; flex-wrap: wrap; }
   .rt-lsheetwrap { overflow: auto; border: 1px solid var(--jek-line-2); background: var(--rt-surface); }
+  /* Make the part, under the drawing: the part's settings beside its faces' */
+  .rt-lmake { margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid var(--jek-line); }
+  .rt-lmake h3 { margin: 0 0 0.2rem; font-size: 0.95rem; }
+  .rt-lmake .rt-lnote { margin: 0.2rem 0 0.7rem; }
+  .rt-lmakegrid { display: grid; grid-template-columns: minmax(16rem, 22rem) 1fr; gap: 1rem; align-items: start; }
+  .rt-lmakegrid .rt-ltable { min-width: 0; }
+  .rt-lmakepart th { text-align: left; font-weight: 500; color: var(--jek-ink-soft); }
+  .rt-lmakepart td.unit { color: var(--jek-ink-soft); font-size: 0.8rem; }
+  .rt-lmakefaces { min-width: 34rem !important; }
+  .rt-lmake .rt-lfrom { color: var(--jek-ink-soft); font-style: italic; }
+  .rt-lmake .rt-lbar { margin-top: 0.8rem; }
+  @media (max-width: 900px) { .rt-lmakegrid { grid-template-columns: 1fr; } }
   .rt-lsheet { display: block; }
   .rt-ltable tr.obj td { color: var(--jek-ink-soft); }
   .rt-ltable tbody tr:not(.obj):hover { background: rgba(0,146,178,0.04); }
@@ -9696,6 +9708,8 @@ const PRISM = {
       material: normMat(e.material),
       coat: normCoat(e.coat),
       source: typeof e.source === 'string' ? e.source : undefined,
+      // a window's: what it is made to (core/part-make.js), its two faces
+      ...(e.shape === 'window' && e.make ? { make: normPartMake(e.make, 2) } : {}),
     });
   },
   zHalf: el => el.size / 2,
@@ -9705,7 +9719,7 @@ const PRISM = {
     angle: 'rotates the prism about its centre; check the result on the bench.',
     fields: { shape: 'one of the prism shapes below. The equilateral prism\'s apex points along +x at angle 0, so a beam along +x meets the apex; a pentaprism or Pellin–Broca prism takes light in along +x through its first face.', size: 'mm (a pentaprism\'s or Pellin–Broca\'s first face; ignored for a polygon).', thickness: 'mm (for a window).',
       verts: 'a polygon\'s corners, [[x, y], ...] in mm, 3 to 16, in order round it.', mirrored: 'the faces silvered, by index from the first corner\'s face (a pentaprism\'s two are by default).',
-      material: 'e.g. {"glass": "N-BK7"}.', coat: 'coating on its faces.' },
+      material: 'e.g. {"glass": "N-BK7"}.', coat: 'coating on its faces.', make: 'optional, a window only: what it is made to, as a lens\u2019s "make" (its two faces).' },
   },
 };
 /* Lens: A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylinder, axicon) in real glass. */
@@ -9803,6 +9817,7 @@ const LENS = {
       design: e.design > 0 ? +e.design : undefined,                      // the wavelength it was designed for, nm (from a lens file)
       mount: normMount(e.mount),                                         // a made-to-order RF lens's flange
       zoned: normZoned(e.zoned),                                         // a made-to-order RF lens cut in zones (core/rf.js lensZones)
+      make: normPartMake(e.make, surfaces.length),                        // what it is made to: finish, form, scratch-dig, chamfer, tolerances, quantity (core/part-make.js)
       // an asphere: its surfaces may have conics and aspheric terms; a plain lens's are spheres. A lens from
       // before the two were told apart is an asphere if any surface has them
       asphere: e.asphere === true || (e.asphere === undefined && surfaces.some(s => s.k || s.a2 || s.A.some(a => a) || s.F)) ? true : undefined,
@@ -9825,6 +9840,7 @@ const LENS = {
     cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.',
     design: 'optional: nm, the wavelength the lens was designed for (an imported lens file\u2019s primary wavelength); for the reader only, it changes nothing in the trace.',
     mount: 'optional, a made-to-order RF lens only: {"kind": "flange", "width": mm out from the rim, "thick": mm along the axis, "holes": bolt holes (0 to 12), "hole": their diameter, mm}, on the circle through the flange\u2019s middle. Outside the lens: not traced.',
+    make: 'optional: what the lens is made to, for its drawing and Make the part (each value optional; one not given follows the lens designer\u2019s tolerance settings, else a commercial grade): {"qty": quantity ordered, "diaTol": mm, the diameter\u2019s tolerance (+0/−diaTol), "ctTol": ± mm on each centre thickness, "cent": centring 4/, arcminutes, "faces": one per surface, each {"finish": "polished" | "ground", "form": fringes of power and "irr": fringes of irregularity at 632.8 nm (3/form(irr)), "sd": scratch-dig to MIL-PRF-13830B as "60-40", "chamfer": mm, the widest protective chamfer at 45°}}.',
     zoned: 'optional, a made-to-order RF lens of two faces only: {"ghz": its zone frequency} to have it cut in zones, whole layers a wave of path deep at that frequency taken out of its curved face where it is thick. The bench traces it as cut (a ray meeting a step\u2019s wall is lost); the RF designer, its weight and its quote take it as cut too.' },
   },
 };
@@ -10413,6 +10429,14 @@ function normCoat(c) {
     // the substrate the JEKfilm coating was designed on (its name and index at the design wavelength): the face's note
     // says so when this face's glass differs (ui/panels.js filmNote)
     if (c.sub && typeof c.sub === 'object' && isFinite(+c.sub.n) && +c.sub.n >= 1) out.sub = { name: String(c.sub.name || '').slice(0, 40), n: clamp(+c.sub.n, 1, 10) };
+    // what a JEKfilm coating was designed to (its spec, make limits and tolerance settings, not its layers: those are the
+    // face's own copy), so the part's drawing and Make the part give its coating specification; kept as given, bounded
+    if (c.film && typeof c.film === 'object' && !Array.isArray(c.film)) {
+      const keep = {};
+      for (const k of ['spec', 'make', 'tol']) if (c.film[k] && typeof c.film[k] === 'object') keep[k] = c.film[k];
+      const txt = JSON.stringify(keep);
+      if (txt.length > 2 && txt.length < 20000) out.film = JSON.parse(txt);
+    }
     // up to 200 layers, as JEKfilm allows (an edge filter or a broadband HR can need over a hundred)
     out.layers = (Array.isArray(c.layers) ? c.layers : []).slice(0, FACE_LAYERS_MAX).map(L => ({
       n: Math.max(1, num(L && L.n, 1.38)),
@@ -10845,6 +10869,58 @@ function mirrorAmps(R, back) {
 
 /* a face's power reflection square on (s and p alike there), as the RF designer and a graded disc count it */
 const faceRNormal = (n1, n2, nm, coat) => cabs2(faceAmps({ coat }, n1, n2, 1, nm).rs);
+/* ==========================================================================
+   What a lens or window is made to, beyond its prescription: the part's make settings (element field `make`), kept with
+   the part on the bench and written on its drawing and specification (ui/lens-drawing.js, ui/lens-make.js).
+     the part:  qty, the quantity ordered; diaTol, its diameter's tolerance (+0 / −diaTol mm, so it fits its mount);
+                ctTol, ± mm on each centre thickness; cent, centring (4/) in arcminutes, each surface's tilt to the axis
+     each face: finish, 'polished' or 'ground' (fine ground: no form or surface quality asked of it);
+                form and irr, surface form 3/A(B), fringes of power and of irregularity at 632.8 nm over the clear
+                aperture; sd, surface quality as scratch-dig to MIL-PRF-13830B ('60-40'); chamfer, the widest
+                protective chamfer at its edge, mm at 45°
+   A value not set follows the design's tolerance settings where they give one (asm.design.tol), else the commercial
+   grade below; only what was set is kept, so a part saved before this had no `make` and loads as it was.
+   ========================================================================== */
+const PART_FINISHES = { polished: 'Polished', ground: 'Fine ground' };
+const PART_MAKE_DEFAULT = { qty: 10, diaTol: 0.1, ctTol: 0.1, cent: 3, finish: 'polished', form: 5, irr: 1, sd: '60-40', chamfer: 0.2 };
+const PM_LIMITS = { qty: [1, 1e6], diaTol: [0, 10], ctTol: [0, 10], cent: [0, 600], form: [0, 100], irr: [0, 100], chamfer: [0, 10] };
+const pmNum = (v, k) => (v === null || v === undefined || v === '' || !isFinite(+v) ? undefined : Math.min(PM_LIMITS[k][1], Math.max(PM_LIMITS[k][0], k === 'qty' ? Math.round(+v) : +v)));
+/* scratch-dig as MIL-PRF-13830B writes it: the scratch number, a dash, the dig number (60-40, 20-10, 10-5) */
+const sdValid = v => typeof v === 'string' && /^\d{1,3}-\d{1,3}$/.test(v.trim());
+function normFaceMake(f) {
+  f = f && typeof f === 'object' ? f : {};
+  const out = {};
+  if (PART_FINISHES[f.finish]) out.finish = f.finish;
+  for (const k of ['form', 'irr', 'chamfer']) { const v = pmNum(f[k], k); if (v !== undefined) out[k] = v; }
+  if (sdValid(f.sd)) out.sd = f.sd.trim();
+  return out;
+}
+/* a part's make settings as kept: only what was set; faces one per surface (n of them); undefined when nothing is */
+function normPartMake(m, n) {
+  if (!m || typeof m !== 'object') return undefined;
+  const out = {};
+  for (const k of ['qty', 'diaTol', 'ctTol', 'cent']) { const v = pmNum(m[k], k); if (v !== undefined) out[k] = v; }
+  const faces = Array.from({ length: n }, (_, j) => normFaceMake(Array.isArray(m.faces) ? m.faces[j] : null));
+  if (faces.some(f => Object.keys(f).length)) out.faces = faces;
+  return Object.keys(out).length ? out : undefined;
+}
+/* the settings in force for a part of n surfaces: each value its own, else the tolerance settings' (T), else the
+   default; with where each came from ('set', 'tol', 'default') for the panel */
+function partMakeOf(make, n, T) {
+  const tolV = k => (T && T[k] && T[k].on && T[k].v > 0 ? T[k].v : undefined);
+  const m = make || {}, from = {}, pick = (key, own, tol) => { if (own !== undefined) { from[key] = 'set'; return own; } if (tol !== undefined) { from[key] = 'tol'; return tol; } from[key] = 'default'; return PART_MAKE_DEFAULT[key]; };
+  const tilt = tolV('tilt');
+  const out = { qty: pick('qty', m.qty), diaTol: pick('diaTol', m.diaTol), ctTol: pick('ctTol', m.ctTol, tolV('thk')), cent: pick('cent', m.cent, tilt), from };
+  out.faces = Array.from({ length: n }, (_, j) => {
+    const f = (m.faces && m.faces[j]) || {}, fr = {};
+    const fp = (key, own, tol) => { if (own !== undefined) { fr[key] = 'set'; return own; } if (tol !== undefined) { fr[key] = 'tol'; return tol; } fr[key] = 'default'; return PART_MAKE_DEFAULT[key]; };
+    const face = { finish: fp('finish', f.finish), form: fp('form', f.form, tolV('rad')), irr: fp('irr', f.irr, tolV('irr')), sd: fp('sd', f.sd), chamfer: fp('chamfer', f.chamfer), from: fr };
+    return face;
+  });
+  return out;
+}
+/* surface form as ISO 10110 writes it: 3/A(B) */
+const formText = f => '3/' + (+f.form.toFixed(2)) + '(' + (+f.irr.toFixed(2)) + ')';
 /* (Before the surface model had holes and stacks, a face carried a "mirror" zone; parts/lens.js converts one on load.)
    A lens face's centre and its mirroring. The face is split at radius r into its centre and its rim. Mirrored:
    "all" (the whole face), "in" (the centre, a spot: a solid telescope's secondary), "out" (the rim, an annulus:
@@ -30052,7 +30128,7 @@ function drawCellSpectrum(cv, el, span) {
    (jek-api FREE_LINKS): signed out they ask for an account; signed in the API says when they are used up (JEKray
    counts them on the badge, io/tasters.js). The tests, and a build without accounts, are not gated.
    ========================================================================== */
-const FREE_WORK = /optimise|search for designs|substitute glasses|tolerance a|design report|drawings|export a design|run scripts|export (data as|several kinds|everything)|save a coating file|coating specification/;
+const FREE_WORK = /optimise|search for designs|substitute glasses|tolerance a|design report|drawings|export a design|run scripts|export (data as|several kinds|everything)|save a coating file|coating specification|make the part/;
 const freeWork = what => FREE_WORK.test(String(what || ''));
 const shareWork = what => /share a link|QR code/.test(String(what || ''));
 /* why the work named is not open now, from the account's own reason (cloud.js proWhy: not signed in, or no plan): '' when it is */
@@ -31541,6 +31617,35 @@ const SH_SCALES = [[10, 1], [5, 1], [4, 1], [2, 1], [1, 1], [1, 2], [1, 5], [1, 
 const dfmt = (v, p) => !isFinite(v) ? '—' : String(+(+v).toFixed(p === undefined ? 3 : p));
 const sgn = v => (v < 0 ? '−' : '') + dfmt(Math.abs(v));
 
+/* a face's coating as the drawing names it: a JEKfilm coating or a named stack by its name, an AR by its reflectance,
+   a band coating by its label; '' for bare glass (a mirror is named by the drawing itself) */
+function faceCoatName(c) {
+  if (!c || c.mode === 'bare' || c.mode === 'mirror') return '';
+  if (c.mode === 'stack') return c.label || 'Thin-film stack, ' + c.layers.length + ' layers';
+  if (c.mode === 'ar') return 'AR, R ≤ ' + c.R + ' %';
+  if (c.mode === 'band') return c.label || 'Coated ' + c.lo + '–' + c.hi + ' nm';
+  return 'R ' + (c.R || 0) + ' %';
+}
+/* a face's JEKfilm coating as a coating document (normFilm), when the face keeps what it was designed to (coat.film) */
+function coatFilmDoc(c) {
+  if (!c || c.mode !== 'stack' || !c.film) return null;
+  return normFilm(Object.assign({}, c.film, { name: c.label || c.film.name, layers: c.layers }));
+}
+/* each drawn face of a part, in the order drawn: its index on the part (a part turned round is drawn as the light meets
+   it) and its coating */
+function drawnFaces(P, pi, e, pathed) {
+  if (e && e.type === 'prism') return [0, 1].map(j => ({ i: j, coat: e.coat }));
+  const n = P.parts[pi].n, k0 = surfaceParts(P).findIndex(s => s.pi === pi);
+  return Array.from({ length: n }, (_, j) => {
+    const sf = pathed ? null : P.surfaces[k0 + j], i = sf && sf.from && sf.from.i !== undefined ? sf.from.i : j;
+    return { i, coat: e && e.surfaces && e.surfaces[i] ? e.surfaces[i].coat : sf ? sf.coat : null };
+  });
+}
+/* the part's make settings in force, its faces in the order drawn */
+function drawnMake(P, pi, e, T, pathed) {
+  const faces = drawnFaces(P, pi, e, pathed), n = e && e.type === 'lens' ? e.surfaces.length : 2, M = partMakeOf(e && e.make, n, T);
+  return Object.assign({}, M, { faces: faces.map(f => M.faces[f.i] || M.faces[0]), order: faces.map(f => f.i) });
+}
 /* the drawing data of each drawable part of the assembly, in order */
 function lensDrawings(asm) {
   const P = designPrescription(asm), T = asm.design && asm.design.tol, rf = asm.kind === 'rf' && asm.rf;
@@ -31549,11 +31654,15 @@ function lensDrawings(asm) {
     if (asm.kind === 'rf' && asm.rf) return rfDrawingData(P, pi, Object.assign(o, { rf: asm.rf, tol: normRfTol(asm.rfTol), mount: e && e.mount, coats: e && e.surfaces ? e.surfaces.map(q => q.coat) : null, grin: e && e.grin, zoned: e && e.zoned }));
     // a lens the light is followed through (mirror coats, stacked surfaces): drawn as the part is, its surfaces in their
     // own order with its own gaps, not as the light meets them
-    if (e && e.type === 'lens' && e.surfaces && lensPathed(e)) {
-      const Pe = { surfaces: e.surfaces.map(q => Object.assign({}, q, { semi: q.semi || e.diameter / 2, hole: q.hole || 0 })), gaps: e.gaps.slice(), materials: e.materials.map(m => Object.assign({}, m)), parts: [{ id: e.id, kind: 'lens', n: e.surfaces.length }], stopIndex: -1 };
-      return drawingData(Pe, 0, o);
-    }
-    return drawingData(P, pi, o);
+    const pathed = !!(e && e.type === 'lens' && e.surfaces && lensPathed(e));
+    // what it is made to, and each face's coating (a JEKfilm coating with the note its drawing carries)
+    const faces = drawnFaces(P, pi, e, pathed), make = drawnMake(P, pi, e, T, pathed);
+    Object.assign(o, { make, coats: faces.map(f => faceCoatName(f.coat)) });
+    const D = pathed ? drawingData({ surfaces: e.surfaces.map(q => Object.assign({}, q, { semi: q.semi || e.diameter / 2, hole: q.hole || 0 })), gaps: e.gaps.slice(), materials: e.materials.map(m => Object.assign({}, m)), parts: [{ id: e.id, kind: 'lens', n: e.surfaces.length }], stopIndex: -1 }, 0, o)
+      : drawingData(P, pi, o);
+    D.id = e ? e.id : null; D.make = make;
+    D.films = faces.map((f, j) => { const doc = coatFilmDoc(f.coat); return doc ? { surface: D.surfaces[j].n, doc, note: drawingNote(doc, filmSpec(doc), doc.make) } : null; }).filter(Boolean);
+    return D;
   });
 }
 
@@ -31634,7 +31743,7 @@ function drawSheet(g, D, meta) {
   const xl = Math.min(...D.surfaces.map((s, j) => Math.min(X(j, r), X(j, 0)))) - 26;
   for (const y of [r, -r]) { g.beginPath(); g.moveTo(X(0, y) - 3, Y(y)); g.lineTo(xl - 5, Y(y)); g.stroke(); }
   arrowLine(g, xl, Y(r), xl, Y(-r));
-  g.save(); g.translate(xl - 5, cy); g.rotate(-Math.PI / 2); text(g, 'Ø ' + dfmt(D.dia), 0, 0, { align: 'center', size: 9 }); g.restore();
+  g.save(); g.translate(xl - 5, cy); g.rotate(-Math.PI / 2); text(g, 'Ø ' + dfmt(D.dia) + (D.diaTol ? ' +0/−' + dfmt(D.diaTol) : ''), 0, 0, { align: 'center', size: 9 }); g.restore();
   if (fl) {
     const xo = xl - 26, xf = cx + Math.min(...zs) * k;
     for (const y of [ro, -ro]) { g.beginPath(); g.moveTo(Math.min(xf, X(0, r)) - 3, Y(y)); g.lineTo(xo - 5, Y(y)); g.stroke(); }
@@ -31673,7 +31782,8 @@ function drawSheet(g, D, meta) {
   if (D.surfaces.some(s => s.dR !== undefined)) row('  tolerance', D.surfaces.map(s => s.dR === null || s.dR === undefined ? '—' : '± ' + dfmt(s.dR, 4)));
   row('Clear aperture Øe', D.surfaces.map(s => dfmt(s.clear)));
   if (D.surfaces.some(s => s.hole)) row('Hole Ø', D.surfaces.map(s => s.hole ? dfmt(s.hole) : '—'));
-  if (D.surfaces.some(s => s.coat)) row('Coating', D.surfaces.map(s => s.coat || '—'));
+  if (D.surfaces.some(s => s.finish)) row('Finish', D.surfaces.map(s => PART_FINISHES[s.finish] || '—'));
+  if (D.surfaces.some(s => s.coat)) row('Coating', D.surfaces.map(s => s.coat ? (s.coat.length > 18 ? s.coat.slice(0, 17) + '…' : s.coat) + (D.films && D.films.some(f => f.surface === s.n) ? ' *' : '') : '—'));
   if (D.surfaces.some(s => s.k)) row('Conic k', D.surfaces.map(s => dfmt(s.k, 6)));
   if (D.surfaces.some(s => s.A.length || s.a2 || s.odd)) row('Aspheric', D.surfaces.map(s => s.A.length || s.a2 || s.odd ? 'see note' : '—'));
   if (D.surfaces.some(s => s.asphDep !== undefined)) row('Aspheric departure', D.surfaces.map(s => s.asphDep === undefined ? '—' : sgn(s.asphDep) + ' at Øe'));
@@ -31683,8 +31793,10 @@ function drawSheet(g, D, meta) {
     row('Matching layer εr', D.surfaces.map(s => s.match ? dfmt(s.match.eps, 3) + (s.match.centre ? ' at centre' : '') : '—'));
     row('  thickness', D.surfaces.map(s => s.match ? dfmt(s.match.thick, 3) : '—'));
   }
-  if (D.surfaces.some(s => s.form !== undefined || s.irr !== undefined)) row('3/ Surface form', D.surfaces.map(s => '3/' + (s.form === undefined ? '-' : dfmt(s.form, 2)) + '(' + (s.irr === undefined ? '-' : dfmt(s.irr, 2)) + ')'));
+  if (D.surfaces.some(s => s.form !== undefined || s.irr !== undefined)) row('3/ Surface form', D.surfaces.map(s => s.finish === 'ground' ? '—' : '3/' + (s.form === undefined ? '-' : dfmt(s.form, 2)) + '(' + (s.irr === undefined ? '-' : dfmt(s.irr, 2)) + ')'));
   if (D.surfaces.some(s => s.centring !== undefined)) row('4/ Centring', D.surfaces.map(s => s.centring === undefined ? '—' : '4/ ' + dfmt(s.centring, 2) + '′'));
+  if (D.surfaces.some(s => s.sd !== undefined)) row('Scratch-dig', D.surfaces.map(s => s.sd || '—'));
+  if (D.surfaces.some(s => s.chamfer !== undefined)) row('Chamfer', D.surfaces.map(s => s.chamfer === undefined ? '—' : '≤ ' + dfmt(s.chamfer, 2) + ' × 45°'));
   ty += 10;
   text(g, RF ? 'Material' : D.elements.filter(e => !e.air && !e.stack).length > 1 ? 'Glasses' : 'Glass', tx, ty, { size: 9.5, bold: true }); ty += 14;
   const gl = D.elements.filter(e => !e.air && !e.stack), gw = (tw - c0) / Math.max(1, gl.length);
@@ -31721,7 +31833,10 @@ function drawSheet(g, D, meta) {
     'A drawing of the design, for reference: how it is made is the maker’s.']
   : ['Dimensions in millimetres. Light from the left: a radius is positive with its centre of curvature to the right.',
     'Edge thickness, in brackets, is a reference dimension at the full diameter.',
-    D.toleranced ? 'Surface form (3/A(B)): A fringes of power and B of irregularity at 632.8 nm over the clear aperture. Centring (4/): surface tilt in arcminutes.' : 'No tolerances are set in the design’s tolerance settings.'];
+    D.toleranced ? 'Surface form (3/A(B)): A fringes of power and B of irregularity at 632.8 nm over the clear aperture. Centring (4/): surface tilt in arcminutes.' : 'No tolerances are set in the design’s tolerance settings.',
+    ...(D.made ? ['Scratch-dig to MIL-PRF-13830B over the clear aperture. Chamfers: protective, at 45°, no wider than given.' + (D.diaTol ? ' Diameter +0/−' + dfmt(D.diaTol) + '.' : '')] : [])];
+  // a JEKfilm coating: marked (λ) (λ in a circle, ISO 10110-9) on its face, its requirements as its specification gives them
+  for (const f of D.films || []) notes.push('* S' + f.surface + ' (λ) “' + f.doc.name + '”: ' + f.note.slice(1, -1).join('; ') + '. ' + f.note[f.note.length - 1] + '. See its coating specification.');
   D.surfaces.forEach(s => {
     if (!(s.A.length || s.a2 || s.odd)) return;
     const terms = [];
@@ -31749,6 +31864,8 @@ function drawSheet(g, D, meta) {
   g.restore();
 }
 
+/* one drawing's sheet as a record, for a PDF of its own (Make the part) */
+function drawingRec(D, meta) { const rec = new VecCtx(SHEET_W, SHEET_H, { plain: true }); drawSheet(rec, D, meta); return rec; }
 /* the sheets as records, for SVG or PDF */
 function sheetRecs(asm, which) {
   const all = lensDrawings(asm), pick = which === undefined ? all.map((_, i) => i) : [which];
@@ -31790,6 +31907,171 @@ function drawingsCard(asm, state) {
     const g = cv.getContext('2d'); g.scale(dpr * s, dpr * s);
     drawSheet(g, all[i], { assembly: asm.name, sheet: 1, of: 1 });
   });
+  return card;
+}
+/* ==========================================================================
+   Make the part: what an optics maker needs to quote and make one lens or window of a design, as one zip
+     <part> - drawing.pdf                the ISO 10110 drawing (ui/lens-drawing.js), with what it is made to
+     <part> - part specification.pdf     the order: quantity, glass, dimensions and tolerances, each face's finish,
+                                          form, scratch-dig, chamfer and coating, the documents enclosed
+     <part> - S<n> coating - <name>.pdf  each JEKfilm coating on it, as JEKfilm writes its specification (its pages,
+                                          jekfilm/src/io/film-pages.js, with its tolerance run and yield)
+   The part's make settings (core/part-make.js) are set in the card under the drawing; one not set follows the design's
+   tolerance settings, else the commercial grade, and the card says which. A free account's, as the drawings are.
+   ========================================================================== */
+const PS_W = 595, PS_H = 842, PS_M = 48, PS_INK = '#1a1a1a', PS_SOFT = '#666', PS_RULE = '#cfcfcf';
+const pmf = (v, p) => (!isFinite(v) ? '—' : String(+(+v).toFixed(p === undefined ? 3 : p)));
+function pstext(g, t, x, y, o) {
+  o = o || {};
+  g.font = (o.bold ? '600 ' : '') + (o.size || 9) + 'px ' + (o.mono ? 'Courier, monospace' : 'Helvetica, Arial, sans-serif');
+  g.fillStyle = o.ink || PS_INK; g.textAlign = o.align || 'left'; g.textBaseline = 'alphabetic';
+  g.fillText(String(t), x, y);
+}
+const pswrap = (t, n) => { const out = []; let line = ''; for (const w of String(t).split(' ')) { if ((line + ' ' + w).trim().length > n) { out.push(line); line = w; } else line = (line + ' ' + w).trim(); } if (line) out.push(line); return out; };
+const pshead = (pg, t) => { pg.y += 8; pstext(pg.g, t, PS_M, pg.y, { size: 11, bold: true }); pg.y += 16; };
+const pspara = (pg, t) => { for (const ln of pswrap(t, 118)) { pstext(pg.g, ln, PS_M, pg.y, { size: 8.5 }); pg.y += 12; } };
+function pstable(pg, cols, rows) {
+  const g = pg.g; let x = PS_M; const xs = cols.map(c => { const a = x; x += c.w; return a; });
+  const cell = (c, i, t, head) => pstext(g, t, c.align === 'right' ? xs[i] + c.w - 4 : xs[i], pg.y, { size: head ? 7.5 : 8.5, ink: head ? PS_SOFT : PS_INK, bold: head, mono: !head && c.mono, align: c.align === 'right' ? 'right' : 'left' });
+  cols.forEach((c, i) => cell(c, i, c.label, true));
+  pg.y += 4; g.strokeStyle = PS_INK; g.lineWidth = 0.6; g.beginPath(); g.moveTo(PS_M, pg.y); g.lineTo(x, pg.y); g.stroke(); pg.y += 11;
+  for (const r of rows) { r.forEach((t, i) => cell(cols[i], i, t, false)); pg.y += 4; g.strokeStyle = PS_RULE; g.lineWidth = 0.35; g.beginPath(); g.moveTo(PS_M, pg.y); g.lineTo(x, pg.y); g.stroke(); pg.y += 11; }
+  pg.y += 4;
+}
+
+/* each coated face's coating document: the face's own (coat.film), else a linked cloud coating's fetched, else none
+   (a stack put on before faces kept their specification, or one typed in by hand) */
+async function faceFilms(D) {
+  const e = D.id ? getEl(D.id) : null, out = [];
+  if (!e) return out;
+  const faces = e.type === 'prism' ? [e.coat, e.coat] : D.make.order.map(i => e.surfaces[i] && e.surfaces[i].coat);
+  for (let j = 0; j < faces.length; j++) {
+    const c = faces[j];
+    if (!c || c.mode !== 'stack') continue;
+    let doc = coatFilmDoc(c);
+    if (!doc && c.src) { try { doc = coatFilmDoc(await filmCoat(c.src.id)); } catch (err) { /* offline: said in the specification */ } }
+    out.push({ surface: D.surfaces[j].n, coat: c, doc });
+  }
+  return out;
+}
+/* the coating specification's file name for a face */
+const coatFileName = (part, f) => safeFileName(part + ' - S' + f.surface + ' coating - ' + f.doc.name) + '.pdf';
+
+/* the part specification's page: what is ordered, and what it is made to */
+function partSpecRec(D, films, o) {
+  o = o || {};
+  const g = new VecCtx(PS_W, PS_H, { plain: true }), pg = { g, y: 108 }, M = D.make, date = o.date || new Date().toISOString().slice(0, 10);
+  g.fillStyle = '#fff'; g.fillRect(0, 0, PS_W, PS_H);
+  pstext(g, 'Part specification', PS_M, 56, { size: 16, bold: true });
+  pstext(g, D.name + (o.assembly ? ', in ' + o.assembly : ''), PS_M, 74, { size: 10, ink: PS_SOFT });
+  pstext(g, date, PS_W - PS_M, 56, { size: 8.5, ink: PS_SOFT, align: 'right' });
+  g.strokeStyle = PS_INK; g.lineWidth = 0.8; g.beginPath(); g.moveTo(PS_M, 84); g.lineTo(PS_W - PS_M, 84); g.stroke();
+  const glass = D.elements.filter(e => !e.air && !e.stack);
+  pshead(pg, 'The part');
+  pstable(pg, [{ label: 'Item', w: 150 }, { label: 'Requirement', w: 349 }], [
+    ['Part', D.name + ' (' + (D.kind === 'window' ? 'window' : 'lens') + '), to the drawing enclosed'],
+    ['Quantity', String(M.qty)],
+    ...glass.map((e, q) => [glass.length > 1 ? 'Glass ' + (q + 1) : 'Glass', e.glass + ', nd ' + pmf(e.nd, 5) + (e.ndTol ? ' ± ' + pmf(e.ndTol, 4) : '') + ', Vd ' + pmf(e.vd, 2) + (e.vdTol ? ' ± ' + pmf(e.vdTol, 2) : '')]),
+    ['Diameter', 'Ø ' + pmf(D.dia) + ' mm +0/−' + pmf(M.diaTol) + ' mm'],
+    ...glass.map((e, q) => [glass.length > 1 ? 'Centre thickness ' + (q + 1) : 'Centre thickness', pmf(e.ct) + ' ± ' + pmf(M.ctTol) + ' mm (edge ' + pmf(e.et) + ' mm, for reference)']),
+    ['Centring (4/)', D.surfaces.some(s => s.centring !== undefined) ? D.surfaces.map(s => 'S' + s.n + ' ' + pmf(s.centring, 2) + '′').join(', ') : '—'],
+  ]);
+  pshead(pg, 'Faces');
+  const fname = s => { const f = films.find(x => x.surface === s.n); return f ? (f.doc ? '“' + f.doc.name + '”' : (s.coat || 'stack') + '*') : s.coat || 'None'; };
+  pstable(pg, [{ label: 'Face', w: 34 }, { label: 'Radius (mm)', w: 70, align: 'right', mono: true }, { label: 'Clear Ø', w: 52, align: 'right', mono: true }, { label: 'Finish', w: 62 }, { label: 'Form 3/', w: 56, mono: true },
+    { label: 'Scratch-dig', w: 58, mono: true }, { label: 'Chamfer', w: 60 }, { label: 'Coating', w: 107 }],
+    D.surfaces.map(s => ['S' + s.n, s.R === null ? 'Flat' : (s.R < 0 ? '−' : '') + pmf(Math.abs(s.R)), pmf(s.clear), PART_FINISHES[s.finish] || '—',
+      s.finish === 'ground' ? '—' : '3/' + pmf(s.form, 2) + '(' + pmf(s.irr, 2) + ')', s.sd || '—', s.chamfer !== undefined ? '≤ ' + pmf(s.chamfer, 2) + ' × 45°' : '—', fname(s).slice(0, 26)]));
+  pshead(pg, 'Coatings');
+  const coated = D.surfaces.filter(s => s.coat);
+  if (!coated.length) pspara(pg, 'No face is coated.');
+  for (const s of coated) {
+    const f = films.find(x => x.surface === s.n);
+    pspara(pg, 'S' + s.n + ': ' + (f && f.doc ? '“' + f.doc.name + '”, designed in JEKfilm, to its coating specification enclosed (' + coatFileName(D.name, f) + ').'
+      : f ? s.coat + ': a thin-film stack with no coating specification kept. *Put the coating on again from JEKfilm to include one.'
+        : s.coat + ', the maker’s standard coating of that kind.'));
+  }
+  pshead(pg, 'Documents and inspection');
+  pspara(pg, 'Enclosed: the drawing (' + safeFileName(D.name + ' - drawing') + '.pdf)' + (films.some(f => f.doc) ? ' and the coating specifications listed above' : '') + '. Where this sheet and the drawing differ, ask before making the part.');
+  pspara(pg, 'Dimensions in millimetres. Surface form 3/A(B): A fringes of power and B of irregularity at 632.8 nm over the clear aperture. Centring 4/: each surface’s tilt to the part’s axis, in arcminutes. Scratch-dig to MIL-PRF-13830B over the clear aperture. Chamfers protective, at 45°, no wider than given. A fine-ground face has no form or surface quality asked of it.');
+  pstext(g, 'Drawn with JEKray (jeksys.net) from the design' + (o.assembly ? ' ' + o.assembly : '') + '.', PS_M, PS_H - 30, { size: 7, ink: PS_SOFT });
+  return g;
+}
+
+/* the documents for the drawing D, as files [{ name, data }]; o: assembly, date, raw (uncompressed PDFs, for the tests) */
+async function partFiles(D, o) {
+  o = o || {};
+  const meta = { assembly: o.assembly, sheet: 1, of: 1, date: o.date }, films = await faceFilms(D), files = [];
+  const bytes = async b => new Uint8Array(await b.arrayBuffer());
+  files.push({ name: safeFileName(D.name + ' - drawing') + '.pdf', data: await bytes(await pdfDoc([drawingRec(D, meta)], D.name + ' drawing', o)) });
+  files.push({ name: safeFileName(D.name + ' - part specification') + '.pdf', data: await bytes(await pdfDoc([partSpecRec(D, films, o)], D.name + ' part specification', o)) });
+  for (const f of films) {
+    if (!f.doc) continue;
+    const spec = filmSpec(f.doc), tol = f.doc.layers.length ? filmTolerance(f.doc.layers, spec, f.doc.tol) : null;
+    const yld = tol ? filmYield(tol.stacks, f.doc, spec, f.doc.make) : null;
+    files.push({ name: coatFileName(D.name, f), data: await bytes(await pdfDoc(filmSpecRecs(f.doc, { date: o.date, tol, yield: yld }), f.doc.name + ' coating specification', o)) });
+  }
+  return files;
+}
+/* Make the part: the drawing's documents as one zip, downloaded */
+async function makeThePart(asm, i) {
+  if (!designPro('make the part')) return null;
+  const all = lensDrawings(asm), D = all[Math.min(i || 0, all.length - 1)];
+  if (!D) return null;
+  try {
+    const files = await partFiles(D, { assembly: asm.name });
+    const name = safeFileName(D.name + ' - to make') + '.zip';
+    downloadFile(name, new Blob([await dfZip(files)], { type: 'application/zip' }));
+    track('export', 'make-part');
+    toast('Saved ' + name + ': ' + files.length + ' documents');
+    return { name, files: files.map(f => f.name) };
+  } catch (err) { toast('Could not make the documents: ' + err.message, true); return null; }
+}
+
+/* the card under the drawing: what the part is made to, each value its own or (greyed) from the tolerance settings or
+   the commercial grade; and Make the part */
+function makeCard(asm, D, i, state) {
+  const e = D.id ? getEl(D.id) : null, M = D.make, n = e ? (e.type === 'lens' ? e.surfaces.length : 2) : 0;
+  const card = h('section', { class: 'rt-lmake', 'aria-label': 'Make the part' });
+  if (!e || !M) return card;
+  const fromTip = { set: 'Set here', tol: 'From the design’s tolerance settings', default: 'The commercial grade: set it to change it' };
+  // a change: the part's make settings with this one value set (or cleared, typed empty)
+  const setMake = fn => state.edit(() => { const m = JSON.parse(JSON.stringify(e.make || {})); fn(m); e.make = normPartMake(m, n); });
+  const num = (v, from, label, set, o) => {
+    // a value the tolerance settings give per surface (centring): none shown, the drawing gives each
+    const per = o && o.perSurface && from === 'tol';
+    const inp = h('input', { type: 'text', inputmode: 'decimal', class: 'rt-lnum' + (from !== 'set' ? ' rt-lfrom' : ''), value: per ? '' : pmf(v, 4), placeholder: per ? 'per surface' : null, 'aria-label': label, title: per ? 'From the tolerance settings: each surface’s tilt plus its decentre over its radius, as the drawing gives it. Type a value to set one for every surface.' : fromTip[from], spellcheck: 'false', style: 'width:' + ((o && o.w) || '4.2rem') });
+    inp.addEventListener('change', () => { const t = inp.value.trim(); if (t === '') setMake(m => set(m, undefined)); else if (isFinite(+t)) setMake(m => set(m, +t)); else { toast('A number, please', true); inp.value = per ? '' : pmf(v, 4); } });
+    return inp;
+  };
+  const partRow = (label, input, unit) => h('tr', null, h('th', { scope: 'row' }, label), h('td', null, input), h('td', { class: 'unit' }, unit));
+  const part = h('table', { class: 'rt-ltable rt-lmakepart' }, h('tbody', null,
+    partRow('Quantity', num(M.qty, M.from.qty, 'Quantity', (m, v) => { m.qty = v; }), ''),
+    partRow('Diameter tolerance', num(M.diaTol, M.from.diaTol, 'Diameter tolerance (mm)', (m, v) => { m.diaTol = v; }), 'mm, +0/−'),
+    partRow('Centre thickness tolerance', num(M.ctTol, M.from.ctTol, 'Centre thickness tolerance (mm)', (m, v) => { m.ctTol = v; }), '± mm'),
+    partRow('Centring 4/', num(M.cent, M.from.cent, 'Centring (arcminutes)', (m, v) => { m.cent = v; }, { perSurface: true, w: '5.2rem' }), '′')));
+  const faceSet = (j, k) => (m, v) => { m.faces = m.faces || []; m.faces[M.order[j]] = Object.assign({}, m.faces[M.order[j]], { [k]: v }); };
+  const faces = h('table', { class: 'rt-ltable rt-lmakefaces' },
+    h('thead', null, h('tr', null, ...['Face', 'Finish', 'Power 3/A', 'Irregularity (B)', 'Scratch-dig', 'Chamfer (mm)', 'Coating'].map(t => h('th', { scope: 'col' }, t)))),
+    h('tbody', null, ...D.surfaces.map((s, j) => {
+      const f = M.faces[j], fin = h('select', { 'aria-label': 'Finish of S' + s.n, class: f.from.finish !== 'set' ? 'rt-lfrom' : null, title: fromTip[f.from.finish] },
+        ...Object.entries(PART_FINISHES).map(([v, t]) => h('option', { value: v, selected: v === f.finish ? '' : null }, t)));
+      fin.onchange = () => setMake(m => faceSet(j, 'finish')(m, fin.value));
+      const sd = h('input', { type: 'text', class: 'rt-lnum' + (f.from.sd !== 'set' ? ' rt-lfrom' : ''), value: f.sd, 'aria-label': 'Scratch-dig of S' + s.n, title: fromTip[f.from.sd] + '. MIL-PRF-13830B: scratch number, dash, dig number (60-40, 20-10, 10-5)', spellcheck: 'false', style: 'width:4.2rem' });
+      sd.addEventListener('change', () => { const t = sd.value.trim(); if (t === '') setMake(m => faceSet(j, 'sd')(m, undefined)); else if (sdValid(t)) setMake(m => faceSet(j, 'sd')(m, t)); else { toast('Scratch-dig as two numbers with a dash: 60-40', true); sd.value = f.sd; } });
+      const ground = f.finish === 'ground';
+      return h('tr', null, h('td', { class: 'n' }, 'S' + s.n), h('td', null, fin),
+        h('td', null, ground ? '—' : num(f.form, f.from.form, 'Power (fringes) of S' + s.n, faceSet(j, 'form'), { w: '3.4rem' })),
+        h('td', null, ground ? '—' : num(f.irr, f.from.irr, 'Irregularity (fringes) of S' + s.n, faceSet(j, 'irr'), { w: '3.4rem' })),
+        h('td', null, ground ? '—' : sd), h('td', null, num(f.chamfer, f.from.chamfer, 'Chamfer of S' + s.n + ' (mm)', faceSet(j, 'chamfer'), { w: '3.4rem' })),
+        h('td', null, s.coat || 'None'));
+    })));
+  const go = proMark(h('button', { class: 'rt-btn primary', type: 'button', id: 'lensMakePart', title: 'The drawing, the part specification and each JEKfilm coating’s specification, as one zip to send to the maker' }, 'Make the part'), 'make the part');
+  go.addEventListener('click', () => { makeThePart(asm, i); });
+  card.append(h('h3', null, 'Make the part'),
+    h('p', { class: 'rt-lnote' }, 'What ' + D.name + ' is made to. Values in grey follow the tolerance settings or a commercial grade; type one to set it here, or clear it to follow them again. Make the part downloads the drawing, the part specification and each JEKfilm coating’s specification as one zip.'),
+    h('div', { class: 'rt-lmakegrid' }, part, h('div', { class: 'rt-ltwrap' }, faces)),
+    h('div', { class: 'rt-lbar' }, go));
   return card;
 }
 /* ==========================================================================
@@ -33842,7 +34124,7 @@ function drawWs() {
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
-  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'cfg' ? configsCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : WS.tab === 'tol' ? tolCard({ asm, P, redraw: renderWs, state: WS.tolState || (WS.tolState = {}), edit: tolEdit }) : WS.tab === 'draw' ? drawingsCard(asm, WS.drawState || (WS.drawState = { redraw: renderWs })) : WS.tab === 'stock' ? stockCard({ asm, P, redraw: renderWs, edit, toast }) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
+  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'cfg' ? configsCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : WS.tab === 'tol' ? tolCard({ asm, P, redraw: renderWs, state: WS.tolState || (WS.tolState = {}), edit: tolEdit }) : WS.tab === 'draw' ? drawTab(asm) : WS.tab === 'stock' ? stockCard({ asm, P, redraw: renderWs, edit, toast }) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'lensToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
@@ -33853,6 +34135,12 @@ function tolEdit(fn) {
   fn(designOf(WS.asm));
   changed(false);
   renderWs();
+}
+/* the Drawings tab: the sheet of the lens chosen and, for an optical design, what it is made to and Make the part */
+function drawTab(asm) {
+  const st = WS.drawState || (WS.drawState = { redraw: renderWs, edit: fn => edit(() => { fn(); return false; }) }), card = drawingsCard(asm, st);
+  if (asm.kind !== 'rf') { const all = lensDrawings(asm), i = Math.min(st.drawing || 0, all.length - 1); if (all.length) card.append(makeCard(asm, all[i], i, st)); }
+  return card;
 }
 function edit(fn) {
   optStop('Stopped: the design was changed by hand.');
@@ -34270,10 +34558,23 @@ function dataCard(asm, P) {
     // the coating: a lens surface's, chosen here (a mirror coating makes the surface reflect, and the rows follow the light)
     const ctd0 = h('td');
     if (sp.kind === 'lens' && s.from) {
-      const c = s.coat || { mode: 'bare' }, cur = c.mode === 'mirror' ? 'mirror:' + (c.metal || 'ideal') : c.mode === 'band' && c.label === 'Dielectric HR' ? 'hr' : c.mode === 'ar' ? 'ar' : c.mode === 'bare' ? 'bare' : 'other';
-      const opts = [['bare', 'Bare glass'], ['ar', 'AR coated'], ['mirror:ideal', 'Mirror'], ['mirror:Al', 'Aluminium mirror'], ['mirror:Ag', 'Silver mirror'], ['mirror:Au', 'Gold mirror'], ['hr', 'Dielectric HR'], ...(cur === 'other' ? [['other', c.mode === 'stack' ? 'Thin-film stack' : c.mode === 'band' ? 'Coated ' + c.lo + '\u2013' + c.hi + ' nm' : 'Reflects ' + (c.R || 0) + '%']] : [])];
-      const sel = h('select', { class: 'rt-lmir', 'aria-label': 'Coating of surface ' + (i + 1), title: 'The coating on this surface: a mirror coating reflects all it can and passes nothing' }, ...opts.map(([v, t]) => h('option', { value: v, selected: v === cur ? '' : null, disabled: v === 'other' ? '' : null }, t)));
-      sel.addEventListener('change', () => { const v = sel.value; edit(PP => { for (const q of PP.surfaces) if (sameSurf(s, q)) q.coat = v === 'bare' ? { mode: 'bare' } : v === 'ar' ? { mode: 'ar', R: 0.5 } : v === 'hr' ? { mode: 'band', R: 99.9, lo: 400, hi: 700, label: 'Dielectric HR' } : { mode: 'mirror', metal: v.split(':')[1] }; }); });
+      const c = s.coat || { mode: 'bare' }, film = c.mode === 'stack' && c.src ? 'film:' + c.src.id : '';
+      const cur = c.mode === 'mirror' ? 'mirror:' + (c.metal || 'ideal') : c.mode === 'band' && c.label === 'Dielectric HR' ? 'hr' : c.mode === 'ar' ? 'ar' : c.mode === 'bare' ? 'bare' : film || 'other';
+      // the JEKfilm coatings kept in the bench's cloud folder (◆), as a face's Coating list on the bench offers them, and one from a file
+      const folder = hooks.filmFolder ? hooks.filmFolder() : [];
+      const opts = [['bare', 'Bare glass'], ['ar', 'AR coated'], ['mirror:ideal', 'Mirror'], ['mirror:Al', 'Aluminium mirror'], ['mirror:Ag', 'Silver mirror'], ['mirror:Au', 'Gold mirror'], ['hr', 'Dielectric HR'],
+        ...folder.map(f => ['film:' + f.id, '◆ ' + f.name + ' (JEKfilm)']), ...(film && !folder.some(f => 'film:' + f.id === film) ? [[film, '◆ ' + (c.label || 'JEKfilm coating') + ' (JEKfilm)']] : []),
+        ...(cur === 'other' ? [['other', c.mode === 'stack' ? (c.label ? '◆ ' + c.label : 'Thin-film stack') : c.mode === 'band' ? 'Coated ' + c.lo + '\u2013' + c.hi + ' nm' : 'Reflects ' + (c.R || 0) + '%']] : []),
+        ...(hooks.filmFileOn ? [['filmfile', 'A JEKfilm coating from a file…']] : [])];
+      const sel = h('select', { class: 'rt-lmir', 'aria-label': 'Coating of surface ' + (i + 1), title: 'The coating on this surface: a mirror coating reflects all it can and passes nothing; a JEKfilm coating (◆) is its designed stack, kept on the face with its specification' }, ...opts.map(([v, t]) => h('option', { value: v, selected: v === cur ? '' : null, disabled: v === 'other' && c.mode !== 'stack' ? '' : null }, t)));
+      sel.addEventListener('change', () => {
+        const v = sel.value, el = getEl(s.from.id), holder = el && el.surfaces && el.surfaces[s.from.i];
+        // a JEKfilm coating: put on the part's face itself (fetched, or read from the file), then the workspace drawn again
+        if (v.startsWith('film:') && holder) { if (v !== film) Promise.resolve(hooks.useFilmOn(holder, v.slice(5))).then(() => renderWs()); return; }
+        if (v === 'filmfile' && holder) { hooks.filmFileOn(holder, () => renderWs()); return; }
+        if (v === 'other') return;
+        edit(PP => { for (const q of PP.surfaces) if (sameSurf(s, q)) q.coat = v === 'bare' ? { mode: 'bare' } : v === 'ar' ? { mode: 'ar', R: 0.5 } : v === 'hr' ? { mode: 'band', R: 99.9, lo: 400, hi: 700, label: 'Dielectric HR' } : { mode: 'mirror', metal: v.split(':')[1] }; });
+      });
       ctd0.append(sel);
     } else if (sp.kind === 'mirror') ctd0.append(h('span', { class: 'mono ro' }, 'Mirror'));
     tr.append(ctd0);
@@ -46442,6 +46743,8 @@ function tolRun(prob, args) {
    The light runs left to right, as on the element data: a radius is positive with its centre to the right.
    ========================================================================== */
 const DRAW_LAMBDA = 632.8e-6, DRAW_ARCMIN = 180 * 60 / Math.PI;
+/* a part-wide make setting where the part gives one, else the tolerance settings' (or null) */
+const MK0 = (opts, k, t) => (opts.make && opts.make.from[k] !== 'tol' ? opts.make[k] : t);
 
 const drawSag = sagInPlane;      // the section drawn is in the plane of the fields (core/sag.js)
 const vdOf = m => { const nd = refIndex(m, 587.56), nF = refIndex(m, 486.13), nC = refIndex(m, 656.27); return nF !== nC ? (nd - 1) / (nF - nC) : Infinity; };
@@ -46452,17 +46755,22 @@ function rfDrawableParts(P) { return P.parts.map((p, pi) => p.kind === 'lens' ||
 function drawableParts(P) { return P.parts.map((p, pi) => p.kind === 'lens' || p.kind === 'window' ? pi : -1).filter(pi => pi >= 0); }
 
 /* the drawing's content for part pi of P: opts { name, dia (its full diameter, mm), T (the tolerance
-   settings, or none) } */
+   settings, or none), make (core/part-make.js partMakeOf, its faces in the order drawn: finish, form, scratch-dig,
+   chamfer and the part's tolerances, which take the place of T's where given), coats (each face's coating as the
+   drawing names it, in the order drawn) } */
 function drawingData(P, pi, opts) {
   opts = opts || {};
   const sps = surfaceParts(P), k0 = sps.findIndex(s => s.pi === pi), part = P.parts[pi], n = part.n, T = opts.T || null;
   const S = P.surfaces.slice(k0, k0 + n), G = P.gaps.slice(k0, k0 + n - 1), M = P.materials.slice(k0, k0 + n - 1);
   const dia = opts.dia > 0 ? opts.dia : 2 * Math.max(...S.map(s => s.semi || 0)), rim = dia / 2;
   const on = k => T && T[k] && T[k].on && T[k].v > 0 ? T[k].v : null;
-  const fr = on('rad'), thk = on('thk'), dec = on('dec'), tilt = on('tilt'), dn = on('ind'), dv = on('abbe'), irr = on('irr');
+  const frT = on('rad'), thk = MK0(opts, 'ctTol', on('thk')), dec = on('dec'), tilt = on('tilt'), dn = on('ind'), dv = on('abbe'), irrT = on('irr');
+  const MK = opts.make || null;
   const surfaces = S.map((s, j) => {
-    const h = isFinite(s.semi) && s.semi > 0 ? s.semi : rim, R = s.R;
-    const c = s.coat || s.mcoat, coat = c && c.mode === 'mirror' ? (c.metal && c.metal !== 'ideal' ? 'Mirror (' + c.metal + ')' : 'Mirror') : '';
+    const h = isFinite(s.semi) && s.semi > 0 ? s.semi : rim, R = s.R, fm = MK && MK.faces[j];
+    const c = s.coat || s.mcoat, coat = opts.coats && opts.coats[j] ? opts.coats[j] : c && c.mode === 'mirror' ? (c.metal && c.metal !== 'ideal' ? 'Mirror (' + c.metal + ')' : 'Mirror') : '';
+    // what the face is made to, where the part says: a fine-ground face has no form or surface quality asked of it
+    const ground = fm && fm.finish === 'ground', fr = fm ? (ground ? null : fm.form) : frT, irr = fm ? (ground ? null : fm.irr) : irrT;
     const out = { n: k0 + j + 1, R, k: s.k || 0, A: (s.A || []).filter(a => a), a2: s.a2 || 0, odd: s.odd && s.odd.some(a => a) ? s.odd.slice() : null, clear: 2 * h, hole: 2 * (s.hole || s.obs || 0), coat,
       sagClear: drawSag(s, h), sagRim: drawSag(s, rim) };
     // convex or concave as the glass sees it: a front face (glass after it) convex with its centre behind it
@@ -46477,7 +46785,9 @@ function drawingData(P, pi, opts) {
     if (irr !== null) out.irr = irr;
     // the aspheric terms' sag at the clear radius, beyond the conic
     if (out.A.length) { let d = 0, p = h * h * h * h; for (const a of s.A || []) { d += a * p; p *= h * h; } out.asphDep = d; }
-    if (tilt !== null || dec !== null) out.centring = (tilt || 0) + (dec && R ? dec / Math.abs(R) * DRAW_ARCMIN : 0);
+    if (MK && MK.from.cent !== 'tol') out.centring = MK.cent;                     // the part's own, or the commercial grade
+    else if (tilt !== null || dec !== null) out.centring = (tilt || 0) + (dec && R ? dec / Math.abs(R) * DRAW_ARCMIN : 0);
+    if (fm) { out.finish = fm.finish; out.sd = ground ? null : fm.sd; out.chamfer = fm.chamfer; }
     return out;
   });
   const elements = [];
@@ -46517,7 +46827,8 @@ function drawingData(P, pi, opts) {
   });
   surfaces.forEach(s => { if (!isFinite(s.sagRim)) notes.push('Surface ' + s.n + ' does not reach the lens’s full diameter: its sphere is smaller.'); });
   elements.forEach(e => { if (!e.air && !e.stack && isFinite(e.et) && e.et < 0.5) notes.push('The glass after surface ' + surfaces[e.from].n + ' is ' + (e.et <= 0 ? 'nothing' : 'only ' + (+e.et.toFixed(3)) + ' mm') + ' thick at its edge.'); });
-  return { name: opts.name || 'Lens', kind: part.kind, dia, surfaces, elements, stacks, length: G.reduce((a, b) => a + b, 0), toleranced: !!T && [fr, thk, dec, tilt, dn, dv, irr].some(v => v !== null), notes };
+  return { name: opts.name || 'Lens', kind: part.kind, dia, diaTol: MK ? MK.diaTol : null, qty: MK ? MK.qty : null, made: !!MK, surfaces, elements, stacks, length: G.reduce((a, b) => a + b, 0),
+    toleranced: !!MK || (!!T && [frT, thk, dec, tilt, dn, dv, irrT].some(v => v !== null)), notes };
 }
 
 /* An RF lens's drawing: the same sheet, with what an RF lens is made to in place of an optical shop's terms.
@@ -54266,7 +54577,8 @@ function filmSubOf(d, design) {
 /* a .jekfilm's content as a face's coating, its design substrate kept */
 function filmFaceCoat(d, src) {
   const c = coatFromFilm(d, src), sub = filmSubOf(d, c.design);
-  return normCoat(sub ? { ...c, sub } : c);
+  // and what it was designed to, for the part's coating specification (state/project.js normCoat keeps it)
+  return normCoat({ ...c, ...(sub ? { sub } : {}), film: { spec: d.spec, make: d.make, tol: d.tol } });
 }
 /* a cloud coating as a face's coating: its stack fetched, linked to it */
 async function filmCoat(id) {
@@ -54284,25 +54596,31 @@ async function useFilmOn(holder, id) {
     toast('“' + coat.label + '” is on this face: a copy, linked to the coating in JEKfilm');
   } catch (err) { toast(err.status === 401 ? 'Sign in to use the coatings in the cloud' : 'Could not fetch the coating: ' + err.message, true); hooks.renderPanel(); }
 }
-/* a .jekfilm file from this computer onto a face: a copy, with no link */
-function filmFileOn(holder) {
-  const input = h('input', { type: 'file', accept: '.jekfilm,application/json', hidden: '' });
+/* a .jekfilm's content onto a face: a copy, with no link; false if it is not a coating */
+function filmDocOn(holder, d, name) {
+  if (!d || d.format !== 'jekfilm') return false;
+  checkpoint(); holder.coat = filmFaceCoat(Object.assign({ name }, d)); changed(true);
+  return true;
+}
+/* a .jekfilm file from this computer onto a face: a copy, with no link (done, if given, called once it is settled) */
+function filmFileOn(holder, done) {
+  const input = h('input', { type: 'file', accept: '.jekfilm,application/json', hidden: '' }), end = () => { hooks.renderPanel(); if (done) done(); };
   document.body.append(input);
   input.addEventListener('change', () => {
     const f = input.files[0]; input.remove();
-    if (!f) { hooks.renderPanel(); return; }
+    if (!f) { end(); return; }
     const rd = new FileReader();
     rd.onload = () => {
       let d = null;
       try { d = JSON.parse(rd.result); } catch (err) { /* below */ }
-      if (!d || d.format !== 'jekfilm') { toast(f.name + ' is not a JEKfilm coating (.jekfilm)', true); hooks.renderPanel(); return; }
-      checkpoint(); holder.coat = filmFaceCoat(Object.assign({ name: f.name.replace(/\.jekfilm$/i, '') }, d)); changed(true);
+      if (!filmDocOn(holder, d, f.name.replace(/\.jekfilm$/i, ''))) { toast(f.name + ' is not a JEKfilm coating (.jekfilm)', true); end(); return; }
       track('import', 'film-face-file');
       toast('“' + holder.coat.label + '” is on this face, from the file');
+      if (done) done();
     };
     rd.readAsText(f);
   });
-  input.addEventListener('cancel', () => { input.remove(); hooks.renderPanel(); });
+  input.addEventListener('cancel', () => { input.remove(); end(); });
   input.click();
 }
 /* a linked coating opened in JEKfilm, in its tab */
@@ -54378,7 +54696,7 @@ function faceOf(f) {
 }
 /* the page's wiring: the folder listed with each cloud link, and JEKfilm's saves in another tab heard */
 function wireFilmCoats() {
-  Object.assign(hooks, { cloudLinked: link => { if (!link || link.id !== filmFolder.benchId) loadFilmFolder(link); }, filmFolder: () => filmFolder.list, useFilmOn, filmFileOn, openFilm, updateFilms, designInFilm });
+  Object.assign(hooks, { cloudLinked: link => { if (!link || link.id !== filmFolder.benchId) loadFilmFolder(link); }, filmFolder: () => filmFolder.list, useFilmOn, filmFileOn, filmDocOn, openFilm, updateFilms, designInFilm });
   // a cloud bench restored with the page: its folder listed once the account is known
   Promise.resolve().then(() => { if (accountLoaded) accountLoaded.then(() => { if (cloud && filmFolder.benchId !== cloud.id) loadFilmFolder(); }); });
   if (EMBED || typeof BroadcastChannel !== 'function') return;
@@ -54654,6 +54972,7 @@ const NEWS = [
     'The 3D view\u2019s <b>Model</b> tools (sketches extruded and revolved) are gone: objects come onto the bench by importing them (.stl, .step), and a CAD app of our own is in development. A part modelled with them before opens as the fixed object it made, where it was.',
     '<b>Coatings are designed in JEKfilm</b>, the new coating designer, in its own tab. A face\u2019s <b>Design a coating in JEKfilm\u2026</b> (and Tools \u203a Coating design in JEKfilm\u2026) opens it on that face\u2019s glass and stack; saved to the cloud in the bench\u2019s folder, the coating comes back onto the face. An RF lens\u2019s matching layer is still designed here. Coatings you kept by name are still in every face\u2019s Coating list, and JEKfilm can open them.',
     '<b>JEKfilm coatings on a face.</b> A face\u2019s Coating list offers the JEKfilm coatings (\u25c6) kept in the cloud bench\u2019s folder, and a .jekfilm file from your computer. The face keeps a copy of the stack, linked to the coating: when the coating is saved again in JEKfilm, the bench offers to update its faces.',
+    '<b>Make the part</b>, under a lens\u2019s drawing in the Optical designer: set what the lens or window is made to (quantity, diameter and thickness tolerances, centring, and face by face its finish, surface form, scratch-dig and chamfer; each one not set follows the tolerance settings or a commercial grade), and download its drawing, its part specification and each JEKfilm coating\u2019s specification as one zip, ready to send to an optics maker. The element data\u2019s Coating list offers JEKfilm coatings (\u25c6) and a .jekfilm file, and the face keeps what the coating was designed to.',
     'Fixed: a sweep that renders the diffracted field keeps every frame it rendered through what does not change the light: pausing and playing again, moving a part the light never reaches (or a drawing), changing <b>Field intensity</b> (linear or logarithmic is how the field is drawn, so it is drawn again at once) and the Light ticks. An edit that does change the light renders the field again for the bench as it now is and plays on. In 3D every step of the sweep is kept (a sweep of 120 steps lost its first ones each cycle), and its steps share one brightness scale, so light before an absorber whose density is swept stays as bright while the light after it dims.',
     'Fixed: turning the 3D view while a sweep plays stayed choppy with an oscilloscope showing in Roll (each step solved its circuit again, tracing the bench for every photodiode, at ten frames a second): a beam that lands well inside a round part is no longer summed point by point, an amplifier\u2019s clipping check is worked out once and from a table, and while sweeps play the scope solves afresh only as often as it can without taking the view\u2019s frames.',
     'Fixed: in 3D, turning the view while a sweep plays is smooth: the view is drawn once a frame however fast the pointer moves, and a sweep\u2019s step that leaves the light and the cables where they were keeps their models and shadows rather than making them again.',
@@ -57839,6 +58158,370 @@ function fwPackCavities(before) {
   return out;
 }
 if (IN_WORKER) { (self.JEKRAY_SCRIPT_WORKER ? scriptWorkerMain : workerMain)(); return; }
+/* ==========================================================================
+   Tolerancing: how a coating fares as made. Each run gives every layer a thickness error drawn from a normal
+   distribution, σ as a share of the layer (kind 'rel', σ in %) or in nanometres (kind 'abs'), the same seed giving the
+   same runs; the curve square on (at the smallest angle judged) and the merit of each run are kept. Returned: the
+   nominal curve, the 5th, 50th and 95th percentiles at each wavelength, and the merit and the band's mean and largest
+   reflectance as nominal, median and 90th percentile; and each run's stack (stacks), for the yield (core/film-make.js).
+   ========================================================================== */
+const TOL_DEFAULT = { kind: 'rel', sigma: 1, runs: 200, seed: 1 };
+function normFilmTol(t) {
+  t = t && typeof t === 'object' ? t : {};
+  const num = (v, lo, hi, d) => (isFinite(+v) && v !== null && v !== '' ? Math.min(hi, Math.max(lo, +v)) : d);
+  return { kind: t.kind === 'abs' ? 'abs' : 'rel', sigma: num(t.sigma, 0, 50, 1), runs: Math.round(num(t.runs, 10, 2000, 200)), seed: Math.round(num(t.seed, 1, 1e9, 1)) };
+}
+const tolPct = (sorted, p) => { if (!sorted.length) return NaN; const x = (sorted.length - 1) * p, i = Math.floor(x), f = x - i; return sorted[i] + (sorted[Math.min(sorted.length - 1, i + 1)] - sorted[i]) * f; };
+function filmTolerance(layers, spec, tol) {
+  const T = normFilmTol(tol), rnd = seededRng(T.seed), N = 81, a0 = spec.theta0 || 0;
+  const stat = R => { let m = 0, w = 0; for (const r of R) { m += r; w = Math.max(w, r); } return [m / R.length, w]; };
+  const nom = coatCurve(layers, spec, a0, N), nomMerit = coatMerit(layers, spec), [nomMean, nomWorst] = stat(nom.R);
+  const cols = nom.nms.map(() => []), merits = [], means = [], worsts = [], stacks = [];
+  for (let r = 0; r < T.runs; r++) {
+    const L = layers.map(x => ({ ...x, d: Math.max(0, T.kind === 'rel' ? x.d * (1 + T.sigma / 100 * randn(rnd)) : x.d + T.sigma * randn(rnd)) }));
+    stacks.push(L);
+    const c = coatCurve(L, spec, a0, N);
+    c.R.forEach((v, i) => cols[i].push(v));
+    const [m, w] = stat(c.R);
+    means.push(m); worsts.push(w); merits.push(coatMerit(L, spec, 21, spec.theta > a0 ? 3 : 1));
+  }
+  for (const c of cols) c.sort((a, b) => a - b);
+  for (const a of [merits, means, worsts]) a.sort((x, y) => x - y);
+  const three = (nominal, s) => ({ nominal, median: tolPct(s, 0.5), p90: tolPct(s, 0.9) });
+  return { tol: T, nms: nom.nms, nominal: nom.R, p5: cols.map(c => tolPct(c, 0.05)), p50: cols.map(c => tolPct(c, 0.5)), p95: cols.map(c => tolPct(c, 0.95)),
+    merit: three(nomMerit, merits), mean: three(nomMean, means), worst: three(nomWorst, worsts), stacks };
+}
+/* ==========================================================================
+   What a coater needs: the specification of the coating and the substrate it is on, kept with the coating (make), and
+   the performance it is accepted against (nothing of the part beyond its substrate: that is the part's drawing's). The limits follow the coating's target, each with the value the design gives over the band and
+   the angles judged, for the polarisation chosen, so a requirement the design itself misses shows before it is sent:
+     ar      R mean ≤, R max ≤, T mean ≥            hr     R min ≥, R mean ≥
+     split   R ≥ R − tol, R ≤ R + tol, T min ≥     edge   R ≥ on the reflected side; R ≤ and T ≥ on the passed side
+   (the edge ± 2% left out). T is what one coated surface passes into the substrate (faceAmps, absorption counted).
+   A limit not set by hand takes a default from the design with a margin (makeDefaults); one set by hand is kept.
+   ========================================================================== */
+const MAKE_DURABILITY = {
+  'mil-48497': 'MIL-C-48497A: moderate abrasion, adhesion, humidity',
+  'mil-675': 'MIL-C-675C: severe abrasion, adhesion, humidity, salt',
+  'iso-9211': 'ISO 9211-4: the tests named with the order',
+  maker: 'The maker’s own standard coating durability',
+};
+const mnum = (v, lo, hi, d) => (v === null || v === undefined || v === '' || !isFinite(+v) ? d : Math.min(hi, Math.max(lo, +v)));
+function normMake(m) {
+  m = m && typeof m === 'object' ? m : {};
+  const lim = m.limits && typeof m.limits === 'object' ? m.limits : {}, limits = {};
+  for (const [k, v] of Object.entries(lim)) if (/^[a-z]{2,8}$/.test(k) && isFinite(+v)) limits[k] = Math.min(100, Math.max(0, +v));
+  return { durability: MAKE_DURABILITY[m.durability] ? m.durability : 'mil-48497', witness: m.witness !== false, splitTol: mnum(m.splitTol, 0.1, 50, 3), limits };
+}
+/* one coated surface's transmittance into the substrate at nm and cosine ci, for the polarisation judged (or pol) */
+function surfaceT(layers, spec, ci, nm, pol = spec.pol) {
+  const F = faceAmps({ coat: { mode: 'stack', layers } }, spec.n0, spec.ns, ci, nm);
+  const ts = cabs2(F.ts), tp = cabs2(F.tp);
+  return pol === 's' ? ts : pol === 'p' ? tp : (ts + tp) / 2;
+}
+/* the reflectance (or, kind 'T', the transmittance) over the band and the angles judged, five angles across them */
+function sampleR(layers, spec, keep, kind) {
+  const out = [], nA = spec.theta > spec.theta0 ? 5 : 1;
+  for (let i = 0; i < 61; i++) {
+    const nm = spec.lo + (spec.hi - spec.lo) * i / 60;
+    if (keep && !keep(nm)) continue;
+    for (let j = 0; j < nA; j++) {
+      const a = spec.theta0 + (spec.theta - spec.theta0) * (nA > 1 ? j / (nA - 1) : 0), ci = Math.cos(a * Math.PI / 180);
+      out.push(kind === 'T' ? surfaceT(layers, spec, ci, nm) : stackR(layers, spec.n0, spec.ns, ci, nm, spec.pol));
+    }
+  }
+  return out;
+}
+const up = v => { if (!(v > 0)) return 0.01; const p = Math.pow(10, Math.floor(Math.log10(v)) - 1); return Math.ceil(v / p) * p; };
+const down = v => Math.floor(v * 10 + 1e-6) / 10;
+const mean = a => a.reduce((x, y) => x + y, 0) / (a.length || 1);
+/* the requirement rows for the coating: [{ key, q ('R' | 'T'), label, op ('le' | 'ge'), value, auto, design, ok, where }] */
+function makeLimits(f, spec, make) {
+  const L = f.layers, pc = v => 100 * v, set = (make && make.limits) || {};
+  const rows = [];
+  const row = (key, label, op, design, dflt, where) => {
+    const value = set[key] !== undefined ? set[key] : dflt;
+    rows.push({ key, q: label[0], label, op, value, auto: set[key] === undefined, design, ok: op === 'le' ? design <= value + 1e-9 : design >= value - 1e-9, where });
+  };
+  const band = spec.lo + '–' + spec.hi + ' nm';
+  if (spec.target === 'ar' || spec.target === 'hr') {
+    const R = sampleR(L, spec).map(pc), m = mean(R), mx = Math.max(...R), mn = Math.min(...R);
+    if (spec.target === 'ar') {
+      row('mean', 'R mean', 'le', m, up(m * 1.5), band); row('max', 'R max', 'le', mx, up(mx * 1.3), band);
+      const T = mean(sampleR(L, spec, null, 'T').map(pc)); row('tmean', 'T mean', 'ge', T, down(T - 0.5), band);
+    }
+    else { row('min', 'R min', 'ge', mn, Math.min(99.9, down(mn - 0.2)), band); row('mean', 'R mean', 'ge', m, Math.min(99.9, down(m - 0.1)), band); }
+  } else if (spec.target === 'split') {
+    const R = sampleR(L, spec).map(pc), tol = (make && make.splitTol) || 3;
+    row('min', 'R min', 'ge', Math.min(...R), Math.max(0, spec.R - tol), band); row('max', 'R max', 'le', Math.max(...R), Math.min(100, spec.R + tol), band);
+    const T = sampleR(L, spec, null, 'T').map(pc); row('tmin', 'T min', 'ge', Math.min(...T), Math.max(0, down(Math.min(...T) - 1)), band);
+  } else if (spec.target === 'edge') {
+    const off = 0.02 * spec.edge, reflBelow = !spec.passBelow;
+    const refl = sampleR(L, spec, nm => (reflBelow ? nm < spec.edge - off : nm > spec.edge + off)).map(pc);
+    const pass = sampleR(L, spec, nm => (reflBelow ? nm > spec.edge + off : nm < spec.edge - off)).map(pc);
+    const rw = reflBelow ? spec.lo + '–' + Math.round(spec.edge - off) + ' nm' : Math.round(spec.edge + off) + '–' + spec.hi + ' nm';
+    const pw = reflBelow ? Math.round(spec.edge + off) + '–' + spec.hi + ' nm' : spec.lo + '–' + Math.round(spec.edge - off) + ' nm';
+    if (refl.length) row('refl', 'R min, reflected side', 'ge', Math.min(...refl), Math.min(90, down(Math.min(...refl) - 1)), rw);
+    if (pass.length) {
+      row('pass', 'R max, passed side', 'le', Math.max(...pass), Math.max(5, up(Math.max(...pass) * 1.2)), pw);
+      const T = sampleR(L, spec, nm => (reflBelow ? nm > spec.edge + off : nm < spec.edge - off), 'T').map(pc);
+      row('tpass', 'T min, passed side', 'ge', Math.min(...T), Math.min(90, down(Math.min(...T) - 1)), pw);
+    }
+  }
+  return rows;
+}
+/* the yield: how many of the tolerance runs' stacks meet every limit of Make it, and each limit alone. The limits are
+   the coating's own (the values set, or the defaults from the nominal design), held fixed while each run is judged:
+   { runs, pass (all limits), rows: [{ key, label, op, value, nominal, pass, p10 (the value nine runs in ten do better than) }] } */
+function filmYield(stacks, f, spec, make) {
+  const lims = makeLimits(f, spec, make), fixed = { ...(make || {}), limits: Object.fromEntries(lims.map(r => [r.key, r.value])) };
+  const rows = lims.map(r => ({ key: r.key, label: r.label, op: r.op, value: r.value, where: r.where, nominal: r.design, pass: 0, vals: [] }));
+  let pass = 0;
+  for (const L of stacks || []) {
+    const got = makeLimits({ ...f, layers: L }, spec, fixed);
+    let all = true;
+    got.forEach((g, i) => { if (g.ok) rows[i].pass++; else all = false; rows[i].vals.push(g.design); });
+    if (all) pass++;
+  }
+  const n = (stacks || []).length;
+  for (const r of rows) {
+    r.vals.sort((a, b) => (r.op === 'le' ? a - b : b - a));
+    r.p10 = r.vals.length ? r.vals[Math.min(r.vals.length - 1, Math.floor(0.9 * (r.vals.length - 1) + 0.5))] : NaN;
+    delete r.vals;
+  }
+  return { runs: n, pass, rows };
+}
+/* the coating as a note for the part's optical drawing, in the manner of ISO 10110-9 (the coating marked on its
+   surface by λ in a circle, its requirements by ρ(λ) for reflectance and τ(λ) for transmittance, to ISO 9211): one
+   line a requirement, then the durability. The standard's own text was not to hand: check the layout against it. */
+function drawingNote(f, spec, make) {
+  const rows = makeLimits(f, spec, make), pol = { avg: 'mean of s and p', s: 's', p: 'p' }[spec.pol];
+  const aoi = spec.theta > spec.theta0 ? spec.theta0 + '°–' + spec.theta + '°' : spec.theta0 + '°';
+  const lines = rows.map(r => {
+    const [q, kind] = r.label.split(' '), sym = q === 'T' ? 'τ(λ)' : 'ρ(λ)', range = r.where.replace(/^(\d+)–(\d+) nm$/, '$1 nm ≤ λ ≤ $2 nm');
+    return (kind === 'mean' ? 'mean ' : '') + sym + ' ' + (r.op === 'le' ? '≤' : '≥') + ' ' + r.value + ' %, ' + range + ', AOI ' + aoi + ', ' + pol;
+  });
+  return ['Coating (λ in a circle on the surface), to ISO 9211:', ...lines, 'Durability: ' + MAKE_DURABILITY[(make && make.durability) || 'mil-48497'].split(':')[0]];
+}
+/* ==========================================================================
+   A coating, as JEKfilm keeps it: a .jekfilm file, one design to a file.
+     { format: 'jekfilm', version: 1, name,
+       spec: { target, sub: { glass } | { n }, n0, lo, hi, design, angles: 'upto' | 'band', theta0, theta, pol, R, edge, passBelow },
+       layers: [{ n, d }] }        // from the outside in; d in nm
+   What the stack is for and what it is judged in (the spec) travels with the layers, so a coating opened again is
+   judged as it was designed. The physics is JEKray's, shared as it is (core/coatings.js for the stack,
+   core/coatdesign.js for the targets, the merit and the optimiser), so what is designed here is what JEKray traces.
+   normFilm takes anything and gives a coating that opens: there are no format migrations, an old file gets defaults.
+   ========================================================================== */
+const FILM_FORMAT = 'jekfilm';
+const FILM_VERSION = 1;
+const FILM_STORE_KEY = 'jek-film-v1';
+/* what a coating can be for: JEKray's targets but RF's matching layer (the RF designer keeps that) */
+const FILM_TARGETS = { ar: 'Anti-reflection', hr: 'High reflector', split: 'Beam splitter', edge: 'Dichroic edge' };
+/* the substrates offered, with their dispersion: JEKray's Sellmeier coefficients (core/glass.js GLASS, B1..B3 then
+   C1..C3 in µm²; B270 a Cauchy fit), copied so JEKfilm need not load the whole glass catalogue; a test checks they are
+   JEKray's own */
+const FILM_GLASSES = {
+  'N-BK7': [1.03961212, 0.231792344, 1.01046945, 0.00600069867, 0.0200179144, 103.560653],
+  'Fused silica': [0.6961663, 0.4079426, 0.8974794, 0.00467914826, 0.0135120631, 97.9340025],
+  'B270': { cauchy: [2.279137203, 0.013667078, 8.4343511e-5] },
+  'N-SF11': [1.73759695, 0.313747346, 1.89878101, 0.013188707, 0.0623068142, 155.23629],
+  'N-SF6': [1.77931763, 0.338149866, 2.08734474, 0.0133714182, 0.0617533621, 174.01759],
+  'N-LAK22': [1.14229781, 0.535138441, 1.04088385, 0.00585778594, 0.0198546147, 100.834017],
+  'F2': [1.34533359, 0.209073176, 0.937357162, 0.00997743871, 0.0470450767, 111.886764],
+  'CaF2': [0.5675888, 0.4710914, 3.8484723, 0.00252643, 0.0100783, 1200.556],
+  'MgF2': [0.48755108, 0.39875031, 2.3120353, 0.001882178, 0.008951888, 566.13559],
+  'Sapphire': [1.4313493, 0.65054713, 5.3414021, 0.0052799261, 0.0142382647, 325.017834],
+  'ZnSe': [4.45813734, 0.467216334, 2.8956629, 0.0403446215, 0.153171194, 2221.82944],
+  'Silicon': [10.6684293, 0.0030434748, 1.54133408, 0.0909120621, 1.28765977, 1218816],
+  'Germanium': [0.4886331, 14.5142535, 0.0091224, 1.393959, 0.1626427, 752.19],
+};
+/* a glass's index at nm, as JEKray's core/glass.js works it out */
+function filmGlassIndex(name, nm) {
+  const c = FILM_GLASSES[name];
+  if (!c) return 1.5;
+  const um = nm / 1000, l2 = um * um;
+  if (c.cauchy) { const a = c.cauchy; return Math.sqrt(a[0] + a[1] / l2 + a[2] / (l2 * l2)); }
+  let n2 = 1;
+  for (let i = 0; i < 3; i++) n2 += c[i] * l2 / (l2 - c[3 + i]);
+  return Math.sqrt(n2);
+}
+/* the substrate's index at nm: a glass of the list, or an index of the person's own */
+const subIndex = (sub, nm) => (sub && sub.glass ? filmGlassIndex(sub.glass, nm) : sub && isFinite(sub.n) ? +sub.n : 1.5);
+/* where the infrared materials let light through (nm): outside it their Sellmeier fit means nothing, or fails */
+const FILM_CLEAR = { Germanium: [1800, 23000], Silicon: [1200, 14000], ZnSe: [550, 18000] };
+/* whether the substrate is clear at nm, so its index there means something */
+const subClear = (sub, nm) => { const r = sub && sub.glass && FILM_CLEAR[sub.glass]; return isFinite(subIndex(sub, nm)) && (!r || (nm >= r[0] && nm <= r[1])); };
+
+const fnum = (v, lo, hi, d) => (v === null || v === undefined || v === '' || !isFinite(+v) ? d : Math.min(hi, Math.max(lo, +v)));
+/* a coating that opens, from whatever was given */
+function normFilm(d) {
+  d = d && typeof d === 'object' ? d : {};
+  const s = d.spec && typeof d.spec === 'object' ? d.spec : {};
+  const target = FILM_TARGETS[s.target] ? s.target : 'ar';
+  const lo = fnum(s.lo, 100, 20000, 450), hi = Math.max(lo, fnum(s.hi, 100, 20000, 650));
+  const sub = s.sub && typeof s.sub === 'object' && FILM_GLASSES[s.sub.glass] ? { glass: s.sub.glass }
+    : s.sub && typeof s.sub === 'object' && isFinite(+s.sub.n) ? { n: fnum(s.sub.n, 1, 10, 1.5) } : { glass: 'N-BK7' };
+  const design = fnum(s.design, 100, 20000, Math.round((lo + hi) / 2));
+  // the angles judged: from square on up to theta, or a band of them, theta0 to theta
+  const theta = fnum(s.theta, 0, 89, 0), angles = s.angles === 'band' ? 'band' : 'upto';
+  const spec = { target, sub, n0: fnum(s.n0, 1, 10, 1), lo, hi, design, angles, theta0: angles === 'band' ? Math.min(theta, fnum(s.theta0, 0, 89, 0)) : 0, theta, pol: ['s', 'p'].includes(s.pol) ? s.pol : 'avg',
+    R: fnum(s.R, 0, 100, 50), edge: fnum(s.edge, 100, 20000, design), passBelow: s.passBelow !== false };
+  const layers = (Array.isArray(d.layers) ? d.layers : []).slice(0, 200).filter(L => L && typeof L === 'object')
+    .map(L => ({ n: fnum(L.n, 1, 10, 1.38), d: fnum(L.d, 0, 1e6, 100), ...(METAL_NK[L.metal] ? { metal: L.metal } : {}) }));
+  return { format: FILM_FORMAT, version: FILM_VERSION, name: String(d.name || 'Untitled coating').slice(0, 120), spec, layers, tol: normFilmTol(d.tol), make: normMake(d.make) };
+}
+/* a new coating: a single MgF2 layer on N-BK7, anti-reflection over the visible */
+function newFilm(name) {
+  return normFilm({ name: name || 'Untitled coating', spec: { target: 'ar', lo: 450, hi: 650, design: 550 }, layers: coatPreset('mgf2', 550) });
+}
+/* the spec as JEKray's coat designer takes it (core/coatdesign.js coatSpec), the substrate's index at the design wavelength */
+function filmSpec(f) {
+  const s = f.spec;
+  return coatSpec({ target: s.target, n0: s.n0, ns: subIndex(s.sub, s.design), lo: s.lo, hi: s.hi, theta0: s.theta0, theta: s.theta, pol: s.pol, design: s.design, R: s.R, edge: s.edge, passBelow: s.passBelow });
+}
+/* a substrate in words: its glass, or its index */
+const subLabelOf = sub => (sub && sub.glass ? sub.glass : 'n ' + (+(sub && sub.n) || 1.5));
+/* the presets: a starting stack for the design wavelength */
+const FILM_PRESETS = [['mgf2', 'MgF2 single layer'], ['vcoat', 'Two-layer V-coat'], ['bb3', 'Three-layer broadband AR'], ['bs5050', 'Three-layer 50:50 splitter'], ['hr', 'HR stack, 6 pairs'],
+  ['agp', 'Protected silver'], ['alp', 'Protected aluminium'], ['ale', 'Enhanced aluminium'], ['au', 'Gold']];
+function filmPreset(kind, design) {
+  const q = n => ({ n, d: qwot(n, design) });
+  // metal mirrors, outside in: a half-wave overcoat (absent at the design wavelength) on 150 nm of silver or 100 nm of
+  // aluminium; an aluminium mirror enhanced by a quarter-wave pair of high index on low; bare gold
+  if (kind === 'agp') return [{ n: 1.46, d: 2 * qwot(1.46, design) }, { n: 1, d: 150, metal: 'Ag' }];
+  if (kind === 'alp') return [{ n: 1.46, d: 2 * qwot(1.46, design) }, { n: 1, d: 100, metal: 'Al' }];
+  if (kind === 'ale') return [q(2.10), q(1.46), { n: 1, d: 100, metal: 'Al' }];
+  if (kind === 'au') return [{ n: 1, d: 150, metal: 'Au' }];
+  if (kind === 'bb3') return [{ n: 1.38, d: qwot(1.38, design) }, { n: 2.10, d: qwot(2.10, design) / 2 }, { n: 1.63, d: qwot(1.63, design) }];
+  return coatPreset(kind, design);
+}
+/* the coating as a JEKray face takes it (state/project.js normCoat, mode 'stack'), named */
+const filmToCoat = f => coatToStack(f.layers, filmSpec(f), f.name);
+/* a small figure as three significant figures times a power of ten (1.93×10⁻⁶), so it is no longer than the rest */
+const FILM_SUPER = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹' };
+const dsSci = v => { const [m, e] = v.toExponential(2).split('e'); return m + '×10' + String(+e).replace(/./g, c => FILM_SUPER[c] || c); };
+/* a figure to dp decimals, or, below 10^(1-dp) (where those decimals would keep fewer than two figures), as above */
+const dsFix = (v, dp) => (!isFinite(v) ? '—' : v === 0 || Math.abs(v) >= Math.pow(10, 1 - dp) ? v.toFixed(dp) : dsSci(v));
+/* the file's text */
+const filmText = f => JSON.stringify(normFilm(f), null, 2);
+/* the curves drawn: square on and at the largest angle against wavelength, the target; s and p against the angle */
+function filmCurves(f) {
+  const spec = filmSpec(f), c0 = coatCurve(f.layers, spec, spec.theta0), ct = spec.theta > spec.theta0 ? coatCurve(f.layers, spec, spec.theta) : null, A = coatAngles(f.layers, spec);
+  return { spec, nms: c0.nms, R0: c0.R, Rt: ct ? ct.R : null, want: c0.nms.map(nm => coatWant(spec, nm)), A };
+}
+/* ==========================================================================
+   The coating specification: what a coater needs, the coating and the substrate it is on and no more, as a PDF of two
+   A4 pages, written by JEKray's io/pdf.js. Page 1 is the order: the coating and its substrate, the performance it is
+   accepted against, reflectance and transmittance (with the design's own value beside each limit), durability, how it
+   is checked, and the note for the part's drawing. Page 2 is the design behind it: the layers (material, index, physical and optical thickness),
+   the reflectance across the band and against the angle, and the tolerance run when there is one for this design.
+   The pages alone, from the coating and what is given with it (o: date, tol a tolerance run, yield its yield), so JEKray
+   builds the same pages for a coated lens face (Make the part). Saving them is JEKfilm's io/film-spec.js.
+   ========================================================================== */
+const FP_W = 595, FP_H = 842, FP_M = 48, FP_INK = '#1a1a1a', FP_SOFT = '#666', FP_RULE = '#cfcfcf';
+function stext(g, t, x, y, o) {
+  o = o || {};
+  g.font = (o.bold ? '600 ' : '') + (o.size || 9) + 'px ' + (o.mono ? 'Courier, monospace' : 'Helvetica, Arial, sans-serif');
+  g.fillStyle = o.ink || FP_INK; g.textAlign = o.align || 'left'; g.textBaseline = 'alphabetic';
+  g.fillText(String(t), x, y);
+}
+const swrap = (t, n) => { const out = []; let line = ''; for (const w of String(t).split(' ')) { if ((line + ' ' + w).trim().length > n) { out.push(line); line = w; } else line = (line + ' ' + w).trim(); } if (line) out.push(line); return out; };
+function spage(meta, title, n) {
+  const g = new VecCtx(FP_W, FP_H, { plain: true });
+  g.fillStyle = '#fff'; g.fillRect(0, 0, FP_W, FP_H);
+  stext(g, title, FP_M, 56, { size: 16, bold: true });
+  stext(g, meta.name, FP_M, 74, { size: 10, ink: FP_SOFT });
+  stext(g, meta.date, FP_W - FP_M, 56, { size: 8.5, ink: FP_SOFT, align: 'right' });
+  g.strokeStyle = FP_INK; g.lineWidth = 0.8; g.beginPath(); g.moveTo(FP_M, 84); g.lineTo(FP_W - FP_M, 84); g.stroke();
+  stext(g, 'Designed in JEKfilm (jeksys.net). Theoretical performance from the thin-film model and the indices listed.', FP_M, FP_H - 30, { size: 7, ink: FP_SOFT });
+  stext(g, 'Page ' + n + ' of 2', FP_W - FP_M, FP_H - 30, { size: 7, ink: FP_SOFT, align: 'right' });
+  return { g, y: 108 };
+}
+const shead = (pg, t) => { pg.y += 8; stext(pg.g, t, FP_M, pg.y, { size: 11, bold: true }); pg.y += 16; };
+const spara = (pg, t) => { for (const ln of swrap(t, 104)) { stext(pg.g, ln, FP_M, pg.y, { size: 8.5 }); pg.y += 12; } };
+/* a table: cols [{ label, w, align, mono }], rows of strings */
+function stable(pg, cols, rows) {
+  const g = pg.g; let x = FP_M; const xs = cols.map(c => { const a = x; x += c.w; return a; });
+  const cell = (c, i, t, head) => stext(g, t, c.align === 'right' ? xs[i] + c.w - 4 : xs[i], pg.y, { size: head ? 7.5 : 8.5, ink: head ? FP_SOFT : FP_INK, bold: head, mono: !head && c.mono, align: c.align === 'right' ? 'right' : 'left' });
+  cols.forEach((c, i) => cell(c, i, c.label, true));
+  pg.y += 4; g.strokeStyle = FP_INK; g.lineWidth = 0.6; g.beginPath(); g.moveTo(FP_M, pg.y); g.lineTo(x, pg.y); g.stroke(); pg.y += 11;
+  for (const r of rows) { r.forEach((t, i) => cell(cols[i], i, t, false)); pg.y += 4; g.strokeStyle = FP_RULE; g.lineWidth = 0.35; g.beginPath(); g.moveTo(FP_M, pg.y); g.lineTo(x, pg.y); g.stroke(); pg.y += 11; }
+  pg.y += 4;
+}
+/* a plot: series [{ xs, ys, ink, dash }], axes ranges, titles */
+function splot(pg, x0, w, h, o) {
+  const g = pg.g, y0 = pg.y + 8, L = 34, B = 26, X = v => x0 + L + (w - L - 8) * (v - o.xr[0]) / ((o.xr[1] - o.xr[0]) || 1), Y = v => y0 + h - B - (h - B - 6) * (v - o.yr[0]) / ((o.yr[1] - o.yr[0]) || 1);
+  stext(g, o.title, x0, y0 - 14, { size: 8.5, bold: true });
+  const ticks = (a, b, n) => { const raw = (b - a) / n, mag = Math.pow(10, Math.floor(Math.log10(raw || 1))), f = raw / mag, st = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag, out = []; for (let v = Math.ceil(a / st - 1e-9) * st; v <= b + 1e-9 * st; v += st) out.push(+v.toPrecision(10)); return out; };
+  g.lineWidth = 0.3; g.strokeStyle = FP_RULE;
+  for (const t of ticks(o.xr[0], o.xr[1], 5)) { g.beginPath(); g.moveTo(X(t), y0 + 6); g.lineTo(X(t), y0 + h - B); g.stroke(); stext(g, String(t), X(t), y0 + h - B + 10, { size: 7, ink: FP_SOFT, align: 'center' }); }
+  for (const t of ticks(o.yr[0], o.yr[1], 4)) { g.beginPath(); g.moveTo(x0 + L, Y(t)); g.lineTo(x0 + w - 8, Y(t)); g.stroke(); stext(g, String(t), x0 + L - 4, Y(t) + 2.5, { size: 7, ink: FP_SOFT, align: 'right' }); }
+  stext(g, o.xTitle, x0 + L + (w - L - 8) / 2, y0 + h - 4, { size: 7.5, ink: FP_SOFT, align: 'center' });
+  stext(g, o.yTitle, x0, y0 - 1, { size: 7.5, ink: FP_SOFT });
+  for (const s of o.series) {
+    g.strokeStyle = s.ink; g.lineWidth = s.dash ? 0.7 : 1.2; g.setLineDash(s.dash ? [3, 2] : []); g.beginPath();
+    s.xs.forEach((xv, i) => { const yv = Math.max(o.yr[0], Math.min(o.yr[1], s.ys[i])); if (i) g.lineTo(X(xv), Y(yv)); else g.moveTo(X(xv), Y(yv)); });
+    g.stroke(); g.setLineDash([]);
+  }
+  let kx = x0 + L;
+  for (const s of o.series.filter(q => q.label)) { g.strokeStyle = s.ink; g.lineWidth = 1.2; g.setLineDash(s.dash ? [3, 2] : []); g.beginPath(); g.moveTo(kx, y0 + h + 8); g.lineTo(kx + 12, y0 + h + 8); g.stroke(); g.setLineDash([]); stext(g, s.label, kx + 16, y0 + h + 10.5, { size: 7.5, ink: FP_SOFT }); kx += 22 + s.label.length * 4.2; }
+}
+/* a layer's material as the maker reads it: MgF2, Ta2O5…, a metal by name, or an index of one's own */
+const smat = L => (L.metal ? METAL_NAMES[L.metal] + ' (' + L.metal + ')' : ((COAT_MATERIALS.find(m => Math.abs(+m[0] - L.n) < 1e-9) || [0, 'n = ' + L.n])[1]).replace(/ \([\d.]+\)$/, ''));
+const spct = v => (v >= 10 ? v.toFixed(2) : v >= 0.01 ? v.toFixed(3) : v.toExponential(2));
+/* the specification's pages, as VecCtx records (the tests read them) */
+function filmSpecRecs(f, o) {
+  o = o || {};
+  const s = filmSpec(f), M = f.make, date = o.date || new Date().toISOString().slice(0, 10), meta = { name: f.name, date };
+  const angles = s.theta > s.theta0 ? s.theta0 + '–' + s.theta + '°' : s.theta0 + '°', pol = { avg: 'mean of s and p', s: 's', p: 'p' }[s.pol];
+  // page 1: the order
+  const p1 = spage(meta, 'Coating specification', 1);
+  shead(p1, 'Coating and substrate');
+  stable(p1, [{ label: 'Item', w: 170 }, { label: 'Requirement', w: 329 }], [
+    ['Coating', FILM_TARGETS[s.target] + ', ' + f.layers.length + (f.layers.length === 1 ? ' layer' : ' layers') + ' (design on page 2)'],
+    ['Substrate', subLabelOf(f.spec.sub) + ', n = ' + s.ns.toFixed(4) + ' at ' + s.design + ' nm'], ['Incident medium', 'n = ' + s.n0]]);
+  shead(p1, 'Performance');
+  spara(p1, 'One coated surface at ' + angles + ' angle of incidence, ' + pol + ' polarisation: its reflectance R, and its transmittance T into the substrate. The coating is accepted when each limit below is met over its band.');
+  p1.y += 4;
+  const rows = makeLimits(f, s, M);
+  stable(p1, [{ label: 'Quantity', w: 150 }, { label: 'Band', w: 120 }, { label: 'Limit', w: 90, align: 'right', mono: true }, { label: 'Design gives', w: 90, align: 'right', mono: true }, { label: '', w: 49 }],
+    rows.map(r => [r.label + ' (%)', r.where, (r.op === 'le' ? '<= ' : '>= ') + r.value, spct(r.design), r.ok ? 'met' : 'NOT MET']));
+  shead(p1, 'Durability');
+  spara(p1, MAKE_DURABILITY[M.durability] + '.');
+  shead(p1, 'Verification');
+  spara(p1, M.witness ? 'Measure the reflectance of a witness sample from the same run over ' + s.lo + '–' + s.hi + ' nm at ' + (s.theta > s.theta0 ? s.theta0 + '° and ' + s.theta + '°' : s.theta0 + '°') + ', and send the measured curve with the parts. The design curves to compare it with are on page 2.' : 'The maker’s standard checks of the run.');
+  shead(p1, 'Drawing note');
+  for (const ln of drawingNote(f, s, M)) { stext(p1.g, ln, FP_M, p1.y, { size: 8.5, mono: true }); p1.y += 12; }
+  // page 2: the design
+  const p2 = spage(meta, 'Coating design', 2);
+  shead(p2, 'Layers, from the incident medium to the substrate');
+  const total = f.layers.reduce((a, L) => a + L.d, 0);
+  stable(p2, [{ label: 'Layer', w: 40, align: 'right' }, { label: 'Material', w: 130 }, { label: 'n at ' + s.design + ' nm', w: 90, align: 'right', mono: true }, { label: 'k', w: 60, align: 'right', mono: true }, { label: 'Thickness (nm)', w: 90, align: 'right', mono: true }, { label: 'QWOT', w: 80, align: 'right', mono: true }],
+    f.layers.map((L, i) => { const nk = L.metal ? metalNK(L.metal, s.design) : [L.n, 0]; return [String(i + 1), smat(L), nk[0].toFixed(3), nk[1].toFixed(3), L.d.toFixed(2), L.metal ? '-' : (L.d / qwot(L.n, s.design)).toFixed(3)]; }).concat([['', 'Total', '', '', total.toFixed(2), '']]));
+  const C = filmCurves(f);
+  p2.y += 12;
+  const series = [{ label: 'R at ' + s.theta0 + '°', ink: '#0077a8', xs: C.nms, ys: C.R0.map(v => 100 * v) }];
+  if (C.Rt) series.push({ label: 'R at ' + s.theta + '°', ink: '#d9531e', xs: C.nms, ys: C.Rt.map(v => 100 * v) });
+  for (const r of rows) series.push({ label: r === rows[0] ? 'limits' : '', ink: '#888', dash: true, xs: [s.lo, s.hi], ys: [r.value, r.value] });
+  const top = Math.min(100, Math.max(0.5, 1.15 * Math.max(...series.flatMap(q => q.ys))));
+  splot(p2, FP_M, 240, 190, { title: 'Reflectance against wavelength', xTitle: 'wavelength (nm)', yTitle: 'R (%)', xr: [s.lo, s.hi], yr: [s.target === 'hr' ? Math.max(0, Math.floor(Math.min(...C.R0) * 100 - 1)) : 0, top], series });
+  splot(p2, FP_M + 259, 240, 190, { title: 'Reflectance against angle at ' + s.design + ' nm', xTitle: 'angle of incidence (deg)', yTitle: 'R (%)', xr: [0, 89], yr: [0, 100],
+    series: [{ label: 'Rs', ink: '#0077a8', xs: C.A.degs, ys: C.A.s.map(v => 100 * v) }, { label: 'Rp', ink: '#d9531e', xs: C.A.degs, ys: C.A.p.map(v => 100 * v) }] });
+  p2.y += 222;
+  const T = o.tol || null;
+  if (T) {
+    shead(p2, 'Tolerance');
+    spara(p2, 'Each layer’s thickness off by a normal error of σ = ' + T.tol.sigma + (T.tol.kind === 'rel' ? '% of the layer' : ' nm') + ', over ' + T.tol.runs + ' runs, at ' + s.theta0 + '°:');
+    p2.y += 4;
+    stable(p2, [{ label: '', w: 120 }, { label: 'Nominal', w: 110, align: 'right', mono: true }, { label: 'Median', w: 110, align: 'right', mono: true }, { label: '90th percentile', w: 110, align: 'right', mono: true }],
+      [['R mean (%)', T.mean], ['R max (%)', T.worst]].map(([k, v]) => [k, spct(100 * v.nominal), spct(100 * v.median), spct(100 * v.p90)]));
+    // the yield against page 1's limits: of the same runs (only when the run is this coating's own, as in the page)
+    const Y = o.yield || null;
+    if (Y && Y.runs) { p2.y += 6; spara(p2, 'Yield: ' + (100 * Y.pass / Y.runs).toFixed(1) + '% of the runs (' + Y.pass + ' of ' + Y.runs + ') meet every limit on page 1.'); }
+  }
+  return [p1.g, p2.g];
+}
 /* Recording mode (J.kiosk, ?kiosk): the busy banner, the side panel, the notes (welcome, empty bench,
    sign-in), toasts, the minimap and the coordinates hidden, nothing selected; opts.all hides the parts rail and the
    bench tabs too. The bench fills what is left. */
@@ -58205,6 +58888,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // the drawings of an assembly's lenses: their data, one sheet as SVG text, all (or one) as PDF text
     lensDrawings(name) { const a = assemblies().find(x => x.name === name); return a ? lensDrawings(a) : null; },
     lensDrawingSvg(name, i) { const a = assemblies().find(x => x.name === name); return a ? drawingSvgText(a, i || 0) : null; },
+    // Make the part: a drawing's documents as { name, text } (PDFs uncompressed), and a .jekfilm's content put on a lens face
+    async makePartFiles(name, i) { const a = assemblies().find(x => x.name === name); if (!a) return null; const D = lensDrawings(a)[i || 0]; return (await partFiles(D, { assembly: a.name, raw: true, date: '2026-01-01' })).map(f => ({ name: f.name, text: new TextDecoder('latin1').decode(f.data) })); },
+    filmOnFace(elName, j, doc, label) { const e = this.byName(elName), s = e && e.surfaces && e.surfaces[j]; return s ? filmDocOn(s, doc, label || doc.name) : false; },
     rfReportSvg(name, i) { const a = assemblies().find(x => x.name === name); if (!a) return null; const recs = rfReportRecs(a); return i === undefined ? recs.length : layoutSvg(recs[i], a.name); },
     async rfReportPdf(name) { const a = assemblies().find(x => x.name === name); return a ? await (await rfReportPdfBlob(a, { raw: true })).text() : null; },
     async lensReportPdf(name) { const a = assemblies().find(x => x.name === name); return a ? await (await reportPdfBlob(a, { raw: true })).text() : null; },

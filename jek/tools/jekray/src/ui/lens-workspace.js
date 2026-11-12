@@ -20,7 +20,8 @@ import { DP_KEYS, DP_N, dpLabel } from '../core/diffractive.js';
 import { GR_N, grLabel } from '../core/gradient.js';
 import { analysesPanel } from './lens-analyses.js';
 import { lensTolState, tolCard, tolStart, tolStop } from './lens-tolerance.js';
-import { drawingsCard } from './lens-drawing.js';
+import { drawingsCard, lensDrawings } from './lens-drawing.js';
+import { makeCard } from './lens-make.js';
 import { stockCard } from './lens-stock.js';
 import { saveReport } from './lens-report.js';
 import { setSelection } from './render.js';
@@ -160,7 +161,7 @@ function drawWs() {
     h('button', { class: 'rt-btn primary', type: 'button', id: 'lensLeave', title: WS.draft ? 'Put it on the bench, with a source for each field and a screen at its image' : 'Back to the bench, where its parts are as designed here (Esc)', onclick: leave },
       WS.draft ? 'Place on a bench' : 'Back to the bench')));
   const body = h('div', { class: 'rt-lbody' });
-  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'cfg' ? configsCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : WS.tab === 'tol' ? tolCard({ asm, P, redraw: renderWs, state: WS.tolState || (WS.tolState = {}), edit: tolEdit }) : WS.tab === 'draw' ? drawingsCard(asm, WS.drawState || (WS.drawState = { redraw: renderWs })) : WS.tab === 'stock' ? stockCard({ asm, P, redraw: renderWs, edit, toast }) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
+  body.append(conditionsCard(asm, F), h('div', { class: 'rt-lmain' }, layoutCard(asm, P, F), figuresStrip(F), tabsRow(), WS.tab === 'data' ? dataCard(asm, P) : WS.tab === 'cfg' ? configsCard(asm, P) : WS.tab === 'merit' ? meritCard(asm, P) : WS.tab === 'opt' ? optCard(asm, P) : WS.tab === 'tol' ? tolCard({ asm, P, redraw: renderWs, state: WS.tolState || (WS.tolState = {}), edit: tolEdit }) : WS.tab === 'draw' ? drawTab(asm) : WS.tab === 'stock' ? stockCard({ asm, P, redraw: renderWs, edit, toast }) : analysesPanel(asm, P, F, WS.ana || (WS.ana = {}), renderWs)));
   sec.append(body, h('div', { class: 'rt-toast', id: 'lensToast', role: 'status', 'aria-live': 'polite' }));
   body.scrollTop = scroll;
 }
@@ -171,6 +172,12 @@ function tolEdit(fn) {
   fn(designOf(WS.asm));
   changed(false);
   renderWs();
+}
+/* the Drawings tab: the sheet of the lens chosen and, for an optical design, what it is made to and Make the part */
+function drawTab(asm) {
+  const st = WS.drawState || (WS.drawState = { redraw: renderWs, edit: fn => edit(() => { fn(); return false; }) }), card = drawingsCard(asm, st);
+  if (asm.kind !== 'rf') { const all = lensDrawings(asm), i = Math.min(st.drawing || 0, all.length - 1); if (all.length) card.append(makeCard(asm, all[i], i, st)); }
+  return card;
 }
 function edit(fn) {
   optStop('Stopped: the design was changed by hand.');
@@ -588,10 +595,23 @@ function dataCard(asm, P) {
     // the coating: a lens surface's, chosen here (a mirror coating makes the surface reflect, and the rows follow the light)
     const ctd0 = h('td');
     if (sp.kind === 'lens' && s.from) {
-      const c = s.coat || { mode: 'bare' }, cur = c.mode === 'mirror' ? 'mirror:' + (c.metal || 'ideal') : c.mode === 'band' && c.label === 'Dielectric HR' ? 'hr' : c.mode === 'ar' ? 'ar' : c.mode === 'bare' ? 'bare' : 'other';
-      const opts = [['bare', 'Bare glass'], ['ar', 'AR coated'], ['mirror:ideal', 'Mirror'], ['mirror:Al', 'Aluminium mirror'], ['mirror:Ag', 'Silver mirror'], ['mirror:Au', 'Gold mirror'], ['hr', 'Dielectric HR'], ...(cur === 'other' ? [['other', c.mode === 'stack' ? 'Thin-film stack' : c.mode === 'band' ? 'Coated ' + c.lo + '\u2013' + c.hi + ' nm' : 'Reflects ' + (c.R || 0) + '%']] : [])];
-      const sel = h('select', { class: 'rt-lmir', 'aria-label': 'Coating of surface ' + (i + 1), title: 'The coating on this surface: a mirror coating reflects all it can and passes nothing' }, ...opts.map(([v, t]) => h('option', { value: v, selected: v === cur ? '' : null, disabled: v === 'other' ? '' : null }, t)));
-      sel.addEventListener('change', () => { const v = sel.value; edit(PP => { for (const q of PP.surfaces) if (sameSurf(s, q)) q.coat = v === 'bare' ? { mode: 'bare' } : v === 'ar' ? { mode: 'ar', R: 0.5 } : v === 'hr' ? { mode: 'band', R: 99.9, lo: 400, hi: 700, label: 'Dielectric HR' } : { mode: 'mirror', metal: v.split(':')[1] }; }); });
+      const c = s.coat || { mode: 'bare' }, film = c.mode === 'stack' && c.src ? 'film:' + c.src.id : '';
+      const cur = c.mode === 'mirror' ? 'mirror:' + (c.metal || 'ideal') : c.mode === 'band' && c.label === 'Dielectric HR' ? 'hr' : c.mode === 'ar' ? 'ar' : c.mode === 'bare' ? 'bare' : film || 'other';
+      // the JEKfilm coatings kept in the bench's cloud folder (◆), as a face's Coating list on the bench offers them, and one from a file
+      const folder = hooks.filmFolder ? hooks.filmFolder() : [];
+      const opts = [['bare', 'Bare glass'], ['ar', 'AR coated'], ['mirror:ideal', 'Mirror'], ['mirror:Al', 'Aluminium mirror'], ['mirror:Ag', 'Silver mirror'], ['mirror:Au', 'Gold mirror'], ['hr', 'Dielectric HR'],
+        ...folder.map(f => ['film:' + f.id, '◆ ' + f.name + ' (JEKfilm)']), ...(film && !folder.some(f => 'film:' + f.id === film) ? [[film, '◆ ' + (c.label || 'JEKfilm coating') + ' (JEKfilm)']] : []),
+        ...(cur === 'other' ? [['other', c.mode === 'stack' ? (c.label ? '◆ ' + c.label : 'Thin-film stack') : c.mode === 'band' ? 'Coated ' + c.lo + '\u2013' + c.hi + ' nm' : 'Reflects ' + (c.R || 0) + '%']] : []),
+        ...(hooks.filmFileOn ? [['filmfile', 'A JEKfilm coating from a file…']] : [])];
+      const sel = h('select', { class: 'rt-lmir', 'aria-label': 'Coating of surface ' + (i + 1), title: 'The coating on this surface: a mirror coating reflects all it can and passes nothing; a JEKfilm coating (◆) is its designed stack, kept on the face with its specification' }, ...opts.map(([v, t]) => h('option', { value: v, selected: v === cur ? '' : null, disabled: v === 'other' && c.mode !== 'stack' ? '' : null }, t)));
+      sel.addEventListener('change', () => {
+        const v = sel.value, el = getEl(s.from.id), holder = el && el.surfaces && el.surfaces[s.from.i];
+        // a JEKfilm coating: put on the part's face itself (fetched, or read from the file), then the workspace drawn again
+        if (v.startsWith('film:') && holder) { if (v !== film) Promise.resolve(hooks.useFilmOn(holder, v.slice(5))).then(() => renderWs()); return; }
+        if (v === 'filmfile' && holder) { hooks.filmFileOn(holder, () => renderWs()); return; }
+        if (v === 'other') return;
+        edit(PP => { for (const q of PP.surfaces) if (sameSurf(s, q)) q.coat = v === 'bare' ? { mode: 'bare' } : v === 'ar' ? { mode: 'ar', R: 0.5 } : v === 'hr' ? { mode: 'band', R: 99.9, lo: 400, hi: 700, label: 'Dielectric HR' } : { mode: 'mirror', metal: v.split(':')[1] }; });
+      });
       ctd0.append(sel);
     } else if (sp.kind === 'mirror') ctd0.append(h('span', { class: 'mono ro' }, 'Mirror'));
     tr.append(ctd0);

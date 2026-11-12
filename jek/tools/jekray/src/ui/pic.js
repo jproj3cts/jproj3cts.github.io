@@ -4,7 +4,7 @@ import { V, deg } from '../state/project.js';
 import { FIBRE_COLOUR, getEl } from '../state/elements.js';
 import { frame, toWorld } from '../core/mask.js';
 import { lastTrace } from '../engines/trace.js';
-import { bodyFill, ctx, getCss, portFill, portsInUse, removeFibre, selInk, sx, sy, untinted } from './render.js';
+import { bodyFill, ctx, getCss, portFill, portR, portsInUse, removeFibre, selInk, sx, sy, untinted } from './render.js';
 import { netPower, pkey, portWorld } from '../engines/fibre.js';
 import {
   C_NM, LAM0, PIC_DARK, PIC_GREEN, PIC_KINDS, PIC_WG, PMAP, PSYM, PVAL, chipOf, coarseToFine, laserNms,
@@ -46,7 +46,7 @@ function picDraw(el, sel) {
     const [t, x0, y0] = PVAL[el.kind](el), [u, v] = sheet(null, M).at(x0, y0), [x, y] = toWorld(frame(el), u, -v);
     c.save(); c.font = clamp(1.6 * s, 8, 11) + 'px ' + getCss('--jek-mono'); c.fillStyle = '#bfe8cc'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, sx(x), sy(y)); c.restore();
   }
-  const used = portsInUse(), r = clamp(1.1 * s, 3, 6);
+  const used = portsInUse(), r = portR(1.1);
   untinted(() => ports.forEach((P, i) => {
     const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i)), col = P.chip ? PIC_GREEN : FIBRE_COLOUR;
     c.beginPath(); c.arc(X, Y, r, 0, 2 * Math.PI);

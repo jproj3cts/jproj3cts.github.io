@@ -455,7 +455,13 @@ function drawBeams(fieldShown) {
   ctx.save();
   // a cavity's round trips land on one another: each envelope once, to the pixel
   const done = new Set(), m2 = new Map(), idx = new Map(B.map((b, i) => [b, i]));
-  for (const seg of B) {
+  /* on a figure, a beam that leaves the bench with nothing to meet is drawn a short way and stops (an eighth of the
+     bench's longest side): run to the figure's edge, a spreading beam was a wedge across half the page */
+  let stray = 0;
+  if (figure && figure.tidy) { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const e of project.elements) if (onTab(e) && e.type !== 'draw') { const b = worldBox(e); x0 = Math.min(x0, b.x0); x1 = Math.max(x1, b.x1); y0 = Math.min(y0, b.y0); y1 = Math.max(y1, b.y1); } if (isFinite(x0)) stray = Math.max(5, 0.125 * Math.max(x1 - x0, y1 - y0)); }
+  for (const seg0 of B) {
+    if (figure && figure.noLight) break;
+    const seg = stray && !seg0.endEl && seg0.len > stray ? Object.assign({}, seg0, { len: stray }) : seg0;
     if (seg.fan || seg.pol || seg.bench !== project.tab) continue;       // a ray fan's pilot is not a beam; one envelope per beam
     if (closeupOn && fieldShown && fieldShown.has(seg.src)) continue;   // meaningless at this scale
     const outline = fieldShown && fieldShown.has(seg.src);   // the field is drawn: just mark 1/e²
@@ -471,7 +477,7 @@ function drawBeams(fieldShown) {
     const steps = Math.max(12, Math.min(96, Math.round(seg.len * V().scale / 6)));
     const up = [], dn = [], upIn = [], dnIn = [];
     // past each end as far as its surface runs across the beam, then cut along the surface
-    const PL = segPlanes(B, idx.get(seg)), wMax = Math.max(bA ? bA.w : 0, bB ? bB.w : 0, seg.hole || 0) * 1.6;
+    const PL = segPlanes(B, idx.get(seg0)), wMax = Math.max(bA ? bA.w : 0, bB ? bB.w : 0, seg.hole || 0) * 1.6;
     const e0 = PL.p0 ? Math.min(5, PL.p0.tan) * wMax : 0, e1 = PL.p1 ? Math.min(5, PL.p1.tan) * wMax : 0;
     for (let i = -1; i <= steps + 1; i++) {
       const t = i < 0 ? -e0 : i > steps ? seg.len + e1 : seg.len * i / steps;
@@ -561,6 +567,7 @@ function drawTrail() {
   ctx.drawImage(cv, 0, 0); ctx.restore();
 }
 function drawRays(stale) {
+  if (figure && figure.noLight) return;                                  // a figure with the light left out
   const rays = stale && TW.rays ? TW.rays : lastTrace.rays;
   if (rays.length < RAY_LAYER_MIN || exporting || typeof document.createElement !== 'function') { drawRaysOn(ctx, rays); return; }
   const frameKey = [W, H, DPR, project.tab, lightLayer, byPowerOn(), lightOf().rayWidth || 0, !!lightOf().glow].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
@@ -872,7 +879,7 @@ function drawLabels() {
      then further out), and one that had to go further than beside its part joined to it by a thin line */
   const tidy = !!(figure && figure.tidy);
   const bodies = tidy ? project.elements.filter(e => onTab(e) && e.type !== 'draw' && !(e.type === 'elec' && e.kind === 'node')).map(e => { const b = worldBox(e); const m = 0.2 * figure.labelPx; return { x: sx(b.x0) - m, y: sy(b.y1) - m, w: sx(b.x1) - sx(b.x0) + 2 * m, h: sy(b.y0) - sy(b.y1) + 2 * m }; }) : [];   // a thin part still has a body to keep off
-  const nameOf = el => figure && figure.numbers ? String(figure.numbers.get(el.id) ?? '') : el.name;      // a figure with a key: the part's number
+  const nameOf = el => figure && figure.numbers ? String(figure.numbers.get(el.id) ?? '') : tidy ? figName(el) : el.name;      // a figure with a key: the part's number
   const spots = new Map();
   if (tidy) {
     const fs = figure.labelPx, u = fs / 11, lh = 13 * u, gap = 0.5 * fs, placed = [];
@@ -881,17 +888,26 @@ function drawLabels() {
     const cost = (it, x, y) => { const b = { x: x - it.w / 2 - gap, y: y - 10 * u, w: it.w + 2 * gap, h: lh }; let c = 0; for (const o of placed) c += over(b, o); for (const o of taken) c += over(b, o); for (const o of bodies) c += over(b, o); return c; };
     const ring = (it, r) => {
       const bx = it.bx, d = 0.35 * fs + r * lh, cx = bx.x + bx.w / 2, below = bx.y + bx.h + d + 10 * u, above = bx.y - d - 3 * u, mid = bx.y + bx.h / 2 + 3.5 * u, right = bx.x + bx.w + d + gap + it.w / 2, left = bx.x - d - gap - it.w / 2;
-      return [[cx, below], [cx, above], [right, mid], [left, mid], [right, below], [left, below], [right, above], [left, above]];
+      // under and over it, centred or with an end of the name at an end of the part; at either side; at the corners
+      const la = bx.x + it.w / 2, ra = bx.x + bx.w - it.w / 2;
+      return [[cx, below], [cx, above], [right, mid], [left, mid], [la, below], [ra, below], [la, above], [ra, above], [right, below], [left, below], [right, above], [left, above]];
     };
     let far = 0, clash = 0;
-    const fix = (it, c) => {
+    // the line from a name to its part, when it is further than beside it: from the name's nearest edge to the part's
+    const leadOf = (it, c) => {
       const X = c[0], Y = c[1], bx = it.bx, lb = { x: X - it.w / 2, y: Y - 10 * u, w: it.w, h: lh }, near = (v, a, b) => Math.min(b, Math.max(a, v));
-      // further than beside its part: a line from the name to the part
       const px = near(X, bx.x, bx.x + bx.w), py = near(Y - 3.5 * u, bx.y, bx.y + bx.h), qx = near(px, lb.x, lb.x + lb.w), qy = near(py, lb.y, lb.y + lb.h);
-      const lead = Math.hypot(px - qx, py - qy) > 1.1 * lh ? [qx, qy, px, py] : null;
-      if (lead) far++;
-      spots.set(it.el.id, { X, Y, lead }); placed.push(lb);
+      return Math.hypot(px - qx, py - qy) > 1.1 * lh ? [qx, qy, px, py] : null;
     };
+    const leads = [];
+    const fix = (it, c) => {
+      const X = c[0], Y = c[1], lead = leadOf(it, c);
+      if (lead) { far++; leads.push(lead); }
+      spots.set(it.el.id, { X, Y, lead }); placed.push({ x: X - it.w / 2, y: Y - 10 * u, w: it.w, h: lh });
+    };
+    // does a line cross a box, or another line (so a name's line is not led through a part, a name or another's line)
+    const segSeg = (a, b) => { const d = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]), A = [a[0], a[1]], B = [a[2], a[3]], C = [b[0], b[1]], D = [b[2], b[3]]; return d(A, B, C) * d(A, B, D) < 0 && d(C, D, A) * d(C, D, B) < 0; };
+    const segBox = (l, o) => { const inb = (x, y) => x > o.x && x < o.x + o.w && y > o.y && y < o.y + o.h; if (inb(l[0], l[1]) || inb(l[2], l[3])) return true; const x0 = o.x, y0 = o.y, x1 = o.x + o.w, y1 = o.y + o.h; return [[x0, y0, x1, y0], [x1, y0, x1, y1], [x1, y1, x0, y1], [x0, y1, x0, y0]].some(e => segSeg(l, e)); };
     const list = project.elements.filter(e => onTab(e) && e.type !== 'draw' && !(e.type === 'elec' && e.kind === 'node')).map(el => { const b = worldBox(el); return { el, w: ctx.measureText(nameOf(el)).width, bx: { x: sx(b.x0), y: sy(b.y1), w: sx(b.x1) - sx(b.x0), h: sy(b.y0) - sy(b.y1) } }; });
     // every name first tried beside its own part (where it was put on the bench, if that is clear at this size), so one
     // name's detour never takes the place beside another part; then those left over, further out
@@ -902,8 +918,18 @@ function drawLabels() {
       if (c) fix(it, c); else rest.push(it);
     }
     for (const it of rest) {
-      let best = null, bc = Infinity;
-      for (let r = 0; r < 6 && bc > 0; r++) for (const q of ring(it, r)) { const v = cost(it, q[0], q[1]); if (v < bc - 1e-9) { bc = v; best = q; if (v === 0) break; } }
+      // of the clear places out to six lines away, the one whose line to the part is shortest and crosses least
+      // (a part, a name, another name's line); with none clear, the place that lies on least
+      let best = null, bc = Infinity, bs = Infinity;
+      const own = { x: it.bx.x - 1, y: it.bx.y - 1, w: it.bx.w + 2, h: it.bx.h + 2 };
+      for (let r = 0; r < 7; r++) for (const q of ring(it, r)) {
+        const v = cost(it, q[0], q[1]);
+        if (v > 0) { if (bs === Infinity && v < bc - 1e-9) { bc = v; best = q; } continue; }
+        const l = leadOf(it, q);
+        let sc = 0;
+        if (l) { sc = Math.hypot(l[0] - l[2], l[1] - l[3]); for (const o of bodies) if (!(o.x < own.x + own.w && own.x < o.x + o.w && o.y < own.y + own.h && own.y < o.y + o.h) && segBox(l, o)) sc += 40 * lh; for (const o of placed) if (segBox(l, o)) sc += 40 * lh; for (const o of leads) if (segSeg(l, o)) sc += 40 * lh; }
+        if (sc < bs) { bs = sc; best = q; bc = 0; }
+      }
       if (bc > 0) clash++;
       fix(it, best);
     }
@@ -1323,15 +1349,18 @@ export const FSYM = (() => {
     c.strokeStyle = sel ? selInk() : FIBRE_COLOUR; c.lineWidth = (sel ? 2.2 : 1.5) / s; c.lineJoin = 'round'; c.lineCap = 'round';
     G.draw(c, el);
     c.restore();
-    if (G.val && s > 2.5) {
+    if (G.val && s > 2.5 && !(figure && figure.tidy)) {                  // (on a figure the value goes with the part's name: figName)
       const [t, v] = G.val(el), f = frame(el), [x, y] = toWorld(f, 0, -v);
       c.save(); c.font = clamp(1.6 * s, 8, 11) + 'px ' + getCss('--jek-mono'); c.fillStyle = el.kind === 'laser' ? wavelengthColour(el.wavelength) : 'rgba(244,199,220,0.9)';
       c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, sx(x), sy(y)); c.restore();
     }
     return true;
   }
-  return { draw };
+  return { draw, val: el => { const G = S[el.kind]; return G && G.val ? G.val(el)[0] : ''; } };
 })();
+/* a part's name on a figure: with the value its symbol carries on the bench (a laser's wavelength, an amplifier's gain, a
+   modulator's frequency), which at a figure's size no longer sits clear beside the symbol */
+export const figName = el => { const v = el.type === 'fcomp' ? FSYM.val(el) : ''; return v ? el.name + ' (' + v + ')' : el.name; };
 /* a w x hh half-size rectangle with corners of radius r, as points */
 export function roundRect(w, hh, r) {
   const pts = [], k = 6;
@@ -1342,10 +1371,12 @@ export function roundRect(w, hh, r) {
 /* a component's ports: open rings where nothing is joined, filled where a fibre is, numbered when there are several */
 /* where the port names were drawn this frame, in css px: the parts' names keep off them */
 const portLabelBoxes = [];
+/* a port's dot: on the bench a size to aim at; on a figure a small mark beside the names (a sixth of their height) */
+export const portR = k => figure && figure.tidy && figure.labelPx ? Math.max(0.8, 0.17 * figure.labelPx) : clamp(k * V().scale, 3, 6);
 export const keepOffLabel = box => { portLabelBoxes.push(box); };
 export function drawPorts(el) { untinted(() => drawPortsNow(el)); }
 function drawPortsNow(el) {
-  const ps = portsOf(el), used = portsInUse(), s = V().scale, r = clamp(1.1 * s, 3, 6);
+  const ps = portsOf(el), used = portsInUse(), s = V().scale, r = portR(1.1);
   ELEC_UI.drawExtras(el);                                                                       // ELEC hook
   ps.forEach((P, i) => {
     if (P.elec) return;
@@ -1546,6 +1577,7 @@ function drawFibres() {
     if (F.wire) { if (sel) drawFibreNodes(F, segs); return; }
     const L = lights[i];
     if (L.colour && L.mw > 1e-9 * top) {
+      if (figure && figure.noLight) { if (sel) drawFibreNodes(F, segs); return; }
       const lc = figure && figure.mono ? figure.mono : L.colour;                 // the light in it, in the figure's one ink when its light is
       tracePath(segs); ctx.save(); ctx.globalAlpha = 0.25 + 0.75 * Math.sqrt(L.mw / top); ctx.strokeStyle = lc; ctx.lineWidth = 1.6;
       ctx.shadowColor = lc; ctx.shadowBlur = 6; ctx.stroke(); ctx.restore();

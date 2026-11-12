@@ -8351,7 +8351,7 @@ const TESTS = [
   },
   {
     name: 'A journal figure’s names: all one size, none on another or on a part, none cut at the edge, the ports’ names left out',
-    why: 'the fibre Michelson with long names, some scaled up and some down and dragged onto their neighbours on the bench, and four free-space parts 9 mm apart: on the figure every name is Helvetica at the same 8 pt (a name’s own scale is the screen’s business), no two names’ boxes overlap, each lies inside the page, and no port is named (in, out, 1, 2) unless Port names is set to Shown; with Names set to Numbered, each part has its number beside it and the key under the bench lists every number with its name (1 when all hold)',
+    why: 'the fibre Michelson with long names, some scaled up and some down and dragged onto their neighbours on the bench, and four free-space parts 9 mm apart: on the figure every name is Helvetica at the same 8 pt (a name’s own scale is the screen’s business), no two names’ boxes overlap, each lies inside the page, and no port is named (in, out, 1, 2) unless Port names is set to Shown; with Names set to Numbered, each part has its number beside it and the key under the bench lists every number with its name; a symbol’s value (the laser’s 1550 nm) is given with its name, not as a tag of its own; with Light left out and the parts black and white nothing is in colour (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const W = rigWin(), D = rigDoc();
@@ -8369,7 +8369,9 @@ const TESTS = [
         const svg = fig({ width: 174, names: 'beside' }), doc = new W.DOMParser().parseFromString(svg, 'image/svg+xml'), root = doc.documentElement;
         const pw = parseFloat(root.getAttribute('width')), ph = parseFloat(root.getAttribute('height'));
         const cx = D.createElement('canvas').getContext('2d'); cx.font = '8px Helvetica, Arial, sans-serif';
-        const texts = [...doc.querySelectorAll('text')], named = texts.filter(t => all.includes(t.textContent));
+        const isName = t => all.some(n => t === n || t.startsWith(n + ' (')), texts = [...doc.querySelectorAll('text')], named = texts.filter(t => isName(t.textContent));
+        // a symbol's value (the laser's wavelength) goes with its name, not as a small tag of its own beside the symbol
+        const valued = texts.some(t => /^Fibre laser 1 \(\d+ nm\)$/.test(t.textContent)) && !texts.some(t => /^\d+ nm$/.test(t.textContent));
         const sizes = named.map(t => parseFloat(t.getAttribute('font-size'))), one = named.length === all.length && sizes.every(v => Math.abs(v - sizes[0]) < 1e-6 && Math.abs(v - 8) < 0.25);   // 8 pt to the 3% the figure's scale is settled to
         const boxes = named.map(t => { const w = cx.measureText(t.textContent).width, x = parseFloat(t.getAttribute('x')), y = parseFloat(t.getAttribute('y')), a = t.getAttribute('text-anchor'); const l = a === 'middle' ? x - w / 2 : a === 'end' ? x - w : x; return { x: l, y: y - 6.2, w, h: 8 }; });
         let apart = true; for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) { const a = boxes[i], b = boxes[j]; if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) apart = false; }
@@ -8378,9 +8380,12 @@ const TESTS = [
         const ports = !port(svg) && port(fig({ width: 174, names: 'beside', ports: true }));
         // numbered, with a key: a number beside each part, and under the bench each number with its part's name
         const kt = [...new W.DOMParser().parseFromString(fig({ width: 85, names: 'key' }), 'image/svg+xml').querySelectorAll('text')].map(t => t.textContent);
-        const key = all.every(n => kt.includes(n)) && all.every((n, i) => kt.filter(t => t === String(i + 1)).length === 2);
-        if (!(one && apart && inside && ports && key)) console.log('figure names', { one, apart, inside, ports, key, n: named.length, pw, ph, boxes: boxes.map(b => [b.x, b.y, b.w].map(v => +v.toFixed(1))) });
-        return one && apart && inside && ports && key ? 1 : 0;
+        const key = all.every(n => kt.some(t => t === n || t.startsWith(n + ' ('))) && all.every((n, i) => kt.filter(t => t === String(i + 1)).length === 2);
+        // Light: Left out: nothing on the figure is in the light's colour
+        const hues = o => [...new Set([...new W.DOMParser().parseFromString(fig(o), 'image/svg+xml').querySelectorAll('path')].flatMap(e => [e.getAttribute('stroke'), e.getAttribute('fill')]).filter(v => v && v !== 'none'))];
+        const grey = c => c.slice(1, 3) === c.slice(3, 5) && c.slice(3, 5) === c.slice(5, 7), dark = hues({ width: 174, names: 'none', parts: 'bw', mono: 'none' }).every(grey) && hues({ width: 174, names: 'none', parts: 'bw' }).some(c => !grey(c));
+        if (!(one && apart && inside && ports && key && valued && dark)) console.log('figure names', { one, apart, inside, ports, key, valued, dark, n: named.length, pw, ph, boxes: boxes.map(b => [b.x, b.y, b.w].map(v => +v.toFixed(1))) });
+        return one && apart && inside && ports && key && valued && dark ? 1 : 0;
       } finally { try { W.localStorage.removeItem('jek-rt-figure'); } catch (err) { /* fine */ } }
     },
   },

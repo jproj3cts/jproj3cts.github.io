@@ -3,7 +3,7 @@ import { V, deg, nextName, project } from '../state/project.js';
 import { getEl, normElement } from '../state/elements.js';
 import { benchName } from '../state/tabs.js';
 import { frame } from '../core/mask.js';
-import { bodyFill, ctx, figure, getCss, keepOffLabel, pathLocal, portFill, portsInUse, removeFibre, selInk, sx, sy, untinted, inkFill } from './render.js';
+import { bodyFill, ctx, figure, getCss, keepOffLabel, portR, pathLocal, portFill, portsInUse, removeFibre, selInk, sx, sy, untinted, inkFill } from './render.js';
 import { snapVal } from './pointer.js';
 import { pkey, portName, portWorld, portsOf, portsOfOptic } from '../engines/fibre.js';
 import {
@@ -133,7 +133,7 @@ function elecDraw(el, sel) {
   G.draw(c, el);
   FLIP = false;
   c.restore();
-  const used = portsInUse(), r = clamp(1.0 * s, 3, 6), names = [...K.ins, ...K.outs];
+  const used = portsInUse(), r = portR(1.0), names = [...K.ins, ...K.outs];
   // which ports are named on the bench: any on a side with more than one, and any not plainly "in" or "out"
   const named = (P, i) => (P.elec === 'in' ? K.ins.length : K.outs.length) > 1 || !['in', 'out'].includes(names[i]);
   const fs = clamp(1.7 * s, 8, 11);
@@ -241,7 +241,7 @@ function instrumentSection(el) {
 function elecDrawExtras(el) {
   const X = elecExtra(el);
   if (!X.length) return;
-  const base = portsOf(el).length - X.length, used = portsInUse(), r = clamp(1.0 * V().scale, 3, 6);
+  const base = portsOf(el).length - X.length, used = portsInUse(), r = portR(1.0);
   X.forEach((P, k) => {
     const Q = portWorld(el, base + k), on = used.has(pkey(el.id, base + k));
     ctx.beginPath(); ctx.arc(sx(Q.x), sy(Q.y), r, 0, 2 * Math.PI);

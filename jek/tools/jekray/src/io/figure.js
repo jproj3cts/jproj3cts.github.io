@@ -2,7 +2,7 @@ import { project, V } from '../state/project.js';
 import { onTab } from '../state/tabs.js';
 import { fmtLen } from '../core/format.js';
 import { TYPE_LABEL } from '../parts/registry.js';
-import { W, H, benchBg, benchHoles, benchLight, niceStep, requestRender, setFigure, sx, sy, worldBox } from '../ui/render.js';
+import { W, H, benchBg, figName, benchHoles, benchLight, niceStep, requestRender, setFigure, sx, sy, worldBox } from '../ui/render.js';
 import { V3D } from '../ui/view3d.js';
 import { layoutSvg, recordLayout } from './layout.js';
 import { VecCtx, pdfDoc } from './pdf.js';
@@ -107,10 +107,10 @@ function journalFigure(o) {
   const parts = figParts().slice().sort((a, b) => a.x - b.x || b.y - a.y);
   // the key under a numbered figure: "1 Fibre laser" in as many columns as fit the width
   const meas = document.createElement('canvas').getContext('2d'); meas.font = o.pt + 'px ' + FIG_FONT;
-  const numW = meas.measureText(String(parts.length) + ' ').width + o.pt * 0.4, colW = Math.max(...parts.map(e => meas.measureText(e.name).width), 1) + numW + o.pt * 1.6;
+  const numW = meas.measureText(String(parts.length) + ' ').width + o.pt * 0.4, colW = Math.max(...parts.map(e => meas.measureText(figName(e)).width), 1) + numW + o.pt * 1.6;
   const cols = Math.max(1, Math.floor(Wpt / colW)), rows = Math.ceil(parts.length / cols), rowH = o.pt * 1.35, keyH = rows * rowH + o.pt;
   const draw = key => {
-    const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#111', partsBw: o.parts === 'bw', font: FIG_FONT, tidy: true, ports: !!o.ports, labels: o.names === 'none' ? false : undefined, numbers: key ? new Map(parts.map((e, i) => [e.id, i + 1])) : null };
+    const fig = { plain: true, bg: '#ffffff', mono: o.mono === true && '#111', noLight: o.mono === 'none', partsBw: o.parts === 'bw', font: FIG_FONT, tidy: true, ports: !!o.ports, labels: o.names === 'none' ? false : undefined, numbers: key ? new Map(parts.map((e, i) => [e.id, i + 1])) : null };
     const under = bar + (key ? keyH : 0);
     return Object.assign(figFitted(fig, o.pt, b => Math.min(Wpt / b.w, (maxH - under) / b.h)), { fig, key, under });
   };
@@ -130,7 +130,7 @@ function journalFigure(o) {
   }
   if (F.key) {
     const y0 = box.h * s + bar + o.pt * 1.2, cw = Wpt / cols;
-    parts.forEach((e, i) => { const c = Math.floor(i / rows), r = i % rows, x = 2 + c * cw, y = y0 + r * rowH; figSay(g, String(i + 1), x + numW - o.pt * 0.4, y, { size: o.pt, align: 'right', bold: true }); figSay(g, e.name, x + numW, y, { size: o.pt }); });
+    parts.forEach((e, i) => { const c = Math.floor(i / rows), r = i % rows, x = 2 + c * cw, y = y0 + r * rowH; figSay(g, String(i + 1), x + numW - o.pt * 0.4, y, { size: o.pt, align: 'right', bold: true }); figSay(g, figName(e), x + numW, y, { size: o.pt }); });
   }
   return { g, unit: 'pt', dpi: 600, keyed: !!F.key, note: o.width + ' × ' + Math.round(g.h / FIG_MM) + ' mm, ' + (o.names === 'none' ? 'no names' : F.key ? (o.names === 'auto' ? 'too crowded for names beside the parts: numbered, with a key, in Helvetica ' : 'numbered, with a key, in Helvetica ') + o.pt + ' pt' : 'names in Helvetica ' + o.pt + ' pt') + ', lines at least 0.5 pt' };
 }
@@ -350,7 +350,7 @@ export async function exportFigure(preset, o) {
 /* ---- the dialog ---- */
 const FIG_KEY = 'jek-rt-figure';
 const FIG_FIELDS = {
-  journal: [['width', 'Width', [[85, 'Single column, 85 mm'], [174, 'Double column, 174 mm']]], ['mono', 'Light', [[false, 'In its colour'], [true, 'Black']]], ['parts', 'Parts', [['colour', 'In their colours'], ['bw', 'Black and white']]],
+  journal: [['width', 'Width', [[85, 'Single column, 85 mm'], [174, 'Double column, 174 mm']]], ['mono', 'Light', [[false, 'In its colour'], [true, 'Black'], ['none', 'Left out']]], ['parts', 'Parts', [['colour', 'In their colours'], ['bw', 'Black and white']]],
     ['names', 'Names', [['auto', 'Beside the parts, numbered if crowded'], ['beside', 'Beside the parts'], ['key', 'Numbered, with a key'], ['none', 'None']]],
     ['pt', 'Size', [[6, '6 pt'], [7, '7 pt'], [8, '8 pt'], [9, '9 pt'], [10, '10 pt']]], ['ports', 'Port names', [[false, 'Left out'], [true, 'Shown']]], ['scaleBar', 'Scale bar', [[true, 'Yes'], [false, 'No']]],
     ['fmt', 'As', [['pdf', 'PDF (vector)'], ['svg', 'SVG (vector)'], ['png', 'PNG, 600 dpi']]]],

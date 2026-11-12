@@ -6,6 +6,7 @@ import { bodyFill, ctx, drawPorts, pathLocal, selInk } from '../render.js';
 import { bindSync, panel, param, selectField } from '../panel.js';
 import { h } from '../dom.js';
 import { fibreMode } from '../../engines/fibre-face.js';
+import { portsOfOptic } from '../../engines/fibre.js';
 import { anyPulse, pulseSection, pulseSectionEmpty, readoutBox } from '../panels.js';
 
 /* Fibre on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/fibre.js */
@@ -22,8 +23,10 @@ function drawFibre(el, sel) {
     const pts = []; for (let i = 0; i <= 16; i++) { const v = L * 0.85 * (2 * i / 16 - 1); pts.push([-0.3 * L * (1 - (v / L) ** 2), v]); }
     pathLocal(f, pts); ctx.strokeStyle = '#8fd3e8'; ctx.lineWidth = 1.6; ctx.stroke();
   }
-  // the jacketed fibre leaving the back of the ferrule
-  pathLocal(f, [[-body, 0], [-body - 10, 0]]);
+  // the jacketed fibre leaving the back of the ferrule, as far as its port: the port stands off by a length on the
+  // page, not on the bench, so zoomed out (or on a figure) it is far behind the ferrule, and the fibre must reach it
+  const port = portsOfOptic(el)[0];
+  pathLocal(f, [[-body, 0], [Math.min(-body - 10, port ? port.x : 0), 0]]);
   ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 3; ctx.stroke();
   // the core on the face
   pathLocal(f, [[0, -Math.max(el.core * 5e-4, 2 * k)], [0, Math.max(el.core * 5e-4, 2 * k)]]);

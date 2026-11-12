@@ -8350,6 +8350,38 @@ const TESTS = [
     },
   },
   {
+    name: 'A journal figure’s names: all one size, none on another or on a part, none cut at the edge, the ports’ names left out',
+    why: 'the fibre Michelson with long names, some scaled up and some down and dragged onto their neighbours on the bench, and four free-space parts 9 mm apart: on the figure every name is Helvetica at 8 pt (a name’s own scale is the screen’s business), no two names’ boxes overlap, each lies inside the page, and no port is named (in, out, 1, 2) unless Port names is set to Shown (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc();
+      const d = JSON.parse(getDemo('fibre-michelson'));
+      const names = ['Fibre laser 1', 'Polarisation controller 1', 'Circulator 1', 'Fibre photodetector 1', 'Spectrum analyser 1', 'Lock-in amplifier 1', 'Fibre EOM 1', 'Oscilloscope 1'];
+      d.elements.forEach((e, i) => { e.name = names[i % names.length]; if (i % 3 === 0) e.label = { dx: -6, dy: -8, s: 2.2 }; if (i % 3 === 1) e.label = { dx: 3, dy: 4, s: 0.7 }; });
+      const x0 = Math.min(...d.elements.map(e => e.x));
+      d.elements.push({ type: 'lens', name: 'Asphere 1', x: x0, y: -60, angle: 0, f: 20, length: 12 }, { type: 'lens', name: 'Asphere 2', x: x0 + 9, y: -60, angle: 0, f: 20, length: 12 },
+        { type: 'mirror', name: 'Mirror 1', x: x0 + 18, y: -60, angle: 180, length: 12 }, { type: 'screen', name: 'Detector 2', x: x0 + 27, y: -60, angle: 180, length: 12 });
+      J.load(d);
+      const all = [...names, 'Asphere 1', 'Asphere 2', 'Mirror 1', 'Detector 2'];
+      const fig = o => { try { W.localStorage.setItem('jek-rt-figure', JSON.stringify({ preset: 'journal', journal: o })); } catch (err) { /* fine */ }
+        D.getElementById('btnExportFigure').click(); const dlg = D.getElementById('figureDialog'); dlg.querySelector('.rt-figtabs [data-preset="journal"]').click(); const s = dlg.figSvg || ''; dlg.close(); return s; };
+      try {
+        const svg = fig({ width: 174 }), doc = new W.DOMParser().parseFromString(svg, 'image/svg+xml'), root = doc.documentElement;
+        const pw = parseFloat(root.getAttribute('width')), ph = parseFloat(root.getAttribute('height'));
+        const cx = D.createElement('canvas').getContext('2d'); cx.font = '8px Helvetica, Arial, sans-serif';
+        const texts = [...doc.querySelectorAll('text')], named = texts.filter(t => all.includes(t.textContent));
+        const one = named.length === all.length && named.every(t => Math.abs(parseFloat(t.getAttribute('font-size')) - 8) < 0.05);
+        const boxes = named.map(t => { const w = cx.measureText(t.textContent).width, x = parseFloat(t.getAttribute('x')), y = parseFloat(t.getAttribute('y')), a = t.getAttribute('text-anchor'); const l = a === 'middle' ? x - w / 2 : a === 'end' ? x - w : x; return { x: l, y: y - 6.2, w, h: 8 }; });
+        let apart = true; for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) { const a = boxes[i], b = boxes[j]; if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) apart = false; }
+        const inside = boxes.every(b => b.x >= -0.5 && b.x + b.w <= pw + 0.5 && b.y >= -0.5 && b.y + b.h <= ph + 0.5);
+        const port = s => [...new W.DOMParser().parseFromString(s, 'image/svg+xml').querySelectorAll('text')].some(t => /^(in|out)$/.test(t.textContent));
+        const ports = !port(svg) && port(fig({ width: 174, ports: true }));
+        if (!(one && apart && inside && ports)) console.log('figure names', { one, apart, inside, ports, n: named.length, pw, ph, boxes: boxes.map(b => [b.x, b.y, b.w].map(v => +v.toFixed(1))) });
+        return one && apart && inside && ports ? 1 : 0;
+      } finally { try { W.localStorage.removeItem('jek-rt-figure'); } catch (err) { /* fine */ } }
+    },
+  },
+  {
     name: 'The bar holds every palette\u2019s groups, and its switcher changes the mode (in 2D: in 3D there is no switcher)',
     why: 'the bar across the bench: + Add, the mode (Parts) and the groups of every palette at once (free space, fibre, circuits, RF), a line between palettes; the switcher lists Parts and Draw (in 2D), each with a line of what it is; Draw shows its tools in the bar, Parts brings the groups back; a fibre group\u2019s parts open from the bar with no change of mode (1 when all hold)',
     want: 1, tol: 0, unit: '',

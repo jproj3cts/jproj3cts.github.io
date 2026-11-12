@@ -16844,12 +16844,17 @@ function drawLabels() {
   ctx.textAlign = 'center';
   labelBoxes.clear();
   const taken = portLabelBoxes.splice(0);
+  /* a figure's names set as a figure's are (figure.tidy): all one size, whatever each was scaled to on the screen;
+     each beside its part where it is clear of every part and every other name (under it, over it, at either side,
+     then further out), and one that had to go further than beside its part joined to it by a thin line */
+  const tidy = !!(figure && figure.tidy);
+  const bodies = tidy ? project.elements.filter(e => onTab(e) && e.type !== 'draw' && !(e.type === 'elec' && e.kind === 'node')).map(e => { const b = worldBox(e); const m = 0.2 * figure.labelPx; return { x: sx(b.x0) - m, y: sy(b.y1) - m, w: sx(b.x1) - sx(b.x0) + 2 * m, h: sy(b.y0) - sy(b.y1) + 2 * m }; }) : [];   // a thin part still has a body to keep off
   for (const el of project.elements) {
     if (!onTab(el) || el.type === 'draw') continue;                   // a drawing has no label
     if (el.type === 'elec' && el.kind === 'node' && !(el.id === selectedId || extraSel.has(el.id))) continue;   // ELEC hook: a node's name only when selected
     // its size on the bench, in mm, as everything drawn there: a figure looks the same at any
     // zoom; on the screen, kept readable (never tiny, never a banner) while the view is worked in
-    const k = el.label ? el.label.s : 1;
+    const k = tidy ? 1 : el.label ? el.label.s : 1;
     let fs = labelMm() * V().scale * k;
     if (!exporting) fs = Math.min(26, Math.max(8, fs));
     if (project.labelFixed && !exporting) fs = (project.labelPx || 12) * k;      // a fixed size on the screen
@@ -16864,7 +16869,27 @@ function drawLabels() {
     // two names in the same place: the later one steps down until clear
     const w = ctx.measureText(el.name).width;
     // (on a figure, above the part too, before further down: a figure's names are large beside its parts)
-    if (!el.label) {
+    let lead = null;
+    if (tidy) {
+      const bx = { x: sx(B.x0), y: sy(B.y1), w: sx(B.x1) - sx(B.x0), h: sy(B.y0) - sy(B.y1) }, cx = bx.x + bx.w / 2, cy = bx.y + bx.h / 2, lh = 13 * u, gap = 0.5 * fs;
+      const boxAt = (x, y) => ({ x: x - w / 2 - gap, y: y - 10 * u, w: w + 2 * gap, h: lh });
+      const over = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+      const others = [...labelBoxes.values()].map(b => ({ x: b.x - gap, y: b.y, w: b.w + 2 * gap, h: b.h })).concat(taken, bodies);
+      const cost = (x, y) => { const b = boxAt(x, y); let c = 0; for (const o of others) c += over(b, o); return c; };
+      const cands = [];
+      if (el.label) cands.push([sx(el.x + el.label.dx), sy(el.y + el.label.dy)]);            // where it was put, if it is clear there
+      for (let ring = 0; ring < 5; ring++) {
+        const d = 0.35 * fs + ring * lh, below = bx.y + bx.h + d + 10 * u, above = bx.y - d - 3 * u, mid = cy + 3.5 * u, right = bx.x + bx.w + d + gap + w / 2, left = bx.x - d - gap - w / 2;
+        cands.push([cx, below], [cx, above], [right, mid], [left, mid], [right, below], [left, below], [right, above], [left, above]);
+      }
+      let best = null, bc = Infinity;
+      for (const c of cands) { const v = cost(c[0], c[1]); if (v < bc - 1e-9) { bc = v; best = c; if (v === 0) break; } }
+      X = best[0]; Y = best[1];
+      // further than beside its part: a line from the name to the part
+      const lb = { x: X - w / 2, y: Y - 10 * u, w, h: lh }, near = (v, a, b) => Math.min(b, Math.max(a, v));
+      const px = near(X, bx.x, bx.x + bx.w), py = near(Y - 3.5 * u, bx.y, bx.y + bx.h), qx = near(px, lb.x, lb.x + lb.w), qy = near(py, lb.y, lb.y + lb.h);
+      if (Math.hypot(px - qx, py - qy) > 1.1 * lh) lead = [qx, qy, px, py];
+    } else if (!el.label) {
       const Ya = sy(B.y1) - 4 * u, tries = figure ? [Y, Ya, Y + 13 * u, Ya - 13 * u, Y + 26 * u, Ya - 26 * u] : [Y, Y + 13 * u, Y + 26 * u, Y + 39 * u];
       // clear of the others, with a word's gap either side: two names side by side never read as one
       const gap = 0.6 * fs, clear = y => { const box = { x: X - w / 2 - gap, y: y - 10 * u, w: w + 2 * gap, h: 13 * u }; return ![...labelBoxes.values(), ...taken].some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h); };
@@ -16873,6 +16898,7 @@ function drawLabels() {
     labelBoxes.set(el.id, { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u, ax: X, ay: Y });
     if (textEdit && textEdit.el === el) continue;                          // being retyped in place
     if (fs < 2) continue;                                                  // too small to read at this zoom
+    if (lead) { ctx.save(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.strokeStyle = '#6b727a'; ctx.lineWidth = 0.6 * u; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(lead[0], lead[1]); ctx.lineTo(lead[2], lead[3]); ctx.stroke(); ctx.restore(); }
     // a plate of the bench's own colour under the name, so a beam or a part passing under it never runs through the letters
     ctx.save(); ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = benchBg(); ctx.globalAlpha = 0.92; ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u, 3 * u); else ctx.rect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u);
@@ -17282,7 +17308,7 @@ function drawPorts(el) {
     ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
     ctx.fillStyle = on ? FIBRE_COLOUR : portFill(); ctx.fill();
     ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 1.4; ctx.stroke();
-    if (ps.length > 1 && s > 3) {                  // named when it has company: other fibre ports, or electrical ones
+    if (ps.length > 1 && s > 3 && !(figure && figure.ports === false)) {                  // named when it has company (a figure may leave them out): other fibre ports, or electrical ones
       // the name just outside the port, above it, upright whatever the part's angle
       ctx.fillStyle = 'rgba(244,199,220,0.9)'; ctx.font = '9px ' + getCss('--jek-mono');
       const W = Math.abs(Q.dx) < 0.3;
@@ -25945,7 +25971,7 @@ function elecDrawExtras(el) {
     ctx.fillStyle = on || P.elec === 'out' ? ELEC_YELLOW : portFill(); ctx.fill(); ctx.strokeStyle = ELEC_YELLOW; ctx.lineWidth = 1.4; ctx.stroke();
     keepOffLabel({ x: sx(Q.x) - r - 1, y: sy(Q.y) - r - 1, w: 2 * r + 2, h: 2 * r + 2 });                      // the part's name keeps off the port
     // its name beside it, outside the part, upright
-    if (V().scale > 2.2) {
+    if (V().scale > 2.2 && !(figure && figure.ports === false)) {
       ctx.save(); ctx.font = clamp(1.7 * V().scale, 8, 11) + 'px ' + getCss('--jek-mono'); ctx.fillStyle = INK;
       const side = Math.abs(Q.dx) > 0.3, X = sx(Q.x), Y = sy(Q.y);
       ctx.textAlign = side ? (Q.dx > 0 ? 'left' : 'right') : 'left'; ctx.textBaseline = side ? 'bottom' : 'middle';
@@ -50846,7 +50872,8 @@ function wireDataExport() {
 /* ==========================================================================
    File › Export figure…: the bench as a figure made for where it is going.
    - Journal: white, no holes, the parts as line art, the light in its colour or black, the names in
-     Helvetica at a size in points; 85 mm wide (a single column) or 174 mm (two), lines no thinner than
+     Helvetica all at one size in points, each clear of the parts and of the other names (render.js
+     drawLabels, figure.tidy), the ports' names left out unless asked for; 85 mm wide (a single column) or 174 mm (two), lines no thinner than
      0.5 pt, a scale bar; PDF or SVG (vector), or PNG at 600 dpi.
    - Technical drawing: an A4 or A3 sheet, the bench to a standard scale, the parts' centres dimensioned
      (along and across), numbered callouts and a parts list, and a title block.
@@ -50858,7 +50885,7 @@ const FIG_MM = 72 / 25.4;                                              // points
 const FIG_FONT = 'Helvetica, Arial, sans-serif', FIG_INK = '#111', FIG_SOFT = '#5b6570';
 const FIGURE_PRESETS = [['journal', 'Journal'], ['technical', 'Technical drawing'], ['slides', 'Presentation']];
 const FIGURE_DEFAULTS = {
-  journal: { width: 85, mono: false, pt: 8, scaleBar: true, fmt: 'pdf' },
+  journal: { width: 85, mono: false, pt: 8, ports: false, scaleBar: true, fmt: 'pdf' },
   technical: { sheet: 'A4', mono: true, dims: true, callouts: true, title: '', by: '', fmt: 'pdf' },
   slides: { size: '169', fmt: 'png' },
 };
@@ -50880,7 +50907,7 @@ function figBox(rec) {
   for (const o of rec.ops) if (o.k === 'text') { add(o.x, o.y - o.size); add(o.x + o.w, o.y + 0.3 * o.size); }
   if (!isFinite(x0)) return { x: 0, y: 0, w: W, h: H };
   const pad = Math.max(8, 0.04 * Math.max(x1 - x0, y1 - y0));
-  x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W, x1 + pad); y1 = Math.min(H, y1 + pad);
+  x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;                          // a name that runs past the canvas's edge is still on the figure
   return { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) };
 }
 /* the bench's record put on the figure: its box at (ox, oy), s figure units to a canvas pixel; lines no
@@ -50932,7 +50959,7 @@ function figFitted(fig, pt, scaleOf) {
 /* ---- Journal ---- */
 function journalFigure(o) {
   const Wpt = o.width * FIG_MM, maxH = 230 * FIG_MM, bar = o.scaleBar ? o.pt * 2.2 : 0;
-  const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#111', font: FIG_FONT };
+  const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#111', font: FIG_FONT, tidy: true, ports: !!o.ports };
   const { rec, box, s } = figFitted(fig, o.pt, b => Math.min(Wpt / b.w, (maxH - bar) / b.h));
   const g = new VecCtx(Wpt, box.h * s + bar, { plain: true, res: 4 });
   figPlace(g, rec, box, (Wpt - box.w * s) / 2, 0, s, 0.5, !!o.mono);
@@ -50959,7 +50986,7 @@ function technicalFigure(o) {
   const A = { x: M + 12, y: M + 12, w: SW - 2 * M - RC - 30, h: SH - 2 * M - 24 };
   const top = callouts ? 26 : 0, under = (callouts ? 26 : 0) + (o.dims ? 30 : 0), right = o.dims ? 40 : 0;
   const D = { x: A.x + 4, y: A.y + top, w: A.w - right - 8, h: A.h - top - under };
-  const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#8a9099', font: FIG_FONT, labels: callouts ? false : undefined };   // the light grey, the parts black
+  const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#8a9099', font: FIG_FONT, tidy: true, ports: false, labels: callouts ? false : undefined };   // the light grey, the parts black
   const per = () => V().scale;                                        // canvas pixels a millimetre
   let ratio = FIG_SCALES[FIG_SCALES.length - 1];
   const scaleOf = b => {
@@ -51160,7 +51187,7 @@ async function exportFigure(preset, o) {
 const FIG_KEY = 'jek-rt-figure';
 const FIG_FIELDS = {
   journal: [['width', 'Width', [[85, 'Single column, 85 mm'], [174, 'Double column, 174 mm']]], ['mono', 'Light', [[false, 'In its colour'], [true, 'Black']]],
-    ['pt', 'Names', [[6, '6 pt'], [7, '7 pt'], [8, '8 pt'], [9, '9 pt'], [10, '10 pt']]], ['scaleBar', 'Scale bar', [[true, 'Yes'], [false, 'No']]],
+    ['pt', 'Names', [[6, '6 pt'], [7, '7 pt'], [8, '8 pt'], [9, '9 pt'], [10, '10 pt']]], ['ports', 'Port names', [[false, 'Left out'], [true, 'Shown']]], ['scaleBar', 'Scale bar', [[true, 'Yes'], [false, 'No']]],
     ['fmt', 'As', [['pdf', 'PDF (vector)'], ['svg', 'SVG (vector)'], ['png', 'PNG, 600 dpi']]]],
   technical: [['sheet', 'Sheet', [['A4', 'A4'], ['A3', 'A3']]], ['dims', 'Dimensions', [[true, 'Between the parts’ centres'], [false, 'None']]],
     ['callouts', 'Callouts', [[true, 'Numbered, with a parts list'], [false, 'The parts’ names']]], ['mono', 'Light', [[true, 'Black'], [false, 'In its colour']]],
@@ -56707,6 +56734,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    '<b>Export figure</b>, Journal and Technical drawing: the names are all one size (a name scaled on the bench no longer carries its scale into the figure), each is set clear of the parts and of the other names, with a thin line to its part when it has to go further out, a name at the edge is no longer cut, and the ports’ names are left out unless <b>Port names</b> is set to Shown.',
     '<b>Scattering by a particle</b>: a screen’s new <b>Scattering</b> tab gives the light one small particle scatters. A sphere is worked out exactly (Lorenz–Mie); a rod with flat or round ends or a spheroid, at any orientation, as an array of dipoles (the discrete dipole approximation, run in the background with a Stop); and a single dipole (Rayleigh) is kept beside them to compare. The light is what the bench puts on the particle: a tight focus as its full vector field, every sample of its pupil a plane wave onto the particle, so the particle may sit off the focus; a gentler beam as a plane wave; beams of one laser added as fields. It reads the scattering, extinction and absorption cross-sections, efficiencies and asymmetry, the power scattered, the forward and back shares and the share a lens of a given NA would collect, with polar plots in the bench plane and out of it and a map over every direction. The particle is the Trap tab’s, now with a shape, gold, silver and aluminium among its materials, and water as a medium. In 3D the particle is drawn in its shape and orientation, enlarged so it shows. In a script, <code>JEKray.scatter(name)</code> and <code>JEKray.mie(x, mr, mi, angles)</code>. A new example, <b>Light scattered by a 300 nm sphere</b>, and two cases on the validation page.',
     'The diffracted field behind a <b>hard edge</b> (a slit, a comb of slits, a knife edge, an iris or a rim off the beam\u2019s axis) has its true amplitude. Each sample at an edge took its share of open area and the whole field was then scaled up to the open area\u2019s power: the peak behind slits a few samples wide read up to 12% high, the envelope of an N-slit pattern came out narrow, and the fringes behind a straight edge lost contrast away from it. An edge is now carried as the samples can hold it exactly, with the light it sends past the grid\u2019s reach kept at the top of that reach, so the power is still the open area\u2019s. Slits that run the whole way up no longer cut the beam\u2019s wings off above and below them (2% of a focus behind them). Behind an edge the field is sampled more finely where the grid can still hold the light. New on <a href="/jek/tools/jekray-validation.html#fresnel-edge">the validation page</a>: Fresnel\u2019s fringes at a straight edge and the pattern of 2, 5 and 10 slits.',
     'A <b>phase mask finer than the beam</b> (a phase grating, a diffuser, an SLM\u2019s pattern) keeps its light. Behind a mask that spreads the light without cutting it, the diffracted field\u2019s grid now grows with the light as it does behind an edge; before, a grating\u2019s orders ran off the grid\u2019s sides and were lost with no warning. The beam goes on along the mask\u2019s mean slope across its footprint, where it took the slope under its own ray (a sinusoidal grating sent it off at \u03b2\u03bb/d, a fork hologram\u2019s core ended it once rays left the bench plane), and takes its focus from the trend of the slope across it. A sinusoidal phase grating\u2019s orders now carry J\u2099(\u03b2)\u00b2 each, on <a href="/jek/tools/jekray-validation.html#phase-grating">the validation page</a>. Light a mask sends past what the grid can carry is flagged.',

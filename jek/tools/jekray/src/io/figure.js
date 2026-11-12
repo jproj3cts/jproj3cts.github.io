@@ -15,7 +15,8 @@ import { track } from './usage.js';
 /* ==========================================================================
    File › Export figure…: the bench as a figure made for where it is going.
    - Journal: white, no holes, the parts as line art, the light in its colour or black, the names in
-     Helvetica at a size in points; 85 mm wide (a single column) or 174 mm (two), lines no thinner than
+     Helvetica all at one size in points, each clear of the parts and of the other names (render.js
+     drawLabels, figure.tidy), the ports' names left out unless asked for; 85 mm wide (a single column) or 174 mm (two), lines no thinner than
      0.5 pt, a scale bar; PDF or SVG (vector), or PNG at 600 dpi.
    - Technical drawing: an A4 or A3 sheet, the bench to a standard scale, the parts' centres dimensioned
      (along and across), numbered callouts and a parts list, and a title block.
@@ -27,7 +28,7 @@ const FIG_MM = 72 / 25.4;                                              // points
 const FIG_FONT = 'Helvetica, Arial, sans-serif', FIG_INK = '#111', FIG_SOFT = '#5b6570';
 export const FIGURE_PRESETS = [['journal', 'Journal'], ['technical', 'Technical drawing'], ['slides', 'Presentation']];
 export const FIGURE_DEFAULTS = {
-  journal: { width: 85, mono: false, pt: 8, scaleBar: true, fmt: 'pdf' },
+  journal: { width: 85, mono: false, pt: 8, ports: false, scaleBar: true, fmt: 'pdf' },
   technical: { sheet: 'A4', mono: true, dims: true, callouts: true, title: '', by: '', fmt: 'pdf' },
   slides: { size: '169', fmt: 'png' },
 };
@@ -49,7 +50,7 @@ function figBox(rec) {
   for (const o of rec.ops) if (o.k === 'text') { add(o.x, o.y - o.size); add(o.x + o.w, o.y + 0.3 * o.size); }
   if (!isFinite(x0)) return { x: 0, y: 0, w: W, h: H };
   const pad = Math.max(8, 0.04 * Math.max(x1 - x0, y1 - y0));
-  x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W, x1 + pad); y1 = Math.min(H, y1 + pad);
+  x0 -= pad; y0 -= pad; x1 += pad; y1 += pad;                          // a name that runs past the canvas's edge is still on the figure
   return { x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) };
 }
 /* the bench's record put on the figure: its box at (ox, oy), s figure units to a canvas pixel; lines no
@@ -101,7 +102,7 @@ function figFitted(fig, pt, scaleOf) {
 /* ---- Journal ---- */
 function journalFigure(o) {
   const Wpt = o.width * FIG_MM, maxH = 230 * FIG_MM, bar = o.scaleBar ? o.pt * 2.2 : 0;
-  const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#111', font: FIG_FONT };
+  const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#111', font: FIG_FONT, tidy: true, ports: !!o.ports };
   const { rec, box, s } = figFitted(fig, o.pt, b => Math.min(Wpt / b.w, (maxH - bar) / b.h));
   const g = new VecCtx(Wpt, box.h * s + bar, { plain: true, res: 4 });
   figPlace(g, rec, box, (Wpt - box.w * s) / 2, 0, s, 0.5, !!o.mono);
@@ -128,7 +129,7 @@ function technicalFigure(o) {
   const A = { x: M + 12, y: M + 12, w: SW - 2 * M - RC - 30, h: SH - 2 * M - 24 };
   const top = callouts ? 26 : 0, under = (callouts ? 26 : 0) + (o.dims ? 30 : 0), right = o.dims ? 40 : 0;
   const D = { x: A.x + 4, y: A.y + top, w: A.w - right - 8, h: A.h - top - under };
-  const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#8a9099', font: FIG_FONT, labels: callouts ? false : undefined };   // the light grey, the parts black
+  const fig = { plain: true, bg: '#ffffff', mono: o.mono && '#8a9099', font: FIG_FONT, tidy: true, ports: false, labels: callouts ? false : undefined };   // the light grey, the parts black
   const per = () => V().scale;                                        // canvas pixels a millimetre
   let ratio = FIG_SCALES[FIG_SCALES.length - 1];
   const scaleOf = b => {
@@ -329,7 +330,7 @@ export async function exportFigure(preset, o) {
 const FIG_KEY = 'jek-rt-figure';
 const FIG_FIELDS = {
   journal: [['width', 'Width', [[85, 'Single column, 85 mm'], [174, 'Double column, 174 mm']]], ['mono', 'Light', [[false, 'In its colour'], [true, 'Black']]],
-    ['pt', 'Names', [[6, '6 pt'], [7, '7 pt'], [8, '8 pt'], [9, '9 pt'], [10, '10 pt']]], ['scaleBar', 'Scale bar', [[true, 'Yes'], [false, 'No']]],
+    ['pt', 'Names', [[6, '6 pt'], [7, '7 pt'], [8, '8 pt'], [9, '9 pt'], [10, '10 pt']]], ['ports', 'Port names', [[false, 'Left out'], [true, 'Shown']]], ['scaleBar', 'Scale bar', [[true, 'Yes'], [false, 'No']]],
     ['fmt', 'As', [['pdf', 'PDF (vector)'], ['svg', 'SVG (vector)'], ['png', 'PNG, 600 dpi']]]],
   technical: [['sheet', 'Sheet', [['A4', 'A4'], ['A3', 'A3']]], ['dims', 'Dimensions', [[true, 'Between the parts’ centres'], [false, 'None']]],
     ['callouts', 'Callouts', [[true, 'Numbered, with a parts list'], [false, 'The parts’ names']]], ['mono', 'Light', [[true, 'Black'], [false, 'In its colour']]],

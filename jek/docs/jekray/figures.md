@@ -9,11 +9,11 @@ description: "File › Export figure: the bench as a journal figure (85 or 174 m
 
 ## Journal
 
-White, with no breadboard holes, the parts as line art and the light in its own colour or in black (**Light**). It is cut to the parts, and made the width of a column: **Single column, 85 mm** or **Double column, 174 mm** (a figure taller than 230 mm is made narrower to fit a page). The parts' names are in Helvetica at the size chosen (6 to 10 pt, 8 pt as most journals ask) whatever the bench's size, and no line is thinner than 0.5 pt, so nothing vanishes in print. A **scale bar** goes under it, a round length in mm.
+White, with no breadboard holes, the parts as line art and the light in its own colour or in black (**Light**). It is cut to the parts, and made the width of a column: **Single column, 85 mm** or **Double column, 174 mm** (a figure taller than 230 mm is made narrower to fit a page). The parts' names are in Helvetica at the size chosen (6 to 10 pt, 8 pt as most journals ask) whatever the bench's size, and no line is thinner than 0.5 pt, so nothing vanishes in print. Every name is that one size, even one made larger or smaller on the bench. Each is set beside its part where it is clear of the other parts and the other names: under it, over it or at either side, and further out on a crowded bench, joined to its part by a thin line. The ports' names (in, out, 1, 2) are left out unless **Port names** is set to **Shown**. A **scale bar** goes under it, a round length in mm.
 
 The light is drawn as on the bench: by default as bright as the power it carries, so a weak ghost or a stray reflection is faint and light below a ten-thousandth of the brightest source is left out. For a figure of the paths alone, untick **Draw light by its power** under **Light** in the Bench panel first, and every beam is drawn at full strength.
 
-It comes down as **PDF** or **SVG**, vector (the lines stay lines at any zoom; a diffracted field, a picture on the bench, stays a picture in it), or as a **PNG at 600 dpi**. A name that sits badly can be moved on the bench first (drag it with the select tool), and the figure keeps it there.
+It comes down as **PDF** or **SVG**, vector (the lines stay lines at any zoom; a diffracted field, a picture on the bench, stays a picture in it), or as a **PNG at 600 dpi**. A name that sits badly can be moved on the bench first (drag it with the select tool), and the figure keeps it there when that place is clear at the figure's size.
 
 ## Technical drawing
 

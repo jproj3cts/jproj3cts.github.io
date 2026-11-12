@@ -865,12 +865,17 @@ function drawLabels() {
   ctx.textAlign = 'center';
   labelBoxes.clear();
   const taken = portLabelBoxes.splice(0);
+  /* a figure's names set as a figure's are (figure.tidy): all one size, whatever each was scaled to on the screen;
+     each beside its part where it is clear of every part and every other name (under it, over it, at either side,
+     then further out), and one that had to go further than beside its part joined to it by a thin line */
+  const tidy = !!(figure && figure.tidy);
+  const bodies = tidy ? project.elements.filter(e => onTab(e) && e.type !== 'draw' && !(e.type === 'elec' && e.kind === 'node')).map(e => { const b = worldBox(e); const m = 0.2 * figure.labelPx; return { x: sx(b.x0) - m, y: sy(b.y1) - m, w: sx(b.x1) - sx(b.x0) + 2 * m, h: sy(b.y0) - sy(b.y1) + 2 * m }; }) : [];   // a thin part still has a body to keep off
   for (const el of project.elements) {
     if (!onTab(el) || el.type === 'draw') continue;                   // a drawing has no label
     if (el.type === 'elec' && el.kind === 'node' && !(el.id === selectedId || extraSel.has(el.id))) continue;   // ELEC hook: a node's name only when selected
     // its size on the bench, in mm, as everything drawn there: a figure looks the same at any
     // zoom; on the screen, kept readable (never tiny, never a banner) while the view is worked in
-    const k = el.label ? el.label.s : 1;
+    const k = tidy ? 1 : el.label ? el.label.s : 1;
     let fs = labelMm() * V().scale * k;
     if (!exporting) fs = Math.min(26, Math.max(8, fs));
     if (project.labelFixed && !exporting) fs = (project.labelPx || 12) * k;      // a fixed size on the screen
@@ -885,7 +890,27 @@ function drawLabels() {
     // two names in the same place: the later one steps down until clear
     const w = ctx.measureText(el.name).width;
     // (on a figure, above the part too, before further down: a figure's names are large beside its parts)
-    if (!el.label) {
+    let lead = null;
+    if (tidy) {
+      const bx = { x: sx(B.x0), y: sy(B.y1), w: sx(B.x1) - sx(B.x0), h: sy(B.y0) - sy(B.y1) }, cx = bx.x + bx.w / 2, cy = bx.y + bx.h / 2, lh = 13 * u, gap = 0.5 * fs;
+      const boxAt = (x, y) => ({ x: x - w / 2 - gap, y: y - 10 * u, w: w + 2 * gap, h: lh });
+      const over = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+      const others = [...labelBoxes.values()].map(b => ({ x: b.x - gap, y: b.y, w: b.w + 2 * gap, h: b.h })).concat(taken, bodies);
+      const cost = (x, y) => { const b = boxAt(x, y); let c = 0; for (const o of others) c += over(b, o); return c; };
+      const cands = [];
+      if (el.label) cands.push([sx(el.x + el.label.dx), sy(el.y + el.label.dy)]);            // where it was put, if it is clear there
+      for (let ring = 0; ring < 5; ring++) {
+        const d = 0.35 * fs + ring * lh, below = bx.y + bx.h + d + 10 * u, above = bx.y - d - 3 * u, mid = cy + 3.5 * u, right = bx.x + bx.w + d + gap + w / 2, left = bx.x - d - gap - w / 2;
+        cands.push([cx, below], [cx, above], [right, mid], [left, mid], [right, below], [left, below], [right, above], [left, above]);
+      }
+      let best = null, bc = Infinity;
+      for (const c of cands) { const v = cost(c[0], c[1]); if (v < bc - 1e-9) { bc = v; best = c; if (v === 0) break; } }
+      X = best[0]; Y = best[1];
+      // further than beside its part: a line from the name to the part
+      const lb = { x: X - w / 2, y: Y - 10 * u, w, h: lh }, near = (v, a, b) => Math.min(b, Math.max(a, v));
+      const px = near(X, bx.x, bx.x + bx.w), py = near(Y - 3.5 * u, bx.y, bx.y + bx.h), qx = near(px, lb.x, lb.x + lb.w), qy = near(py, lb.y, lb.y + lb.h);
+      if (Math.hypot(px - qx, py - qy) > 1.1 * lh) lead = [qx, qy, px, py];
+    } else if (!el.label) {
       const Ya = sy(B.y1) - 4 * u, tries = figure ? [Y, Ya, Y + 13 * u, Ya - 13 * u, Y + 26 * u, Ya - 26 * u] : [Y, Y + 13 * u, Y + 26 * u, Y + 39 * u];
       // clear of the others, with a word's gap either side: two names side by side never read as one
       const gap = 0.6 * fs, clear = y => { const box = { x: X - w / 2 - gap, y: y - 10 * u, w: w + 2 * gap, h: 13 * u }; return ![...labelBoxes.values(), ...taken].some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h); };
@@ -894,6 +919,7 @@ function drawLabels() {
     labelBoxes.set(el.id, { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u, ax: X, ay: Y });
     if (textEdit && textEdit.el === el) continue;                          // being retyped in place
     if (fs < 2) continue;                                                  // too small to read at this zoom
+    if (lead) { ctx.save(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.strokeStyle = '#6b727a'; ctx.lineWidth = 0.6 * u; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(lead[0], lead[1]); ctx.lineTo(lead[2], lead[3]); ctx.stroke(); ctx.restore(); }
     // a plate of the bench's own colour under the name, so a beam or a part passing under it never runs through the letters
     ctx.save(); ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = benchBg(); ctx.globalAlpha = 0.92; ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u, 3 * u); else ctx.rect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u);
@@ -1303,7 +1329,7 @@ export function drawPorts(el) {
     ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
     ctx.fillStyle = on ? FIBRE_COLOUR : portFill(); ctx.fill();
     ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 1.4; ctx.stroke();
-    if (ps.length > 1 && s > 3) {                  // named when it has company: other fibre ports, or electrical ones
+    if (ps.length > 1 && s > 3 && !(figure && figure.ports === false)) {                  // named when it has company (a figure may leave them out): other fibre ports, or electrical ones
       // the name just outside the port, above it, upright whatever the part's angle
       ctx.fillStyle = 'rgba(244,199,220,0.9)'; ctx.font = '9px ' + getCss('--jek-mono');
       const W = Math.abs(Q.dx) < 0.3;

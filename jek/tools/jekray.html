@@ -23215,6 +23215,7 @@ const V3D = (() => {
       R.boardBelow = below;
       R.groups.board.traverse(o => { if (!o.material) return; for (const m of [].concat(o.material)) { m.transparent = below; m.opacity = below ? 0.18 : 1; m.depthWrite = !below; m.needsUpdate = true; } });
     }
+    particleSizes(camera);
     spreadNames(camera);
     volPass();
     gl.render(scene, camera);
@@ -23535,6 +23536,7 @@ const V3D = (() => {
         add(...sagSolid(sg, s.semi, Math.min(sg(0, 0), sg(s.semi, s.semi)) - 1.5, true, face, el.absorb ? mat.body() : face));
         if (el.phosphor) add(phosphorMesh(el, sg(0, 0)));
         else if (el.faceMap) { const m = faceMapMesh(el, sg(0, 0)); if (m) add(m); }
+        if (el.trap === 'sphere') add(particle3(el));
         return g;
       }
       case 'source': {
@@ -23684,6 +23686,38 @@ const V3D = (() => {
       r.sp.center.set(0.5, -n * (r.h + 3) / r.h);
     }
   }
+  /* A screen's particle (the Trap and Scattering tabs'), where the light meets the screen: its shape, its proportions
+     and its axis as set, in its material's colour, and far larger than life: nanometres would not show on a bench in
+     millimetres, so it is a sign that keeps its size on the page, its longest side PARTICLE_PX long however near
+     the view is (particleSizes, each frame). Its axis is given on the bench, not on the screen: the model is turned
+     back by the screen's own pose each time the screen is placed (benchAxis). */
+  const PARTICLE_PX = 36;
+  const PARTICLE_COL = { Au: 0xd8a650, Ag: 0xdfe3e6, Al: 0xc9ced3 };
+  function particle3(el) {
+    const shape = ['cylinder', 'capsule', 'spheroid'].includes(el.trapShape) ? el.trapShape : 'sphere';
+    const D = Math.max(1, 2 * el.trapR), Lr = shape === 'sphere' ? D : Math.max(shape === 'capsule' ? D : 1, el.trapLen || D);
+    const k = 1 / Math.max(D, Lr), r = Math.max(1 / 16, D * k / 2), L = Math.max(1 / 8, Lr * k);      // its longest side 1: scaled each frame
+    const m = PARTICLE_COL[el.trapMat] ? mat.metal(PARTICLE_COL[el.trapMat], 0.25) : new T.MeshStandardMaterial({ color: col(0xdff1f7), roughness: 0.15, metalness: 0, emissive: col(0x6fb7cf), emissiveIntensity: 0.25 });
+    const ax = new T.Group(); ax.userData.benchAxis = [(el.trapAz || 0) * deg, (el.trapTilt || 0) * deg]; ax.userData.particle = { shape, r, L };
+    const lie = geo => mesh(geo.rotateZ(Math.PI / 2), m);                       // a cylinder is made standing: laid along x, the axis
+    if (shape === 'sphere') ax.add(mesh(new T.SphereGeometry(r, 28, 18), m));
+    else if (shape === 'spheroid') { const s = mesh(new T.SphereGeometry(1, 28, 18), m); s.scale.set(L / 2, r, r); ax.add(s); }
+    else if (shape === 'cylinder') ax.add(lie(new T.CylinderGeometry(r, r, L, 28)));
+    else {
+      const mid = Math.max(0, L - 2 * r);
+      if (mid > 0) ax.add(lie(new T.CylinderGeometry(r, r, mid, 28, 1, true)));
+      for (const sgn of [-1, 1]) { const c = mesh(new T.SphereGeometry(r, 28, 18), m); c.position.x = sgn * mid / 2; ax.add(c); }
+    }
+    ax.traverse(o => { o.castShadow = false; });          // a sign, not a body on the table
+    return ax;
+  }
+  function particleSizes(camera) {
+    const k = 2 * Math.tan(camera.fov * deg / 2) / Math.max(1, R.h) * PARTICLE_PX, v = new T.Vector3();
+    for (const p of R.groups.parts.children) for (const o of p.children) if (o.userData.particle) { const d = v.copy(p.position).sub(camera.position).dot(camera.getWorldDirection(new T.Vector3())); o.scale.setScalar(Math.max(1e-4, k * Math.abs(d))); }
+  }
+  /* the pieces of a placed part that keep to the bench's directions, turned back by the part's own turn */
+  const benchAxes = p => { for (const o of p.children) if (o.userData.benchAxis) { const [az, tl] = o.userData.benchAxis; o.quaternion.copy(p.quaternion).invert().multiply(new T.Quaternion().setFromEuler(new T.Euler(0, -tl, az, 'ZYX'))); } };
+
   /* a name, drawn the same size on screen however far away */
   function label(text, colour) {
     const c = document.createElement('canvas'), g = c.getContext('2d'), fs = 26;
@@ -23790,7 +23824,7 @@ const V3D = (() => {
       }
       if (!p) continue;
       used.add(el.id);
-      p.position.set(el.x, el.y, z3(el)); p.rotation.set((el.roll || 0) * deg, -(el.tip || 0) * deg, el.angle * deg, 'ZYX');
+      p.position.set(el.x, el.y, z3(el)); p.rotation.set((el.roll || 0) * deg, -(el.tip || 0) * deg, el.angle * deg, 'ZYX'); benchAxes(p);
       p.userData.id = el.id; p.traverse(o => { o.userData.id = el.id; if (o.userData.phosphor) for (const t of o.userData.texs) phosphorRoll(t, el); });
       G.parts.add(p);
       if (names) {
@@ -24962,6 +24996,8 @@ const V3D = (() => {
       meshAt(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const p = R.groups.parts.children.find(q => q.userData.id === el.id); return p ? p.position.toArray() : null; },
       // a network part's body in 3D: its size (mm) and the picture on its top, as a data URL
       netBody(name) { const el = project.elements.find(e => e.name === name); if (!el || !NET_3D.has(el.type)) return null; const B = netBox(el); return { hx: B.hx, hy: B.hy, h: B.h, ports: B.P.length, top: symbolCanvas(el, B.hx, B.hy, 14).toDataURL() }; },
+      // a screen's particle as drawn: its shape, its drawn half-width and length (mm), and its axis on the bench
+      particleOf(name) { const el = project.elements.find(e => e.name === name), c = el && R && (sync(), R.partCache && R.partCache.get(el.id)); const o = c && c.obj.children.find(x => x.userData.particle); if (!o) return null; o.updateWorldMatrix(true, false); const v = new T.Vector3(1, 0, 0).transformDirection(o.matrixWorld); particleSizes(R.camera); return Object.assign({ axis: [v.x, v.y, v.z], px: o.scale.x * R.h / (2 * Math.tan(R.camera.fov * deg / 2) * o.getWorldPosition(new T.Vector3()).sub(R.camera.position).dot(R.camera.getWorldDirection(new T.Vector3()))) }, o.userData.particle); },
       screenOf(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const v = new T.Vector3(el.x, el.y, z3(el)).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
     },
   };
@@ -56671,7 +56707,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    '<b>Scattering by a particle</b>: a screen’s new <b>Scattering</b> tab gives the light one small particle scatters. A sphere is worked out exactly (Lorenz–Mie); a rod with flat or round ends or a spheroid, at any orientation, as an array of dipoles (the discrete dipole approximation, run in the background with a Stop); and a single dipole (Rayleigh) is kept beside them to compare. The light is what the bench puts on the particle: a tight focus as its full vector field, every sample of its pupil a plane wave onto the particle, so the particle may sit off the focus; a gentler beam as a plane wave; beams of one laser added as fields. It reads the scattering, extinction and absorption cross-sections, efficiencies and asymmetry, the power scattered, the forward and back shares and the share a lens of a given NA would collect, with polar plots in the bench plane and out of it and a map over every direction. The particle is the Trap tab’s, now with a shape, gold, silver and aluminium among its materials, and water as a medium. In a script, <code>JEKray.scatter(name)</code> and <code>JEKray.mie(x, mr, mi, angles)</code>. A new example, <b>Light scattered by a 300 nm sphere</b>, and two cases on the validation page.',
+    '<b>Scattering by a particle</b>: a screen’s new <b>Scattering</b> tab gives the light one small particle scatters. A sphere is worked out exactly (Lorenz–Mie); a rod with flat or round ends or a spheroid, at any orientation, as an array of dipoles (the discrete dipole approximation, run in the background with a Stop); and a single dipole (Rayleigh) is kept beside them to compare. The light is what the bench puts on the particle: a tight focus as its full vector field, every sample of its pupil a plane wave onto the particle, so the particle may sit off the focus; a gentler beam as a plane wave; beams of one laser added as fields. It reads the scattering, extinction and absorption cross-sections, efficiencies and asymmetry, the power scattered, the forward and back shares and the share a lens of a given NA would collect, with polar plots in the bench plane and out of it and a map over every direction. The particle is the Trap tab’s, now with a shape, gold, silver and aluminium among its materials, and water as a medium. In 3D the particle is drawn in its shape and orientation, enlarged so it shows. In a script, <code>JEKray.scatter(name)</code> and <code>JEKray.mie(x, mr, mi, angles)</code>. A new example, <b>Light scattered by a 300 nm sphere</b>, and two cases on the validation page.',
     'The diffracted field behind a <b>hard edge</b> (a slit, a comb of slits, a knife edge, an iris or a rim off the beam\u2019s axis) has its true amplitude. Each sample at an edge took its share of open area and the whole field was then scaled up to the open area\u2019s power: the peak behind slits a few samples wide read up to 12% high, the envelope of an N-slit pattern came out narrow, and the fringes behind a straight edge lost contrast away from it. An edge is now carried as the samples can hold it exactly, with the light it sends past the grid\u2019s reach kept at the top of that reach, so the power is still the open area\u2019s. Slits that run the whole way up no longer cut the beam\u2019s wings off above and below them (2% of a focus behind them). Behind an edge the field is sampled more finely where the grid can still hold the light. New on <a href="/jek/tools/jekray-validation.html#fresnel-edge">the validation page</a>: Fresnel\u2019s fringes at a straight edge and the pattern of 2, 5 and 10 slits.',
     'A <b>phase mask finer than the beam</b> (a phase grating, a diffuser, an SLM\u2019s pattern) keeps its light. Behind a mask that spreads the light without cutting it, the diffracted field\u2019s grid now grows with the light as it does behind an edge; before, a grating\u2019s orders ran off the grid\u2019s sides and were lost with no warning. The beam goes on along the mask\u2019s mean slope across its footprint, where it took the slope under its own ray (a sinusoidal grating sent it off at \u03b2\u03bb/d, a fork hologram\u2019s core ended it once rays left the bench plane), and takes its focus from the trend of the slope across it. A sinusoidal phase grating\u2019s orders now carry J\u2099(\u03b2)\u00b2 each, on <a href="/jek/tools/jekray-validation.html#phase-grating">the validation page</a>. Light a mask sends past what the grid can carry is flagged.',
     'A beam of M\u00b2 above 1 keeps all its modes past its first surfaces: they shared one budget of 60 segments in the 2D field, so a beam of M\u00b2 = 4 (36 modes) lost its weakest, widest ones after a lens and read 4% narrow. Each mode now has the budget of its own, as the estimate of the run\u2019s time already took it.',

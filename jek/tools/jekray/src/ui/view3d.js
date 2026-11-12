@@ -271,6 +271,7 @@ export const V3D = (() => {
       R.boardBelow = below;
       R.groups.board.traverse(o => { if (!o.material) return; for (const m of [].concat(o.material)) { m.transparent = below; m.opacity = below ? 0.18 : 1; m.depthWrite = !below; m.needsUpdate = true; } });
     }
+    particleSizes(camera);
     spreadNames(camera);
     volPass();
     gl.render(scene, camera);
@@ -591,6 +592,7 @@ export const V3D = (() => {
         add(...sagSolid(sg, s.semi, Math.min(sg(0, 0), sg(s.semi, s.semi)) - 1.5, true, face, el.absorb ? mat.body() : face));
         if (el.phosphor) add(phosphorMesh(el, sg(0, 0)));
         else if (el.faceMap) { const m = faceMapMesh(el, sg(0, 0)); if (m) add(m); }
+        if (el.trap === 'sphere') add(particle3(el));
         return g;
       }
       case 'source': {
@@ -740,6 +742,38 @@ export const V3D = (() => {
       r.sp.center.set(0.5, -n * (r.h + 3) / r.h);
     }
   }
+  /* A screen's particle (the Trap and Scattering tabs'), where the light meets the screen: its shape, its proportions
+     and its axis as set, in its material's colour, and far larger than life: nanometres would not show on a bench in
+     millimetres, so it is a sign that keeps its size on the page, its longest side PARTICLE_PX long however near
+     the view is (particleSizes, each frame). Its axis is given on the bench, not on the screen: the model is turned
+     back by the screen's own pose each time the screen is placed (benchAxis). */
+  const PARTICLE_PX = 36;
+  const PARTICLE_COL = { Au: 0xd8a650, Ag: 0xdfe3e6, Al: 0xc9ced3 };
+  function particle3(el) {
+    const shape = ['cylinder', 'capsule', 'spheroid'].includes(el.trapShape) ? el.trapShape : 'sphere';
+    const D = Math.max(1, 2 * el.trapR), Lr = shape === 'sphere' ? D : Math.max(shape === 'capsule' ? D : 1, el.trapLen || D);
+    const k = 1 / Math.max(D, Lr), r = Math.max(1 / 16, D * k / 2), L = Math.max(1 / 8, Lr * k);      // its longest side 1: scaled each frame
+    const m = PARTICLE_COL[el.trapMat] ? mat.metal(PARTICLE_COL[el.trapMat], 0.25) : new T.MeshStandardMaterial({ color: col(0xdff1f7), roughness: 0.15, metalness: 0, emissive: col(0x6fb7cf), emissiveIntensity: 0.25 });
+    const ax = new T.Group(); ax.userData.benchAxis = [(el.trapAz || 0) * deg, (el.trapTilt || 0) * deg]; ax.userData.particle = { shape, r, L };
+    const lie = geo => mesh(geo.rotateZ(Math.PI / 2), m);                       // a cylinder is made standing: laid along x, the axis
+    if (shape === 'sphere') ax.add(mesh(new T.SphereGeometry(r, 28, 18), m));
+    else if (shape === 'spheroid') { const s = mesh(new T.SphereGeometry(1, 28, 18), m); s.scale.set(L / 2, r, r); ax.add(s); }
+    else if (shape === 'cylinder') ax.add(lie(new T.CylinderGeometry(r, r, L, 28)));
+    else {
+      const mid = Math.max(0, L - 2 * r);
+      if (mid > 0) ax.add(lie(new T.CylinderGeometry(r, r, mid, 28, 1, true)));
+      for (const sgn of [-1, 1]) { const c = mesh(new T.SphereGeometry(r, 28, 18), m); c.position.x = sgn * mid / 2; ax.add(c); }
+    }
+    ax.traverse(o => { o.castShadow = false; });          // a sign, not a body on the table
+    return ax;
+  }
+  function particleSizes(camera) {
+    const k = 2 * Math.tan(camera.fov * deg / 2) / Math.max(1, R.h) * PARTICLE_PX, v = new T.Vector3();
+    for (const p of R.groups.parts.children) for (const o of p.children) if (o.userData.particle) { const d = v.copy(p.position).sub(camera.position).dot(camera.getWorldDirection(new T.Vector3())); o.scale.setScalar(Math.max(1e-4, k * Math.abs(d))); }
+  }
+  /* the pieces of a placed part that keep to the bench's directions, turned back by the part's own turn */
+  const benchAxes = p => { for (const o of p.children) if (o.userData.benchAxis) { const [az, tl] = o.userData.benchAxis; o.quaternion.copy(p.quaternion).invert().multiply(new T.Quaternion().setFromEuler(new T.Euler(0, -tl, az, 'ZYX'))); } };
+
   /* a name, drawn the same size on screen however far away */
   function label(text, colour) {
     const c = document.createElement('canvas'), g = c.getContext('2d'), fs = 26;
@@ -846,7 +880,7 @@ export const V3D = (() => {
       }
       if (!p) continue;
       used.add(el.id);
-      p.position.set(el.x, el.y, z3(el)); p.rotation.set((el.roll || 0) * deg, -(el.tip || 0) * deg, el.angle * deg, 'ZYX');
+      p.position.set(el.x, el.y, z3(el)); p.rotation.set((el.roll || 0) * deg, -(el.tip || 0) * deg, el.angle * deg, 'ZYX'); benchAxes(p);
       p.userData.id = el.id; p.traverse(o => { o.userData.id = el.id; if (o.userData.phosphor) for (const t of o.userData.texs) phosphorRoll(t, el); });
       G.parts.add(p);
       if (names) {
@@ -2018,6 +2052,8 @@ export const V3D = (() => {
       meshAt(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const p = R.groups.parts.children.find(q => q.userData.id === el.id); return p ? p.position.toArray() : null; },
       // a network part's body in 3D: its size (mm) and the picture on its top, as a data URL
       netBody(name) { const el = project.elements.find(e => e.name === name); if (!el || !NET_3D.has(el.type)) return null; const B = netBox(el); return { hx: B.hx, hy: B.hy, h: B.h, ports: B.P.length, top: symbolCanvas(el, B.hx, B.hy, 14).toDataURL() }; },
+      // a screen's particle as drawn: its shape, its drawn half-width and length (mm), and its axis on the bench
+      particleOf(name) { const el = project.elements.find(e => e.name === name), c = el && R && (sync(), R.partCache && R.partCache.get(el.id)); const o = c && c.obj.children.find(x => x.userData.particle); if (!o) return null; o.updateWorldMatrix(true, false); const v = new T.Vector3(1, 0, 0).transformDirection(o.matrixWorld); particleSizes(R.camera); return Object.assign({ axis: [v.x, v.y, v.z], px: o.scale.x * R.h / (2 * Math.tan(R.camera.fov * deg / 2) * o.getWorldPosition(new T.Vector3()).sub(R.camera.position).dot(R.camera.getWorldDirection(new T.Vector3()))) }, o.userData.particle); },
       screenOf(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const v = new T.Vector3(el.x, el.y, z3(el)).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
     },
   };

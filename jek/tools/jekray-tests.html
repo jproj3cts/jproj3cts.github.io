@@ -12556,6 +12556,28 @@ const TESTS = [
     },
   },
   {
+    name: 'In 3D the particle is drawn in its shape, enlarged, its axis kept on the bench as the screen turns',
+    why: 'a 1 µm × 200 nm rod is far too small to show on a bench in millimetres: it is drawn as a sign 36 px long with its proportions, where the light meets the screen, whatever the zoom. Its axis is set on the bench (30° round, 20° up), so turning the screen does not turn it; a sphere is a ball of the same size; with no particle nothing is drawn',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('particle 3d', [src({ name: 'L', x: -20, wavelength: 1550, rays: 1 }),
+        screen({ name: 'S', x: 10, absorb: false, trap: 'sphere', trapShape: 'cylinder', trapR: 100, trapLen: 1000, trapAz: 30, trapTilt: 20 })]));
+      try {
+        await J.view3d.set(true);
+        const d = Math.PI / 180, want = [Math.cos(20 * d) * Math.cos(30 * d), Math.cos(20 * d) * Math.sin(30 * d), Math.sin(20 * d)];
+        const near = a => a && a.axis.every((v, k) => Math.abs(v - want[k]) < 1e-6);
+        const a = J.view3d.particleOf('S');
+        const S = J.byName('S'); S.angle = 140; S.tip = 15; S.roll = 25; J.redraw();
+        const b = J.view3d.particleOf('S');
+        S.trapShape = 'sphere'; J.redraw();
+        const c = J.view3d.particleOf('S');
+        S.trap = 'none'; J.redraw();
+        const e = J.view3d.particleOf('S');
+        return near(a) && near(b) && a.shape === 'cylinder' && Math.abs(a.L - 1) < 1e-9 && Math.abs(a.r - 0.1) < 1e-9 && Math.abs(a.px - 36) < 0.01 && Math.abs(b.px - 36) < 0.01 && c && c.shape === 'sphere' && Math.abs(c.r - 0.5) < 1e-9 && e === null ? 1 : 0;
+      } finally { await J.view3d.set(false); }
+    },
+  },
+  {
     name: 'The Scattering tab: choosing a rod sets the particle’s shape, and None takes it away',
     why: 'the Particle list makes the screen’s particle a rod (its length, axis and tilt then show, and Auto runs a dipole array), keeps the Trap tab’s sphere as the sphere of its volume, and None leaves no particle (1 when all hold)',
     want: 1, tol: 0, unit: '',

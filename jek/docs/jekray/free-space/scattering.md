@@ -20,6 +20,8 @@ The particle belongs to a [screen](/jek/docs/jekray/free-space/screen/). Put the
 - **Where it is**: where the strongest beam meets the screen, or where the Trap tab finds the particle held. Three offsets move it from there across the beam, up, and along the beam.
 - **Collecting NA** and **Collected from**: the cone a lens or detector would gather, for the collected fraction.
 
+In the 3D view the particle is drawn where the light meets the screen, in its shape and at its orientation, as a sign that stays the same size on the page however far the view is zoomed. At its true size it would not show on a bench measured in millimetres.
+
 ## The light on the particle
 
 Every Gaussian beam through the screen's region counts, whichever way it goes, as on the Trap tab. Beams of one laser add as fields, so two counter-propagating beams light the particle with a standing wave. Separate lasers add as powers.

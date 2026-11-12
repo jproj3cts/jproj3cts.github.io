@@ -4892,9 +4892,26 @@ const TESTS = [
   },
   {
     name: 'A Bragg grating on a circulator reflects its band to the third port',
-    why: 'laser 0.2 nm off a 90%, 0.5 nm grating: R = 0.9 exp(\u22124 ln 2 (0.2/0.5)\u00b2), times the circulator\u2019s 0.8 dB twice',
+    why: 'a 5 mm grating of index modulation 1.8e-4 at its Bragg wavelength: R = tanh\u00b2(\u03baL) with \u03ba = \u03c0 \u03b4n / \u03bb, times the circulator\u2019s 0.8 dB twice',
+    want: Math.tanh(Math.PI * 1.8e-4 * 5 / 1550e-6) ** 2 * Math.pow(10, -1.6 / 10), tol: 1e-9, unit: ' mW',
+    run: J => { J.load(fnet([fc('laser', 'L', { power: 1, wavelength: 1550 }), fc('circ', 'C'), fc('fbg', 'G'), fc('term', 'T', { rl: 200 }), fc('pd', 'P')],
+      [['L', 0, 'C', 0], ['C', 1, 'G', 0], ['G', 1, 'T', 0], ['C', 2, 'P', 0]])); return J.fibrePd('P'); },
+  },
+  {
+    name: 'and nothing at its first zero, where \u03c3\u00b2 = \u03ba\u00b2 + (\u03c0/L)\u00b2',
+    why: 'the same grating with the laser at the first zero on the long side (found here by bisection): the power on the third port',
+    want: 0, tol: 1e-15, unit: ' mW',
+    run: J => {
+      const f = nm => { const s = 2 * Math.PI * 1.468 * (1e6 / nm - 1e6 / 1550), k = Math.PI * 1.8e-4 * 1e6 / nm; return s * s - k * k - (Math.PI / 5) ** 2; };
+      let a = 1550, b = 1550.5; for (let i = 0; i < 100; i++) { const m = 0.5 * (a + b); if (f(a) * f(m) <= 0) b = m; else a = m; }
+      J.load(fnet([fc('laser', 'L', { power: 1, wavelength: a }), fc('circ', 'C'), fc('fbg', 'G'), fc('term', 'T', { rl: 200 }), fc('pd', 'P')],
+        [['L', 0, 'C', 0], ['C', 1, 'G', 0], ['G', 1, 'T', 0], ['C', 2, 'P', 0]])); return J.fibrePd('P'); },
+  },
+  {
+    name: 'A grating saved as a band (its width and peak, before it had a length) still reflects that Gaussian band',
+    why: 'laser 0.2 nm off a 90%, 0.5 nm grating given by fwhm and rmax alone: R = 0.9 exp(\u22124 ln 2 (0.2/0.5)\u00b2), times the circulator\u2019s 0.8 dB twice',
     want: 0.9 * Math.exp(-4 * Math.LN2 * 0.16) * Math.pow(10, -1.6 / 10), tol: 1e-9, unit: ' mW',
-    run: J => { J.load(fnet([fc('laser', 'L', { power: 1, wavelength: 1550.2 }), fc('circ', 'C'), fc('fbg', 'G'), fc('term', 'T', { rl: 200 }), fc('pd', 'P')],
+    run: J => { J.load(fnet([fc('laser', 'L', { power: 1, wavelength: 1550.2 }), fc('circ', 'C'), fc('fbg', 'G', { centre: 1550, fwhm: 0.5, rmax: 90 }), fc('term', 'T', { rl: 200 }), fc('pd', 'P')],
       [['L', 0, 'C', 0], ['C', 1, 'G', 0], ['G', 1, 'T', 0], ['C', 2, 'P', 0]])); return J.fibrePd('P'); },
   },
   {

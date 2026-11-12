@@ -1225,6 +1225,82 @@ const ALL_CASES = [
       return { checks, benches, plots, notes: 'The field in JEKray goes as exp(−ikz) and a coupler crosses with +i; SAX’s goes as exp(+ikz) and its couplers cross with −i, the complex conjugate, so every power is the same while each field is the other’s conjugate. In SAX the waveguides are its own model; the couplers, the MMI and the phase shifter are written in the script to JEKray’s compact models (a coupler’s power coupling changes linearly with wavelength, the MMI is flat), so what SAX checks is the circuit: the ports joined, the loops closed and solved. The widths and depths are measured on the spectrum as JEKray’s spectrum view does: a line’s depth against the highest point between it and its neighbours, its width at half that depth. The panel’s range and width come from λ²/(n_g L) and the finesse π√x/(1 − x), x the round trip’s field, which leave out how the range grows with the wavelength: the lines either side of the one near 1550 nm are 9.041 and 9.148 nm from it, and the panel’s 9.104 nm falls between; it is checked against the nearer of the two. The differences of about 5 × 10⁻¹³ in the powers are the reference file’s rounding to 12 digits. Photonic circuits are experimental: switch them on under Experimental features to add parts; the benches above open with or without it.' };
     },
   },
+  {
+    id: 'fbg', area: 'Fibre components', title: 'A uniform fibre Bragg grating: its spectrum, band and delay',
+    kind: 'Paper: coupled-mode equations, integrated', ref: 'fbg-erdogan.json', script: 'fbg_erdogan.py',
+    cite: 'T. Erdogan, “Fiber grating spectra”, Journal of Lightwave Technology 15, 1277–1294 (1997).',
+    what: 'Three uniform gratings, each 10 mm long with a Bragg wavelength of 1550 nm, in fibre of index 1.468. Their index modulations give κL = 0.5, 2 and 8. The reference integrates Erdogan’s two coupled-mode equations along each grating numerically and agrees with his closed forms to better than 1 × 10⁻¹² in reflectance and transmittance. It describes the grating as Erdogan does, by the fibre’s index before the grating was written, the design wavelength and the average index change. JEKray is given the wavelength reflected most and the mean index in the grating. On the JEKray bench a 1 mW fibre laser feeds port 1 of a lossless circulator, with the grating on port 2, a photodiode behind the grating and a second photodiode on port 3. The laser is set to each wavelength in turn and the photodiodes read the transmitted and reflected power. The first zeros are found by moving the laser until the reflected power is least on each side of the peak. The half-peak points are found by bisection on the reflected power. For the delay, the laser goes through an amplitude modulator at 10 MHz, and the phase of the 10 MHz beat in the reflected light is compared with the same bench with a 100% mirror in the grating’s place. That reading averages the delay over 10 MHz either side of the laser. The reference puts it within 3.4 × 10⁻⁶ of the delay at the laser’s own frequency.',
+    tolerance: 'Reflectance and transmittance at 41 wavelengths across three times each grating’s band, and the peak reflectance, within 1 × 10⁻⁹. The transmittance at the Bragg wavelength within one part in 10⁶. The band between the first zeros and the width at half the peak within 1 × 10⁻⁷ nm. The delay of the reflected light at 9 wavelengths across the main lobe within 0.01%.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [], fm = R.fm_Hz;
+      const part = (kind, id, name, x, y, o) => Object.assign({ type: 'fcomp', kind, id, name, x, y, angle: 0 }, o || {});
+      // the laser (through the modulator, for the delay) into the circulator, the grating (or a mirror) on its port 2
+      const mk = (C, nm, mod, mirror) => bench('Fibre Bragg grating, κL = ' + C.kL + ' (Erdogan 1997)', [
+        part('laser', 'L', 'Laser', mod ? -70 : -40, 0, { power: 1, wavelength: nm }),
+        ...(mod ? [part('eom', 'E', 'Modulator', -35, 0, { fm: fm / 1e6, beta: 0.1, emode: 'amplitude', bias: 90, loss: 0 })] : []),
+        part('circ', 'C', 'Circulator', 0, 0, { loss: 0, iso: 200 }),
+        mirror ? part('fmir', 'G', 'Mirror', 35, 0, { rmax: 100, loss: 0 }) : part('fbg', 'G', 'Grating', 35, 0, { model: 'cmt', centre: R.lambda_B_nm, len: R.L_mm, dn: C.dn, vis: R.vis, neff: R.n }),
+        part('pd', 'T', 'Transmitted', 70, 0), part('pd', 'P', 'Reflected', 35, -30)],
+        { fibres: [mod ? ['L', 0, 'E', 0] : ['L', 0, 'C', 0], ...(mod ? [['E', 1, 'C', 0]] : []), ['C', 1, 'G', 0], ['G', 1, 'T', 0], ['C', 2, 'P', 0]].map(([a, pa, b, pb]) => ({ a: [a, pa], b: [b, pb], len: 1, loss: 0 })) });
+      const refl = (C, nm) => { J.load(mk(C, nm)); return J.fibrePd('Reflected'); };
+      const beat = (C, nm, mirror) => { J.load(mk(C, nm, true, mirror)); const t = J.pdSignal('Reflected').tones.find(q => Math.abs(q.f - fm) < 1); return t ? t.ph : NaN; };
+      const wrap = x => x - 2 * Math.PI * Math.round(x / (2 * Math.PI));
+      const cols = ['#1f6fb2', '#6a3d9a', '#2a9d8f'], specs = [], delays = [], dots = [0, 1].map(() => ({ name: 'JEKray', x: [], y: [], colour: GOT_C, dots: true }));
+      for (const [ci, C] of R.cases.entries()) {
+        const tag = 'κL = ' + C.kL + ': ';
+        // the spectra
+        const Rs = [], Ts = [];
+        for (const nm of C.nm) { J.load(mk(C, nm)); Rs.push(J.fibrePd('Reflected')); Ts.push(J.fibrePd('Transmitted')); }
+        await idle();
+        const worst = (ref, got) => ref.reduce((m, r, i) => Math.max(m, Math.abs(got[i] - r)), 0);
+        checks.push(check(tag + 'reflectance at 41 wavelengths, largest difference', 0, worst(C.R, Rs), { abs: 1e-9 }, ''));
+        checks.push(check(tag + 'transmittance at 41 wavelengths, largest difference', 0, worst(C.T, Ts), { abs: 1e-9 }, ''));
+        // the peak
+        const d0 = mk(C, R.lambda_B_nm); J.load(d0);
+        const peak = J.fibrePd('Reflected');
+        checks.push(check(tag + 'peak reflectance, tanh²(κL)', C.peak_R, peak, { abs: 1e-9 }, ''));
+        checks.push(check(tag + 'transmittance at the Bragg wavelength', C.peak_T, J.fibrePd('Transmitted'), { rel: 1e-6 }, ''));
+        benches.push(['κL = ' + C.kL, d0]);
+        // the first zeros: the laser stepped out from the peak, 1/200 of the band at a time, until the reflected power
+        // rises again; then the least reflected power between the last three steps, by golden section
+        const step = (C.nm[C.nm.length - 1] - C.nm[0]) / 600, g = (Math.sqrt(5) - 1) / 2, zero = [], half = [];
+        for (const s of [-1, 1]) {
+          let x = R.lambda_B_nm, was = peak, now = refl(C, x + s * step);
+          while (now <= was && Math.abs(x - R.lambda_B_nm) < 300 * step) { x += s * step; was = now; now = refl(C, x + s * step); }
+          let a = Math.min(x - s * step, x + s * step), b = Math.max(x - s * step, x + s * step), x1 = b - g * (b - a), x2 = a + g * (b - a), f1 = refl(C, x1), f2 = refl(C, x2);
+          for (let k = 0; k < 45; k++) {
+            if (f1 < f2) { b = x2; x2 = x1; f2 = f1; x1 = b - g * (b - a); f1 = refl(C, x1); } else { a = x1; x1 = x2; f1 = f2; x2 = a + g * (b - a); f2 = refl(C, x2); }
+          }
+          zero.push(0.5 * (a + b));
+          await idle();
+          // half the peak, between the peak and that zero
+          let p = R.lambda_B_nm, q = zero[zero.length - 1];
+          for (let k = 0; k < 50; k++) { const m = 0.5 * (p + q); if (refl(C, m) >= peak / 2) p = m; else q = m; }
+          half.push(0.5 * (p + q));
+          await idle();
+        }
+        checks.push(check(tag + 'band between the first zeros', C.zeros_nm, zero[1] - zero[0], { abs: 1e-7 }, ' nm'));
+        checks.push(check(tag + 'width at half the peak', C.fwhm_nm, half[1] - half[0], { abs: 1e-7 }, ' nm'));
+        // the delay of the reflected light: the 10 MHz beat's phase, against a mirror's
+        const got = [];
+        for (const [k, nm] of C.delay_nm.entries()) {
+          const ps = -wrap(beat(C, nm) - beat(C, nm, true)) / (2 * Math.PI * fm) * 1e12;
+          got.push(ps);
+          checks.push(check(tag + 'delay reflected at ' + nm.toFixed(4) + ' nm', C.delay_ps[k], ps, { rel: 1e-4 }, ' ps'));
+        }
+        if (C.kL === 2) benches.push(['κL = 2, with the modulator', mk(C, R.lambda_B_nm, true)]);
+        await idle();
+        // against the wavelength's distance from the Bragg wavelength; JEKray's points as one series
+        const off = a => a.map(v => v - R.lambda_B_nm);
+        specs.push({ name: 'Erdogan: κL = ' + C.kL, x: off(C.fine_nm), y: C.fine_R, colour: cols[ci], width: 2 });
+        delays.push({ name: 'Erdogan: κL = ' + C.kL, x: off(C.delay_nm), y: C.delay_ps, colour: cols[ci], width: 2 });
+        dots[0].x.push(...off(C.nm)); dots[0].y.push(...Rs); dots[1].x.push(...off(C.delay_nm)); dots[1].y.push(...got);
+      }
+      plots.push(plot({ title: 'Reflectance of three 10 mm gratings', xlabel: 'wavelength from 1550 nm (nm)', ylabel: 'reflectance', yMin: 0, yMax: 1.5, series: [...specs, dots[0]] }));
+      plots.push(plot({ title: 'Delay of the reflected light across each main lobe', xlabel: 'wavelength from 1550 nm (nm)', ylabel: 'delay (ps)', logY: true, yMin: 5, yMax: 500, series: [...delays, dots[1]] }));
+      return { checks, benches, plots, notes: 'Erdogan’s detuning is counted from the design wavelength of the fibre before the grating was written, and the average index change then moves the peak to a longer wavelength. With the mean index in the grating and the wavelength reflected most, the detuning is the same number, and the reference checks that before it integrates. The index is taken as constant across the band, so the group index equals the index. A real fibre’s group index is about 1% higher, and its delays longer by the same share. The first run of this case failed two checks on the strongest grating, the band between the zeros and the width at half the peak. The case had looked for the first dip in its 41-point spectrum, whose points lie further apart than that grating’s first side lobe is wide, and it found the second zero. It now steps the laser out from the peak 1/200 of the band at a time. The tolerances were not changed.' };
+    },
+  },
 ];
 
 /* ---------- Running and reporting ---------- */

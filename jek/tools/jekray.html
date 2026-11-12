@@ -6925,6 +6925,124 @@ function fibreBendDb(F, nm) {
   const n = F.turns > 0 ? F.turns : 1;
   return Math.min(300, n * bendDbPerTurn(F.bendR, nm));
 }
+/* A fibre Bragg grating by coupled-mode theory (T. Erdogan, "Fiber grating spectra", J. Lightwave Technol. 15,
+   1277 (1997)). The core's index is modulated along z with period Lambda, n(z) = neff + v dn cos(2 pi z / Lambda),
+   which couples the forward mode to the backward one. With the detuning and the coupling
+
+     sigma = 2 pi neff (1/lambda - 1/lambda_B),   kappa = pi v dn / lambda,   lambda_B = 2 neff Lambda
+
+   (neff the mean effective index in the grating, the index change's average included, so that lambda_B is where it
+   reflects most), a uniform grating of length L has, with gamma^2 = kappa^2 - sigma^2,
+
+     rho = -kappa sinh(gamma L) / (sigma sinh(gamma L) + i gamma cosh(gamma L))       (Erdogan's eq. 14)
+     tau = i gamma / (sigma sinh(gamma L) + i gamma cosh(gamma L))
+
+   between its two ends: |rho|^2 = tanh^2(kappa L) at lambda_B, zeros where gamma L = i m pi, |rho|^2 + |tau|^2 = 1.
+   rho / tau is imaginary, so the same rho from either end with tau both ways is a lossless, reciprocal two-port.
+   The phases are from one end to the other of a grating a whole even number of periods long and symmetric about its
+   middle; off the band tau is exp(i sigma L), a length L of fibre.
+
+   An apodised or chirped grating is M uniform sections, each with its own kappa (the profile at its middle) and its
+   own Bragg wavelength (lambda_B + chirp z, z from the middle), their transfer matrices multiplied (Erdogan's eq. 39).
+   The mean index is the same all along it.
+
+   Erdogan writes a wave as exp(i (beta z - omega t)); the fibre network writes it exp(-i k n L) (see engines/fibre.js),
+   so what is handed on is the conjugate. Lengths are in mm, wavelengths in nm. Checked against the closed forms and a
+   numerical integration of the coupled-mode equations: test/node/physics-fbg.test.mjs, tools/validation. */
+const FBG_APODS = ['none', 'gauss', 'cos'];
+const FBG_C_MM_FS = 2.99792458e-4;                 // light, mm per fs
+/* the grating's numbers, clamped: Bragg wavelength (nm), length (mm), index modulation, fringe visibility, mean
+   effective index, chirp (nm of Bragg wavelength per cm along it), apodisation */
+const fbgOf = el => ({ lb: Math.min(20000, Math.max(100, +el.centre || 1550)), L: Math.min(1000, Math.max(0.01, +el.len || 0)), dn: Math.min(0.05, Math.max(0, +el.dn || 0)),
+  vis: Math.min(1, Math.max(0, el.vis === undefined ? 1 : +el.vis || 0)), n: Math.min(4, Math.max(1, +el.neff || 1.468)), chirp: Math.min(100, Math.max(-100, +el.chirp || 0)) * 0.1,
+  apod: FBG_APODS.includes(el.apod) ? el.apod : 'none' });
+/* the coupling's profile along the grating, u = z / L from -1/2 to 1/2: uniform; a Gaussian whose full width at half
+   maximum is half the length (1/16 at the ends); a raised cosine (nothing at the ends) */
+const fbgProfile = (apod, u) => apod === 'gauss' ? Math.exp(-16 * Math.LN2 * u * u) : apod === 'cos' ? 0.5 * (1 + Math.cos(2 * Math.PI * u)) : 1;
+/* the sections an apodised or chirped grating is cut into: enough that the detuning steps by little from one to the next */
+const fbgSections = g => Math.round(Math.min(1000, Math.max(100, g.L * Math.sqrt(2 * Math.PI * g.n * Math.abs(g.chirp) * 1e-6 / (g.lb * g.lb * 1e-12) / 0.02))));
+/* one uniform section's matrix [[a, b], [b*, a*]] taking (forward, backward) at its far end to its near end, in
+   Erdogan's convention: a = cosh(gamma dz) - i sigma sinh(gamma dz) / gamma, b = -i kappa sinh(gamma dz) / gamma.
+   Returns [a re, a im, b im] (b is imaginary) */
+function fbgSection(sig, kap, dz) {
+  const g2 = kap * kap - sig * sig, g = Math.sqrt(Math.abs(g2)), x = g * dz;
+  const C = g2 >= 0 ? Math.cosh(x) : Math.cos(x), S = x < 1e-6 ? dz : (g2 >= 0 ? Math.sinh(x) : Math.sin(x)) / g;
+  return [C, -sig * S, -kap * S];
+}
+/* The grating's amplitude reflection from each end (r1, r2) and its transmission (t) at a wavelength, complex
+   [re, im], in the network's convention. dk: a step in the wavenumber 2 pi / lambda (1/mm) past that wavelength,
+   added to the detuning itself, so that a small step is not lost in the wavelength's rounding */
+function fbgRT(el, nm, dk = 0) {
+  const g = fbgOf(el), lam = 1 / (1e6 / nm + dk / (2 * Math.PI)), kap = Math.PI * g.vis * g.dn / lam, off = g.n * dk, sig0 = 2 * Math.PI * g.n * (1e6 / nm - 1e6 / g.lb) + off;
+  if (g.apod === 'none' && g.chirp === 0) {
+    const g2 = kap * kap - sig0 * sig0, q = Math.sqrt(Math.abs(g2)), x = q * g.L;
+    let T, sech;                                 // tanh(gamma L) / gamma and 1 / cosh(gamma L), finite however strong the grating
+    if (g2 >= 0) { T = x < 1e-6 ? g.L : Math.tanh(x) / q; sech = 1 / Math.cosh(x); }
+    else {
+      const C = Math.cos(x), S = x < 1e-6 ? g.L : Math.sin(x) / q, d = C * C + sig0 * sig0 * S * S;
+      // tau = 1 / (C - i sigma S), rho = i kappa S tau; conjugated
+      return { r1: [-kap * S * sig0 * S / d, -kap * S * C / d], r2: [-kap * S * sig0 * S / d, -kap * S * C / d], t: [C / d, -sig0 * S / d] };
+    }
+    const d = 1 + sig0 * sig0 * T * T, r = [-kap * T * sig0 * T / d, -kap * T / d];
+    return { r1: r, r2: r.slice(), t: [sech / d, -sech * sig0 * T / d] };
+  }
+  // piecewise uniform: F = F_M ... F_1 from the far end to the near, each [[a, b], [b*, a*]]
+  const M = fbgSections(g), dz = g.L / M;
+  let ar = 1, ai = 0, br = 0, bi = 0;
+  for (let i = M - 1; i >= 0; i--) {
+    const u = (i + 0.5) / M - 0.5, lbz = g.lb * 1e-6 + g.chirp * 1e-6 * u * g.L;
+    const [c, s, k] = fbgSection(2 * Math.PI * g.n * (1e6 / nm - 1 / lbz) + off, kap * fbgProfile(g.apod, u), dz);
+    // (a', b') = F_i (a, b): F_i = [[c + i s, i k], [-i k, c - i s]] on the left of what is behind it
+    const nar = c * ar - s * ai + k * bi, nai = c * ai + s * ar + k * br, nbr = c * br - s * bi + k * ai, nbi = c * bi + s * br + k * ar;
+    ar = nar; ai = nai; br = nbr; bi = nbi;
+  }
+  // F = [[a, b], [b*, a*]]: rho1 = F21 / F11 = b* / a, rho2 = -F12 / F11 = -b / a, tau = 1 / a; conjugated
+  const d = ar * ar + ai * ai;
+  return { r1: [(br * ar - bi * ai) / d, (br * ai + bi * ar) / d], r2: [-(br * ar + bi * ai) / d, (bi * ar - br * ai) / d], t: [ar / d, ai / d] };
+}
+/* The same with each one's group delay, as mm of path in vacuum (c tau, tau = -d(phase)/d(omega) in the network's
+   convention), and its group delay dispersion (fs^2), from the phase at three wavelengths a little apart */
+function fbgAt(el, nm) {
+  const g = fbgOf(el), dk = 1e-3 / (g.n * g.L);
+  const A = fbgRT(el, nm), P = fbgRT(el, nm, dk), Q = fbgRT(el, nm, -dk);
+  const out = {};
+  for (const key of ['r1', 'r2', 't']) {
+    const z = A[key], ph = w => Math.atan2(w[1] * z[0] - w[0] * z[1], w[0] * z[0] + w[1] * z[1]), p = ph(P[key]), q = ph(Q[key]);
+    out[key] = { z, dl: -(p - q) / (2 * dk), gdd: -(p + q) / (dk * dk) / (FBG_C_MM_FS * FBG_C_MM_FS) };
+  }
+  return out;
+}
+/* What the panel shows of a grating: kappa L (the coupling summed along it, at the Bragg wavelength), its peak
+   reflectance and where, the band between the first zeros either side (a uniform grating's:
+   lambda_B^2 sqrt((kappa L)^2 + pi^2) / (pi neff L)), its full width at half the peak, the period, and the delay of
+   the reflection at the peak (ps). An apodised or chirped grating's peak and width are read off its spectrum. */
+let fbgBandMemo = { key: null, band: null };
+function fbgBand(el) {
+  const g = fbgOf(el), key = JSON.stringify(g);
+  if (fbgBandMemo.key === key) return fbgBandMemo.band;
+  const plain = g.apod === 'none' && g.chirp === 0, M = plain ? 1 : fbgSections(g);
+  let kL = 0;
+  for (let i = 0; i < M; i++) kL += Math.PI * g.vis * g.dn / (g.lb * 1e-6) * fbgProfile(g.apod, (i + 0.5) / M - 0.5) * g.L / M;
+  const zeros = g.lb * g.lb * 1e-6 * Math.sqrt(kL * kL + Math.PI * Math.PI) / (Math.PI * g.n * g.L);
+  const R = nm => { const r = fbgRT(el, nm).r1; return r[0] * r[0] + r[1] * r[1]; };
+  // the spectrum across the band (a chirp spreads it), then the peak
+  const half = 1.5 * (zeros + Math.abs(g.chirp) * g.L), N = 1200, xs = [], ys = [];
+  for (let i = 0; i <= 2 * N; i++) { xs.push(g.lb + (i - N) / N * half); ys.push(R(xs[i])); }
+  let im = N; if (g.chirp !== 0) for (let i = 0; i <= 2 * N; i++) if (ys[i] > ys[im]) im = i;
+  // out from the peak to where it first falls below half of it
+  const peak = ys[im], cross = step => {
+    for (let i = im + step; i >= 0 && i <= 2 * N; i += step) if (ys[i] < peak / 2) {
+      let a = xs[i - step], b = xs[i];
+      for (let k = 0; k < 40; k++) { const m = 0.5 * (a + b); if (R(m) >= peak / 2) a = m; else b = m; }
+      return 0.5 * (a + b);
+    }
+    return xs[step > 0 ? 2 * N : 0];
+  };
+  const band = { kL, peak, at: xs[im], zeros: plain ? zeros : null, fwhm: peak > 0 ? cross(1) - cross(-1) : 0, period: g.lb / (2 * g.n),
+    delay: peak > 0 ? fbgAt(el, xs[im]).r1.dl / FBG_C_MM_FS * 1e-3 : 0 };
+  fbgBandMemo = { key, band };
+  return band;
+}
 /* A free account's share links (io/tasters.js; jek-api src/links.js FREE_LINKS, reported by GET /v1/tasters as
    'share'): kept at once, not a month's uses. Everything else that was once a taster of JEKrayPro's work (the
    optimiser, tolerancing, scripts, reports, drawings, exports) is a free account's outright now (ui/pro.js freeWork). */
@@ -10155,6 +10273,13 @@ const FCOMP = {
     if (e.kind === 'amp') { base.soa = !!e.soa; base.pdg = Math.max(0, num(e.pdg, 0.5)); }
     if (e.kind === 'star') { base.ins = Math.round(clamp(base.ins, 1, 32)); base.outs = Math.round(clamp(base.outs, 1, 32)); }
     if (e.kind === 'depol') base.dgd = Math.max(0, base.dgd);
+    // a Bragg grating: coupled-mode theory, or the Gaussian band it was before it had a length, which a file
+    // giving only that band's width or peak keeps (so an old bench reads what it read)
+    if (e.kind === 'fbg') {
+      base.model = e.model === 'band' || e.model === 'cmt' ? e.model : (e.fwhm !== undefined || e.rmax !== undefined) && e.len === undefined && e.dn === undefined ? 'band' : 'cmt';
+      base.len = clamp(base.len, 0.01, 1000); base.dn = clamp(base.dn, 0, 0.05); base.vis = clamp(base.vis, 0, 1); base.neff = clamp(base.neff, 1, 4); base.chirp = clamp(base.chirp, -100, 100);
+      base.apod = FBG_APODS.includes(e.apod) ? e.apod : 'none';
+    }
     if (e.kind === 'split') { base.ways = Math.round(clamp(base.ways, 2, 64)); base.loss = Math.max(0, base.loss); base.combine = !!e.combine; }
     if (e.kind === 'eom') base.emode = e.emode === 'amplitude' ? 'amplitude' : 'phase';
     // a fibre photodetector's material, as a free-space one's; a file from before there was one keeps its fixed responsivity
@@ -19440,7 +19565,8 @@ function ampASE(el) {
   return { perPol, slices, G: ampGain(el, el.centre) };
 }
 /* The kinds of fibre component: their ports (local position and outward direction, mm),
-   their numbers, and what they do. S(el, nm) lists [from port, to port, 2x2]. */
+   their numbers, and what they do. S(el, nm) lists [from port, to port, 2x2, then where it has them: a frequency
+   shift (Hz), a group delay (mm of path), a group delay dispersion (fs^2)]. */
 const FC_W = 14, FC_H = 9, SPLIT_P = 4.5;
 const C_MM_PS = 0.299792458;                               // light, mm per ps                // a splitter's branches, mm apart
 const fcPorts = sides => sides.map(([x, y]) => ({ x: x * FC_W / 2, y: y * FC_H / 2, dx: Math.abs(x) >= 1 ? Math.sign(x) : 0, dy: Math.abs(x) >= 1 ? 0 : Math.sign(y) }));
@@ -19557,12 +19683,22 @@ const FC = {
     // a 45 degree rotator and a mirror: back out orthogonal to what came in, whatever went
     // before it, since M^T J M = det(M) J for J = [[0, 1], [-1, 0]]
     S: el => { const r = Math.sqrt(clamp(el.rmax, 0, 100) / 100) * dBa(el.loss); return [[0, 0, [[[0, 0], [r, 0]], [[-r, 0], [0, 0]]]]]; } },
+  // a fibre Bragg grating by coupled-mode theory (core/fbg.js): its complex reflection from each end and its
+  // transmission, each with its own group delay (mm of path) and dispersion (fs^2), at each light's own frequency
+  // (a sideband meets it at the sideband's). model 'band', which a file from before the grating had a length loads
+  // as: a Gaussian band of a given peak and width, with no phase
   fbg: { label: 'Fibre Bragg grating', tag: 'FBG', ports: [[-1, 0], [1, 0]], names: ['1', '2'],
-    params: [['centre', 'Bragg wavelength (nm)', 1550], ['fwhm', 'Bandwidth (nm)', 0.5], ['rmax', 'Peak reflectance (%)', 90]],
+    params: [['centre', 'Bragg wavelength (nm)', 1550], ['len', 'Length (mm)', 5], ['dn', 'Index modulation \u03b4n', 1.8e-4], ['vis', 'Fringe visibility (0 to 1)', 1],
+      ['neff', 'Effective index', 1.468], ['chirp', 'Chirp (nm/cm)', 0], ['fwhm', 'Bandwidth (nm), model "band"', 0.5], ['rmax', 'Peak reflectance (%), model "band"', 90]],
+    byFreq: el => el.model !== 'band',
     S: (el, nm) => {
-      const R = clamp(el.rmax, 0, 100) / 100 * Math.exp(-4 * Math.LN2 * ((nm - el.centre) / Math.max(1e-4, el.fwhm)) ** 2);
-      const r = J2.I(Math.sqrt(R)), t = J2.I(Math.sqrt(1 - R));
-      return [[0, 0, r], [1, 1, r], [0, 1, t], [1, 0, t]];
+      if (el.model === 'band') {
+        const R = clamp(el.rmax, 0, 100) / 100 * Math.exp(-4 * Math.LN2 * ((nm - el.centre) / Math.max(1e-4, el.fwhm)) ** 2);
+        const r = J2.I(Math.sqrt(R)), t = J2.I(Math.sqrt(1 - R));
+        return [[0, 0, r], [1, 1, r], [0, 1, t], [1, 0, t]];
+      }
+      const g = fbgAt(el, nm), e = (a, b, q) => [a, b, J2.sc(J2.I(1), q.z), 0, q.dl, q.gdd];
+      return [e(0, 0, g.r1), e(1, 1, g.r2), e(0, 1, g.t), e(1, 0, g.t)];
     } },
   term: { label: 'Terminator', tag: 'TERM', ports: [[-1, 0]], names: ['in'],
     params: [['rl', 'Return loss (dB)', 60]],
@@ -19753,7 +19889,7 @@ function fibreNet() {
   // the light put in: lasers, and tips taking in free-space light (lp: the mW of its line, its laser's power unless that has several)
   const inputs = [];
   // the narrowest band a filter in the fibres passes or reflects, for how finely broadband light is sliced
-  const feat = Math.min(Infinity, ...comps.filter(e => e.type === 'fcomp' && (e.kind === 'tbf' || e.kind === 'fbg' || e.kind === 'wdm')).map(e => e.fwhm));
+  const feat = Math.min(Infinity, ...comps.filter(e => e.type === 'fcomp' && (e.kind === 'tbf' || e.kind === 'fbg' || e.kind === 'wdm')).map(e => e.kind === 'fbg' && e.model !== 'band' ? fbgBand(e).fwhm : e.fwhm));
   for (const el of comps) {
     if (el.type === 'fcomp' && el.kind === 'laser') {
       // unpolarised: s and p halves as launches of their own, so they add as powers
@@ -19793,7 +19929,12 @@ function fibreNet() {
     res.keys.push({ gk, key: G.key, nm: G.nm, root: G.root, lp: G.lp });
     const k0 = 2 * Math.PI / (G.nm * 1e-6), P0 = G.list.reduce((s, I) => s + I.E.reduce((a, v) => a + v * v, 0), 0);
     const floor = 1e-20 * Math.max(P0, 1e-30);
-    const Smemo = new Map(), Sof = el => { if (!Smemo.has(el.id)) Smemo.set(el.id, el.type === 'fcomp' ? FC[el.kind].S(el, G.nm) : []); return Smemo.get(el.id); };
+    // what a component does at this light's wavelength; one that tells frequencies apart (a Bragg grating), at each offset's own
+    const Smemo = new Map(), Sof = (el, fo) => {
+      const K = el.type === 'fcomp' ? FC[el.kind] : null, k = K && fo && K.byFreq && K.byFreq(el) ? el.id + '@' + fo : el.id;
+      if (!Smemo.has(k)) Smemo.set(k, K ? K.S(el, k === el.id ? G.nm : 1 / (1 / G.nm + fo / (C_MM * 1e6))) : []);
+      return Smemo.get(k);
+    };
     const Jm = new Map(), Jmemo = f => { const k = f.F.id + f.end; if (!Jm.has(k)) { const M = fibreJones(f.F, G.nm); Jm.set(k, M && f.end === 'b' ? J2.T(M) : M); } return Jm.get(k); };
     // waves leaving components into fibres, keyed by port and delay (added as fields there)
     let wave = new Map();
@@ -19818,7 +19959,7 @@ function fibreNet() {
       }
       if (el.kind === 'pd' || el.kind === 'osa') { rec(res.pd, el.balanced && q[1] === 1 ? el.id + '~' : el.id, gk, { dl, E, fo, gdd, sp }); return; }
       if (el.kind === 'thru') { const P = thruPartner(el); if (P) emit(next, [P.id, 0], dl, E, fo, gdd, sp); return; }
-      for (const [a, b, M, df, ddl] of Sof(el)) if (a === q[1]) emit(next, [el.id, b], dl + (ddl || 0), J2.app(M, E), fo + (df || 0), gdd, sp);
+      for (const [a, b, M, df, ddl, dgdd] of Sof(el, fo)) if (a === q[1]) emit(next, [el.id, b], dl + (ddl || 0), J2.app(M, E), fo + (df || 0), (gdd || 0) + (dgdd || 0), sp);
     };
     while (wave.size && gen++ < 20000) {
       const next = new Map();
@@ -27142,7 +27283,9 @@ function fcompPanel(el) {
   panel.append(h('h3', null, typeLabel(el)));
   const rows = h('div', { class: 'rt-rows' });
   // a laser's pulse has a section of its own; while pulsed, the pulse sets its line
-  const skip = el.kind === 'laser' ? ['tau', 'rep', 'gdd0', 'polAngle', 'coh'] : [];
+  // a Bragg grating shows its model's own settings: the grating's, or the simple band's
+  const skip = el.kind === 'laser' ? ['tau', 'rep', 'gdd0', 'polAngle', 'coh'] : el.kind === 'fbg' ? (el.model === 'band' ? ['len', 'dn', 'vis', 'neff', 'chirp'] : ['fwhm', 'rmax']) : [];
+  if (el.kind === 'fbg') rows.append(selectField('Model', [['cmt', 'Grating (coupled-mode theory)'], ['band', 'Simple band (Gaussian, no phase)']], () => el.model, v => { el.model = v; renderPanel(); }, { wide: true }));
   if (el.kind === 'pd') {
     // as a free-space photodetector: its material, then its amplifier (none on a bare photodiode)
     rows.append(selectField('Material', Object.entries(DETECTOR_MATERIALS).map(([k, v]) => [k, v.name]), () => el.material, v => { el.material = v; renderPanel(); }, { wide: el.material !== 'custom' }));
@@ -27157,7 +27300,8 @@ function fcompPanel(el) {
     : k === 'ins' || k === 'outs' ? param(label, el, k, { noSweep: true, commit: true })
     : el.kind === 'amp' && el.soa && k === 'iso' ? param('Polarisation-dependent gain (dB)', el, 'pdg', { wide: true })
     : k === 'cross' ? selectField('State', [['0', 'Bar: 1 \u2192 3, 2 \u2192 4'], ['1', 'Cross: 1 \u2192 4, 2 \u2192 3']], () => String(el.cross >= 0.5 ? 1 : 0), v => { el.cross = +v; }, { wide: true })
-    : param(label, el, k));
+    : param(label.replace(/, model "band"$/, ''), el, k));
+  if (el.kind === 'fbg' && el.model !== 'band') rows.append(selectField('Apodisation', [['none', 'None (uniform)'], ['gauss', 'Gaussian'], ['cos', 'Raised cosine']], () => el.apod, v => { el.apod = v; }));
   if (el.kind === 'split') {
     const sn = h('p', { class: 'note', style: 'margin-top:0.5rem' });
     bindSync(sn, () => { const N = el.ways, dB = 10 * Math.log10(N) + el.loss;
@@ -27228,7 +27372,8 @@ function fcompPanel(el) {
     pc: 'Three paddles, a quarter-wave, a half-wave and a quarter-wave, each turned about the fibre: any polarisation in to any out. The light going back through it sees the transpose, as in a real fibre.',
     pol: 'Passes the polarisation along its axis (from s) and the crossed one weakened by its extinction.',
     fm: 'A Faraday rotator and a mirror: what comes back is orthogonal to what went in, whatever the fibre did to it on the way, so a Michelson made with two stays at full contrast however its fibres are bent.',
-    fbg: 'Reflects a narrow band about its Bragg wavelength, back out of the port the light came in by; passes the rest.',
+    fbg: el.model === 'band' ? 'Reflects a Gaussian band about its Bragg wavelength, back out of the port the light came in by; passes the rest. It has no phase, side lobes or delay: choose the grating model for those.'
+      : 'A grating written along a length of the fibre\u2019s core, by coupled-mode theory: it reflects a band about its Bragg wavelength \u03bb_B = 2 n_eff \u039b back out of the port the light came in by, tanh\u00b2(\u03baL) at the peak with \u03ba = \u03c0 v \u03b4n / \u03bb, with its side lobes, and passes the rest. Reflected and transmitted light carry its phase, so its delay and dispersion. Apodisation takes the side lobes down; a chirp (the Bragg wavelength changing along it) widens the band and spreads its delay.',
     term: 'Absorbs what arrives, sending back only its return loss.',
     pd: 'Reads the power arriving, the paths of one laser added as fields (weighted by its coherence), different lasers as powers.',
     thru: 'Carries a fibre to the partner of the same name, on another tab.',
@@ -27364,6 +27509,12 @@ function updateReadoutsIn(container, el) {
       rows.unshift(['Gain at ' + el.centre + ' nm', (10 * Math.log10(G)).toFixed(2) + ' dB' + (el.g0 - 10 * Math.log10(G) > 0.05 ? ' (saturated from ' + el.g0 + ' dB)' : '')],
         ['In, total', fmtMw(Pin) + ' (' + (Pin > 0 ? (10 * Math.log10(Pin)).toFixed(1) : '\u2212\u221e') + ' dBm)'],
         ['ASE out, each way', fmtMw(2 * A.perPol * 1e3) + ' over ' + el.bw + ' nm']);
+    }
+    if (el.kind === 'fbg' && el.model !== 'band') {
+      const B = fbgBand(el), nmT = v => v < 0.1 ? (+(v * 1e3).toPrecision(4)) + ' pm' : (+v.toPrecision(4)) + ' nm';
+      rows.unshift(['\u03baL', String(+B.kL.toPrecision(4))], ['Peak reflectance', (B.peak > 0.999 ? (100 * B.peak).toFixed(Math.min(12, Math.ceil(-Math.log10(1 - B.peak)))) : String(+(100 * B.peak).toPrecision(4))) + '% at ' + (+B.at.toFixed(3)) + ' nm'],
+        ...(B.zeros !== null ? [['Band between first zeros', nmT(B.zeros)]] : []), ['Width at half the peak', nmT(B.fwhm)],
+        ['Period \u039b', (+B.period.toFixed(2)) + ' nm'], ['Delay reflected at the peak', (+B.delay.toPrecision(4)) + ' ps']);
     }
     if (el.kind === 'laser') rows.unshift(['Linewidth', el.coh > 0 ? fmtHz(299792458e3 / el.coh) : 'a single frequency']);
     if (lastTrace.net && lastTrace.net.truncated) rows.push(['Note', 'the light was followed round a very long way: the readings leave out what was left']);
@@ -49294,6 +49445,8 @@ function aiReference() {
         '| cmode | `"single"` | "single", "line" (coh and lineshape) or "broad" (incoherent, bandwidth bw) |', '| bw | `40` | nm, FWHM, with cmode "broad" |',
         '| led | `false` | true: a fibre-coupled LED (always "broad", never pulsed; unpolarised unless pol says otherwise) |', '| pshape | `"sech2"` | "sech2" or "gauss": a pulse’s shape, with tau above 0 |');
       if (k === 'eom') L.push('| emode | `"phase"` | "phase" or "amplitude" |');
+      if (k === 'fbg') L.push('| model | `"cmt"` | "cmt": a grating by coupled-mode theory, from len, dn, vis, neff, apod and chirp (peak reflectance tanh\u00b2(\u03c0 vis dn len / \u03bb), with side lobes, delay and dispersion); "band": a Gaussian band of peak rmax and width fwhm, with no phase. Give "model" when you give fwhm or rmax: a grating with those and neither len nor dn is read as "band", as files from before the grating model are |',
+        '| apod | `"none"` | "none" (uniform), "gauss" (Gaussian, its full width at half maximum half the length) or "cos" (raised cosine): the index modulation\u2019s profile along the grating |');
       if (k === 'pd') L.push('| balanced | `false` | true: a balanced photodetector, ports 0 = in + and 1 = in \u2212, reading the first\u2019s light less the second\u2019s |', '| cmrr | `30` | dB, a balanced detector\u2019s common-mode rejection of excess noise |');
       if (k === 'amp') L.push('| soa | `false` | true: a semiconductor optical amplifier, gaining both ways (no isolator) |', '| pdg | `0.5` | dB, an SOA\u2019s polarisation-dependent gain: p gains less than s by it |');
       if (k === 'stretch') L.push('| (electrical) | | its drive input: \u03c0 of phase per Vpi volts on top of "phase" |');
@@ -54714,6 +54867,7 @@ const NEWS = [
     'On a phone, the welcome note can <b>email you a link for your computer</b>, where JEKray has room for its designers and plots; the address is used for that one email and not kept. Signed out, <b>Share</b> says what a short link needs and offers sign-in or a .jekray file instead, and a file Save offers sign-in for cloud saving (once a week at most).',
     'In 3D, <b>the diffracted field of interfering beams runs to its end</b>: a beam\u2019s last stretch, up to where it meets a screen, could be left without its fringes when its length happened to round up by a millionth of a millimetre, so an interferometer\u2019s pattern stopped short of its screen and only the beam\u2019s own glow went on.',
     '<b>Collimator</b>, in the fibre palette (Ends and links) and beside the fibre tip in free space: a fibre tip with its lens, so a fibre network\u2019s light leaves as a collimated beam (0.6 mm in radius at 1550 nm for the usual f = 11 mm) with no lens to place and focus, and a beam coming back couples in by that beam\u2019s mode. Any fibre tip takes a <b>Collimating lens f</b>; 0 keeps it bare.',
+    'The <b>fibre Bragg grating</b> is a real grating now, by coupled-mode theory: give its length, Bragg wavelength and index modulation \u03b4n, and it reflects tanh\u00b2(\u03baL) at its peak (\u03ba = \u03c0 v \u03b4n / \u03bb), with its side lobes and the zeros between them, and what it reflects and passes carries its phase, so its delay and dispersion; a modulator\u2019s sidebands meet it at their own frequencies. Its panel shows \u03baL, the peak reflectance, the band between the first zeros, the width at half the peak, the period and the delay. <b>Apodisation</b> (Gaussian or raised cosine) takes the side lobes down and a <b>chirp</b> spreads the band and its delay. A bench saved before, with the grating as a Gaussian band of a set width and peak, opens with that band (Model: Simple band) and reads as it did.',
     'A source\u2019s <b>Edge softness</b>: without a Gaussian beam, the diffracted field of its ray fan is a uniform top-hat, and its edge now rises over a set distance (10% to 90%). <b>Automatic</b>, the default, is just enough for the field grid: before, the hard edge rang on the grid, showing rings across a wide beam (about 1%) that were not in the light. Set 0 for a hard edge, or more for a lamp behind a soft aperture. A changed edge also redraws the field, which it had not.',
     '<b>Fringe visibility</b> on a screen, from its rays and from the diffracted field, is now the textbook one: twice the cross terms between the paths of one laser over the sum of their powers, 2\u221a(I\u2081I\u2082)/(I\u2081 + I\u2082) for two beams, where they overlap. Before, it was read from the brightest and dimmest points, so two separate lasers overlapping (brighter where one lies on another) read as fringes, a single beam\u2019s own profile read as a third, and fringes finer than the map read low or at random as the pixels fell on them. The diffracted map is also drawn finer where fringes are fine, up to 1024 points across.',
     '<b>Spectrometer</b>, in Sources and detectors: a slit or fibre entrance and a detector array, showing the light through it as counts against wavelength, with the peak, its width, the resolution, the light that gets in, saturation and the signal-to-noise. <b>Kind</b> picks a typical instrument (compact UV to near-infrared, high-resolution visible, fibre-coupled visible, near-infrared or short-wave infrared) and any setting can then be changed. A narrower slit sharpens the lines and lets less light in, as on the real thing. The new example <b>Czerny\u2013Turner spectrometer</b> builds one from a slit, two concave mirrors and a grating, beside the part reading the same lamp.',

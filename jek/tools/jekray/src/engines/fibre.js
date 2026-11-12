@@ -14,6 +14,7 @@ import { ELEC } from './elec.js';
 import { modS } from './mods.js';
 import { cmul } from '../core/numeric.js';
 import { fibreBendDb } from '../core/bend.js';
+import { fbgAt, fbgBand } from '../core/fbg.js';
 
 /* ==========================================================================
    Fibre subsystems
@@ -109,7 +110,8 @@ export function ampASE(el) {
   return { perPol, slices, G: ampGain(el, el.centre) };
 }
 /* The kinds of fibre component: their ports (local position and outward direction, mm),
-   their numbers, and what they do. S(el, nm) lists [from port, to port, 2x2]. */
+   their numbers, and what they do. S(el, nm) lists [from port, to port, 2x2, then where it has them: a frequency
+   shift (Hz), a group delay (mm of path), a group delay dispersion (fs^2)]. */
 export const FC_W = 14, FC_H = 9, SPLIT_P = 4.5;
 const C_MM_PS = 0.299792458;                               // light, mm per ps                // a splitter's branches, mm apart
 const fcPorts = sides => sides.map(([x, y]) => ({ x: x * FC_W / 2, y: y * FC_H / 2, dx: Math.abs(x) >= 1 ? Math.sign(x) : 0, dy: Math.abs(x) >= 1 ? 0 : Math.sign(y) }));
@@ -226,12 +228,22 @@ export const FC = {
     // a 45 degree rotator and a mirror: back out orthogonal to what came in, whatever went
     // before it, since M^T J M = det(M) J for J = [[0, 1], [-1, 0]]
     S: el => { const r = Math.sqrt(clamp(el.rmax, 0, 100) / 100) * dBa(el.loss); return [[0, 0, [[[0, 0], [r, 0]], [[-r, 0], [0, 0]]]]]; } },
+  // a fibre Bragg grating by coupled-mode theory (core/fbg.js): its complex reflection from each end and its
+  // transmission, each with its own group delay (mm of path) and dispersion (fs^2), at each light's own frequency
+  // (a sideband meets it at the sideband's). model 'band', which a file from before the grating had a length loads
+  // as: a Gaussian band of a given peak and width, with no phase
   fbg: { label: 'Fibre Bragg grating', tag: 'FBG', ports: [[-1, 0], [1, 0]], names: ['1', '2'],
-    params: [['centre', 'Bragg wavelength (nm)', 1550], ['fwhm', 'Bandwidth (nm)', 0.5], ['rmax', 'Peak reflectance (%)', 90]],
+    params: [['centre', 'Bragg wavelength (nm)', 1550], ['len', 'Length (mm)', 5], ['dn', 'Index modulation \u03b4n', 1.8e-4], ['vis', 'Fringe visibility (0 to 1)', 1],
+      ['neff', 'Effective index', 1.468], ['chirp', 'Chirp (nm/cm)', 0], ['fwhm', 'Bandwidth (nm), model "band"', 0.5], ['rmax', 'Peak reflectance (%), model "band"', 90]],
+    byFreq: el => el.model !== 'band',
     S: (el, nm) => {
-      const R = clamp(el.rmax, 0, 100) / 100 * Math.exp(-4 * Math.LN2 * ((nm - el.centre) / Math.max(1e-4, el.fwhm)) ** 2);
-      const r = J2.I(Math.sqrt(R)), t = J2.I(Math.sqrt(1 - R));
-      return [[0, 0, r], [1, 1, r], [0, 1, t], [1, 0, t]];
+      if (el.model === 'band') {
+        const R = clamp(el.rmax, 0, 100) / 100 * Math.exp(-4 * Math.LN2 * ((nm - el.centre) / Math.max(1e-4, el.fwhm)) ** 2);
+        const r = J2.I(Math.sqrt(R)), t = J2.I(Math.sqrt(1 - R));
+        return [[0, 0, r], [1, 1, r], [0, 1, t], [1, 0, t]];
+      }
+      const g = fbgAt(el, nm), e = (a, b, q) => [a, b, J2.sc(J2.I(1), q.z), 0, q.dl, q.gdd];
+      return [e(0, 0, g.r1), e(1, 1, g.r2), e(0, 1, g.t), e(1, 0, g.t)];
     } },
   term: { label: 'Terminator', tag: 'TERM', ports: [[-1, 0]], names: ['in'],
     params: [['rl', 'Return loss (dB)', 60]],
@@ -422,7 +434,7 @@ export function fibreNet() {
   // the light put in: lasers, and tips taking in free-space light (lp: the mW of its line, its laser's power unless that has several)
   const inputs = [];
   // the narrowest band a filter in the fibres passes or reflects, for how finely broadband light is sliced
-  const feat = Math.min(Infinity, ...comps.filter(e => e.type === 'fcomp' && (e.kind === 'tbf' || e.kind === 'fbg' || e.kind === 'wdm')).map(e => e.fwhm));
+  const feat = Math.min(Infinity, ...comps.filter(e => e.type === 'fcomp' && (e.kind === 'tbf' || e.kind === 'fbg' || e.kind === 'wdm')).map(e => e.kind === 'fbg' && e.model !== 'band' ? fbgBand(e).fwhm : e.fwhm));
   for (const el of comps) {
     if (el.type === 'fcomp' && el.kind === 'laser') {
       // unpolarised: s and p halves as launches of their own, so they add as powers
@@ -462,7 +474,12 @@ export function fibreNet() {
     res.keys.push({ gk, key: G.key, nm: G.nm, root: G.root, lp: G.lp });
     const k0 = 2 * Math.PI / (G.nm * 1e-6), P0 = G.list.reduce((s, I) => s + I.E.reduce((a, v) => a + v * v, 0), 0);
     const floor = 1e-20 * Math.max(P0, 1e-30);
-    const Smemo = new Map(), Sof = el => { if (!Smemo.has(el.id)) Smemo.set(el.id, el.type === 'fcomp' ? FC[el.kind].S(el, G.nm) : []); return Smemo.get(el.id); };
+    // what a component does at this light's wavelength; one that tells frequencies apart (a Bragg grating), at each offset's own
+    const Smemo = new Map(), Sof = (el, fo) => {
+      const K = el.type === 'fcomp' ? FC[el.kind] : null, k = K && fo && K.byFreq && K.byFreq(el) ? el.id + '@' + fo : el.id;
+      if (!Smemo.has(k)) Smemo.set(k, K ? K.S(el, k === el.id ? G.nm : 1 / (1 / G.nm + fo / (C_MM * 1e6))) : []);
+      return Smemo.get(k);
+    };
     const Jm = new Map(), Jmemo = f => { const k = f.F.id + f.end; if (!Jm.has(k)) { const M = fibreJones(f.F, G.nm); Jm.set(k, M && f.end === 'b' ? J2.T(M) : M); } return Jm.get(k); };
     // waves leaving components into fibres, keyed by port and delay (added as fields there)
     let wave = new Map();
@@ -487,7 +504,7 @@ export function fibreNet() {
       }
       if (el.kind === 'pd' || el.kind === 'osa') { rec(res.pd, el.balanced && q[1] === 1 ? el.id + '~' : el.id, gk, { dl, E, fo, gdd, sp }); return; }
       if (el.kind === 'thru') { const P = thruPartner(el); if (P) emit(next, [P.id, 0], dl, E, fo, gdd, sp); return; }
-      for (const [a, b, M, df, ddl] of Sof(el)) if (a === q[1]) emit(next, [el.id, b], dl + (ddl || 0), J2.app(M, E), fo + (df || 0), gdd, sp);
+      for (const [a, b, M, df, ddl, dgdd] of Sof(el, fo)) if (a === q[1]) emit(next, [el.id, b], dl + (ddl || 0), J2.app(M, E), fo + (df || 0), (gdd || 0) + (dgdd || 0), sp);
     };
     while (wave.size && gen++ < 20000) {
       const next = new Map();

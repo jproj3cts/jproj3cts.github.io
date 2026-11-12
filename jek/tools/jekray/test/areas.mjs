@@ -39,11 +39,11 @@ export const AREAS = {
   },
   fibre: {
     what: 'fibre networks and their parts, electronics, modulators, pulses, vapour cells and nonlinear crystals',
-    src: ['src/engines/fibre.js', 'src/core/bend.js', 'src/engines/fibre-face.js', 'src/engines/elec.js', 'src/engines/pulse.js', 'src/engines/pic.js', 'src/core/cells.js', 'src/core/crystals.js', 'src/core/nlc.js',
+    src: ['src/engines/fibre.js', 'src/core/bend.js', 'src/core/fbg.js', 'src/engines/fibre-face.js', 'src/engines/elec.js', 'src/engines/pulse.js', 'src/engines/pic.js', 'src/core/cells.js', 'src/core/crystals.js', 'src/core/nlc.js',
       'src/core/zeeman.js', 'src/core/modulators.js', 'src/core/pulses.js', 'src/ui/elec.js', 'src/ui/pic.js',
       'src/parts/fibre.js', 'src/parts/fcomp.js', 'src/parts/link.js', 'src/parts/elec.js', 'src/parts/aom.js', 'src/parts/eom.js', 'src/parts/cell.js', 'src/parts/crystal.js', 'src/parts/nlc.js', 'src/parts/pic.js', 'src/parts/detector.js', 'src/parts/gain.js',
       'src/ui/parts/fibre.js', 'src/ui/parts/fcomp.js', 'src/ui/parts/link.js', 'src/ui/parts/elec.js', 'src/ui/parts/aom.js', 'src/ui/parts/eom.js', 'src/ui/parts/cell.js', 'src/ui/parts/crystal.js', 'src/ui/parts/nlc.js', 'src/ui/parts/pic.js', 'src/ui/parts/detector.js'],
-    node: ['demos.test.mjs', 'physics-gain-aperture.test.mjs'],
+    node: ['demos.test.mjs', 'physics-gain-aperture.test.mjs', 'physics-fbg.test.mjs'],
     browser: ['Gratings, fibres, detectors, crystals, filters and gain', 'Fibre networks', 'Fibre extras', 'Modulators and beat notes', 'Sources split from one laser', 'Short pulses',
       'Atomic vapour cells', 'Nonlinear crystals', 'Lasers that settle'],
   },

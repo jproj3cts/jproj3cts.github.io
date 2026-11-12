@@ -30,6 +30,7 @@ scripts that made them. The page itself runs JEKray live against these files.
 | `ref/rigrod.json` | `scripts/rigrod.py` | Rigrod, J. Appl. Phys. 36, 2487 (1965): a laser's output against its output coupling, checked by integrating the two saturating waves |
 | `ref/pdh-black.json` | `scripts/pdh_black.py` | Black, Am. J. Phys. 69, 79 (2001): the Pound-Drever-Hall reflected power and beats, every sideband order |
 | `ref/photonic-circuits.json` | `scripts/photonic_circuits.py` | Closed forms for rings (Bogaerts et al. 2012; Yariv 2000), a Mach-Zehnder and a directional coupler; two small circuits solved by SAX 0.18.2 (github.com/flaport/sax) |
+| `ref/fbg-erdogan.json` | `scripts/fbg_erdogan.py` | Erdogan, J. Lightwave Technol. 15, 1277 (1997): a uniform fibre Bragg grating's coupled-mode equations, integrated numerically and checked against his closed forms |
 
 ## Making them again
 
@@ -65,6 +66,7 @@ numpy instead.
     ELECSUS=/path/to/ElecSus python scripts/faraday_elecsus.py
     ELECSUS=/path/to/ElecSus python scripts/davll_elecsus.py
     python scripts/sat_abs.py
+    python scripts/fbg_erdogan.py
 
 ## Rules
 

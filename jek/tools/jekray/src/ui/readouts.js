@@ -24,6 +24,7 @@ import { portsInUse } from './render.js';
 import { playing } from './sweeps.js';
 import { detectorReading, faceArrivals, fibreCoupling, fibreMode, rfCoupling } from '../engines/fibre-face.js';
 import { ampASE, ampGain, netPower, pkey } from '../engines/fibre.js';
+import { fbgBand } from '../core/fbg.js';
 import { ELEC } from '../engines/elec.js';
 import { pdNetMw, pdSignal } from '../engines/detector.js';
 import { PIC_UI } from './pic.js';
@@ -133,6 +134,12 @@ function updateReadoutsIn(container, el) {
       rows.unshift(['Gain at ' + el.centre + ' nm', (10 * Math.log10(G)).toFixed(2) + ' dB' + (el.g0 - 10 * Math.log10(G) > 0.05 ? ' (saturated from ' + el.g0 + ' dB)' : '')],
         ['In, total', fmtMw(Pin) + ' (' + (Pin > 0 ? (10 * Math.log10(Pin)).toFixed(1) : '\u2212\u221e') + ' dBm)'],
         ['ASE out, each way', fmtMw(2 * A.perPol * 1e3) + ' over ' + el.bw + ' nm']);
+    }
+    if (el.kind === 'fbg' && el.model !== 'band') {
+      const B = fbgBand(el), nmT = v => v < 0.1 ? (+(v * 1e3).toPrecision(4)) + ' pm' : (+v.toPrecision(4)) + ' nm';
+      rows.unshift(['\u03baL', String(+B.kL.toPrecision(4))], ['Peak reflectance', (B.peak > 0.999 ? (100 * B.peak).toFixed(Math.min(12, Math.ceil(-Math.log10(1 - B.peak)))) : String(+(100 * B.peak).toPrecision(4))) + '% at ' + (+B.at.toFixed(3)) + ' nm'],
+        ...(B.zeros !== null ? [['Band between first zeros', nmT(B.zeros)]] : []), ['Width at half the peak', nmT(B.fwhm)],
+        ['Period \u039b', (+B.period.toFixed(2)) + ' nm'], ['Delay reflected at the peak', (+B.delay.toPrecision(4)) + ' ps']);
     }
     if (el.kind === 'laser') rows.unshift(['Linewidth', el.coh > 0 ? fmtHz(299792458e3 / el.coh) : 'a single frequency']);
     if (lastTrace.net && lastTrace.net.truncated) rows.push(['Note', 'the light was followed round a very long way: the readings leave out what was left']);

@@ -63,6 +63,8 @@ function aiReference() {
         '| cmode | `"single"` | "single", "line" (coh and lineshape) or "broad" (incoherent, bandwidth bw) |', '| bw | `40` | nm, FWHM, with cmode "broad" |',
         '| led | `false` | true: a fibre-coupled LED (always "broad", never pulsed; unpolarised unless pol says otherwise) |', '| pshape | `"sech2"` | "sech2" or "gauss": a pulse’s shape, with tau above 0 |');
       if (k === 'eom') L.push('| emode | `"phase"` | "phase" or "amplitude" |');
+      if (k === 'fbg') L.push('| model | `"cmt"` | "cmt": a grating by coupled-mode theory, from len, dn, vis, neff, apod and chirp (peak reflectance tanh\u00b2(\u03c0 vis dn len / \u03bb), with side lobes, delay and dispersion); "band": a Gaussian band of peak rmax and width fwhm, with no phase. Give "model" when you give fwhm or rmax: a grating with those and neither len nor dn is read as "band", as files from before the grating model are |',
+        '| apod | `"none"` | "none" (uniform), "gauss" (Gaussian, its full width at half maximum half the length) or "cos" (raised cosine): the index modulation\u2019s profile along the grating |');
       if (k === 'pd') L.push('| balanced | `false` | true: a balanced photodetector, ports 0 = in + and 1 = in \u2212, reading the first\u2019s light less the second\u2019s |', '| cmrr | `30` | dB, a balanced detector\u2019s common-mode rejection of excess noise |');
       if (k === 'amp') L.push('| soa | `false` | true: a semiconductor optical amplifier, gaining both ways (no isolator) |', '| pdg | `0.5` | dB, an SOA\u2019s polarisation-dependent gain: p gains less than s by it |');
       if (k === 'stretch') L.push('| (electrical) | | its drive input: \u03c0 of phase per Vpi volts on top of "phase" |');

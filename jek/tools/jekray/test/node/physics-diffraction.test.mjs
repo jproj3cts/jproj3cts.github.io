@@ -103,3 +103,53 @@ test('the SLM’s fork hologram keeps its beam with hexapolar rays (the vortex e
   const D = scr('Focus: a ring off the axis');
   assert.ok(D && D.power > 0.9, 'and at the focus, ' + (D && D.power));
 });
+
+/* A hard edge is carried as the samples can hold it: Fresnel's fringes behind a straight edge and the focal pattern
+   of N slits (Born and Wolf, 8.6 and 8.7) have their true amplitude, and the power is still the open area's. */
+// the Fresnel integral of a Gaussian beam (waist w on the edge) past a half-plane, by the midpoint rule:
+// |int_0^inf exp(-xi^2/w^2) exp(-i pi (x - xi)^2 / (lam z)) dxi|^2 / (lam z), times the beam's own profile along the edge
+function edgeRef(x, z, w) {
+  const zR = Math.PI * w * w / LAM, wz = w * Math.sqrt(1 + (z / zR) ** 2), h = 5e-4;
+  let re = 0, im = 0;
+  for (let xi = h / 2; xi < 4 * w; xi += h) { const a = Math.exp(-xi * xi / (w * w)), ph = -Math.PI * (x - xi) ** 2 / (LAM * z); re += a * Math.cos(ph); im += a * Math.sin(ph); }
+  // 1 mW: across the edge the field's square on it is sqrt(2/pi)/w per mm, along it the free beam's peak sqrt(2/pi)/w_z
+  return (re * re + im * im) * h * h / (LAM * z) * (2 / Math.PI) / (w * wz);
+}
+
+test('a straight edge through a beam: Fresnel’s fringes, and half the power', () => {
+  const w = 3;
+  for (const z of [500, 2000]) {
+    const { R, seg } = run(bench('edge', [laser({ w0: w, width: 6 }), { type: 'stop', name: 'Edge', x: 0, y: 0, angle: 0, aperture: 0, outer: 25.4, shape: 'knife', side: 1 }, screen(z + 1, { length: 20 })]));
+    const S = seg('Edge'), c = S.leg.cut(z), I0 = 2 / (Math.PI * w * w * (1 + (z / (Math.PI * w * w / LAM)) ** 2));
+    assert.ok(Math.abs(S.leg.stats(0).power - 0.5) < 5e-4, 'half the light passes: ' + S.leg.stats(0).power);
+    assert.ok(Math.abs(S.leg.stats(z).power - 0.5) < 5e-4, 'and is all still on the grid ' + z + ' mm on: ' + S.leg.stats(z).power);
+    assert.equal(R.notes.steep.size + R.notes.coarse.size, 0, 'no flag');
+    // from 2.5 fringe scales into the shadow to 2.5 into the light (the blade covers +y: into the light is -x here)
+    const sc = Math.sqrt(LAM * z); let worst = 0, n = 0;
+    for (let i = 0; i < c.x.length; i++) { const x = -c.x[i]; if (Math.abs(x) > 2.5 * sc) continue; worst = Math.max(worst, Math.abs(c.I[i] - edgeRef(x, z, w)) / I0); n++; }
+    assert.ok(n > 40, 'sampled across the fringes: ' + n);
+    assert.ok(worst < 0.004, z + ' mm: the fringes against Fresnel’s integral, largest difference / the free peak: ' + worst);
+  }
+});
+
+test('one slit, and five: the focal peak is the open area’s transform, the pattern the slits’, the power the area’s', () => {
+  const w = 4, a = 0.05, pitch = 0.2, f = 200;
+  const erf = x => { const t = 1 / (1 + 0.3275911 * Math.abs(x)), y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x); return x < 0 ? -y : y; };
+  // |sum over the slits of int exp(-xi^2/w^2) exp(-2 pi i x xi / (lam f))|^2, by the midpoint rule
+  const amp = (x, n) => { let re = 0, im = 0; const K = 200; for (let s = 0; s < n; s++) { const c = (s - (n - 1) / 2) * pitch; for (let k = 0; k < K; k++) { const xi = c + ((k + 0.5) / K - 0.5) * a, g = Math.exp(-xi * xi / (w * w)) * a / K, ph = -2 * Math.PI * x * xi / (LAM * f); re += g * Math.cos(ph); im += g * Math.sin(ph); } } return re * re + im * im; };
+  for (const n of [1, 5]) {
+    const { seg, screen: scr } = run(bench('slits', [laser({ w0: w, width: 8 }),
+      n === 1 ? { type: 'stop', name: 'Slits', x: 0, y: 0, angle: 0, aperture: a, outer: 25.4, shape: 'slit', height: 0 } : { type: 'stop', name: 'Slits', x: 0, y: 0, angle: 0, aperture: a, outer: 25.4, shape: 'comb', pitch, count: n, height: 0 },
+      mask('-(sqrt(r^2+' + f * f + ')-' + f + ')/lambda', { name: 'Lens', x: 1 }), screen(1 + f, { name: 'Focus', length: 10, vectorFocus: 'off' })]));
+    // the open area's power: each slit's share of the Gaussian across it
+    let open = 0; for (let s = 0; s < n; s++) { const c = (s - (n - 1) / 2) * pitch; open += 0.5 * (erf(Math.SQRT2 * (c + a / 2) / w) - erf(Math.SQRT2 * (c - a / 2) / w)); }
+    const P0 = seg('Slits').leg.stats(0).power;
+    assert.ok(Math.abs(P0 / open - 1) < 1e-3, n + ' slit(s): the power behind them is the open area’s, ' + P0 + ' vs ' + open);
+    const D = scr('Focus'), I0 = 2 / (LAM * f) ** 2 * amp(0, n);
+    assert.ok(Math.abs(D.peak / I0 - 1) < 0.005, n + ' slit(s): the focal peak ' + D.peak + ' vs ' + I0);
+    // the pattern out to three quarters of the envelope's first zero, against the transform, each to its own peak
+    const c = D.cutX, pk = Math.max(...c.I); let worst = 0;
+    for (let i = 0; i < c.x.length; i++) if (Math.abs(c.x[i]) < 0.75 * LAM * f / a) worst = Math.max(worst, Math.abs(c.I[i] / pk - amp(c.x[i], n) / amp(0, n)));
+    assert.ok(worst < 0.006, n + ' slit(s): the pattern against the transform, largest difference / peak: ' + worst);
+  }
+});

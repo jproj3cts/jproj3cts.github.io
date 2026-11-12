@@ -748,6 +748,88 @@ const ALL_CASES = [
     },
   },
   {
+    id: 'fresnel-edge', area: 'Diffraction', title: 'Fresnel diffraction at a straight edge',
+    kind: 'Textbook: Fresnel’s integrals', ref: 'fresnel-edge.json', script: 'fresnel_edge.py',
+    cite: 'A. Fresnel, “Mémoire sur la diffraction de la lumière” (1818); M. Born and E. Wolf, Principles of Optics, §8.7 (Fresnel’s integrals and the straight edge).',
+    what: 'A Gaussian beam at 633 nm, its 3 mm waist on a straight opaque edge (a knife edge) through the beam’s centre, and the irradiance across the edge 500 mm and 2000 mm behind it. In the Fresnel approximation the edge changes the field only across itself, and with a Gaussian amplitude the half-plane’s integral is an error function of complex argument: the irradiance is the free beam’s times |erfc(s)/2|², which for a plane wave becomes Fresnel’s integrals, the first fringe 1.37 times the light without the edge at v = 1.217 (the script checks the limit). The fringes run outward on the lit side and the light falls smoothly into the shadow. JEKray propagates its diffracted field past the edge; it is read across the beam at each distance.',
+    tolerance: 'The irradiance within 2% of the free beam’s peak from 1.5 mm into the shadow to 2 mm into the light at 500 mm (3 mm and 4 mm at 2000 mm); the first maximum, the first minimum and the second maximum each within 10 µm of the reference’s position, and the first maximum’s height within 2%.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [];
+      const interp = (xs, ys, x) => { if (x <= xs[0]) return ys[0]; if (x >= xs[xs.length - 1]) return ys[ys.length - 1]; let lo = 0, hi = xs.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] > x) hi = m; else lo = m; } const f = (x - xs[lo]) / (xs[hi] - xs[lo]); return ys[lo] * (1 - f) + ys[hi] * f; };
+      for (const P of R.planes) {
+        const data = bench('Straight edge through a 3 mm beam, ' + P.z_mm + ' mm behind (Fresnel)', [
+          { type: 'source', name: 'Laser', x: -50, y: 0, angle: 0, wavelength: 633, width: 6, gauss: true, w0: R.w0_mm, z0: 50, popN: 1024, pol: 's', rays: 1, power: R.P_mW },
+          { type: 'stop', name: 'Edge', x: 0, y: 0, angle: 0, aperture: 0, outer: 25.4, shape: 'knife', side: 1 },
+          { type: 'screen', name: 'Screen', x: P.z_mm + 1, y: 0, angle: 180, length: 20 }], { minPower: 1e-6 });
+        J.load(data); benches.push([P.z_mm + ' mm', data]);
+        const S = J.popSegments().find(s => s.el === 'Edge');
+        if (!S) { checks.push(check(P.z_mm + ' mm: a field behind the edge', 1, NaN, { abs: 0 })); continue; }
+        // the edge covers the bench's +y side: into the light is -y
+        const pr = S.profile(P.z_mm), xs = Array.from(pr.r).map(r => -r).reverse(), I = Array.from(pr.I).reverse(), h = xs[1] - xs[0];
+        let worst = 0; xs.forEach((x, i) => { if (x >= P.from_mm && x <= P.to_mm) worst = Math.max(worst, Math.abs(I[i] - interp(P.x_mm, P.I, x)) / P.I_free0); });
+        checks.push(check(P.z_mm + ' mm: largest difference, ' + fmt(-P.from_mm, 3) + ' mm into the shadow to ' + fmt(P.to_mm, 3) + ' mm into the light, share of the free beam’s peak', 0, worst, { abs: 0.02 }));
+        // a turning point: the sample nearest the reference's that is a local maximum (or minimum), then a parabola through it and its neighbours
+        const turn = (xr, max) => {
+          let best = -1;
+          for (let i = 1; i < I.length - 1; i++) { const ok = max ? I[i] >= I[i - 1] && I[i] >= I[i + 1] : I[i] <= I[i - 1] && I[i] <= I[i + 1]; if (ok && (best < 0 || Math.abs(xs[i] - xr) < Math.abs(xs[best] - xr))) best = i; }
+          const a = I[best - 1], b = I[best], c = I[best + 1], den = a - 2 * b + c, t = den ? 0.5 * (a - c) / den : 0;
+          return { x: xs[best] + t * h, I: b - 0.25 * (a - c) * t };
+        };
+        const m1 = turn(P.max1.x_mm, true), n1 = turn(P.min1.x_mm, false), m2 = turn(P.max2.x_mm, true);
+        checks.push(check(P.z_mm + ' mm: first maximum, from the edge', P.max1.x_mm * 1e3, m1.x * 1e3, { abs: 10 }, ' µm'));
+        checks.push(check(P.z_mm + ' mm: first maximum, its height', P.max1.I, m1.I, { rel: 0.02 }, ' mW/mm²'));
+        checks.push(check(P.z_mm + ' mm: first minimum, from the edge', P.min1.x_mm * 1e3, n1.x * 1e3, { abs: 10 }, ' µm'));
+        checks.push(check(P.z_mm + ' mm: second maximum, from the edge', P.max2.x_mm * 1e3, m2.x * 1e3, { abs: 10 }, ' µm'));
+        const sel = xs.map((x, i) => i).filter(i => xs[i] >= P.from_mm && xs[i] <= P.to_mm);
+        plots.push(plot({ title: 'A straight edge, ' + P.z_mm + ' mm behind it (the light on the right)', xlabel: 'from the edge’s line (mm)', ylabel: 'irradiance (mW/mm²)', yMin: 0,
+          series: [{ name: 'erfc of a Gaussian (Fresnel’s integrals)', x: P.x_mm, y: P.I, colour: REF_C, width: 3 }, { name: 'JEKray', x: sel.map(i => xs[i]), y: sel.map(i => I[i]), colour: GOT_C, dots: true }] }));
+        await idle();
+      }
+      const pw = R.plane_wave;
+      return { checks, benches, plots, notes: 'The first run of this case failed: the profile was 4.3% of the free beam’s peak off at 500 mm and 2.2% at 2000 mm, the first minimum and second maximum there 16 µm and 15 µm out, the shadow too dark and the far fringes short of contrast. JEKray passed each sample at an edge its share of open area, which is a filter one sample wide: it rolled off the light the edge sends to larger angles, the light that makes the outer fringes, and its samples were √(λz)/8 apart. An edge is now carried as the samples can hold it exactly, the step with only the angles past the grid’s reach taken off, and the field behind it is sampled √N to the fringe scale √(λz) where the grid can still hold the light (31 µm at 500 mm here, 47 µm at 2000 mm, on 1024 points). The tolerances are those set before the first run. For a plane wave Fresnel’s integrals put the first maximum at v = ' + fmt(pw.v_max1, 4) + ' (I/I₀ = ' + fmt(pw.I_max1, 4) + ') and the first minimum at v = ' + fmt(pw.v_min1, 4) + ' (' + fmt(pw.I_min1, 4) + '), v = x√(2/λz): ' + R.planes.map(P => fmt(P.plane_wave_max1_mm * 1e3, 4) + ' and ' + fmt(P.plane_wave_min1_mm * 1e3, 4) + ' µm at ' + P.z_mm + ' mm').join(', ') + '. The 3 mm beam falls off across the fringes, which pulls them in a little and lowers them (to ' + R.planes.map(P => fmt(P.max1.x_mm * 1e3, 4) + ' µm').join(' and ') + ' for the first maximum); the reference is worked out for the beam as it is. Each distance has a bench of its own with the screen just past it, and the turning points are found by a parabola through three samples.' };
+    },
+  },
+  {
+    id: 'n-slits', area: 'Diffraction', title: 'The Fraunhofer pattern of 2, 5 and 10 slits',
+    kind: 'Textbook: Fraunhofer diffraction', ref: 'n-slits.json', script: 'n_slits.py',
+    cite: 'M. Born and E. Wolf, Principles of Optics, §8.6 (Fraunhofer diffraction by many slits, the grating); J. W. Goodman, Introduction to Fourier Optics, chapter 4.',
+    what: 'N slits, 0.05 mm wide and 0.2 mm apart centre to centre, long out of the plane, lit by a Gaussian beam at 633 nm (waist 4 mm on the slits, 1 mW), and an ideal lens of 200 mm focal length behind them; the pattern in its focal plane, for N = 2, 5 and 10. There the field is the Fourier transform of the light leaving the slits: the textbook pattern sin²(πau)/(πau)² · sin²(Nπdu)/(N sin πdu)², u = x/λf, puts the principal maxima at mλf/d (0.633 mm), N − 1 zeros between each pair, the first λf/Nd from the centre, and the envelope’s first zero at λf/a (2.53 mm). The reference does the transform for the beam as it is (each slit’s integral by Gauss–Legendre quadrature, the beam a little brighter at the middle slits than the outer), and checks it against the textbook form for an even beam. JEKray propagates the field through the slits and the lens (a phase mask) to a screen at the focus.',
+    tolerance: 'The pattern within 1% of its central peak out to the envelope’s first zero; the central peak’s irradiance within 2%; the first principal maximum’s position within 0.5%, and the first zero beside the centre within 1%.',
+    async run(J, R) {
+      const checks = [], benches = [], plots = [], f = R.f_mm;
+      const interp = (xs, ys, x) => { if (x <= xs[0]) return ys[0]; if (x >= xs[xs.length - 1]) return ys[ys.length - 1]; let lo = 0, hi = xs.length - 1; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] > x) hi = m; else lo = m; } const t = (x - xs[lo]) / (xs[hi] - xs[lo]); return ys[lo] * (1 - t) + ys[hi] * t; };
+      for (const C of R.cases) {
+        const data = bench(C.N + ' slits, 0.05 mm wide, 0.2 mm apart, focal plane of a 200 mm lens (Fraunhofer)', [
+          { type: 'source', name: 'Laser', x: -50, y: 0, angle: 0, wavelength: 633, width: 8, gauss: true, w0: R.w0_mm, z0: 50, popN: 1024, pol: 's', rays: 1, power: R.P_mW },
+          { type: 'stop', name: C.N + ' slits', x: 0, y: 0, angle: 0, aperture: R.a_mm, outer: 25.4, shape: 'comb', pitch: R.d_mm, count: C.N, height: 0 },
+          { type: 'mask', name: 'Ideal lens, f 200 mm', x: 1, y: 0, angle: 0, length: 25.4, amp: '1', delay: '-(sqrt(r^2+' + f * f + ')-' + f + ')/lambda', preset: 'custom' },
+          { type: 'screen', name: 'Focus', x: 1 + f, y: 0, angle: 180, length: 10, vectorFocus: 'off' }], { minPower: 1e-6 });
+        J.load(data); benches.push(['N = ' + C.N, data]);
+        const D = J.diffraction('Focus'), tag = 'N = ' + C.N;
+        if (!D || !D.cutX) { checks.push(check(tag + ': a pattern at the focus', 1, NaN, { abs: 0 })); continue; }
+        const xs = Array.from(D.cutX.x), Iraw = Array.from(D.cutX.I), pk = Math.max(...Iraw), I = Iraw.map(v => v / pk);
+        let worst = 0; xs.forEach((x, i) => { if (Math.abs(x) <= R.env_zero_mm) worst = Math.max(worst, Math.abs(I[i] - interp(C.x_mm, C.I, Math.abs(x)) / C.I0)); });
+        checks.push(check(tag + ': largest difference out to the envelope’s first zero, share of the peak', 0, worst, { abs: 0.01 }));
+        checks.push(check(tag + ': central peak', C.I0, D.peak, { rel: 0.02 }, ' mW/mm²'));
+        // turning points on the + side, by a parabola through three samples
+        const turn = (xr, max) => {
+          let best = -1;
+          for (let i = 1; i < I.length - 1; i++) { if (xs[i] <= 0) continue; const ok = max ? I[i] >= I[i - 1] && I[i] >= I[i + 1] : I[i] <= I[i - 1] && I[i] <= I[i + 1]; if (ok && (best < 0 || Math.abs(xs[i] - xr) < Math.abs(xs[best] - xr))) best = i; }
+          const a = I[best - 1], b = I[best], c = I[best + 1], den = a - 2 * b + c, h = 0.5 * (xs[best + 1] - xs[best - 1]);
+          return xs[best] + (den ? 0.5 * h * (a - c) / den : 0);
+        };
+        checks.push(check(tag + ': first principal maximum', C.max1_mm, turn(C.max1_mm, true), { rel: 0.005 }, ' mm'));
+        checks.push(check(tag + ': first zero beside the centre', C.zero1_mm * 1e3, turn(C.zero1_mm, false) * 1e3, { rel: 0.01 }, ' µm'));
+        const sel = xs.map((x, i) => i).filter(i => Math.abs(xs[i]) <= 1.5);
+        plots.push(plot({ title: C.N + ' slits: the focal plane (peak 1)', xlabel: 'position in the focal plane (mm)', ylabel: 'irradiance', yMin: 0, yMax: 1,
+          series: [{ name: 'Fourier transform of the slits', x: [...C.x_mm.filter(x => x <= 1.5 && x > 0).map(x => -x).reverse(), ...C.x_mm.filter(x => x <= 1.5)], y: [...C.I.filter((_, i) => C.x_mm[i] <= 1.5 && C.x_mm[i] > 0).reverse(), ...C.I.filter((_, i) => C.x_mm[i] <= 1.5)].map(v => v / C.I0), colour: REF_C, width: 3 },
+            { name: 'JEKray', x: sel.map(i => xs[i]), y: sel.map(i => I[i]), colour: GOT_C, dash: '5 3', width: 1.6 }] }));
+        await idle();
+      }
+      return { checks, benches, plots, notes: 'The first run of this case failed: the central peak read 11.7% high for every N and the envelope narrow (the second principal maximum 0.354 of the peak against 0.398), with the maxima and zeros in the right places. Two things were wrong. Each sample at a slit’s edge took its share of open area, which rolls off the light sent to larger angles, and the whole field was then scaled up to the open area’s power, which raised the peak: with slits four samples wide a quarter of the samples are edges. An edge is now carried as the samples can hold it exactly, every edge of every slit, and the power is made up at the top of the grid’s reach only, past the envelope’s first zero here. And the grid out of the plane was sized to the slit’s width although the slits run the whole way up, which cut 1% off the beam’s amplitude at its top and bottom and 2% off the focus. The tolerances are those set before the first run. The lens is a perfect one (a phase mask taking a plane wave to a point), which sends light at angle θ to f tan θ where the Fourier transform puts it at f sin θ: 0.2 µm apart at the edge of these patterns. The slits sit 1 mm before the lens, not at its front focus, which adds only a curvature of phase across the focal plane, not a change in irradiance. With the beam’s fall-off across the slits the first principal maximum is pulled in from 0.633 mm (to ' + R.cases.map(C => fmt(C.max1_mm, 5)).join(', ') + ' mm), most for two slits, and the zeros are still dark.' };
+    },
+  },
+  {
     id: 'lenses', area: 'Rays and lenses', title: 'Real rays through a singlet and a Cooke triplet',
     kind: 'Independent code', ref: 'lenses-optiland.json', script: 'lenses_optiland.py',
     cite: 'An independent open-source real-ray tracer: its real-ray trace, and its Cooke triplet sample.',

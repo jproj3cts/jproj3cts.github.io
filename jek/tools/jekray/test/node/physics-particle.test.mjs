@@ -402,12 +402,13 @@ test('a particle in the focus of a real asphere: the focus traced through the le
   near(S_of('p').I0 / S.I0, LENS.cases.bare.peak_irradiance / C.peak_irradiance, 0.01, 'bare faces: the peak over the coated lens\u2019s');   // G8
   say('G8 bare over coated peak', (S_of('p').I0 / S.I0).toFixed(6), 'against', (LENS.cases.bare.peak_irradiance / C.peak_irradiance).toFixed(6));
 });
-/* G9 fails, and is kept here as it is: a Gaussian beam on the bench is carried by its axis ray, so through bare faces it loses what the axis
-   ray loses (4% a face); the light at this lens's edge meets the curved faces at up to 30 degrees and loses more. Not the particle's doing. */
-test('bare faces: the beam\u2019s power behind both lenses, over the whole beam', { todo: 'a Gaussian beam takes its axis ray\u2019s Fresnel loss: 0.849 here, where the beam as a whole keeps 0.834 (1.8% out, 1% allowed)' }, async () => {
+/* G9: a Gaussian beam's transmission through each face is its footprint's, each sample at its own angle (trace.js, beamFootprintT).
+   It failed while the beam took its axis ray's loss (0.849, 1.8% high); the light at this lens's edge meets the curved faces at up to 30 deg. */
+test('bare faces: the beam\u2019s power behind both lenses, over the whole beam', async () => {
   await open(realLens({ part: { scatLight: false } })); const c = reading('det').mw;
   await open(realLens({ coat: { mode: 'bare' }, part: { scatLight: false } })); const b = reading('det').mw;
   near(b / c, LENS.cases.bare.both_lenses, 0.01, 'the beam behind both bare lenses over the coated bench\u2019s');           // G9
+  say('G9', (b / c).toFixed(6), 'against', LENS.cases.bare.both_lenses.toFixed(6));
 });
 
 /* ---------- A retro-reflected focus ---------- */

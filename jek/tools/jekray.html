@@ -13693,6 +13693,44 @@ const inHole = (s, y, h) => {
 const layerIn = (L, ldx) => (ldx > 0 ? L[0] : L[L.length - 1]);
 /* a ray still at the layer it just met (on its face): the layer after it, the way the ray now goes, met where it is; null when it
    was the last that way (s may be a ring's wrap of a layer: its own index says which) */
+/* A Gaussian beam through a face is carried by its chief ray, which met the face at one angle. The light across its
+   footprint meets a curved face at others: at a steep asphere's edge, 30 degrees where the axis meets it square, and a bare
+   face's Fresnel loss grows with the angle. So the beam's own transmission, each polarisation, is its footprint's,
+   weighted by the beam's irradiance there (exp(-2 rho^2 / w^2), w its radius at the face), each sample at its own angle to
+   the face (its normal there, and the ray's own way through the beam's curvature) and with the beam's s and p shared out
+   between that sample's own s and p. The chief's amplitudes are scaled to those powers, their phases kept. Where every
+   sample sees the chief's angle (a flat face square to a collimated beam) nothing changes. Faces whose transmission
+   depends on more than the angle (a graded coating, a crystal, a zone, a diffractive face, a tipped part) keep the chief's. */
+function beamFootprintT(s, F, n1, n2, nm, ly, lz, d, tn, qr, qi, n, bire) {
+  if (s.coatAt || s.cyl || s.zone || s.ph || s.tilt || bire || s.kind !== 'refract') return F;
+  const bw = beamAt(qr, qi, n, nm, 1), w = bw ? bw.w : 0, q2 = qr * qr + qi * qi, invR = q2 > 0 ? qr / q2 : 0;
+  if (!(w > 0)) return F;
+  const y0 = s.y0 || 0, semi = s.semi || Infinity, N = 13, h = 2.6 * w / ((N - 1) / 2), sg = Math.sign(tn[0]) || 1;
+  const cr = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], un = v => { const l = Math.hypot(v[0], v[1], v[2]); return l > 1e-12 ? [v[0] / l, v[1] / l, v[2] / l] : null; };
+  // the beam's own s (as the trace takes it: polFrame, as near up as it can be; an untipped face's frame shares the world's up)
+  const Sc = polFrame(d, 1)[0];
+  let W = 0, Ts = 0, Tp = 0;
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    const u = (i - (N - 1) / 2) * h, v = (j - (N - 1) / 2) * h, r2 = u * u + v * v, wt = Math.exp(-2 * r2 / (w * w));
+    if (wt < 1e-6) continue;
+    const yy = ly + y0 + u, zz = lz + v, rho = Math.hypot(yy, zz);
+    if (rho > semi) continue;
+    const Sp = s.flat ? 0 : rawDsag(s, rho), Sy = rho > 0 ? Sp * yy / rho : 0, Sz = rho > 0 ? Sp * zz / rho : 0;
+    const nl = Math.hypot(1, Sy, Sz), nv = [sg / nl, -sg * Sy / nl, -sg * Sz / nl];
+    const dv = un([d[0], d[1] + u * invR, d[2] + v * invR]);
+    const ci = Math.min(1, Math.abs(dv[0] * nv[0] + dv[1] * nv[1] + dv[2] * nv[2]));
+    const Fi = faceAmps(s, n1, n2, ci, nm);
+    if (Fi.tir) { W += wt; continue; }
+    const ts2 = Fi.ts[0] * Fi.ts[0] + Fi.ts[1] * Fi.ts[1], tp2 = Fi.tp[0] * Fi.tp[0] + Fi.tp[1] * Fi.tp[1];
+    const Si = un(cr(nv, dv)), c = Sc && Si ? Sc[0] * Si[0] + Sc[1] * Si[1] + Sc[2] * Si[2] : 1, c2 = c * c;
+    W += wt; Ts += wt * (ts2 * c2 + tp2 * (1 - c2)); Tp += wt * (ts2 * (1 - c2) + tp2 * c2);
+  }
+  if (!(W > 0)) return F;
+  const s0 = F.ts[0] * F.ts[0] + F.ts[1] * F.ts[1], p0 = F.tp[0] * F.tp[0] + F.tp[1] * F.tp[1];
+  const fs = s0 > 0 ? Math.sqrt(Ts / W / s0) : 1, fp = p0 > 0 ? Math.sqrt(Tp / W / p0) : 1;
+  if (Math.abs(fs - 1) < 1e-12 && Math.abs(fp - 1) < 1e-12) return F;
+  return Object.assign({}, F, { ts: [F.ts[0] * fs, F.ts[1] * fs], tp: [F.tp[0] * fp, F.tp[1] * fp] });
+}
 function layerNext(s, px, py, zh, dx, dy, anyZ) {
   if (!s || !s.layers || s.tilt) return null;
   const [lx, ly] = toLocal(s.f, px, py), r = anyZ ? Math.hypot(ly, zh - zOf(s.el)) : Math.abs(ly);
@@ -15485,7 +15523,10 @@ function traceSceneOnce() {
           const k = 1 - eta * eta * (1 - ci * ci);
           // the face's own amplitudes, reflected and passed (core/face-pol.js: the same numbers the field, the lens
           // designer and the RF designer take)
-          const F = faceAmps(s.coatAt ? { coat: s.coatAt(Math.sqrt(grR2)) } : s, n1, n2, ci, nm), total = F.tir;
+          let F = faceAmps(s.coatAt ? { coat: s.coatAt(Math.sqrt(grR2)) } : s, n1, n2, ci, nm);
+          const total = F.tir;
+          // a Gaussian beam (the chief ray carries it) passes what its whole footprint passes, each polarisation its own share
+          if (chief && !total && !probe) F = beamFootprintT(s, F, n1, n2, nm, ly, anyZ ? zh - zOf(s.el) : 0, [ldx, ldy, ldz], [tnx, tny, tnz], qr, qi, nCur, tc || mFrom.bire || mInto.bire);
           const rsr = F.rs[0], rsi = F.rs[1], rpr = F.rp[0], rpi = F.rp[1];
           if (probe && s.kind === 'split' && (s.Rs + s.Rp) / 2 >= 0.5) {
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny; ldz -= 2 * cosd * nz;      // the probe takes the stronger arm

@@ -46,13 +46,13 @@ def far_of(sph, d, E, out):
     return F
 
 
-def case(f, w, theta_max, L0, e_in, a, m, nt, nphi, steps, h=10e-9):
+def case(f, w, theta_max, L0, e_in, a, m, nt, nphi, steps, h=10e-9, ret=False, sgrid=(48, 96)):
     th, ph, W, df = directions(theta_max, nt, nphi)
     Af = spectrum('mask', th, ph, df, f, w, e_in, P_IN * (1 - RP))
     db = -df                                           # the return's directions, index by index the forward ones turned back
     Ab1 = Af.copy()                                    # the return's waves for c = 1
     sph = Sphere(a, m)
-    tS, pS, WS, dS = directions(np.pi, 48, 96)
+    tS, pS, WS, dS = directions(np.pi, *sgrid)
     ins = (tS <= theta_max) | (tS >= np.pi - theta_max)
     out = np.concatenate([df, db, dS])
     nf, nb = len(df), len(db)
@@ -70,8 +70,27 @@ def case(f, w, theta_max, L0, e_in, a, m, nt, nphi, steps, h=10e-9):
     own = lambda F, Wt: np.sum(abs(F) ** 2, 1) / (2 * Z0) * Wt
     beam_f = P_IN * (1 - RP) * (1 - np.exp(-2 * (f * np.tan(theta_max) / w) ** 2))   # W in the forward beam, the lens's rim clipping it
 
-    def reading(Ff, Fb, c):
+    def returned(F0, c, xs):
+        """the sphere driven also by its own light the mirror brings back: A_ret(-d) = (i c / lambda) F(d), F referred to the focus,
+        iterated on the forward cone until it changes by less than 1e-7, then the whole far field"""
+        F, passes = F0.copy(), 0
+        sh_b, back_f = np.exp(1j * K * db[:, 1] * xs), np.exp(-1j * K * df[:, 1] * xs)[:, None]
+        for passes in range(1, 41):
+            Aret = (1j * c / LAM) * F[:nf]
+            Fn = F0[:nf] + far_of(sph, db, Aret * (W * sh_b)[:, None], df) * back_f
+            ch = np.sqrt(np.sum(abs(Fn - F[:nf]) ** 2) / np.sum(abs(Fn) ** 2))
+            F[:nf] = Fn
+            if ch < 1e-7:
+                break
+        Aret = (1j * c / LAM) * F[:nf]
+        Fr = far_of(sph, db, Aret * (W * sh_b)[:, None], out) * np.exp(-1j * K * out[:, 1] * xs)[:, None]
+        return F0 + Fr, Aret, passes
+
+    def reading(Ff, Fb, c, xs=0.0):
         F = Ff + c * Fb
+        Aret, passes = None, 0
+        if ret:
+            F, Aret, passes = returned(F, c, xs)
         Ab = c * Ab1
         Ffw, Fbw, Fsph = F[:nf], F[nf:nf + nb], F[nf + nb:]
         G = Fbw + c * Ffw                                                  # behind: scattered back, and ahead brought back
@@ -82,7 +101,7 @@ def case(f, w, theta_max, L0, e_in, a, m, nt, nphi, steps, h=10e-9):
             dF=TM * float(np.sum(i_f + o_f)), dB=RP * float(np.sum(i_b + o_b)),
             XF=TM * float(np.sum(sgf * (i_f + o_f))), XB=RP * float(np.sum(sgb * (i_b + o_b))),
             Psca=float(np.sum(own(Fsph, WS))),
-            Pext=float(-np.sum(inter(Af, Ffw, W)) - np.sum(inter(Ab, Fbw, W))))
+            Pext=float(-np.sum(inter(Af, Ffw, W)) - np.sum(inter(Ab, Fbw, W)) - (np.sum(inter(Aret, Fbw, W)) if Aret is not None else 0)), passes=passes)
         # every exit: ahead through the mirror, behind through both ports of the plate, and what leaves outside both lenses
         outside = float(np.sum(own(Fsph, WS)[~ins]))
         r['all_exits'] = r['dF'] + float(np.sum(i_b + o_b)) + outside
@@ -90,7 +109,7 @@ def case(f, w, theta_max, L0, e_in, a, m, nt, nphi, steps, h=10e-9):
         return r
 
     Ff0, Fb0 = fields(0.0)
-    res = dict(steps_nm=[], I0=[], Psca=[], Pext=[], dF_mW=[], dB_mW=[], all_exits_W=[], budget_W=[])
+    res = dict(steps_nm=[], I0=[], Psca=[], Pext=[], dF_mW=[], dB_mW=[], all_exits_W=[], budget_W=[], passes=[])
     for s in steps:
         L = L0 + s
         c = np.sqrt(RM) * np.exp(2j * K * L)
@@ -104,16 +123,19 @@ def case(f, w, theta_max, L0, e_in, a, m, nt, nphi, steps, h=10e-9):
         res['dB_mW'].append(r['dB'] * 1e3)
         res['all_exits_W'].append(r['all_exits'])
         res['budget_W'].append(r['Psca'] - r['Pext'])
+        res['passes'].append(r['passes'])
     res['depth'] = float((max(res['I0']) - min(res['I0'])) / (max(res['I0']) + min(res['I0'])))
     res['beam_forward_mW'] = TM * beam_f * 1e3
     res['beam_backward_mW'] = RP * RM * beam_f * 1e3
     # the split detectors' slopes (signal right less left over the reading) at two of the steps
+    if len(steps) < 5:
+        return res
     Fp, Fm = fields(h), fields(-h)
     res['slope_steps'] = [0, 4]
     res['slope_F_per_um'], res['slope_B_per_um'] = [], []
     for i in res['slope_steps']:
         c = np.sqrt(RM) * np.exp(2j * K * (L0 + steps[i]))
-        rp, rm = reading(*Fp, c), reading(*Fm, c)
+        rp, rm = reading(*Fp, c, h), reading(*Fm, c, -h)
         sF = lambda r: r['XF'] / (r['beam_F'] + r['dF'])
         sB = lambda r: r['XB'] / (r['beam_B'] + r['dB'])
         res['slope_F_per_um'].append(abs(sF(rp) - sF(rm)) / (2 * h) * 1e-6)
@@ -134,6 +156,10 @@ def main():
         c = dict(f_mm=f * 1e3, beam_radius_mm=w * 1e3, lens_diameter_mm=2 * half_dia * 1e3, focus_to_mirror_mm=L0 * 1e3, theta_max_deg=float(np.degrees(tmax)))
         c['s'] = case(f, w, tmax, L0, ez, a, m, nt, nphi, steps)
         print(name, 's', json.dumps({k: c['s'][k] for k in ['I0', 'depth', 'slope_F_per_um', 'slope_B_per_um']}))
+        # with the sphere driven also by its own light the mirror brings back (second scattering, iterated)
+        c['s_ret'] = case(f, w, tmax, L0, ez, a, m, nt, nphi, steps, ret=True)
+        gap = lambda r: max(abs(x - y) / e for x, y, e in zip(r['all_exits_W'], r['budget_W'], r['Pext']))
+        print(name, 'energy: worst gap over P_ext', gap(c['s']), 'without the return,', gap(c['s_ret']), 'with it; passes', c['s_ret']['passes'])
         if name == 'tight':
             c['p'] = case(f, w, tmax, L0, ey, a, m, nt, nphi, steps)
             print(name, 'p', json.dumps({k: c['p'][k] for k in ['I0', 'depth']}))
@@ -143,5 +169,16 @@ def main():
         json.dump(out, fh, indent=1)
 
 
+def r8_grid():
+    """the energy with the return on a finer sphere grid (the own power outside both cones), tight, three steps"""
+    n = float(silica_index(1.55))
+    for sg in [(48, 96), (96, 192), (192, 384)]:
+        r = case(2e-3, 1.5e-3, float(np.arctan(5.333e-3 / 2 / 2e-3)), 5e-3, np.array([0.0, 0, 1]), 150e-9, complex(n, 0), 28, 72, [0, 3 * LAM / 16, 7 * LAM / 16], ret=True, sgrid=sg)
+        print('sphere grid', sg, 'gap over P_ext', [(x - y) / e for x, y, e in zip(r['all_exits_W'], r['budget_W'], r['Pext'])])
+
+
 if __name__ == '__main__':
-    main()
+    if '--r8' in sys.argv:
+        r8_grid()
+    else:
+        main()

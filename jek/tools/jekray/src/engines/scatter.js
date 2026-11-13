@@ -108,7 +108,7 @@ function fromFrame(fr, v, step, out) {
    launch: { n, d, E } with d each wave's direction and E its field at C (V/m, exp(-i w t)),
    and what was made of each beam. nMed scales the fields as the trap does. */
 export function scatterWaves(parts, C, nMed, size, zRef = BEAM_Z) {
-  const byL = new Map(), notes = { varies: false, pupils: 0, plane: 0 }, refs = new Map();
+  const byL = new Map(), notes = { varies: false, pupils: 0, plane: 0, parts: [] }, refs = new Map();
   for (const q of parts) {
     // where C is in this beam's own frame (beamFrame): across, up, along; a level beam's as it always was
     const b = q.b, F = beamFrame(b), r = [C[0] - F.P0[0], C[1] - F.P0[1], C[2] + (zRef - F.P0[2])];
@@ -154,6 +154,7 @@ export function scatterWaves(parts, C, nMed, size, zRef = BEAM_Z) {
     if (q.P) L.pupils++;
     // this beam's own field at the centre: the launch's strongest is what the scattered light's phase is held against
     { const e0 = [0, 0, 0, 0, 0, 0]; for (let o = 0; o < E.length; o++) e0[o % 6] += E[o];
+      notes.parts.push({ q, e0, d: F.d });
       const I0 = e0.reduce((a, v) => a + v * v, 0), r0 = refs.get(q.coh);
       if (!r0 || I0 > r0.I) refs.set(q.coh, { I: I0, E: e0, beam: q.sg ? q.sg.i : -1, src: b.src, lmw: b.lmw, nm: b.nm, coh: q.coh }); }
     for (const v of d) L.d.push(v);
@@ -195,6 +196,80 @@ export function scatterModel(el, P, k, mAbs) {
   const tiny = mAbs * k * Math.max(P.D, P.L) / 2 <= SCAT_TINY;
   if (want === 'auto') return { model: tiny ? 'rayleigh' : sphere ? 'mie' : 'dda', auto: true };
   return { model: want, auto: false };
+}
+/* A particle's own scattered light that a retro-reflector brings back to it (the beam it scatters from comes back on itself:
+   one beam of the launch going on, one coming back), scattered again, iterated until the light coming back changes by less
+   than RETURN_TOL or RETURN_PASSES are done. The optics that bring the beam back bring the scattered light back the same
+   way: they turn the light leaving the focus along d back along -d, its field the same vector times c, the ratio of the
+   returning beam's field to the going one's at the focus (the two beams' own fields there). Light leaving the particle at r_s
+   from the focus comes back to the image of it, -r_s: at the particle each returning wave is
+      A(-d) = (i c / lambda) F(d) exp(-2 i k d . r_s),   d within the returning optic's cone,
+   F the particle's far field (its whole field: the beams' scattering and the returned light's). The returned waves join the
+   launch: the particle's far field, its scattered power and its extinction (the returned light's included) take them; the
+   bench's cones carry the far field on. In a cavity (more than one beam of the launch going either way: the light would come
+   back again and again) one pass only, and flagged: scattering inside a cavity is not modelled. Mie only. */
+const RETURN_TOL = 1e-7, RETURN_PASSES = 12;
+export const CAVITY_WARNING = 'Scattering inside a cavity is not modelled: the light comes back to the particle more than once, and the readings take its scattered light back to it once only.';
+function particleReturn(L, g) {
+  const { TB, nMed, zRef, F0, C, d0, k, tab, flags, out } = g;
+  const coh = L.ref && L.ref.coh;
+  if (!coh) return;
+  const mine = TB.parts.filter(q => q.coh === coh), dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const fw = mine.filter(q => dot(beamFrame(q.b).d, d0) > 0.5);
+  if (!fw.length) return;
+  const q0 = fw.reduce((a, q) => (q.Pw > a.Pw ? q : a));
+  // light that comes back: a beam going the other way that the going beam itself became (its ancestors include the going beam's
+  // leg through here), not a second arm of the same laser sent in from the other side
+  const B = lastTrace.beams || [], from = (q, a) => { if (!q.sg || !a.sg) return false; for (let j = B[q.sg.i] ? B[q.sg.i].parent : -1; j >= 0; j = B[j].parent) if (j === a.sg.i) return true; return false; };
+  const bk = mine.filter(q => dot(beamFrame(q.b).d, d0) < -0.5 && from(q, q0));
+  if (!bk.length) return;
+  // a cavity: more than one return, or the returned light going on past the particle again
+  const cavity = bk.length > 1 || mine.some(q => q !== q0 && !bk.includes(q) && from(q, q0));
+  if (cavity && !flags.includes('cavity')) flags.push('cavity');
+  // the focus: of the going beam's pupil, or its waist
+  const Fq = beamFrame(q0.b), tf = q0.P ? q0.P.Rf : -q0.b.qr;
+  const Cf = [0, 1, 2].map(i => Fq.P0[i] + Fq.d[i] * tf);
+  // the two beams' fields there, physicists' convention (scatterWaves)
+  const Wf = scatterWaves([q0, bk[0]], [Cf[0], Cf[1], Cf[2] - zRef], nMed, 0, zRef).notes.parts;
+  const ef = Wf.find(p => p.q === q0).e0, eb = Wf.find(p => p.q === bk[0]).e0;
+  let nr = 0, ni = 0, den = 0;
+  for (let m = 0; m < 3; m++) { nr += eb[2 * m] * ef[2 * m] + eb[2 * m + 1] * ef[2 * m + 1]; ni += eb[2 * m + 1] * ef[2 * m] - eb[2 * m] * ef[2 * m + 1]; den += ef[2 * m] ** 2 + ef[2 * m + 1] ** 2; }
+  if (!(den > 0)) return;
+  const cr = nr / den, ci = ni / den;
+  // the returning optic's cone: the returning beam's pupil, or its element's aperture as seen from the focus
+  // (the element's own rim: a pupil's last samples stop short of it where the beam has faded)
+  let half = 0;
+  const qb = bk[0], id = qb.b.ev && (qb.b.ev.el || qb.b.ev), el = typeof id === 'string' ? getEl(id) : null;
+  if (el) { const a = 0.5 * (el.diameter || el.length || 0), r = Math.hypot(el.x - Cf[0], el.y - Cf[1], zOf(el) - Cf[2]); if (a > 0 && r > 0) half = Math.atan(a / r); }
+  if (!(half > 0) && qb.P && qb.P.NA > 0) half = Math.asin(Math.min(1, qb.P.NA));
+  if (!(half > 0)) return;
+  const G = coneGrid(d0, half, 24, 48), m = G.w.length, dirs = G.dirs;
+  const rs = [(C[0] - Cf[0]) * 1e-3, (C[1] - Cf[1]) * 1e-3, (zRef + C[2] - Cf[2]) * 1e-3], lam = 2 * Math.PI / k;
+  const nd = new Float64Array(3 * m); for (let i = 0; i < 3 * m; i++) nd[i] = -dirs[i];
+  const ph = new Float64Array(2 * m);
+  for (let o = 0; o < m; o++) { const a = -2 * k * (dirs[3 * o] * rs[0] + dirs[3 * o + 1] * rs[1] + dirs[3 * o + 2] * rs[2]), w = G.w[o] / lam; ph[2 * o] = w * Math.cos(a); ph[2 * o + 1] = w * Math.sin(a); }
+  // (i c) times the phase and the weight, applied to F's three components
+  const waves = Fc => {
+    const E = new Float64Array(6 * m);
+    for (let o = 0; o < m; o++) {
+      const gr = -ci * ph[2 * o] - cr * ph[2 * o + 1], gi = cr * ph[2 * o] - ci * ph[2 * o + 1];
+      for (let q = 0; q < 6; q += 2) { const fr = Fc[6 * o + q], fi = Fc[6 * o + q + 1]; E[6 * o + q] = gr * fr - gi * fi; E[6 * o + q + 1] = gr * fi + gi * fr; }
+    }
+    return { n: m, d: nd, E };
+  };
+  const Finc = mieFarWaves(tab, k, L, dirs);
+  let Fc = Finc, passes = 0, change = 0;
+  for (; passes < (cavity ? 1 : RETURN_PASSES); passes++) {
+    const Fr = mieFarWaves(tab, k, waves(Fc), dirs), Fn = new Float64Array(Finc.length);
+    let num = 0, dn = 0;
+    for (let i = 0; i < Fn.length; i++) { Fn[i] = Finc[i] + Fr[i]; num += (Fn[i] - Fc[i]) ** 2; dn += Fn[i] ** 2; }
+    Fc = Fn; change = dn > 0 ? Math.sqrt(num / dn) : 0;
+    if (change < RETURN_TOL) { passes++; break; }
+  }
+  const R = waves(Fc), n0 = L.n, d = new Float64Array(3 * (n0 + m)), E = new Float64Array(6 * (n0 + m));
+  d.set(L.d); d.set(R.d, 3 * n0); E.set(L.E); E.set(R.E, 6 * n0);
+  L.n0 = n0; L.d = d; L.E = E; L.n = n0 + m;
+  out.ret = { passes, change, c: [cr, ci], halfDeg: half / deg, waves: m, cavity };
 }
 /* The run, as a generator: it yields { stage, ... } as it goes (so a worker can report and be
    stopped) and returns the answer, or { error }. R is the field run of scatterPrep's beams. */
@@ -276,6 +351,8 @@ export function* scatterGen(el, R, opts) {
   if (model === 'mie') {
     if (P.shape !== 'sphere') flags.push('mieNotSphere');
     const tab = mieTable(CM);
+    // the particle's own light that a retro-reflector brings back to it, scattered again (see particleReturn)
+    for (const L of launches) particleReturn(L, { TB, nMed, zRef, F0, C, d0, k, tab, flags, out });
     for (const L of launches) {
       fars.push(dirs => mieFarWaves(tab, k, L, dirs));
       yield { stage: 'sphere' };
@@ -339,10 +416,13 @@ export function* scatterGen(el, R, opts) {
   // particle's place. Only for a focus's waves: a gentle beam is one wave standing for the whole beam (two of them when it
   // comes back on itself), and its interference is read against the beam itself where it lands
   const waveInt = launches.map((L, i) => {
-    if (L.n < 2 || !L.pupils) return null;
-    const F = fars[i](L.d), p = new Float64Array(L.n), e2 = new Float64Array(L.n);
+    // (the beams' own waves: the light a retro-reflector brings back meets the light scattered the other way on a detector as
+    // two bundles of one family, not here)
+    const n0 = L.n0 || L.n;
+    if (n0 < 2 || !L.pupils) return null;
+    const F = fars[i](L.d.subarray(0, 3 * n0)), p = new Float64Array(n0), e2 = new Float64Array(n0);
     let ext = 0;
-    for (let o = 0; o < L.n; o++) {
+    for (let o = 0; o < n0; o++) {
       let sm = 0;
       for (let q = 0; q < 6; q += 2) { sm += L.E[6 * o + q] * F[6 * o + q + 1] - L.E[6 * o + q + 1] * F[6 * o + q]; e2[o] += L.E[6 * o + q] ** 2 + L.E[6 * o + q + 1] ** 2; }
       p[o] = -4 * Math.PI / k * sm / (2 * Z);
@@ -352,7 +432,7 @@ export function* scatterGen(el, R, opts) {
     // axis, so no bin lies across it), each bin one ray along its waves' mean way (weighted by their power), polarised as
     // its strongest wave is, with the sum of their shares
     const dl = ext > 0 ? 2 * ext / WAVE_BINS : 1, bins = new Map();
-    for (let o = 0; o < L.n; o++) {
+    for (let o = 0; o < n0; o++) {
       const a = L.d[3 * o] * a0[0] + L.d[3 * o + 1] * a0[1] + L.d[3 * o + 2] * a0[2], c = F0.level ? L.d[3 * o + 2] : L.d[3 * o] * up[0] + L.d[3 * o + 1] * up[1] + L.d[3 * o + 2] * up[2], fw = L.d[3 * o] * d0[0] + L.d[3 * o + 1] * d0[1] + L.d[3 * o + 2] * d0[2] >= 0;
       const key = (Math.floor(a / dl) + 64) * 256 + (Math.floor(c / dl) + 64) + (fw ? 0 : 65536);
       let B = bins.get(key); if (!B) bins.set(key, B = { p: 0, w: 0, d: [0, 0, 0], top: -1, o: 0 });

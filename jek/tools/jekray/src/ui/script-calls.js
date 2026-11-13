@@ -13,7 +13,7 @@ import { antennaNow } from '../engines/antenna-field.js';
 import { metricRaw } from './optimise.js';
 import { diffraction, viaCavity } from '../engines/pd-cavity.js';
 import { screenStats } from '../engines/screen-stats.js';
-import { scatterCached, scatterNow, scatterPlain, scatterPrep } from '../engines/scatter.js';
+import { CAVITY_WARNING, scatterCached, scatterNow, scatterPlain, scatterPrep } from '../engines/scatter.js';
 import { mieCoeffs, mieQ, mieS } from '../core/mie.js';
 import { zmxExport } from '../io/zmx-export.js';
 import { asmParaxial, asmPrescription, assemblies } from '../core/assembly.js';
@@ -156,7 +156,7 @@ export function scriptCalls() {
     /* Lorenz-Mie for a sphere of size parameter x = k a and relative index mr + i mi: Qext, Qsca, Qabs, Qback, g, and S
        (each [S1 re, S1 im, S2 re, S2 im]) at the angles given (degrees), as Bohren and Huffman write them */
     mie(x, mr, mi, angles) { const C = mieCoeffs(+x, +mr, +mi || 0); return Object.assign(mieQ(C), { terms: C.n, S: (angles || []).map(a => mieS(C, Math.cos(a * Math.PI / 180))) }); },
-    scatter(name, opts) { traceScene(); const el = this.byName(name); if (!el) throw new Error('No part called ' + name); if (el.type === 'screen') throw new Error(el.name + ' is a screen: a particle is a Particle part of its own now (a file whose screen held one opens with it on a part called "' + el.name + ' particle")'); const S = (!opts && scatterCached(el)) || scatterNow(el, opts); return S ? scatterPlain(S) : null; },
+    scatter(name, opts) { traceScene(); const el = this.byName(name); if (!el) throw new Error('No part called ' + name); if (el.type === 'screen') throw new Error(el.name + ' is a screen: a particle is a Particle part of its own now (a file whose screen held one opens with it on a part called "' + el.name + ' particle")'); const S = (!opts && scatterCached(el)) || scatterNow(el, opts); return S ? Object.assign(scatterPlain(S), S.flags && S.flags.includes('cavity') ? { warning: CAVITY_WARNING } : null) : null; },
     /* where a Particle part's scattered light goes on the bench: its scattered power (W), a row for each part that catches some
        ({ name, share of the scattered power, P in W, followed: traced on as rays }), and what no part catches (lost, lostShare).
        state: "ok", or "dark" (no light reaches the particle); null for a part that is not a Particle or has its light off */
@@ -166,7 +166,9 @@ export function scriptCalls() {
       traceScene();
       if (!scatterCached(el) && scatterPrep(el)) { scatterNow(el); traceScene(); }           // (the page's own trace does not wait for a run: here it is done)
       const R = lastTrace.scat && lastTrace.scat.parts[el.id];
-      return R ? { state: R.state, Psca: R.Psca, rows: R.rows.map(r => ({ name: r.name, share: r.share, P: r.P, followed: r.followed, halfDeg: r.halfDeg })), lost: R.lost, lostShare: R.lostShare } : null;
+      const S = scatterCached(el), cav = !!(S && S.flags && S.flags.includes('cavity'));
+      return R ? Object.assign({ state: R.state, Psca: R.Psca, rows: R.rows.map(r => ({ name: r.name, share: r.share, P: r.P, followed: r.followed, halfDeg: r.halfDeg })), lost: R.lost, lostShare: R.lostShare },
+        cav ? { warning: CAVITY_WARNING } : null) : null;
     },
     asmPrescription(name) { const a = assemblies().find(x => x.name === name); return a ? JSON.parse(JSON.stringify(asmPrescription(a))) : null; },
     // (the lens engine's first order: it follows folds and mirrored faces, which the bench's paraxial helper does not)

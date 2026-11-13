@@ -427,11 +427,13 @@ const retro = (C, o = {}) => {
 };
 for (const [name, steps] of [['tight', [0, 3]], ['gentle', [0, 4]]]) {
   test('a retro-reflected ' + name + ' focus: the standing wave, the light it scatters and both detectors, against two foci summed as plane waves', async () => {
-    const C = RETRO.cases[name], Rf = C.s, most = a => Math.max(...a.map(Math.abs));
+    // (the reference with the particle driven also by its own light the mirror brings back, as JEKray takes it)
+    const C = RETRO.cases[name], Rf = C.s_ret, most = a => Math.max(...a.map(Math.abs));
     await open(retro(C));
     const S = S_of('p');
     assert.equal(S.beams, 2); assert.equal(S.launches, 1);                                                                  // R1
     assert.deepEqual(S.routes, name === 'tight' ? ['traced', 'traced'] : ['beam', 'beam']);
+    assert.ok(S.ret && !S.ret.cavity && S.ret.passes < 12 && S.ret.change < 1e-7 && !S.flags.includes('cavity'), 'second scattering converged, no cavity: ' + JSON.stringify(S.ret));   // T4, T7
     const within = (got, ref, big, tol, msg) => assert.ok(Math.abs(got - ref) <= tol * big, msg + ': ' + got + ' against ' + ref + ' (' + (Math.abs(got - ref) / big).toExponential(2) + ' of the largest, allowed ' + tol + ')');
     for (const i of steps) {
       await open(retro(C, { step: i })); const Si = S_of('p'), on = [reading('dF').mw, reading('dB').mw];
@@ -453,3 +455,13 @@ for (const [name, steps] of [['tight', [0, 3]], ['gentle', [0, 4]]]) {
     }
   });
 }
+
+/* T7: a particle between two mirrors facing each other: its light comes back to it again and again (a cavity), which is not
+   modelled: flagged, one pass only, and the warning given; the retro trap (above) is not flagged */
+test('a particle inside a cavity is flagged, its returned light taken once', async () => {
+  await open([laser({ x: -30, w0: 0.05, z0: 30, pol: 's' }), { id: 'm1', type: 'mirror', name: 'M1', x: -5, y: 0, angle: 0, length: 5, reflect: 90, transmit: 10 },
+    particle({ x: 0 }), { id: 'm2', type: 'mirror', name: 'M2', x: 5, y: 0, angle: 180, length: 5, reflect: 90, transmit: 10 }]);
+  const S = S_of('p');
+  assert.ok(S.flags.includes('cavity') && S.ret && S.ret.cavity && S.ret.passes === 1, JSON.stringify([S.flags, S.ret]));
+  assert.ok(S.beams > 2, 'beams on the particle: ' + S.beams);
+});

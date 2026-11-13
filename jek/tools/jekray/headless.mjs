@@ -53,7 +53,7 @@ export async function openBench(data) {
     /* a screen's spot: count, centroid, rms, full width and the rest */
     screen(name) { ensure(); return plain(E.SS.screenStats(byName(name))); },
     /* the light a Particle part scatters: the model, cross-sections (m²), powers (W), the pattern and the far field */
-    async scatter(name, opts) { ensure(); const el = byName(name); if (el.type === 'screen') throw new Error(el.name + ' is a screen: a particle is a Particle part of its own now (a file whose screen held one opens with it on a part called "' + el.name + ' particle")'); const SC = await import('./src/engines/scatter.js'), S = SC.scatterNow(el, opts); return S ? SC.scatterPlain(S) : null; },
+    async scatter(name, opts) { ensure(); const el = byName(name); if (el.type === 'screen') throw new Error(el.name + ' is a screen: a particle is a Particle part of its own now (a file whose screen held one opens with it on a part called "' + el.name + ' particle")'); const SC = await import('./src/engines/scatter.js'), S = SC.scatterNow(el, opts); return S ? Object.assign(SC.scatterPlain(S), S.flags && S.flags.includes('cavity') ? { warning: SC.CAVITY_WARNING } : null) : null; },
     /* where a Particle part's scattered light goes on the bench: a row for each part that catches some, and what none does */
     scattered(name) {
       ensure(); const el = byName(name), R = E.TRACE.lastTrace.scat && E.TRACE.lastTrace.scat.parts[el.id];

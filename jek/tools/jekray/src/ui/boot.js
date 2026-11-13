@@ -332,7 +332,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lgComps: (p, l) => lgComps(p, l).map(c => c.slice()),
     trapAlpha, trapPhysics,
     sphereAlpha, gasDamping, waterViscosity,
-    trap(name) { const el = this.byName(name), D = diffraction(el); return D && D.trap ? trapReport(el, D.trap) : null; },
+    // a screen's atom trap, or a Particle part's trap (from its scattering run, as its Trap tab has it)
+    trap(name) { const el = this.byName(name); if (el && el.type === 'particle') { const S = this.scatter(name); return S && S.trapRaw ? trapReport(el, S.trapRaw) : null; } const D = diffraction(el); return D && D.trap ? trapReport(el, D.trap) : null; },
     fibreSPM: (F, nm, len, P, Pavg, gdd) => { const r = fibreSPM(Object.assign({ loss: 0, disp: null, gamma: null, ftype: 'smf' }, F), nm, len, Object.assign({ pshape: 'sech2', rep: 80, gdd0: 0 }, P), Pavg, gdd || 0, null); return r && { N: r.N, steps: r.steps, B: r.B, broad: r.broad, peakIn: r.peakIn, half: r.half, d0: r.d0, dd: r.dd, re: Array.from(r.re), im: Array.from(r.im) }; },
     fibreGamma: (F, nm) => fibreGamma(F, nm),
     nlc(name) { const el = this.byName(name); return ((lastTrace.nlc) || []).filter(H => H.id === el.id).map(H => ({ P: H.P, nm: H.nm, q: H.q, r: H.r })); },

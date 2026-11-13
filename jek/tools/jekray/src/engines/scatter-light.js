@@ -141,6 +141,27 @@ function probeCut(k, v) {
   if (this && this.type === 'particle' && k !== 'id' && k !== 'type') return undefined;       // another particle is no surface
   return v;
 }
+/* A particle moved off a screen that held it (files before 1.1: parts/particle.js, particleFromScreen) goes, once, where that
+   screen's particle was: where the strongest beam arriving at the screen's face met it, at that beam's height. */
+export function placeFromScreen() {
+  for (const el of project.elements) {
+    const F = el.type === 'particle' && el.fromScreen;
+    if (!F) continue;
+    const a = F.angle * deg, nX = Math.cos(a), nY = Math.sin(a);
+    let best = null;
+    for (const b of lastTrace.beams || []) {
+      if (b.fan || b.bench !== el.bench || b.endEl !== F.id || !(b.dx * nX + b.dy * nY < 0) || b.uz || b.d3) continue;
+      const P = (b.w === undefined ? 1 : b.w) * Math.max(0, b.lmw || 0);
+      if (!best || P > best.P) best = { b, P };
+    }
+    if (best) {
+      const b = best.b;
+      el.x = b.x0 + b.dx * b.len; el.y = b.y0 + b.dy * b.len;
+      if (b.z0 !== undefined && b.z0 !== 75) el.z = b.z0; else delete el.z;
+    }
+    delete el.fromScreen;
+  }
+}
 /* The trace's two steps for every Particle part with its light on: { probes, cones(), report(hits) }, or null when
    there is none. surfsBy: the trace's own surfaces, a bench each. */
 export function scatterLaunch(surfsBy) {

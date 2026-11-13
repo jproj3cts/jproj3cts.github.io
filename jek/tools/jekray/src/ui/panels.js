@@ -3,7 +3,7 @@ import { makeAssemblyRow } from './assembly.js';
 import { fmtDbm, fmtFs, fmtFs2, fmtFs3, fmtHz, fmtJ, fmtLen, fmtMw, fmtNum, fmtW, fmtWl } from '../core/format.js';
 import { glassKey, matLabel, refIndex } from '../core/glass.js';
 import { ATOMS, ATOM_ISO, C_SI, KB } from '../core/cells.js';
-import { SPHERE_DENSITY, TRAP_ATOMS, atomLines, particleOf, trapFLabel } from '../core/traps.js';
+import { TRAP_ATOMS, atomLines, particleOf, trapFLabel } from '../core/traps.js';
 import { MU_B } from '../core/zeeman.js';
 import { cellDensity, cellPlan, cellProfile, cellResponse, evalPlan, nlcConvert } from '../core/nlc.js';
 import { C_MM } from '../core/modulators.js';
@@ -38,7 +38,7 @@ import {
 import { aberCache, aberSource, aberrations, diffractionLater } from '../engines/pd-cavity.js';
 import { pulseReport } from '../engines/pulse.js';
 import { screenStats, trapReport } from '../engines/screen-stats.js';
-import { particleMats, particleTrapLater, scatterSection } from './scatter.js';
+import { particleTrapLater, scatterSection } from './scatter.js';
 import { scatterPrep } from '../engines/scatter.js';
 import { alignEls, changed, duplicateSel, moveToTab, removeEls, rotateEls, setLocked, zoomToSelection } from './actions.js';
 import { addBench, checkpoint, selectEl } from './tabs.js';
@@ -135,14 +135,11 @@ function trapSection(el) {
   const isPart = el.type === 'particle';           // a Particle part: the trap for it where it is, from its scattering run
   panel.append(h('h3', null, 'Optical trap'));
   const rows0 = h('div', { class: 'rt-rows' });
-  if (!isPart) rows0.append(selectField('Trap for', [['none', 'Nothing'], ...Object.entries(TRAP_ATOMS).map(([k, a]) => [k, a.name + ' atoms']), ['sphere', 'A dielectric sphere']],
-    () => el.trap, v => { el.trap = v; }, { wide: true }));
+  if (!isPart) rows0.append(selectField('Trap for', [['none', 'Nothing'], ...Object.entries(TRAP_ATOMS).map(([k, a]) => [k, a.name + ' atoms'])],
+    () => el.trap, v => { el.trap = v; }, { wide: true }), helpLine('A particle is a part of its own: add a Particle where the light is.'));
   if (el.trap in TRAP_ATOMS) rows0.append(selectField('Ground state', [['avg', 'Hyperfine levels averaged'], ['lo', trapFLabel(el.trap, 'lo')], ['hi', trapFLabel(el.trap, 'hi')]],
     () => el.trapF, v => { el.trapF = v; }, { wide: true }));
   if (el.trap === 'sphere') {
-    if (!isPart) rows0.append(
-      selectField('Material', particleMats(), () => el.trapMat, v => { el.trapMat = v; if (SPHERE_DENSITY[v]) el.trapRho = SPHERE_DENSITY[v]; }),
-      param('Radius (nm)', el, 'trapR'));
     rows0.append(
       param('Density (kg/m³)', el, 'trapRho'),
       param('Temperature (K)', el, 'trapT'),
@@ -151,7 +148,7 @@ function trapSection(el) {
   }
   panel.append(rows0);
   if (el.trap === 'none') {
-    panel.append(helpLine('Choose atoms or a sphere to read the trap the light makes here.', ['Choose atoms or a dielectric sphere to read the optical trap the light here makes: where the particle sits, how deep the trap is, its trap frequencies each way and how much light it scatters. Put the screen at (or near) the focus and untick “Stop the rays it records” on the Screen tab so the light carries on. Every beam through the screen’s region counts, whichever way it goes: beams from one laser add as fields, so two counter-propagating beams make a standing wave.'], 'note', 'margin-top:0.5rem'));
+    panel.append(helpLine('Choose atoms to read the trap the light makes here.', ['Choose atoms to read the optical trap the light here makes: where they sit, how deep the trap is, its trap frequencies each way and how much light it scatters. Put the screen at (or near) the focus and untick “Stop the rays it records” on the Screen tab so the light carries on. Every beam through the screen’s region counts, whichever way it goes: beams from one laser add as fields, so two counter-propagating beams make a standing wave.'], 'note', 'margin-top:0.5rem'));
     return;
   }
   const box = h('div', { class: 'rt-readout' });

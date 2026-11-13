@@ -88,7 +88,7 @@ export const AREAS = {
   scatter: {
     what: 'light scattered by one particle: Lorenz–Mie, the dipole array, a focus as plane waves, the Scattering tab and its worker; the Particle part and its scattered light on the bench',
     src: ['src/core/mie.js', 'src/core/dda.js', 'src/core/scatter.js', 'src/engines/scatter.js', 'src/engines/scatter-light.js', 'src/parts/particle.js', 'src/ui/parts/particle.js', 'src/ui/scatter.js'],
-    node: ['physics-scatter.test.mjs', 'physics-particle.test.mjs', 'demos.test.mjs', 'parts.test.mjs', 'pro-gate.test.mjs', 'data-export.test.mjs'],
+    node: ['physics-scatter.test.mjs', 'physics-particle.test.mjs', 'particle-from-screen.test.mjs', 'demos.test.mjs', 'parts.test.mjs', 'pro-gate.test.mjs', 'data-export.test.mjs'],
     browser: ['Scattering by a particle', 'Dipole traps'],
   },
   site: {

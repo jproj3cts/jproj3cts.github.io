@@ -10,6 +10,8 @@ export const PARTICLE = {
   type: 'particle', label: 'Particle',
   picker: [{ key: 'particle', short: 'Particle', long: 'Particle (a sphere or rod that scatters the light)' }],
   keys: ['particle'],
+  // a screen's particle from an older file, as a part of its own (state/elements.js, loadProject)
+  fromScreen: e => particleFromScreen(e),
   // its angle is the direction of its axis in the bench plane (a rod's or spheroid's; a sphere has none)
   make: (x, y) => ({ type: 'particle', name: nextName('Particle'), x, y, angle: 90 }),
   norm(e, base) {
@@ -35,6 +37,9 @@ export const PARTICLE = {
       scatView: ['out', 'map'].includes(e.scatView) ? e.scatView : 'in',
       scatLight: e.scatLight !== false,                            // its scattered light on the bench, to the parts that catch it
       scatFan: e.scatFan !== false,                                // and the faint fan in every direction (a picture only)
+      // moved off a screen that held it (particleFromScreen): that screen, until the first trace puts the particle where the
+      // screen's strongest beam met it (engines/scatter-light.js, placeFromScreen)
+      ...(e.fromScreen && typeof e.fromScreen === 'object' && typeof e.fromScreen.id === 'string' ? { fromScreen: { id: e.fromScreen.id, angle: num(e.fromScreen.angle, 0) } } : {}),
     });
   },
   guide: {
@@ -51,3 +56,17 @@ export const PARTICLE = {
       scatFan: 'true draws a faint fan of the scattered light in every direction, as bright as the pattern is; a picture only, never part of a reading.' },
   },
 };
+
+/* A screen's particle, as files before 1.1 kept it (a screen with trap 'sphere'): the same particle as a Particle part of its own,
+   with every setting it had, at the screen's centre until the first trace puts it where the screen's strongest beam met it.
+   The screen keeps the rest (state/elements.js, loadProject). */
+function particleFromScreen(e) {
+  const keys = ['trapMat', 'trapRho', 'trapMed', 'trapShape', 'trapLen', 'trapTilt', 'trapP', 'trapT', 'scatModel', 'scatDip', 'scatDx', 'scatDy', 'scatDz',
+    'scatNA', 'scatDir', 'scatAng', 'scatScale', 'scatView'];
+  const out = { type: 'particle', name: String(e.name || 'Screen') + ' particle', x: e.x, y: e.y, angle: e.trapAz === undefined ? 90 : e.trapAz, scatAt: e.scatAt === 'trap' ? 'trap' : 'part',
+    // (a screen's particle had a radius of 100 nm when none was given; a Particle part's is 150)
+    trapR: e.trapR === undefined ? 100 : e.trapR, fromScreen: { id: typeof e.id === 'string' ? e.id : '', angle: e.angle } };
+  for (const k of ['bench', 'z', 'group']) if (e[k] !== undefined) out[k] = e[k];
+  for (const k of keys) if (e[k] !== undefined) out[k] = e[k];
+  return out;
+}

@@ -1361,13 +1361,13 @@ const ALL_CASES = [
     id: 'tweezers', area: 'Optical traps', title: 'A small sphere in a focused beam',
     kind: 'Paper: forces, exact beam', ref: 'tweezers-hu.json', script: 'tweezers_hu.py',
     cite: 'Y. Harada and T. Asakura, “Radiation forces on a dielectric sphere in the Rayleigh scattering regime”, Optics Communications 124, 529–541 (1996).',
-    what: 'A 30 nm fused-silica sphere in vacuum, in 100 mW of 1064 nm light focused to a 3 µm waist. Harada and Asakura’s gradient force (the sphere’s polarisability from Clausius–Mossotti) pulls it toward the focus, their scattering force pushes it along the beam, so it sits a little past the focus, where the two balance on the axis, and about there it is held with stiffnesses they give across and along the beam. Their forces are applied to the beam worked out exactly (a Gaussian at its waist carried by its exact angular spectrum): at this focus the paraxial Gaussian their closed forms assume is itself off by about 1% along the beam, which is more than the tolerance allows for. JEKray’s sphere trap (a screen at the focus) finds where the force of the field it propagates vanishes and the curvature of the potential there.',
+    what: 'A 30 nm fused-silica sphere in vacuum, in 100 mW of 1064 nm light focused to a 3 µm waist. Harada and Asakura’s gradient force (the sphere’s polarisability from Clausius–Mossotti) pulls it toward the focus, their scattering force pushes it along the beam, so it sits a little past the focus, where the two balance on the axis, and about there it is held with stiffnesses they give across and along the beam. Their forces are applied to the beam worked out exactly (a Gaussian at its waist carried by its exact angular spectrum): at this focus the paraxial Gaussian their closed forms assume is itself off by about 1% along the beam, which is more than the tolerance allows for. JEKray’s sphere trap (a Particle part at the focus) finds where the force of the field it propagates vanishes and the curvature of the potential there.',
     tolerance: 'The equilibrium’s distance past the focus within 3%, and the trap frequencies across and along the beam within 2%.',
     async run(J, R) {
       const H = R.harada, checks = [];
       const data = bench('Rayleigh sphere: 30 nm silica, 100 mW at 1064 nm, w₀ = 3 µm (Harada and Asakura 1996)', [
         { type: 'source', name: 'Laser', x: -50, y: 0, angle: 0, wavelength: H.lambda_nm, width: 0.1, gauss: true, w0: H.w0_um / 1000, z0: 50, popN: 256, pol: 's', rays: 1, power: H.P_mW },
-        { type: 'screen', name: 'Trap', x: 0, y: 0, angle: 180, length: 0.2, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: H.radius_nm, trapRho: H.density, trapMed: 'vacuum' }], { minPower: 1e-6 });
+        { type: 'particle', name: 'Trap', x: 0, y: 0, angle: 90, trapMat: 'Fused silica', trapR: H.radius_nm, trapRho: H.density, trapMed: 'vacuum' }], { minPower: 1e-6 });
       J.load(data); const T = J.trap('Trap');
       checks.push(check('Equilibrium past the focus', H.z_eq_um, T ? T.dz * 1e3 : NaN, { rel: 0.03 }, ' µm'));
       checks.push(check('Trap frequency across the beam, in the bench plane', H.f_radial_Hz, T ? T.fx : NaN, { rel: 0.02 }, ' Hz'));
@@ -1475,7 +1475,7 @@ const ALL_CASES = [
       const data = bench('Levitated 69 nm silica sphere in air, NA 0.8 at 1064 nm (Gieseler et al. 2012)', [
         { type: 'source', name: 'Laser', x: -20, y: 0, angle: 0, wavelength: 1064, width: 2.5, gauss: true, w0: 1.0, z0: 20, popN: 256, pol: 'p', rays: 1, power: 100 },
         { type: 'mask', name: 'Objective, f 1.5 mm, NA 0.8', x: 0, y: 0, angle: 0, length: 2 * f * Math.tan(Math.asin(NA)), delay: '-(sqrt(r^2+' + f * f + ')-' + f + ')/lambda' },
-        { type: 'screen', name: 'Trap', x: f, y: 0, angle: 180, length: 0.01, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: R.radius_nm, trapMed: 'air', trapP: 6.3 }], { minPower: 1e-6 });
+        { type: 'particle', name: 'Trap', x: f, y: 0, angle: 90, trapMat: 'Fused silica', trapR: R.radius_nm, trapMed: 'air', trapP: 6.3 }], { minPower: 1e-6 });
       J.load(data);
       const T = J.trap('Trap');
       const G = P => J.gasDamping(R.radius_nm, T.mass, P, 295).G / (2 * Math.PI);
@@ -2275,7 +2275,7 @@ const ALL_CASES = [
       // the same sphere on a bench: a wide beam is a plane wave at the particle
       const data = bench('A 300 nm silica sphere in a wide 1550 nm beam', [
         { type: 'source', name: 'Laser', x: -20, y: 0, angle: 0, wavelength: 1550, width: 1.6, gauss: true, w0: 0.5, z0: 0, popN: 256, pol: 'p', rays: 1, power: 100 },
-        { type: 'screen', name: 'Particle', x: 1, y: 0, angle: 180, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum' }], { minPower: 1e-6 });
+        { type: 'particle', name: 'Particle', x: 1, y: 0, angle: 90, trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum' }], { minPower: 1e-6 });
       J.load(data); const S = J.scatter('Particle');
       return { checks, plots, benches: [['The 300 nm sphere on a bench', data]],
         notes: 'On the bench, with fused silica’s own index at 1550 nm (' + fmt(S.np[0], 6) + '), the sphere’s scattering cross-section is ' + fmt(S.Csca * 1e18, 5) + ' nm², ' + fmt(100 * S.fwd, 4) + '% of its light goes forward, and a single dipole (Rayleigh) would give ' + fmt(100 * (S.rayleigh.Csca / S.Csca - 1), 2) + '% more. ' +
@@ -2296,7 +2296,7 @@ const ALL_CASES = [
         const Rf = R.settings[i], st = sets[i];
         const data = bench('Silica rod, 1 µm × 200 nm, 1550 nm: ' + st.tag.toLowerCase(), [
           { type: 'source', name: 'Laser', x: -20, y: 0, angle: 0, wavelength: R.lam * 1e9, width: 1.6, gauss: true, w0: 0.5, z0: 0, popN: 256, pol: st.pol, rays: 1, power: 100 },
-          { type: 'screen', name: 'Rod', x: 1, y: 0, angle: 180, length: 0.02, absorb: false, trap: 'sphere', trapShape: 'cylinder', trapMat: 'Fused silica', trapR: R.D * 0.5e9, trapLen: R.L * 1e9, trapAz: st.az, trapTilt: 0, trapMed: 'vacuum' }], { minPower: 1e-6 });
+          { type: 'particle', name: 'Rod', x: 1, y: 0, angle: st.az, trapShape: 'cylinder', trapMat: 'Fused silica', trapR: R.D * 0.5e9, trapLen: R.L * 1e9, trapTilt: 0, trapMed: 'vacuum' }], { minPower: 1e-6 });
         J.load(data); const S = J.scatter('Rod');
         benches.push([st.tag, data]);
         checks.push(check(st.tag + ': C_ext', Rf.Cext * 1e18, S.Cext * 1e18, { rel: 0.03 }, ' nm²'));

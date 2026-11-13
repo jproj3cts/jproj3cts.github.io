@@ -405,7 +405,15 @@ export function loadProject(data) {
     mods: normCarried(data.mods),                  // the code of the mods its parts use: kept, never run from here
   };
   setProject(p);
-  for (const e of data.elements) { const n = normElement(e); if (n) p.elements.push(n); }
+  for (const e of data.elements) {
+    // a screen's particle (files before 1.1): a Particle part of its own beside the screen, which keeps the rest
+    if (e && e.type === 'screen' && e.trap === 'sphere') {
+      const sc = normElement(Object.assign({}, e, { trap: 'none' }));
+      if (sc) { p.elements.push(sc); const q = normElement(Object.assign(PARTS.particle.fromScreen(Object.assign({}, e, { id: sc.id })), { id: sc.id + '-particle' })); if (q) p.elements.push(q); }
+      continue;
+    }
+    const n = normElement(e); if (n) p.elements.push(n);
+  }
   if (Array.isArray(data.benches) && data.benches.length) {
     const vw = v => ({ cx: num(v && v.cx, 0), cy: num(v && v.cy, 0), scale: Math.min(ZOOM_MAX, Math.max(0.05, num(v && v.scale, 4))) });
     p.benches = data.benches.filter(b => b && typeof b.id === 'string').map((b, i) => ({ id: b.id, name: String(b.name || 'Bench ' + (i + 1)).slice(0, 40), view: vw(b.view) }));

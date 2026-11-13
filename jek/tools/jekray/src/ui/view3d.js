@@ -594,7 +594,6 @@ export const V3D = (() => {
         add(...sagSolid(sg, s.semi, Math.min(sg(0, 0), sg(s.semi, s.semi)) - 1.5, true, face, el.absorb ? mat.body() : face));
         if (el.phosphor) add(phosphorMesh(el, sg(0, 0)));
         else if (el.faceMap) { const m = faceMapMesh(el, sg(0, 0)); if (m) add(m); }
-        if (el.trap === 'sphere') add(particle3(el));
         return g;
       }
       case 'source': {

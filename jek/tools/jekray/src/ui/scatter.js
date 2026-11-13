@@ -2,7 +2,7 @@ import { TEST_MODE } from '../core/constants.js';
 import { fmtLen } from '../core/format.js';
 import { GLASS } from '../core/glass.js';
 import { METAL_NAMES } from '../core/metals.js';
-import { SPHERE_DENSITY, TRAP_ATOMS, particleOf } from '../core/traps.js';
+import { particleOf } from '../core/traps.js';
 import { deg } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { modDelta } from '../engines/mods.js';
@@ -11,7 +11,7 @@ import { lastTrace } from '../engines/trace.js';
 import { trapReport } from '../engines/screen-stats.js';
 import { project } from '../state/project.js';
 import { getCss, inkA, requestRender } from './render.js';
-import { bindSync, fid, helpLine, numInput, panel, param, selectField, setFid, syncPanel, vs } from './panel.js';
+import { bindSync, helpLine, panel, param, selectField, syncPanel, vs } from './panel.js';
 import { h } from './dom.js';
 import { axisFont, drawAxes, magma, plotArea, plotCsv, plotSaveRow } from './plots.js';
 import { WORKERS_OK, fwProject, midDrag, newAppWorker } from '../page/workers.js';
@@ -103,7 +103,7 @@ function scatGo(el) { SCW.stopped.delete(el.id); syncPanel(); }
 
 export const PARTICLE_SHAPES = [['sphere', 'A sphere'], ['cylinder', 'A rod with flat ends'], ['capsule', 'A rod with round ends'], ['spheroid', 'A spheroid']];
 export const particleMats = () => [...Object.keys(GLASS).filter(g => g !== 'Water').map(g => [g, g]), ...Object.entries(METAL_NAMES).map(([k, n]) => [k, n + ' (absorbing)'])];
-/* the particle's own rows, as the Scattering tab gives them (the Trap tab has the sphere's) */
+/* the Scattering tab's own rows for a Particle part (the Trap tab has the sphere's) */
 function particleRows(el) {
   const rows = h('div', { class: 'rt-rows' });
   if (el.type === 'particle') {
@@ -118,25 +118,6 @@ function particleRows(el) {
     if (el.scatDir === 'angle') rows.append(param('Direction (°)', el, 'scatAng'));
     return rows;
   }
-  const isP = el.trap === 'sphere';
-  rows.append(selectField('Particle', [['none', el.trap in TRAP_ATOMS ? 'None (the Trap tab is set for atoms)' : 'None'], ...PARTICLE_SHAPES],
-    () => (isP ? el.trapShape : 'none'), v => { if (v === 'none') el.trap = 'none'; else { el.trap = 'sphere'; el.trapShape = v; } }, { wide: true }));
-  if (!isP) return rows;
-  const sph = el.trapShape === 'sphere';
-  const did = 'rtf' + setFid(fid + 1);
-  rows.append(
-    selectField('Material', particleMats(), () => el.trapMat, v => { el.trapMat = v; if (SPHERE_DENSITY[v]) el.trapRho = SPHERE_DENSITY[v]; }),
-    h('div', { class: 'rt-f' }, h('label', { for: did }, 'Diameter (nm)'), numInput(did, () => 2 * el.trapR, v => { el.trapR = Math.max(1, v / 2); })));
-  if (!sph) rows.append(param('Length (nm)', el, 'trapLen'), param('Axis direction (°)', el, 'trapAz'), param('Axis tilt up (°)', el, 'trapTilt'));
-  rows.append(selectField('Medium', [['bench', 'As on the bench'], ['vacuum', 'Vacuum'], ['air', 'Air, at a pressure'], ['water', 'Water']], () => el.trapMed, v => { el.trapMed = v; }));
-  if (el.trapMed === 'air') rows.append(param('Pressure (mbar)', el, 'trapP'));
-  rows.append(selectField('Model', [['auto', 'Auto'], ['rayleigh', 'Rayleigh (one dipole)'], ['mie', 'Mie (a sphere, exact)'], ['dda', 'Dipole array']], () => el.scatModel, v => { el.scatModel = v; }));
-  if (el.scatModel === 'dda' || (el.scatModel === 'auto' && !sph)) rows.append(param('Dipoles across (0: chosen)', el, 'scatDip', { noSweep: true }));
-  rows.append(selectField('Where it is', [['screen', 'Where the beam meets the screen'], ['trap', 'Where the trap holds it']], () => el.scatAt, v => { el.scatAt = v; }, { wide: true }),
-    param('Moved across (µm)', el, 'scatDx'), param('Moved up (µm)', el, 'scatDy'), param('Moved along the beam (µm)', el, 'scatDz'));
-  rows.append(param('Collecting NA', el, 'scatNA'),
-    selectField('Collected from', [['fwd', 'Ahead (the beam’s way)'], ['back', 'Behind (back along it)'], ['side', 'The side, in the plane'], ['up', 'Above'], ['angle', 'A direction on the bench']], () => el.scatDir, v => { el.scatDir = v; }));
-  if (el.scatDir === 'angle') rows.append(param('Direction (°)', el, 'scatAng'));
   return rows;
 }
 const scatSig = (v, p = 3) => (v === 0 ? '0' : Math.abs(v) >= 1e4 || Math.abs(v) < 1e-3 ? v.toExponential(p - 1).replace('e', ' × 10^').replace('^+', '^') : String(+v.toPrecision(p)));
@@ -308,12 +289,12 @@ function drawScatMap(cv, el, S) {
   plotCsv(cv, el.name + ' scattering map', ['angle from the beam (deg)', 'angle round the beam (deg)', 'intensity (W/sr)'],
     () => { const out = []; for (let i = nT - 1; i >= 0; i--) for (let j = 0; j < nP; j++) out.push([th[i], M.phi[j], M.I[i * nP + j]]); return out; });
 }
-/* The screen's Scattering tab */
+/* A Particle part's Scattering tab */
 export function scatterSection(el) {
   const isPart = el.type === 'particle';
   panel.append(h('h3', null, 'Scattering'));
   panel.append(particleRows(el));
-  if (el.trap !== 'sphere') {
+  if (!isPart) {
     panel.append(helpLine('Choose a particle to read the light it scatters here.', ['Choose a sphere, a rod or a spheroid to read the light it scatters from the beams through this screen: its cross-sections, where the scattered light goes, and how much a lens of a given numerical aperture would collect. Put the screen at (or near) the focus and untick “Stop the rays it records” on the Screen tab so the light carries on. The same particle is the one the Trap tab reads.'], 'note', 'margin-top:0.5rem'));
     return;
   }

@@ -340,117 +340,12 @@
     {
      "k": "trap",
      "def": "\"none\"",
-     "meaning": "\"none\", an atom (\"Rb87\", \"Rb85\", \"Cs133\", \"K39\", \"K41\", \"Na23\") or \"sphere\" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen’s region."
+     "meaning": "\"none\", an atom (\"Rb87\", \"Rb85\", \"Cs133\", \"K39\", \"K41\", \"Na23\") to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen’s region. A particle is a Particle part of its own; a file with \"sphere\" here opens with its particle moved onto one."
     },
     {
      "k": "trapF",
      "def": "\"avg\"",
      "meaning": "for atoms, the ground hyperfine level they are in: \"avg\" (the centroid), \"lo\" or \"hi\" (F = I ∓ 1/2); it moves the lines by a few GHz, which matters close to them (the tune-out wavelength between D1 and D2 moves by picometres)."
-    },
-    {
-     "k": "trapMat",
-     "def": "\"Fused silica\"",
-     "meaning": "the particle’s material: a glass (\"Fused silica\", \"Polystyrene\" and so on), or \"Au\", \"Ag\", \"Al\" (metals, which absorb: their measured complex index)."
-    },
-    {
-     "k": "trapR",
-     "def": "100",
-     "meaning": "the particle’s radius, nm: half its diameter (for a rod or spheroid, half the diameter across its axis)."
-    },
-    {
-     "k": "trapRho",
-     "def": "2200",
-     "meaning": "its density, kg/m³."
-    },
-    {
-     "k": "trapMed",
-     "def": "\"bench\"",
-     "meaning": "\"bench\" (the index where the light is: put the focus in a block of \"Water\" for a liquid), \"vacuum\", \"air\" (with trapP) or \"water\" (water’s index for the particle, the bench’s focus left as it is)."
-    },
-    {
-     "k": "trapShape",
-     "def": "\"sphere\"",
-     "meaning": "the particle’s shape: \"sphere\", \"cylinder\" (a rod with flat ends), \"capsule\" (a rod with round ends) or \"spheroid\". The Scattering tab takes the shape as it is; the Trap tab takes the sphere of the same volume."
-    },
-    {
-     "k": "trapLen",
-     "def": "1000",
-     "meaning": "nm: a rod’s or spheroid’s whole length along its axis (a capsule’s includes its caps; a spheroid shorter than its diameter is oblate)."
-    },
-    {
-     "k": "trapAz",
-     "def": "90",
-     "meaning": "degrees: the direction of the particle’s axis in the bench plane, as parts’ angles."
-    },
-    {
-     "k": "trapTilt",
-     "def": "0",
-     "meaning": "degrees: its axis tilted up out of the bench plane (90: straight up)."
-    },
-    {
-     "k": "scatModel",
-     "def": "\"auto\"",
-     "meaning": "the Scattering tab’s model: \"auto\" (Mie for a sphere, a dipole array for other shapes, one dipole when tiny), \"rayleigh\", \"mie\" or \"dda\"."
-    },
-    {
-     "k": "scatDip",
-     "def": "0",
-     "meaning": "dipoles across the particle’s smallest dimension in a dipole-array run; 0 chooses (10, and no spacing above 0.5/(|m|k))."
-    },
-    {
-     "k": "scatAt",
-     "def": "\"screen\"",
-     "meaning": "where the particle is: \"screen\" (where the strongest beam meets the screen) or \"trap\" (where the Trap tab finds it held)."
-    },
-    {
-     "k": "scatDx",
-     "def": "0",
-     "meaning": "µm: the particle moved from there across the beam in the bench plane."
-    },
-    {
-     "k": "scatDy",
-     "def": "0",
-     "meaning": "µm: out of the plane."
-    },
-    {
-     "k": "scatDz",
-     "def": "0",
-     "meaning": "µm: along the beam."
-    },
-    {
-     "k": "scatNA",
-     "def": "0.5",
-     "meaning": "the numerical aperture (in the medium) of the cone the collected fraction is taken over."
-    },
-    {
-     "k": "scatDir",
-     "def": "\"fwd\"",
-     "meaning": "that cone’s direction: \"fwd\" (along the strongest beam), \"back\", \"side\" (across it in the plane), \"up\" or \"angle\" (scatAng)."
-    },
-    {
-     "k": "scatAng",
-     "def": "0",
-     "meaning": "degrees: the cone’s direction on the bench when scatDir is \"angle\"."
-    },
-    {
-     "k": "scatScale",
-     "def": "\"log\"",
-     "meaning": "\"log\" or \"lin\": the scattering plots’ scale."
-    },
-    {
-     "k": "scatView",
-     "def": "\"in\"",
-     "meaning": "the scattering plot shown: \"in\" (the bench plane), \"out\" (the plane out of it) or \"map\"."
-    },
-    {
-     "k": "trapP",
-     "def": "1013.25",
-     "meaning": "air pressure, mbar: sets the gas damping and quality factors."
-    },
-    {
-     "k": "trapT",
-     "def": "295",
-     "meaning": "temperature (K): the depth in kT and the gas."
     },
     {
      "k": "mtfFreq",

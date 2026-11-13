@@ -159,6 +159,8 @@ const src = o => Object.assign({
   width: 10, divergence: 0, rays: 15, pol: 'p', colourAuto: true,
 }, o);
 const screen = o => Object.assign({ type: 'screen', name: 'Screen', x: 60, y: 0, angle: 180, length: 40 }, o);
+// a Particle part, from what a screen's particle was given (a screen's length and trap fields are not a particle's; its trapAz is the part's angle)
+const particleAt = ({ length, absorb, trap, trapAz, ...o }) => Object.assign({ type: 'particle', name: 'Particle', x: 0, y: 0, angle: trapAz === undefined ? 90 : trapAz }, o);
 const bk7Lens = o => Object.assign({
   type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25.4,
   surfaces: [{ R: 51.5 }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }],
@@ -5335,9 +5337,9 @@ const TESTS = [
   },
   {
     name: 'A link opens on the same panels: selection, pins and their tabs',
-    why: 'the levitated trap with its trap screen pinned on the Trap tab and a collimator selected: shared and opened again, the same element shown, the same one pinned, on the same tab',
+    why: 'the levitated trap with its particle pinned on the Trap tab and a collimator selected: shared and opened again, the same element shown, the same one pinned, on the same tab',
     want: 1, tol: 0, unit: '',
-    run: J => { J.load(JSON.parse(getDemo('levitated-trap'))); J.select('Trap at the focus', 'trap'); J.pin('Trap at the focus'); J.select('Collimator B');
+    run: J => { J.load(JSON.parse(getDemo('levitated-trap'))); J.select('Particle at the focus', 'trap'); J.pin('Particle at the focus'); J.select('Collimator B');
       const r = J.shareUiRoundTrip(); return r.same && r.after.pins.length === 1 && r.after.views[r.after.pins[0]].screenTab === 'trap' ? 1 : 0; },
   },
   { group: 'Short pulses' },
@@ -6040,7 +6042,7 @@ const TESTS = [
       const w0 = 0.005, a = 20e-9, lam = 1.064e-6, k = 2 * Math.PI / lam, eps0 = 8.8541878128e-12, c = 299792458, zR = Math.PI * w0 * w0 / 1064e-6 * 1e-3;
       const n = J.index({ glass: 'Fused silica' }, 1064), CM = (n * n - 1) / (n * n + 2), al = 4 * Math.PI * eps0 * a ** 3 * CM, sig = (8 * Math.PI / 3) * k ** 4 * a ** 6 * CM * CM;
       J.load(bench('rp', [src({ name: 'L', x: -5, wavelength: 1064, gauss: true, w0, z0: 5, width: 0.3, rays: 1, pol: 's', power: 100, popN: 256 }),
-        screen({ name: 'S', x: 0, length: 0.05, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 20, trapMed: 'vacuum' })], { minPower: 1e-6 }));
+        particleAt({ name: 'S', x: 0, length: 0.05, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 20, trapMed: 'vacuum' })], { minPower: 1e-6 }));
       const T = J.trap('S');
       const g = u => (al / (eps0 * c)) * u / (zR * (1 + u * u) ** 2) - (sig / c) / (1 + u * u) * (1 - 1 / (k * zR * (1 + u * u)));
       let lo = 0, hi = 0.5; for (let i = 0; i < 80; i++) { const mid = (lo + hi) / 2; if (g(mid) < 0) lo = mid; else hi = mid; }
@@ -6053,7 +6055,7 @@ const TESTS = [
     want: 0, tol: 0, unit: '',
     run: J => {
       J.load(bench('rp2', [src({ name: 'L', x: -20, wavelength: 1064, gauss: true, w0: 0.01, z0: 20, width: 0.3, rays: 1, pol: 's', power: 100, popN: 256 }),
-        screen({ name: 'S', x: 0, length: 0.05, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 30, trapMed: 'vacuum' })], { minPower: 1e-6 }));
+        particleAt({ name: 'S', x: 0, length: 0.05, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 30, trapMed: 'vacuum' })], { minPower: 1e-6 }));
       return J.trap('S').trap ? 1 : 0;
     },
   },
@@ -6064,7 +6066,7 @@ const TESTS = [
     run: J => {
       const r = pol => { J.load(bench('na', [src({ name: 'L', x: -20, wavelength: 1064, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol, power: 100, popN: 256 }),
         { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+1)-1)/lambda' },
-        screen({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 50, trapMed: 'vacuum' })], { minPower: 1e-6 })); const T = J.trap('S'); return T.fx / T.fy; };
+        particleAt({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 50, trapMed: 'vacuum' })], { minPower: 1e-6 })); const T = J.trap('S'); return T.fx / T.fy; };
       const p = r('p'), s2 = r('s');
       return p < 0.92 && s2 > 1 / 0.92 && Math.abs(p * s2 - 1) < 0.01 ? 0 : 1;
     },
@@ -6077,7 +6079,7 @@ const TESTS = [
       J.load(bench('water', [src({ name: 'L', x: -20, wavelength: 1064, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol: 's', power: 100, popN: 256 }),
         { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+9)-3)/lambda' },
         { type: 'prism', shape: 'window', name: 'Water', x: 3, y: 0, angle: 0, size: 10, thickness: 4, material: { glass: 'Water' } },
-        screen({ name: 'S', x: 3.5, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 50 })], { minPower: 1e-6 }));
+        particleAt({ name: 'S', x: 3.5, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 50 })], { minPower: 1e-6 }));
       const T = J.trap('S');
       return T.trap ? T.nMed : NaN;
     },
@@ -12581,7 +12583,7 @@ const TESTS = [
       const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r))), doc = rigDoc();
       J.load(bench('scatter', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol: 'p', power: 100, popN: 256 }),
         { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+1)-1)/lambda' },
-        screen({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum' })], { minPower: 1e-6 }));
+        particleAt({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum' })], { minPower: 1e-6 }));
       J.select('S'); await frame();
       const tab = [...doc.querySelectorAll('#panel .rt-tab')].find(b => b.textContent === 'Scattering');
       if (!tab) return 0;
@@ -12602,48 +12604,45 @@ const TESTS = [
     },
   },
   {
-    name: 'In 3D the particle is drawn in its shape, enlarged, its axis kept on the bench as the screen turns',
-    why: 'a 1 µm × 200 nm rod is far too small to show on a bench in millimetres: it is drawn as a sign 36 px long with its proportions, where the light meets the screen, whatever the zoom. Its axis is set on the bench (30° round, 20° up), so turning the screen does not turn it; a sphere is a ball of the same size; with no particle nothing is drawn',
+    name: 'In 3D the particle is drawn in its shape, enlarged, its axis on the bench as set',
+    why: 'a 1 µm × 200 nm rod is far too small to show on a bench in millimetres: it is drawn as a sign 36 px long with its proportions, where the part is, whatever the zoom. Its axis is set on the bench (30° round, 20° up), and moving the part does not turn it; a sphere is a ball of the same size; with no particle nothing is drawn',
     want: 1, tol: 0, unit: '',
     run: async J => {
       J.load(bench('particle 3d', [src({ name: 'L', x: -20, wavelength: 1550, rays: 1 }),
-        screen({ name: 'S', x: 10, absorb: false, trap: 'sphere', trapShape: 'cylinder', trapR: 100, trapLen: 1000, trapAz: 30, trapTilt: 20 })]));
+        particleAt({ name: 'S', x: 10, absorb: false, trap: 'sphere', trapShape: 'cylinder', trapR: 100, trapLen: 1000, trapAz: 30, trapTilt: 20 })]));
       try {
         await J.view3d.set(true);
         const d = Math.PI / 180, want = [Math.cos(20 * d) * Math.cos(30 * d), Math.cos(20 * d) * Math.sin(30 * d), Math.sin(20 * d)];
         const near = a => a && a.axis.every((v, k) => Math.abs(v - want[k]) < 1e-6);
         const a = J.view3d.particleOf('S');
-        const S = J.byName('S'); S.angle = 140; S.tip = 15; S.roll = 25; J.redraw();
+        const S = J.byName('S'); S.x = 12; J.redraw();
         const b = J.view3d.particleOf('S');
         S.trapShape = 'sphere'; J.redraw();
         const c = J.view3d.particleOf('S');
-        S.trap = 'none'; J.redraw();
+        J.load(bench('particle 3d none', [src({ name: 'L', x: -20, wavelength: 1550, rays: 1 })]));
         const e = J.view3d.particleOf('S');
-        return near(a) && near(b) && a.shape === 'cylinder' && Math.abs(a.L - 1) < 1e-9 && Math.abs(a.r - 0.1) < 1e-9 && Math.abs(a.px - 36) < 0.01 && Math.abs(b.px - 36) < 0.01 && c && c.shape === 'sphere' && Math.abs(c.r - 0.5) < 1e-9 && e === null ? 1 : 0;
+        return near(a) && near(b) && a.shape === 'cylinder' && Math.abs(a.L - 1) < 1e-9 && Math.abs(a.r - 0.1) < 1e-9 && Math.abs(a.px - 36) < 0.01 && Math.abs(b.px - 36) < 0.01 && c && c.shape === 'sphere' && Math.abs(c.r - 0.5) < 1e-9 && !e ? 1 : 0;
       } finally { await J.view3d.set(false); }
     },
   },
   {
-    name: 'The Scattering tab: choosing a rod sets the particle’s shape, and None takes it away',
-    why: 'the Particle list makes the screen’s particle a rod (its length, axis and tilt then show, and Auto runs a dipole array), keeps the Trap tab’s sphere as the sphere of its volume, and None leaves no particle (1 when all hold)',
+    name: 'A Particle part made a rod: its shape, the dipole array, and the Trap tab’s sphere of its volume',
+    why: 'the Shape list on the part’s own tab makes it a rod (its length and tilt then show, and Auto runs a dipole array), and the Trap tab keeps the sphere of its volume (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r))), doc = rigDoc(), win = rigWin();
       J.load(bench('scatter rod', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.5, z0: 0, width: 1.6, rays: 1, pol: 's', power: 100, popN: 256 }),
-        screen({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 30, trapLen: 150, scatDip: 6, trapMed: 'vacuum' })], { minPower: 1e-6 }));
+        particleAt({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 30, trapLen: 150, scatDip: 6, trapMed: 'vacuum' })], { minPower: 1e-6 }));
       const el = J.byName('S');
       J.select('S'); await frame();
-      [...doc.querySelectorAll('#panel .rt-tab')].find(b => b.textContent === 'Scattering').click(); await frame();
       const pick = v => { const sel = [...doc.querySelectorAll('#panel select')].find(s => [...s.options].some(o => o.value === 'capsule')); sel.value = v; sel.dispatchEvent(new win.Event('change', { bubbles: true })); };
       const sphere = el.trapShape === 'sphere' && !/Length \(nm\)/.test(doc.getElementById('panel').textContent);
       pick('cylinder'); await frame(); await frame();
       const text = doc.getElementById('panel').textContent, S = J.scatter('S');
-      const rod = el.trapShape === 'cylinder' && el.trap === 'sphere' && /Length \(nm\)/.test(text) && /Axis direction/.test(text) && /Dipole array: \d+ dipoles/.test(text) && S.model === 'dda' && S.dda.converged && Math.abs(S.Cext / S.Csca - 1) < 0.01;
+      const rod = el.trapShape === 'cylinder' && /Length \(nm\)/.test(text) && /Axis tilt up/.test(text) && S.model === 'dda' && S.dda.converged && Math.abs(S.Cext / S.Csca - 1) < 0.01;
       const T = J.trap('S'), eq = Math.cbrt(0.75 * 30 * 30 * 150), vol = !!T && Math.abs(T.ka / (2 * Math.PI / 1550 * eq) - 1) < 1e-9;
-      pick('none'); await frame();
-      const none = el.trap === 'none' && J.scatter('S') === null && !/Material|Diameter|Cross-sections/.test(doc.getElementById('panel').textContent);
-      if (!(sphere && rod && vol && none)) console.log('scattering particle', JSON.stringify({ sphere, rod, vol, none, shape: el.trapShape, trap: el.trap }));
-      return sphere && rod && vol && none ? 1 : 0;
+      if (!(sphere && rod && vol)) console.log('scattering particle', JSON.stringify({ sphere, rod, vol, shape: el.trapShape }));
+      return sphere && rod && vol ? 1 : 0;
     },
   },
   {
@@ -12653,7 +12652,7 @@ const TESTS = [
     run: J => {
       const run = model => { J.load(bench('scatter dda', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol: 's', power: 100, popN: 256 }),
         { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+1)-1)/lambda' },
-        screen({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum', scatModel: model })], { minPower: 1e-6 })); return J.scatter('S'); };
+        particleAt({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum', scatModel: model })], { minPower: 1e-6 })); return J.scatter('S'); };
       return run('dda').Psca / run('mie').Psca;
     },
   },
@@ -12663,7 +12662,7 @@ const TESTS = [
     want: 1, tol: 0, unit: '',
     run: async J => {
       J.load(bench('scatter worker', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.5, z0: 0, width: 1.6, rays: 1, pol: 's', power: 100, popN: 256 }),
-        screen({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapShape: 'cylinder', trapR: 100, trapLen: 1000, trapAz: 90, scatDip: 8, trapMed: 'vacuum' })], { minPower: 1e-6 }));
+        particleAt({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapShape: 'cylinder', trapR: 100, trapLen: 1000, trapAz: 90, scatDip: 8, trapMed: 'vacuum' })], { minPower: 1e-6 }));
       const P = await J.scatterProbe('S');
       if (!P.ok && P.err === 'no worker here') return 1;                 // (a browser without workers runs it on the page)
       const here = J.scatter('S');
@@ -12792,18 +12791,19 @@ const TESTS = [
     },
   },
   {
-    name: 'A bench from before the Particle part: a screen’s particle scatters as it did, and sends nothing onto the bench',
-    why: 'the example as it was, a screen at the NA 0.8 focus holding the 300 nm sphere: its scattered power 126.655 µW and the 10.2424 µW into NA 0.5 behind it, the figures the code gave before the Particle part, to 1 part in 10⁹; the trace has no scattered rays and scattered() gives nothing for a screen (1 when all hold)',
+    name: 'A bench from before the Particle part: a screen’s particle opens as a Particle and scatters as it did',
+    why: 'the example as it was, a screen at the NA 0.8 focus holding the 300 nm sphere: its scattered power 126.655 µW and the 10.2424 µW into NA 0.5 behind it, the figures the code gave before the Particle part, to 1 part in 10⁹, from the Particle part it opens as (named after the screen), whose scattered light is now on the bench (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       J.load(bench('old particle', [src({ name: 'L', id: 'laser', x: -30, wavelength: 1550, gauss: true, w0: 1.5, z0: 0, width: 3, rays: 7, pattern: 'hex', pol: 'p', power: 100, popN: 256 }),
         { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 5.333, amp: '1', delay: '-(sqrt(r^2+4)-2)/lambda' },
         screen({ name: 'S', x: 2, length: 0.1, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum', scatNA: 0.5, scatDir: 'back' })], { minPower: 1e-6, maxBounces: 20 }));
-      const S = J.scatter('S');
+      const S = J.scatter('S particle');
       const same = Math.abs(S.Psca / 0.0001266553436244437 - 1) < 1e-9 && Math.abs(S.collect.P / 0.000010242409067043762 - 1) < 1e-9;
-      const none = J.scattered('S') === null;
-      if (!(same && none)) console.log('old particle', JSON.stringify({ same, none, Psca: S.Psca, collect: S.collect.P }));
-      return same && none ? 1 : 0;
+      // (a Particle part, so its light is on the bench now; the screen is a screen with no trap)
+      const moved = J.byName('S').trap === 'none' && J.byName('S particle').type === 'particle' && J.scattered('S particle') !== null;
+      if (!(same && moved)) console.log('old particle', JSON.stringify({ same, moved, Psca: S.Psca, collect: S.collect.P }));
+      return same && moved ? 1 : 0;
     },
   },
   { group: 'Parts in their own colours' },

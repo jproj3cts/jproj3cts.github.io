@@ -10,9 +10,9 @@ const E = await engine();                                       // first: the pa
 const { mieCoeffs, mieQ, mieS, mieTable, mieTerms } = await import('../../src/core/mie.js');
 const { ddaAlpha, ddaExtAbs, ddaFar, ddaLattice, ddaPlan, ddaPlaneWave, ddaSolveNow, ddaSolver, ddaVolume } = await import('../../src/core/dda.js');
 const { coneGrid, dipoleFar, farPower, gaussLegendre, mieFarExact, mieFarWaves, smallAlpha, sphereGrid, sphereTotals } = await import('../../src/core/scatter.js');
-const { scatterModel, scatterNow, scatterPrep, scatterWaves } = await import('../../src/engines/scatter.js');
+const { particleDom, scatterModel, scatterNow, scatterPrep, scatterWaves } = await import('../../src/engines/scatter.js');
 const { popRun } = await import('../../src/engines/beam-tree.js');
-const { screenDom, trapBeams } = await import('../../src/engines/diffraction.js');
+const { trapBeams } = await import('../../src/engines/diffraction.js');
 const { vfAt } = await import('../../src/engines/vector-focus.js');
 const { particleOf, sphereAlpha } = await import('../../src/core/traps.js');
 
@@ -217,13 +217,15 @@ test('a Rayleigh sphere in a tight focus radiates as the dipole of the field whe
 const bench = (name, elements) => ({ format: 'jekray', version: 1, name, view: { cx: 0, cy: 0, scale: 6 }, snap: 0, maxBounces: 400, minPower: 1e-6, ghosts: false, elements });
 const laser = o => Object.assign({ type: 'source', name: 'L', x: -20, y: 0, angle: 0, wavelength: 1550, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol: 's', power: 100, popN: 256 }, o);
 const objective = { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+1)-1)/lambda' };         // an ideal lens, f = 1 mm
-const particle = o => Object.assign({ type: 'screen', name: 'S', x: 1, y: 0, angle: 180, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum' }, o);
+// (a Particle part; its axis direction is its angle, as a screen's particle's trapAz was)
+const particle = ({ trapAz, length, ...o }) => Object.assign({ type: 'particle', name: 'S', x: 1, y: 0, angle: trapAz === undefined ? 90 : trapAz, trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum' }, o);
 async function scat(els) { const B = await openBench(bench('scatter', els)); B.trace(); return scatterNow(E.ST.project.elements.find(e => e.name === 'S')); }
 
 test('bench: a file from before the particle had a shape loads as the sphere it was', async () => {
   await openBench(bench('old', [laser({}), objective, { type: 'screen', name: 'S', x: 1, y: 0, angle: 180, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 75, trapMed: 'air', trapP: 5 }]));
-  const el = E.ST.project.elements.find(e => e.name === 'S'), P = particleOf(el);
-  assert.deepEqual([el.trapShape, el.scatModel, el.scatAt, el.scatDip, el.scatDx, el.trapMed, el.trapR], ['sphere', 'auto', 'screen', 0, 0, 'air', 75]);
+  // (a screen's particle opens as a Particle part of its own)
+  const el = E.ST.project.elements.find(e => e.name === 'S particle'), P = particleOf(el);
+  assert.deepEqual([el.trapShape, el.scatModel, el.scatAt, el.scatDip, el.scatDx, el.trapMed, el.trapR], ['sphere', 'auto', 'part', 0, 0, 'air', 75]);
   assert.equal(P.rEq, 75); assert.equal(P.shape, 'sphere');
   // and the trap's sphere is what it was: Clausius-Mossotti with the radiation reaction, real for a glass
   const S = sphereAlpha('Fused silica', 75, 1064, 1);
@@ -268,13 +270,14 @@ test('bench: a collimated beam is one plane wave, and the sphere’s powers are 
 test('bench: the tight focus’s plane waves add up to its vector field, and a sphere there scatters by Mie', async () => {
   const B = await openBench(bench('tight', [laser({}), objective, particle({})])); B.trace();
   const el = E.ST.project.elements.find(e => e.name === 'S'), job = scatterPrep(el), R = popRun(E.TRACE.lastTrace.beams, job.srcs, { keep: job.keep });
-  const { dom, len } = screenDom(el, R), TB = trapBeams(el, R, dom, len, { reach: 3.2, M: 64 });
+  // (as scatterGen takes a Particle: the strongest beam near it, and a region three of its radii either side)
+  const sd = particleDom(el, R), { dom, len } = sd, TB = trapBeams(Object.assign(Object.create(el), { length: 2 * Math.max(0.02, 3 * sd.w) }), R, dom, len, { reach: 3.2, M: 64 });
   assert.ok(TB.parts.length === 1 && TB.parts[0].P && TB.parts[0].P.NA > 0.6, 'a steep focus, by its pupil');
   // at the focus and 0.4 um off it: the waves' sum is vfAt's field there (scaled to V/m and conjugated)
   for (const off of [[0, 0, 0], [3e-4, 2e-4, -4e-4]]) {
     const q = TB.parts[0], b = q.b, Cw = [TB.P0[0] + off[2] * b.dx - off[0] * b.dy, TB.P0[1] + off[2] * b.dy + off[0] * b.dx, off[1]];
     const W = scatterWaves(TB.parts, Cw, 1, 0).launches[0], e = sumE(W);
-    const v = vfAt(q.P, off[0], off[1], b.len + off[2]), s = Math.sqrt(2 * q.Pw * 1e6 / (8.8541878128e-12 * 299792458));
+    const v = vfAt(q.P, off[0], off[1], len + off[2]), s = Math.sqrt(2 * q.Pw * 1e6 / (8.8541878128e-12 * 299792458));
     // beam frame (x across, y up, z along +x of the bench here) to the world: X = z, Y = x, Z = y
     const want = [s * v[4], -s * v[5], s * v[0], -s * v[1], s * v[2], -s * v[3]], nrm = Math.hypot(...want);
     assert.ok(Math.hypot(...want.map((w, i) => w - e[i])) < 2e-3 * nrm, 'the waves’ sum at ' + off + ': ' + e + ' against ' + want);

@@ -18,7 +18,7 @@ import { PARTS } from '../parts/registry.js';
 import { deg, project } from '../state/project.js';
 import { faceAmps } from '../core/face-pol.js';
 import { scatRevNow } from './scatter.js';
-import { scatterLaunch } from './scatter-light.js';
+import { placeFromScreen, scatterLaunch } from './scatter-light.js';
 import { FREE_3D, VSRC, applySpins, beamOn, getEl, lampBody, lampEmits, lampRaysOf, lightOf, raysOn, setVSRC } from '../state/elements.js';
 import { ensureBenches, linkPairs } from '../state/tabs.js';
 import { dsagFn, kapIn, makeSurf, maskOf, rawDsag, rawSag, sagFn, zoneHit } from '../core/geometry.js';
@@ -1985,6 +1985,7 @@ function traceSceneOnce() {
   // Particles: the light each scatters, sent to the parts that catch it. A fan of probe rays one step out from each
   // particle says what the light meets first; then a cone to each of those parts is traced as rays of the driving laser
   {
+    placeFromScreen();
     const t0 = performance.now(), SL = scatterLaunch(surfsBy);
     if (SL) {
       // (ms: where the time went, for the tests and the report)

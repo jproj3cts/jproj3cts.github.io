@@ -25,7 +25,7 @@ On the bench the particle is drawn as a sign 16 pixels long, and in the 3D view 
 
 The **Trap** tab reads the optical trap the same light makes for the particle, as a [screen's Trap tab](/jek/docs/jekray/free-space/screen/) does. It takes a shape that is not a sphere as the sphere of the same volume.
 
-A screen can also hold a particle, as benches made before the Particle part do. Its Scattering tab gives the same figures. A screen's particle sends no light onto the bench.
+A bench saved when a screen could hold a particle opens with that particle on a Particle part of its own, where the screen's beam met it, with the same Trap and Scattering figures.
 
 ## The light on the particle
 

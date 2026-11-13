@@ -26,6 +26,8 @@ import { noteRecent } from './recent.js';
    Whatever could not be used as written is listed afterwards, plainly enough to hand back
    to whoever wrote it. */
 let lastImport = [];
+// what the last open had to say (the tests read it)
+export const lastImportNotes = () => lastImport.slice();
 const IMPORT_SAME = new Set(['id', 'type', 'name', 'x', 'y', 'angle', 'bench', 'locked', 'sweeps', 'colour', 'colourAuto']);
 function prepImport(data, notes) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('That is not a JEKray project: it should be one JSON object.');
@@ -78,8 +80,14 @@ function checkImport(raw, p, notes) {
       notes.push(who + ': ' + (e.type === 'fcomp' ? 'fibre component kind ' + fmtV(e.kind) + ' is not one of ' + FC_ORDER.join(', ') : 'type ' + fmtV(e.type) + ' is not one of ' + Object.keys(TYPE_LABEL).concat('fcomp').join(', ')) + ': left out.');
       return;
     }
+    // a screen that held a particle (files before 1.1): the particle is a Particle part of its own now, said once
+    const moved = n.type === 'screen' && e.trap === 'sphere';
+    if (moved) notes.push(who + ': its particle was moved onto a Particle part of its own, <b>' + esc(String(e.name || 'Screen') + ' particle') + '</b>, with every setting it had, where the screen\u2019s beam met it. The screen keeps the rest.');
     for (const [k, v] of Object.entries(e)) {
       if (IMPORT_SAME.has(k)) continue;
+      if (moved && /^(trap|scat)/.test(k) && k !== 'trapF') continue;
+      // a screen's particle settings, saved with a screen that held none (trap not 'sphere'): they did nothing, and are dropped quietly
+      if (n.type === 'screen' && /^(trap|scat)/.test(k) && !(k in n)) continue;
       if (k === 'beamView' || k === 'beamScale' || k === 'emitView') continue;             // how the light showed, now the bench's Light (see normLight)
       if (k === 'z' && V3D.free(n) && isFinite(v) && +v === BEAM_Z) continue;       // the beam height, which is no height of its own
       if ((k === 'tip' || k === 'roll') && tippable(n) && isFinite(v) && +v === 0) continue;   // upright, which is no tip at all
@@ -150,6 +158,7 @@ function checkImport(raw, p, notes) {
   // two parts on the one spot is nearly always a slip (one over the other, as in a periscope, is not)
   const spot = new Map();
   for (const e of p.elements) {
+    if (e.fromScreen) continue;                      // a particle moved off a screen sits on it until the first trace places it
     const z = typeof e.z === 'number' ? e.z : 75, k = e.bench + ':' + Math.round(e.x * 100) + ',' + Math.round(e.y * 100) + ',' + Math.round(z * 100);
     if (spot.has(k)) notes.push('<b>' + esc(spot.get(k)) + '</b> and <b>' + esc(e.name) + '</b> sit at the same place (' + e.x + ', ' + e.y + (z !== 75 ? ', at height ' + z : '') + ').');
     else spot.set(k, e.name);

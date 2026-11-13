@@ -9,13 +9,13 @@ import { deg, project } from '../state/project.js';
 import { allSources, beamOn, getEl } from '../state/elements.js';
 import { lastTrace, zOf } from './trace.js';
 import { popKeyOf, popRun } from './beam-tree.js';
-import { popScreenPrep, screenDom, trapBeams, trapLegAt, trapMedium, trapSolve } from './diffraction.js';
+import { trapBeams, trapLegAt, trapMedium, trapSolve } from './diffraction.js';
 
 /* ---------- The light a particle scatters ----------
-   The particle a screen holds (trap: 'sphere', of any of the shapes), in the light the bench
+   A Particle part (of any of the shapes), in the light the bench
    puts on it, by one of three models: a sphere exactly (Lorenz-Mie, core/mie.js), any shape as
    an array of dipoles (core/dda.js), or a single dipole (Rayleigh), kept beside them to compare.
-   The light: every beam through the screen's region, as the trap takes them (trapBeams). A
+   The light: every beam through the particle's region, as the trap takes them (trapBeams). A
    steep focus is its pupil, and each pupil sample is a plane wave onto the particle, with its
    own direction, polarisation and phase at the particle's centre: the focus's angular
    spectrum, the same one whose sum is the vector field there. A sphere's far field is then
@@ -64,21 +64,17 @@ function particlePrep(el) {
     + '|trap' + JSON.stringify([el.trap, el.trapMat, el.trapR, el.trapRho, el.trapMed, el.trapP, el.trapT, el.trapShape, el.trapLen]);
   return { keep, srcs, key };
 }
-/* the strongest of them in a field run, as screenDom gives a screen's: { dom: { sg }, len, x, dz } */
-function particleDom(el, R) {
+/* the strongest of them in a field run: { dom: { sg }, len, x, dz } */
+export function particleDom(el, R) {
   const near = particleBeams(el).sort((a, b) => b.I - a.I);
   for (const q of near) { const sg = R.segs.find(s => s.i === q.i); if (sg) return { dom: { sg }, len: q.t, x: q.x, dz: q.dz, w: q.w }; }
   return null;
 }
-/* what a scattering run depends on, as popScreenPrep gives it for the screen's field, with
-   the particle's own settings; null where there is no particle or no light */
+/* what a Particle part's scattering run depends on: the beams near it, with its own settings; null where there is no
+   particle or no light */
 export function scatterPrep(el) {
-  if (el && el.type === 'particle') {
-    const job = particlePrep(el);
-    return job ? { keep: job.keep, srcs: job.srcs, key: job.key + '|scat' + JSON.stringify(scatFields(el)) } : null;
-  }
-  if (!el || el.type !== 'screen' || el.trap !== 'sphere') return null;
-  const job = popScreenPrep(el);
+  if (!el || el.type !== 'particle') return null;
+  const job = particlePrep(el);
   return job ? { keep: job.keep, srcs: job.srcs, key: job.key + '|scat' + JSON.stringify(scatFields(el)) } : null;
 }
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
@@ -196,11 +192,12 @@ export function scatterModel(el, P, k, mAbs) {
 /* The run, as a generator: it yields { stage, ... } as it goes (so a worker can report and be
    stopped) and returns the answer, or { error }. R is the field run of scatterPrep's beams. */
 export function* scatterGen(el, R, opts) {
-  const isPart = el.type === 'particle', t0 = Date.now(), sd = isPart ? particleDom(el, R) : screenDom(el, R);
+  if (!el || el.type !== 'particle') return { error: 'no particle' };
+  const t0 = Date.now(), sd = particleDom(el, R);
   if (!sd) return { error: 'no beam' };
   const { dom, len } = sd, b0 = dom.sg.b, nm = b0.nm;
   // (a Particle part: the trap's and the beams' reach round it is three radii of its strongest beam, as particleBeams takes them)
-  if (isPart) el = Object.assign(Object.create(el), { length: 2 * Math.max(0.02, 3 * sd.w) });
+  el = Object.assign(Object.create(el), { length: 2 * Math.max(0.02, 3 * sd.w) });
   const P = particleOf(el), nBench = b0.n, nMed = trapMedium(el, nBench, nm);
   const [npr, npi] = particleIndex(el.trapMat, nm), mr = npr / nMed, mi = npi / nMed, mAbs = Math.hypot(mr, mi);
   const k = 2 * Math.PI * nMed / (nm * 1e-9), Z = Z0_OHM / nMed, aEq = P.rEq * 1e-9, area = Math.PI * aEq * aEq;
@@ -211,11 +208,11 @@ export function* scatterGen(el, R, opts) {
   if (!TB.parts.length) return { error: 'no focused beam' };
   const d0 = [b0.dx, b0.dy, 0], a0 = [-b0.dy, b0.dx, 0], up = [0, 0, 1];
   // (a Particle part sits where it is put: off the beam's axis by what it is)
-  let at = isPart ? [sd.x, sd.dz, 0] : [0, 0, 0], atTrap = false, trapMiss = false, trapRaw = null;
-  if (el.scatAt === 'trap' || isPart) {
+  let at = [sd.x, sd.dz, 0], atTrap = false, trapMiss = false, trapRaw = null;
+  {
     let T = null;
     try { T = trapSolve(el, R, dom, len); } catch (err) { T = null; }
-    if (isPart && T) trapRaw = T.error ? { error: T.error } : Object.assign({}, T, { nm });
+    if (T) trapRaw = T.error ? { error: T.error } : Object.assign({}, T, { nm });
     if (el.scatAt === 'trap') { if (T && T.trap) { at = [T.x, T.y, T.z]; atTrap = true; } else trapMiss = true; }
   }
   at = [at[0] + (el.scatDx || 0) * 1e-3, at[1] + (el.scatDy || 0) * 1e-3, at[2] + (el.scatDz || 0) * 1e-3];

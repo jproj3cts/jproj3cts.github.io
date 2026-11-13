@@ -65,7 +65,7 @@ For a pulsed source, the **Pulse** tab shows the pulse that arrives: its duratio
 
 ### Optical traps
 
-The **Trap** tab reads an optical trap near the screen, for an atom (rubidium, caesium, potassium or sodium) or a dielectric sphere. Every beam through the screen's region is taken as its full vector field near the focus. Beams of one laser add as fields, so two counter-propagating beams make a standing-wave trap.
+The **Trap** tab reads an optical trap near the screen for atoms: rubidium, caesium, potassium or sodium. A particle is a [Particle](/jek/docs/jekray/free-space/scattering/) part of its own, with a Trap tab of its own that works the same way. Every beam through the screen's region is taken as its full vector field near the focus. Beams of one laser add as fields, so two counter-propagating beams make a standing-wave trap.
 
 **For an atom**, the polarisability comes from its D lines, with the counter-rotating terms that matter far from resonance:
 
@@ -76,7 +76,7 @@ $$
 
 with the scattering rate $$\operatorname{Im}(\alpha)\,I/(\hbar\varepsilon_0 c)$$, plus the ion core's own polarisability.
 
-**For a sphere** smaller than the wavelength, the polarisability is the Clausius–Mossotti one with radiation reaction. With $$m = n_p/n_m$$ and $$k = 2\pi n_m/\lambda$$, the force is $$\mathbf F = \tfrac12\operatorname{Re}\!\left(\alpha \sum_j E_j \nabla E_j^*\right)$$, where
+**For a Particle part**, a sphere smaller than the wavelength (or a rod or spheroid taken as the sphere of its volume), the polarisability is the Clausius–Mossotti one with radiation reaction. With $$m = n_p/n_m$$ and $$k = 2\pi n_m/\lambda$$, the force is $$\mathbf F = \tfrac12\operatorname{Re}\!\left(\alpha \sum_j E_j \nabla E_j^*\right)$$, where
 
 $$
 \alpha_0 = 4\pi\varepsilon_0 n_m^2 a^3\,\frac{m^2 - 1}{m^2 + 2}, \qquad
@@ -85,9 +85,9 @@ $$
 
 From the brightest point, Newton's method on the force finds where it is zero. The stiffness there gives the trap frequencies each way. The tab also gives the depth (in kelvin, and in units of $$kT$$), the scattering rate and recoil heating, and for a sphere the damping by the gas around it.
 
-### Scattering
+### A particle from an older bench
 
-A [Particle](/jek/docs/jekray/free-space/scattering/) is now a part of its own, and its scattered light goes on to the parts that catch it. A screen can still hold one, as older benches do. The **Scattering** tab gives the light the screen's particle scatters: a sphere by Lorenz–Mie theory, a rod or spheroid as an array of dipoles. The particle is the Trap tab's sphere, with a shape of its own. See [Scattering by a particle](/jek/docs/jekray/free-space/scattering/).
+A screen used to be able to hold a particle, with a Scattering tab of its own. A bench saved that way still opens. Its particle is moved onto a Particle part of its own, named after the screen, with every setting it had. It sits where the screen's strongest beam met the screen, which is where the screen's particle was. The screen keeps everything else, and opening the file says once what was moved. The particle's Trap and Scattering figures are the same as they were. As a Particle part it also sends its scattered light onto the bench, so a detector that catches that light now reads it. See [Scattering by a particle](/jek/docs/jekray/free-space/scattering/).
 
 ## Phosphor screen
 

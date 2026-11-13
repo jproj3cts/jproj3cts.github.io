@@ -156,7 +156,7 @@ export function scriptCalls() {
     /* Lorenz-Mie for a sphere of size parameter x = k a and relative index mr + i mi: Qext, Qsca, Qabs, Qback, g, and S
        (each [S1 re, S1 im, S2 re, S2 im]) at the angles given (degrees), as Bohren and Huffman write them */
     mie(x, mr, mi, angles) { const C = mieCoeffs(+x, +mr, +mi || 0); return Object.assign(mieQ(C), { terms: C.n, S: (angles || []).map(a => mieS(C, Math.cos(a * Math.PI / 180))) }); },
-    scatter(name, opts) { traceScene(); const el = this.byName(name); if (!el) throw new Error('No part called ' + name); const S = (!opts && scatterCached(el)) || scatterNow(el, opts); return S ? scatterPlain(S) : null; },
+    scatter(name, opts) { traceScene(); const el = this.byName(name); if (!el) throw new Error('No part called ' + name); if (el.type === 'screen') throw new Error(el.name + ' is a screen: a particle is a Particle part of its own now (a file whose screen held one opens with it on a part called "' + el.name + ' particle")'); const S = (!opts && scatterCached(el)) || scatterNow(el, opts); return S ? scatterPlain(S) : null; },
     /* where a Particle part's scattered light goes on the bench: its scattered power (W), a row for each part that catches some
        ({ name, share of the scattered power, P in W, followed: traced on as rays }), and what no part catches (lost, lostShare).
        state: "ok", or "dark" (no light reaches the particle); null for a part that is not a Particle or has its light off */

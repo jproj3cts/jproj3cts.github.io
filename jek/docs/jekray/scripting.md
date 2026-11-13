@@ -125,7 +125,7 @@ The page exposes `window.JEKray` (the old name `JEKray2D` still works). Its func
 | `JEKray.stats(name)` | A screen's spot: count, centroid, rms, full width, power (see below: not mW). |
 | `JEKray.detector(name)` | A photodetector's or receiving horn's reading: mW, volts, SNR. |
 | `JEKray.spectrometer(name)` | A spectrometer's reading: the peak and its width (nm), the resolution, the power through its entrance, counts, saturation, SNR and the lines that get in. |
-| `JEKray.scatter(name)` | The light a screen's particle scatters (its Scattering tab), worked out now: the model used, cross-sections (m²), efficiencies, the powers in the light as it is (W), the forward, back and collected shares, the pattern on its two cuts and over the sphere (W/sr), and the far field's amplitude. `null` without a particle or a beam. |
+| `JEKray.scatter(name)` | The light a Particle part scatters (its Scattering tab), worked out now: the model used, cross-sections (m²), efficiencies, the powers in the light as it is (W), the forward, back and collected shares, the pattern on its two cuts and over the sphere (W/sr), and the far field's amplitude. `null` without a particle or a beam. |
 | `JEKray.mie(x, mr, mi, angles)` | Lorenz–Mie for a sphere of size parameter x and relative index mr + i·mi: Qext, Qsca, Qabs, Qback, g, and S1, S2 at the angles (degrees). |
 | `JEKray.lensAntenna(name)` | An RF lens, disc or mirror on its axis as an antenna: gain, beamwidth, sidelobe, efficiencies. |
 | `JEKray.rfSweep(name)`, `JEKray.linkBudget(name)` | A receiving horn against frequency, and its link budget. |

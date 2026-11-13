@@ -113,3 +113,4 @@
   color: var(--urpg-ink-soft); font-family: var(--urpg-mono); font-size: 0.75rem;
   margin: 0.6rem 2px 0; text-align: right; min-height: 1em;
 }
+.dg .key-land { color: var(--urpg-accent); font-weight: 600; }

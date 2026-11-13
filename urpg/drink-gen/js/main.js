@@ -218,8 +218,10 @@ function buildMaskCanvas() {
   const lake = new Float32Array(d.N * d.N);
   for (let i = 0; i < d.N * d.N; i++) {
     const o = i * 4;
-    if (d.land[i]) { img.data[o] = 255; img.data[o + 1] = 179; img.data[o + 2] = 71; img.data[o + 3] = 70; }
-    if (d.lake[i]) lake[i] = 1;
+    // land: a strong amber shade; lakes blue; the sea darkened so the land stands out
+    if (d.land[i]) { img.data[o] = 255; img.data[o + 1] = 166; img.data[o + 2] = 50; img.data[o + 3] = 135; }
+    else if (d.lake[i]) { lake[i] = 1; img.data[o] = 115; img.data[o + 1] = 185; img.data[o + 2] = 202; img.data[o + 3] = 120; }
+    else { img.data[o + 3] = 95; }
   }
   ctx.putImageData(img, 0, 0);
   state.maskCanvas = c;

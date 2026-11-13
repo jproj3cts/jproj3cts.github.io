@@ -546,7 +546,7 @@ One small particle at a point of the bench: a sphere, a rod or a spheroid, in wh
 
 | field | default | meaning |
 |---|---|---|
-| trap | `"sphere"` |  |
+| trap | `"sphere"` | always "sphere": the part is a particle (the field a screen’s particle is told by). |
 | trapMat | `"Fused silica"` | the particle’s material: a glass ("Fused silica", "Polystyrene" and so on), or "Au", "Ag", "Al" (metals, which absorb: their measured complex index). |
 | trapR | `150` | the particle’s radius, nm: half its diameter (for a rod or spheroid, half the diameter across its axis). |
 | trapRho | `2200` | its density, kg/m³. |

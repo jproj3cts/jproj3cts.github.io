@@ -48,8 +48,9 @@ export function workerMain() {
         if (!J) out = { key: null, S: null };
         else {
           const g = scatterGen(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }));
-          let r = g.next(), t = 0;
-          while (!r.done) { const now = Date.now(); if (now - t > 100) { t = now; self.postMessage({ id, prog: r.value }); } r = g.next(); }
+          // (its progress ten times a second, and each new stage as it starts, however short the one before it was)
+          let r = g.next(), t = 0, stage = '';
+          while (!r.done) { const now = Date.now(); if (now - t > 100 || r.value.stage !== stage) { t = now; stage = r.value.stage; self.postMessage({ id, prog: r.value }); } r = g.next(); }
           out = { key: J.key, S: r.value };
         }
       } else if (kind === 'detector') {

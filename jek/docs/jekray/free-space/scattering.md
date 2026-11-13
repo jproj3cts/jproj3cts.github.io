@@ -102,7 +102,7 @@ Auto takes Mie for a sphere and the dipole array for any other shape. It takes R
 - **Rayleigh would give**: the single dipole's scattering cross-section beside the model's, so you can see how far Rayleigh is off.
 - **Plots**: the scattered intensity (W/sr) as a polar plot in the bench plane, drawn with the bench's own angles, and in the plane out of it through the beam, on a linear or a 40 dB logarithmic scale. The dashed curve is the part polarised square to the plotted plane. **Every direction** maps the intensity against the angle from the beam and the angle round it. Each plot saves as PNG and CSV.
 
-In a script, `JEKray.scatter(name)` returns the same numbers, the two cuts, the map and the far field's complex amplitude over the sphere of directions. `JEKray.scattered(name)` returns the rows of Where the light goes: each part's name, share and power, and what is not collected. `JEKray.detector(name)` gives a detector's `X` and `Y` (right less left, top less bottom, mW) and the scattered light on it. `JEKray.mie(x, mr, mi, angles)` gives the Mie efficiencies and $$S_1$$, $$S_2$$ of any sphere.
+In a script, `JEKray.scatter(name)` returns the same numbers, the two cuts, the map and the far field's complex amplitude over the sphere of directions. `JEKray.scattered(name)` returns the Caught by rows: each part's name, share and power, and what is not collected. `JEKray.detector(name)` gives a detector's `X` and `Y` (right less left, top less bottom, mW) and the scattered light on it. `JEKray.mie(x, mr, mi, angles)` gives the Mie efficiencies and $$S_1$$, $$S_2$$ of any sphere.
 
 ## Scattered light on the bench
 
@@ -124,7 +124,7 @@ with $$Z$$ the medium's impedance, and its two polarisation amplitudes are the c
 
 Where the driving beam goes on into a cone and fills only a small part of it, a second cone of 8 × 24 rays three far-field radii of the beam wide covers that part, and the first leaves it out.
 
-The Scattering tab's **Where the light goes** has a row for each part with a clear line: the share of the scattered power that enters its aperture, and the power. **Not collected** is everything else.
+The Scattering tab's readout has a **Caught by** row for each part with a clear line: the share of the scattered power that enters its aperture, and the power. **Not collected** is everything else.
 
 ### What a detector reads
 

@@ -18,6 +18,8 @@ const TR = await import('../../src/engines/trace.js');
 const { getEl } = await import('../../src/state/elements.js');
 
 const rel = (a, b) => Math.abs(a - b) / Math.abs(b);
+// SHOW=1 prints how close each figure came
+const say = (...a) => { if (process.env.SHOW) console.log('#', ...a); };
 const near = (a, b, tol, msg) => assert.ok(rel(a, b) <= tol, (msg || '') + ': ' + a + ' against ' + b + ' (' + rel(a, b).toExponential(2) + ', allowed ' + tol + ')');
 const NM = 1550, K0 = 2 * Math.PI / (NM * 1e-9);
 const doc = els => ({ format: 'jekray', version: 1, name: 't', maxBounces: 20, minPower: 0.0001, light: { rays: true, envelope: true, field: true }, benches: [{ id: 'b1', name: 'B' }], tab: 'b1',
@@ -40,10 +42,12 @@ test('a cone carries the power the far field puts into its solid angle', async (
   const S = S_of('p');
   assert.equal(S.model, 'mie'); assert.equal(S.plane, 1);
   const d0 = S.dir, side = [0, 1, 0], up = [0, 0, 1], diag = [Math.SQRT1_2, 0.5, 0.5];
+  let worst = 0;
   for (const axis of [d0, side, up, diag, d0.map(v => -v)]) for (const halfDeg of [10, 30, 60]) {
     const half = halfDeg * Math.PI / 180, G = SL.coneDirs(axis, half), A = SL.coneAmps(S.far, 0, S.nMed, G.dirs, G.w);
     const got = A.P.reduce((a, v) => a + v, 0), fine = coneGrid(axis, half, 40, 80), want = powerIn(S, fine, exactFar(S, fine.dirs));
     near(got, want, 5e-3, 'cone of ' + halfDeg + '° about ' + axis.map(v => +v.toFixed(2)));               // N1
+    worst = Math.max(worst, rel(got, want));
     // each ray's amplitudes carry its power against the cone's strongest
     let s = 0; for (let i = 0; i < G.n; i++) s += (A.J[4 * i] ** 2 + A.J[4 * i + 1] ** 2 + A.J[4 * i + 2] ** 2 + A.J[4 * i + 3] ** 2) * A.top;
     near(s, got, 1e-12, 'the rays’ amplitudes');
@@ -51,6 +55,7 @@ test('a cone carries the power the far field puts into its solid angle', async (
   // two half spheres hold all of it                                                                           N2
   const both = [d0, d0.map(v => -v)].reduce((a, ax) => { const G = SL.coneDirs(ax, Math.PI / 2); return a + SL.coneAmps(S.far, 0, S.nMed, G.dirs, G.w).P.reduce((x, y) => x + y, 0); }, 0);
   near(both, S.Psca, 5e-3, 'forward and back halves against the scattered power');
+  say('N1 worst cone power error', worst.toExponential(2), '; N2 two halves against P_sca', rel(both, S.Psca).toExponential(2));
 });
 
 test('six screens closing a box round the particle catch all the scattered light', async () => {
@@ -62,6 +67,7 @@ test('six screens closing a box round the particle catch all the scattered light
   assert.equal(R.rows.length, 6, 'each wall catches some: ' + R.rows.map(r => r.name));
   const sum = R.rows.reduce((a, r) => a + r.share, 0);
   assert.ok(Math.abs(sum - 1) <= 0.05, 'the shares add to ' + sum);                                           // N3
+  say('N3 six walls: the shares add to', sum.toFixed(5), R.rows.map(r => r.name + ' ' + r.share.toFixed(4)).join(', '));
   assert.ok(Math.abs(R.lostShare - (1 - sum)) < 1e-9 || R.lostShare === 0);
 });
 
@@ -111,6 +117,7 @@ test('a cone’s field at a face is the Mie far field: amplitude, phase and pola
   for (const id of ['side', 'fwdish']) {
     const C = FF.scatFace(getEl(id)).find(c => !c.wave), R = fieldCheck(S, C, id);
     assert.ok(R.n >= 150, id + ': ' + R.n + ' rays with their tubes');
+    say('N4-N7', id, 'amplitude', R.dAmp.toExponential(2), 'of the peak; phase across', R.dPh.toExponential(2), 'rad; centre phase', R.dAbs.toExponential(2), 'rad; polarisation', R.dPol.toExponential(2), 'of the peak');
     assert.ok(R.dAmp <= 0.01, id + ': amplitude off by ' + R.dAmp + ' of the peak');                     // N4
     assert.ok(R.dPh <= 0.02, id + ': phase across the aperture off by ' + R.dPh + ' rad');               // N5
     assert.ok(R.dAbs <= 0.02, id + ': the centre ray’s phase against the driving beam off by ' + R.dAbs + ' rad');   // N6
@@ -128,6 +135,7 @@ test('a cone out of the bench plane: its power and its field', async () => {
   near(got, powerIn(S, fine, exactFar(S, fine.dirs)), 0.01, 'power on the raised detector');             // N8
   near(rowOf('high').P, got, 1e-9, 'its row');
   const R = fieldCheck(S, C, 'high');                                                                  // N9
+  say('N8 raised detector power error', rel(got, powerIn(S, fine, exactFar(S, fine.dirs))).toExponential(2), '; N9 amplitude', R.dAmp.toExponential(2), 'phase across', R.dPh.toExponential(2), 'centre', R.dAbs.toExponential(2), 'polarisation', R.dPol.toExponential(2));
   assert.ok(R.dAmp <= 0.01 && R.dPh <= 0.02 && R.dAbs <= 0.02 && R.dPol <= 0.01, JSON.stringify(R));
   // and it is drawn off the plane: its rays rise
   assert.ok(TR.lastTrace.rays.some(r => r.sc && r.zs && r.zs[r.zs.length - 1] > 80));
@@ -154,12 +162,14 @@ test('scattered light is light of the driving laser: it interferes with a local 
   assert.ok(eta > 0.02 && eta < 1, 'the overlap ' + eta);
   near(amp, 2 * Math.sqrt(Plo * a.own * eta), 0.02, 'the interference term’s amplitude over the LO’s phase');    // N10
   assert.ok(Math.abs(a.cross) > 0.05 * amp || Math.abs(b.cross) > 0.05 * amp);
+  say('N10 interference amplitude', amp.toExponential(5), 'mW against', (2 * Math.sqrt(Plo * a.own * eta)).toExponential(5), '(', rel(amp, 2 * Math.sqrt(Plo * a.own * eta)).toExponential(2), '); terms at 0 and 90 deg', a.cross.toExponential(4), b.cross.toExponential(4), '; overlap', eta.toFixed(4));
   // a quarter wave on: the term has moved from one quadrature to the other, and half a wave on it changes sign
   const c = await read(true, 180);
   near(c.cross, -a.cross, 1e-6, 'half a wave on the LO');
   // another laser: powers only
   const d = await read(false, 0);
   assert.ok(Math.abs(d.cross) <= 1e-9 * Plo, 'no interference with a separate laser: ' + d.cross);                        // N11
+  say('N11 separate laser: interference', d.cross);
 });
 
 test('energy: a detector that takes in the beam reads the extinction (a wide beam)', async () => {
@@ -174,6 +184,7 @@ test('energy: a detector that takes in the beam reads the extinction (a wide bea
     const want = -(Pext - caught);
     assert.ok(Math.abs((on.mw - off.mw) - want) <= 0.02 * Pext, mat + ': the reading changes by ' + (on.mw - off.mw) + ' mW, against ' + want + ' (extinction ' + Pext + ', caught ' + caught + ')');   // N12, N13
     near(on.scat.mw - on.scat.cross, caught, 1e-6, 'its own power on the detector');
+    say('N12/N13', mat, 'change', ((on.mw - off.mw) * 1e6).toFixed(4), 'nW against', (want * 1e6).toFixed(4), '; off by', (100 * Math.abs((on.mw - off.mw) - want) / Pext).toFixed(3), '% of P_ext', (Pext * 1e6).toFixed(4), 'nW');
     if (mat === 'Au') assert.ok(Pabs > Pext - Pabs, 'gold of this size absorbs more than it scatters');
     // what is lost is what the particle absorbs and what it scatters past the detector
     near(off.mw - on.mw, Pabs + (S.Psca * 1e3 - caught), 0.02 * Pext / (off.mw - on.mw) + 1e-12, mat + ': absorbed and scattered away');
@@ -190,6 +201,7 @@ test('energy: the tight focus, its forward scatter and its beam through one coll
   // wave on the detector the sum is the extinction itself, so this checks that they all arrive and are counted once)
   assert.ok(Math.abs((on.mw - off.mw) - -(Pext - caught)) <= 0.05 * Pext, 'the reading changes by ' + (on.mw - off.mw) + ' mW, against ' + -(Pext - caught));   // N14
   near(on.scat.cross, -Pext, 1e-6, 'the interference');
+  say('N14 tight focus: change', ((on.mw - off.mw) * 1e3).toFixed(5), 'uW against', (-(Pext - caught) * 1e3).toFixed(5), '; interference', (on.scat.cross * 1e3).toFixed(5), 'against -P_ext', (-Pext * 1e3).toFixed(5));
   assert.ok(Math.abs(on.X) < 1e-9 && Math.abs(on.Y) < 1e-9, 'a centred particle gives no split signal');
 });
 
@@ -203,6 +215,7 @@ test('a split detector reads the particle’s place in a focus', async () => {
   // the slope against jek/tools/validation/scripts/scatter_position.py (an independent integration of the two far fields)
   const slope = (sp - sm) / (2 * x * 1e3);                                                // per um
   near(Math.abs(slope), SLOPE_REF, 0.03, 'the slope at the middle, per µm');                                        // N17
+  say('N15 oddness', (Math.abs(sp + sm) / Math.abs(sp)).toExponential(2), '; N16 S(x/2)/(S(x)/2)', (sh / (sp / 2)).toFixed(5), '; N17 slope', Math.abs(slope).toExponential(5), 'against', SLOPE_REF, '(', rel(Math.abs(slope), SLOPE_REF).toExponential(2), ')');
   assert.ok(await sig(0) === 0 || Math.abs(await sig(0)) < 1e-3 * Math.abs(sp));
 });
 /* scatter_position.py: |d(S)/dx| at the middle for this bench (1550 nm, waist 6.5784 um, silica n = 1.44402, radius 50 nm), per um */
@@ -216,13 +229,18 @@ test('the power a lens collects is the pattern’s over its cone', async () => {
   near(rowOf('fwd').P, S.collect.P, 5e-3, 'the forward lens’s share against the pattern’s cone');               // N18
   near(reading('dF').scat.mw - reading('dF').scat.cross, rowOf('fwd').P * 1e3, 0.01, 'the detector behind it');             // N19
   near(reading('dS').mw, rowOf('side').P * 1e3, 0.01, 'the side detector reads what the side lens collects');
+  say('N18 forward lens share against the engine cone', rel(rowOf('fwd').P, S.collect.P).toExponential(2), '; N19 detector behind', rel(reading('dF').scat.mw - reading('dF').scat.cross, rowOf('fwd').P * 1e3).toExponential(2), ', side detector', rel(reading('dS').mw, rowOf('side').P * 1e3).toExponential(2));
   await open(els.map(e => (e.type === 'particle' ? Object.assign({}, e, { scatDir: 'side' }) : e)));
   assert.equal(S_of('p').collect.dir, 'side');
   near(rowOf('side').P, S_of('p').collect.P, 5e-3, 'the side lens: its share');                                          // N18
+  say('N18 side lens share against the engine cone', rel(rowOf('side').P, S_of('p').collect.P).toExponential(2));
   // the script's call gives the rows
   const R = (await open(els)).scattered('Particle');
   assert.equal(R.state, 'ok');
   near(R.rows.reduce((a, r) => a + r.P, 0) + R.lost, R.Psca, 1e-5, 'the rows and what is lost are the scattered power');      // (the script's figures are rounded to six)
+  // and the data export has them, a reading each
+  const T = (await open(els)).data(['readouts'])[0], whats = T.cols.find(c => c.key === 'reading' || /reading/i.test(c.name)).values;
+  assert.ok(whats.includes('Scattered light not collected') && whats.includes('Scattered light caught by fwd') && whats.includes('Scattered light on it'), 'the readouts table: ' + whats.filter(w => /catter/.test(w)).join(', '));
 });
 
 test('a screen’s particle reads as it did, and a particle changes nothing of the beam', async () => {

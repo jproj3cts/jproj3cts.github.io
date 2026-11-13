@@ -190,14 +190,14 @@ function scatterRows(el, S) {
   for (const f of S.flags) if (FLAG_TEXT[f]) rows.push(['', FLAG_TEXT[f]]);
   return rows;
 }
-/* A Particle part: where its scattered light goes on the bench, a row for each part that catches some (its share of the
+/* A Particle part: where its scattered light goes on the bench (the readout's last rows), a row for each part that catches some (its share of the
    scattered power and the power, as launched into the part's aperture) and one for what no part catches */
 function caughtRows(el) {
   const R = lastTrace.scat && lastTrace.scat.parts && lastTrace.scat.parts[el.id], rows = [];
   if (el.scatLight === false) return [['On the bench', 'Its scattered light is not sent to the parts (the Particle tab turns it on).']];
   if (!R || R.state === 'dark' || R.state === 'none') return rows;
   if (R.state === 'wait') return [['On the bench', 'Working out the scattered light…']];
-  for (const r of R.rows) rows.push([r.name, scatPct(r.share) + ' of the scattered power, ' + scatPw(r.P) + (r.followed ? '' : ' (not traced on: only the ' + R.rows.filter(q => q.followed).length + ' parts that catch most are)')]);
+  for (const r of R.rows) rows.push(['Caught by ' + r.name, scatPct(r.share) + ' of the scattered power, ' + scatPw(r.P) + (r.followed ? '' : ' (not traced on: only the ' + R.rows.filter(q => q.followed).length + ' parts that catch most are)')]);
   rows.push(['Not collected', scatPct(R.lostShare) + ', ' + scatPw(R.lost) + (R.rows.length ? '' : ': no part has a clear line to the particle')]);
   if (R.state === 'stale') rows.push(['', 'From before the last change: being worked out again.']);
   return rows;
@@ -318,17 +318,15 @@ export function scatterSection(el) {
     return;
   }
   const status = h('div', { class: 'rt-scatrun', role: 'status', 'aria-live': 'polite', style: 'display:none;align-items:center;gap:0.6rem;margin-top:0.6rem;font-size:0.8125rem;color:var(--jek-ink-soft)' });
-  const box = h('div', { class: 'rt-readout' }), goes = h('div', { class: 'rt-readout', 'data-scat-goes': '' });
+  const box = h('div', { class: 'rt-readout' });
   const views = [['in', 'In the bench plane'], ['out', 'Out of the plane'], ['map', 'Every direction']];
   const tabs = h('div', { class: 'rt-inline', style: 'margin:0.5rem 0 0.3rem;flex-wrap:wrap;column-gap:0.8rem;row-gap:0.2rem' });
   const cv = h('canvas', { style: 'width:100%;display:block' });
-  let last = null, sigT = '', sigS = '', sigG = '';
+  let last = null, sigT = '', sigS = '';
   const draw = () => { const v = vs(el).scatView || el.scatView; if (v === 'map') drawScatMap(cv, el, last); else drawPolar(cv, el, last, v); [...tabs.children].forEach((b, i) => { b.style.fontWeight = views[i][0] === v ? '700' : '600'; b.style.textDecoration = views[i][0] === v ? 'underline' : 'none'; }); };
   for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { vs(el).scatView = key; draw(); } }, text));
   const scale = h('div', { class: 'rt-rows', style: 'margin-top:0.3rem' }, selectField('Scale', [['log', 'Logarithmic, ' + SCAT_DB + ' dB'], ['lin', 'Linear']], () => el.scatScale, v => { el.scatScale = v; }, { rebuild: false }));
-  panel.append(status, box);
-  if (isPart) panel.append(h('h3', null, 'Where the light goes'), goes);
-  panel.append(tabs, h('div', { class: 'rt-plot' }, cv), plotSaveRow(cv, true), scale);
+  panel.append(status, box, tabs, h('div', { class: 'rt-plot' }, cv), plotSaveRow(cv, true), scale);
   let drawnW = -1;
   new ResizeObserver(() => requestAnimationFrame(() => { const w = cv.clientWidth; if (w && Math.abs(w - drawnW) > 0.5) { drawnW = w; draw(); } })).observe(cv);
   bindSync(box, () => {
@@ -343,10 +341,6 @@ export function scatterSection(el) {
     } else if (A.stopped) st = ['Stopped.', 'run'];
     else if (A.S && A.S.error) st = ['No scattering: ' + (A.S.error === 'no beam' || A.S.error === 'no focused beam' || A.S.error === 'no light' ? 'no Gaussian beam through here has a field to take.' : A.S.error), ''];
     else if (A.none) st = [isPart ? 'No Gaussian beam passes the particle (within three beam radii of it).' : 'No Gaussian beam reaches this screen.', ''];
-    if (isPart) {
-      const gr = caughtRows(el), s3 = JSON.stringify(gr);
-      if (s3 !== sigG) { sigG = s3; goes.replaceChildren(h('dl', null, ...gr.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
-    }
     const s1 = JSON.stringify(st);
     if (s1 !== sigT) {
       sigT = s1;
@@ -355,7 +349,8 @@ export function scatterSection(el) {
       status.style.display = st.length ? 'flex' : 'none';
     }
     box.style.opacity = A.busy && S ? '0.55' : '';              // figures from before the last change, while their run is redone
-    const rows = S ? scatterRows(el, S) : [];
+    // (a Particle part: after its own figures, where its scattered light goes on the bench)
+    const rows = (S ? scatterRows(el, S) : []).concat(isPart && (S || A.none) ? caughtRows(el) : []);
     const s2 = JSON.stringify(rows) + '|' + el.scatScale + '|' + (vs(el).scatView || el.scatView);
     if (s2 !== sigS || S !== last) {
       sigS = s2; last = S;
@@ -368,7 +363,7 @@ export function scatterSection(el) {
   if (isPart) {
     panel.append(helpLine('The light the particle scatters, and the parts that catch it.', ['Lorenz–Mie is exact for a sphere of any size; a dipole array (the discrete dipole approximation) takes a rod or a spheroid; Rayleigh is one dipole, right only for a particle much smaller than the wavelength. Auto takes Mie for a sphere and the dipole array for other shapes. ',
       'The light is every Gaussian beam that passes within three of its radii of the particle. A steep focus (NA above 0.3) is its full vector field, as plane waves from its pupil; a gentler beam is one plane wave where the particle is. Beams of one laser add as fields; separate lasers as powers. ',
-      'Where the light goes: each part with a clear line to the particle is sent a cone of rays carrying the scattered field, and its row gives the share of the scattered power that enters its aperture. What no part catches is one figure. The plots and the Collected figure are the pattern itself, whatever is on the bench.'], 'note', 'margin-top:0.4rem'));
+      'On the bench each part with a clear line to the particle is sent a cone of rays carrying the scattered field, and its Caught by row gives the share of the scattered power that enters its aperture. What no part catches is the Not collected row. The plots and the Collected figure are the pattern itself, whatever is on the bench.'], 'note', 'margin-top:0.4rem'));
     return;
   }
   panel.append(helpLine('The light the particle scatters, from the beams through this screen.', ['Three models. Lorenz–Mie is exact for a homogeneous sphere of any size. A dipole array (the discrete dipole approximation) takes any shape: the particle as point dipoles on a cubic lattice, each driven by the light and by all the others, their polarisability from the lattice dispersion relation; good to a few percent while |m|kd stays under about 0.5 and the lattice draws the shape (10 dipoles across unless set; ' + SCAT_NMAX + ' dipoles at most unless more across are asked for), and poor for metals. Rayleigh is one dipole, right only for a particle much smaller than the wavelength; Auto takes it only then. ',

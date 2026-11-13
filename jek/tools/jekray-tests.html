@@ -12664,6 +12664,137 @@ const TESTS = [
       return ran && same && stopped ? 1 : 0;
     },
   },
+  {
+    name: 'The Particle part: added from the list, picked by a click, dragged, with its Particle, Trap and Scattering tabs',
+    why: 'a laser brought to a focus by an ideal lens. Add puts a Particle on the bench; set at the focus it leaves the beams as they were (it is a point: nothing meets it). A click on its sign selects it, a drag moves it, and its panel has the three tabs: the Trap tab finds the trap the focus makes, the Scattering tab names Lorenz–Mie and lists what the lens catches and what is not collected (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r))), doc = rigDoc(), W = rigWin(), cv = doc.getElementById('bench');
+      J.load(bench('particle part', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol: 'p', power: 100, popN: 256 }),
+        { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+1)-1)/lambda' }], { minPower: 1e-6, view: { cx: 0, cy: 0, scale: 40 } }));
+      const rays0 = J.traceInfo().rays, name = J.add('particle'), el = J.byName(name);
+      const added = !!el && el.type === 'particle' && el.trap === 'sphere' && el.scatLight === true && el.scatFan === true;
+      J.set(name, { x: 1, y: 0 }); await frame();
+      const r = () => cv.getBoundingClientRect(), v = () => J.project().view, at = (X, Y) => [r().width / 2 + (X - v().cx) * v().scale, r().height / 2 - (Y - v().cy) * v().scale];
+      const P = (type, x, y, b) => cv.dispatchEvent(new W.PointerEvent(type, { clientX: r().left + x, clientY: r().top + y, pointerId: 12, button: 0, buttons: b, bubbles: true, isPrimary: true, pointerType: 'mouse' }));
+      J.select('L'); await frame();
+      const [px, py] = at(1, 0);
+      P('pointermove', px + 3, py + 2, 0); P('pointerdown', px + 3, py + 2, 1); P('pointerup', px + 3, py + 2, 0); await frame();
+      const picked = J.sel().length === 1 && J.sel()[0] === name;
+      const [qx, qy] = at(1.5, 0.75);
+      P('pointerdown', px, py, 1); for (let i = 1; i <= 6; i++) P('pointermove', px + (qx - px) * i / 6, py + (qy - py) * i / 6, 1); P('pointerup', qx, qy, 0); await frame();
+      const dragged = Math.abs(el.x - 1.5) < 0.05 && Math.abs(el.y - 0.75) < 0.05;
+      J.set(name, { x: 1, y: 0 }); J.select(name); await frame();
+      const tabs = [...doc.querySelectorAll('#panel .rt-tab')].map(b => b.textContent), hasTabs = ['Particle', 'Trap', 'Scattering'].every(t => tabs.includes(t));
+      const own = /Send its scattered light to the parts/.test(doc.getElementById('panel').textContent) && /Diameter \(nm\)/.test(doc.getElementById('panel').textContent);
+      const tab = t => { [...doc.querySelectorAll('#panel .rt-tab')].find(b => b.textContent === t).click(); };
+      tab('Trap'); await frame(); await frame();
+      const trap = /Frequencies/.test(doc.getElementById('panel').textContent) && /Depth/.test(doc.getElementById('panel').textContent);
+      tab('Scattering'); await frame(); await frame();
+      const text = doc.getElementById('panel').textContent;
+      const scat = /Lorenz–Mie/.test(text) && /Caught by Obj/.test(text) && /Not collected/.test(text) && /Where the part is/.test(text);
+      // with its light off the trace has the rays it had without the particle
+      J.set(name, { scatLight: false }); await frame();
+      const same = J.traceInfo().rays === rays0;
+      if (!(added && picked && dragged && hasTabs && own && trap && scat && same)) console.log('particle part', JSON.stringify({ added, picked, dragged, hasTabs, own, trap, scat, same, tabs, x: el.x, y: el.y, sel: J.sel(), text: text.slice(0, 300) }));
+      return added && picked && dragged && hasTabs && own && trap && scat && same ? 1 : 0;
+    },
+  },
+  {
+    name: 'A particle’s scattered light reaches the parts: the trace has its cones, a detector reads them, and the switches turn them off',
+    why: 'the tight focus with a like lens ahead and a detector behind it, and a second detector at 90°. With the light on, the trace has scattered rays to the two lenses and the side detector; the forward detector reads less by the extinction and more by the forward scatter the lens collects (within 1% of the extinction), the side detector reads what its row says it catches, and the rows with what is not collected add to the scattered power. The fan off changes no reading; the light off leaves the bench as it is without the particle (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const L = (name, x, y, angle, len) => ({ type: 'mask', name, x, y, angle, length: len, amp: '1', delay: '-(sqrt(r^2+4)-2)/lambda' });
+      const els = o => [src({ name: 'L', x: -30, wavelength: 1550, gauss: true, w0: 1.5, z0: 0, width: 3, rays: 1, pol: 'p', power: 100, popN: 256 }), L('Obj', 0, 0, 0, 5.333),
+        Object.assign({ type: 'particle', name: 'P', x: 2, y: 0, angle: 90, trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum' }, o), L('Col', 4, 0, 0, 5.333),
+        { type: 'detector', name: 'D', x: 10, y: 0, angle: 180, length: 8, quad: true }, { type: 'detector', name: 'Side', x: 2, y: 3, angle: 270, length: 2 }];
+      J.load(bench('particle light', els({}), { minPower: 1e-6 }));
+      const R = J.scattered('P'), S = J.scatter('P'), d = J.detector('D'), s = J.detector('Side');
+      const row = n => R.rows.find(r => r.name === n);
+      const rows = R.state === 'ok' && !!row('Col') && !!row('Obj') && !!row('Side') && Math.abs((R.rows.reduce((a, r) => a + r.P, 0) + R.lost) / R.Psca - 1) < 1e-9 && row('Col').share > 0.2 && row('Col').share < 0.35;
+      const read = !!d.scattered && Math.abs(d.scattered.interference / (-S.Pext * 1e3) - 1) < 0.01 && Math.abs((d.scattered.mw - d.scattered.interference) / (row('Col').P * 1e3) - 1) < 0.01
+        && Math.abs(s.mw / (row('Side').P * 1e3) - 1) < 0.01 && Math.abs(d.X) < 1e-9;
+      J.load(bench('particle light', els({ scatFan: false }), { minPower: 1e-6 }));
+      const fanOff = J.detector('D').mw === d.mw && J.detector('Side').mw === s.mw;
+      J.load(bench('particle light', els({ scatLight: false }), { minPower: 1e-6 }));
+      const off = J.detector('D'), noLight = J.scattered('P') === null && off.scattered === null && J.detector('Side').mw === 0;
+      J.load(bench('particle light', els({}).filter(e => e.type !== 'particle'), { minPower: 1e-6 }));
+      const bare = Math.abs(J.detector('D').mw / off.mw - 1) < 1e-12;
+      if (!(rows && read && fanOff && noLight && bare)) console.log('particle light', JSON.stringify({ rows, read, fanOff, noLight, bare, R, d, s, off }));
+      return rows && read && fanOff && noLight && bare ? 1 : 0;
+    },
+  },
+  {
+    name: 'A split detector follows a particle moved across the focus',
+    why: 'the same bench: moved 20 nm across the focus in the bench plane the detector’s right less left is as far from nothing one way as, moved back 20 nm, the other (to 2%), and twice what 10 nm gives (to 3%); top less bottom stays nothing',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const L = (name, x, len) => ({ type: 'mask', name, x, y: 0, angle: 0, length: len, amp: '1', delay: '-(sqrt(r^2+4)-2)/lambda' });
+      const at = y => { J.load(bench('particle place', [src({ name: 'L', x: -30, wavelength: 1550, gauss: true, w0: 1.5, z0: 0, width: 3, rays: 1, pol: 's', power: 100, popN: 256 }), L('Obj', 0, 5.333),
+        { type: 'particle', name: 'P', x: 2, y, angle: 90, trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum' }, L('Col', 4, 5.333), { type: 'detector', name: 'D', x: 10, y: 0, angle: 180, length: 8, quad: true }], { minPower: 1e-6 })); return J.detector('D'); };
+      const a = at(2e-5), b = at(-2e-5), c = at(1e-5);
+      const ok = Math.abs(a.X) > 1e-6 && Math.abs(a.X + b.X) < 0.02 * Math.abs(a.X) && Math.abs(c.X / a.X - 0.5) < 0.03 && Math.abs(a.Y) < 1e-3 * Math.abs(a.X);
+      if (!ok) console.log('particle place', JSON.stringify({ a: [a.X, a.Y], b: [b.X, b.Y], c: [c.X, c.Y] }));
+      return ok ? 1 : 0;
+    },
+  },
+  {
+    name: 'The scattered light is drawn in 2D and in 3D, and the fan switches off',
+    why: 'a particle in a wide beam polarised in the bench plane, with a detector raised above the bench looking down at it. On the 2D bench the fan’s rays are drawn (the picture with the fan differs from the one without along the fan’s rays, by more than half as much again about the beam’s line, where the pattern is bright, as about the polarisation’s, where it is dark) and the particle’s sign is drawn in a figure. In 3D the fan has its rays over the sphere, the cone to the raised detector leaves the plane, and with the fan off only the cones are left (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r))), doc = rigDoc(), cv = doc.getElementById('bench');
+      const els = fan => [src({ name: 'L', x: -30, wavelength: 1550, gauss: true, w0: 0.5, z0: 0, width: 1.6, rays: 1, pol: 'p', power: 100, popN: 256 }),
+        { type: 'particle', name: 'P', x: 0, y: 0, angle: 90, trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum', scatFan: fan },
+        { type: 'detector', name: 'High', x: 0, y: 12, z: 87, angle: 270, tip: -45, length: 6 }];
+      // the bench's pixels in a square 8 mm across about the particle
+      const shot = async fan => {
+        J.load(bench('particle picture', els(fan), { minPower: 1e-6, view: { cx: 0, cy: 0, scale: 30 }, light: { rays: true, envelope: true, field: false, byPower: true } })); await frame(); await frame();
+        const r = cv.getBoundingClientRect(), k = cv.width / r.width, n = Math.round(240 * k);
+        return { n, d: cv.getContext('2d').getImageData(Math.round((r.width / 2 - 120) * k), Math.round((r.height / 2 - 120) * k), n, n).data };
+      };
+      const A = await shot(true), svg = J.layoutSvg(), B = await shot(false);
+      // where the two differ is the fan: counted in the quarters about the beam's line (bright) and about the polarisation's (dark)
+      let along = 0, across = 0;
+      for (let y = 0; y < A.n; y++) for (let x = 0; x < A.n; x++) {
+        const o = 4 * (y * A.n + x), dx = x - A.n / 2, dy = y - A.n / 2;
+        if (Math.hypot(dx, dy) < 0.25 * A.n || Math.hypot(dx, dy) > 0.48 * A.n) continue;
+        const df = Math.abs(A.d[o] - B.d[o]) + Math.abs(A.d[o + 1] - B.d[o + 1]) + Math.abs(A.d[o + 2] - B.d[o + 2]);
+        if (Math.abs(dx) > Math.abs(dy)) along += df; else across += df;
+      }
+      const two = along > 5000 && along > 1.5 * across;
+      const on = along, off = across;
+      const sign = /#dff1f7/i.test(svg);
+      let three = false, V1 = null, V0 = null;
+      try {
+        J.load(bench('particle picture', els(true), { minPower: 1e-6 }));
+        await J.view3d.set(true);
+        V1 = J.view3d.scatLight();
+        const p = J.view3d.particleOf('P');
+        J.set('P', { scatFan: false }); J.redraw();
+        V0 = J.view3d.scatLight();
+        three = !!V1 && V1.fan > 100 && V1.cone > 100 && V1.coneUp > 100 && !!V0 && V0.fan === 0 && V0.cone === V1.cone && !!p && p.shape === 'sphere' && Math.abs(p.px - 36) < 0.01;
+      } finally { await J.view3d.set(false); }
+      if (!(two && sign && three)) console.log('particle picture', JSON.stringify({ two, on, off, sign, three, V1, V0 }));
+      return two && sign && three ? 1 : 0;
+    },
+  },
+  {
+    name: 'A bench from before the Particle part: a screen’s particle scatters as it did, and sends nothing onto the bench',
+    why: 'the example as it was, a screen at the NA 0.8 focus holding the 300 nm sphere: its scattered power 126.655 µW and the 10.2424 µW into NA 0.5 behind it, the figures the code gave before the Particle part, to 1 part in 10⁹; the trace has no scattered rays and scattered() gives nothing for a screen (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(bench('old particle', [src({ name: 'L', id: 'laser', x: -30, wavelength: 1550, gauss: true, w0: 1.5, z0: 0, width: 3, rays: 7, pattern: 'hex', pol: 'p', power: 100, popN: 256 }),
+        { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 5.333, amp: '1', delay: '-(sqrt(r^2+4)-2)/lambda' },
+        screen({ name: 'S', x: 2, length: 0.1, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum', scatNA: 0.5, scatDir: 'back' })], { minPower: 1e-6, maxBounces: 20 }));
+      const S = J.scatter('S');
+      const same = Math.abs(S.Psca / 0.0001266553436244437 - 1) < 1e-9 && Math.abs(S.collect.P / 0.000010242409067043762 - 1) < 1e-9;
+      const none = J.scattered('S') === null;
+      if (!(same && none)) console.log('old particle', JSON.stringify({ same, none, Psca: S.Psca, collect: S.collect.P }));
+      return same && none ? 1 : 0;
+    },
+  },
   { group: 'Parts in their own colours' },
   {
     name: 'A part with a line and a fill colour is drawn in them, as see-through as before; the parts without are untouched',

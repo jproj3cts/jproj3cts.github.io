@@ -58,7 +58,11 @@ through `core/hooks.js`.
   (`draw`, `hit`, `panel`). Registries: `parts/registry.js` (`FREE_GROUPS`, picker), `ui/parts/registry.js` (`PART_UI`).
 - **Physics**: ray/beam tracing `engines/trace.js` (by part type); diffracted field `field.js`, `field2d.js`,
   `diffraction.js`; cavities `cavity.js`; fibre networks `fibre.js`, `fibre-face.js` (the Bragg grating's coupled-mode model in `core/fbg.js`); electronics `elec.js`;
-  photonic chips `pic.js`; RF `rf-design.js`, `rf-sweep.js`; lens design `lens-*.js`; data in `core/` (glass,
+  photonic chips `pic.js`; RF `rf-design.js`, `rf-sweep.js`; lens design `lens-*.js`; one particle's scattering `scatter.js`
+  (Mie `core/mie.js`, dipole array `core/dda.js`) and, for a Particle part (`parts/particle.js`), its scattered light on the bench
+  `scatter-light.js` (a probe one step out, then a cone of rays to each part that sees it, launched at the end of `traceSceneOnce`
+  as virtual sources with `vRays`; read as a field by `scatOnDisc` in `fibre-face.js`; the trace's key counts the answers kept,
+  `scatRevNow`, and the page's worker supplies them, `scatterKeepUp` in `ui/scatter.js`); data in `core/` (glass,
   coatings, crystals, atoms in `cells.js`/`traps.js`/`zeeman.js`, horns, special functions).
 - **UI**: bench `ui/render.js`, `pointer.js`, `actions.js` (toast, context menu, save); panel framework `ui/panel.js`
   (`param`, `numInput`, `selectField`), shared sections `ui/panels.js`, readouts `ui/readouts.js`, plots `ui/plots.js`,

@@ -59,6 +59,7 @@ scripts that made them. The page itself runs JEKray live against these files.
 | `ref/fbg-erdogan.json` | `scripts/fbg_erdogan.py` | Erdogan, J. Lightwave Technol. 15, 1277 (1997): a uniform fibre Bragg grating's coupled-mode equations, integrated numerically and checked against his closed forms |
 | `ref/mie.json` | `scripts/mie_reference.py` | Lorenz-Mie scattering by a sphere (Bohren & Huffman, Absorption and Scattering of Light by Small Particles (1983), ch. 4): an independent calculation on scipy's spherical Bessel functions, checked against their Appendix A test case and, when it is installed, against miepython |
 | `ref/dda-rod.json` | `scripts/dda_rod.py` | A silica rod in a plane wave by the discrete dipole approximation (Purcell & Pennypacker 1973; Draine & Goodman 1993): an independent calculation written in the script (FFT convolution, scipy's solver, nine lattices extrapolated to zero spacing), checked there against Mie for a sphere. Not an established code: ADDA could not be built where it was made |
+| `ref/scatter-bench.json` | `scripts/scatter_bench.py` | A particle's scattered light on the bench, from Lorenz-Mie theory alone (Bohren & Huffman 1983, ch. 3 and 4; needs `mie_reference.py` beside it): the change in a detector's reading when a silica or a gold sphere is put in a wide beam (extinction less the scattered light that lands on the detector); the slope of a split detector's signal as a small sphere crosses a Gaussian focus, integrated from the two far fields, with Gittes & Schmidt's closed form (Opt. Lett. 23, 7 (1998)) beside it; the share of the scattered power inside a cone of NA 0.5 ahead and at 90 degrees |
 
 ## Making them again
 
@@ -122,6 +123,7 @@ numpy instead.
     python scripts/collimator_pair.py
     python scripts/mie_reference.py                  # compares with miepython too if it is installed (pip install miepython)
     python scripts/dda_rod.py                        # about ten minutes; needs mie_reference.py beside it
+    python scripts/scatter_bench.py                  # needs mie_reference.py beside it
     python scripts/fbg_erdogan.py
 
 ## Rules

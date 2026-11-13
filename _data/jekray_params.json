@@ -1183,7 +1183,7 @@
     {
      "k": "trap",
      "def": "\"sphere\"",
-     "meaning": ""
+     "meaning": "always \"sphere\": the part is a particle (the field a screen’s particle is told by)."
     },
     {
      "k": "trapMat",

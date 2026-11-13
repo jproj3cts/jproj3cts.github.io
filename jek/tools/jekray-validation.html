@@ -2315,6 +2315,81 @@ const ALL_CASES = [
         notes: 'JEKray’s runs: ' + said.join('; ') + '. The reference’s nine lattices scatter about their straight line by ' + R.settings.map(s => fmt(100 * s.scatter, 2) + '%').join(', ') + ' of C_ext in the three settings: a cubic lattice’s outline of a round rod is jagged, and the cross-section wanders with it from one lattice to the next. That is the reference’s own uncertainty, well inside the tolerance. JEKray’s default lattice reads a little high because it is coarser. With the wave along the rod the light sent straight back is ' + fmt(100 / R.settings[2].fwdBack, 2) + '% of that sent straight on, close to a minimum of the pattern, which makes that ratio the most sensitive number here.' };
     },
   },
+  {
+    id: 'scatter-energy', area: 'Scattering', title: 'A particle in a beam: what a detector loses',
+    kind: 'Independent code', ref: 'scatter-bench.json', script: 'scatter_bench.py',
+    cite: 'C. F. Bohren and D. R. Huffman, Absorption and Scattering of Light by Small Particles (Wiley, 1983), sections 3.4 and 4.4 (extinction and the optical theorem).',
+    what: 'A sphere at the waist of a 100 mW Gaussian beam 100 µm across at 1550 nm, and a photodetector 10 mm across, 100 mm on, that takes in the whole beam. The detector’s reading with the Particle’s scattered light on the bench, less its reading with it off. JEKray gets this by adding the scattered cone to the beam on the detector as a field. The reference is Mie’s extinction times the beam’s irradiance at its waist, less the scattered power inside the cone the detector fills, with no rays or fields in it. Two spheres: silica 300 nm across, which only scatters, and gold 100 nm across, which absorbs more than it scatters.',
+    tolerance: 'The change in the reading within 2% of the extinguished power, C_ext I₀, for each sphere; the share of the scattered power on the detector within 1%.',
+    async run(J, R) {
+      const checks = [], benches = [], said = [];
+      for (const c of R.energy.cases) {
+        const mat = /gold/.test(c.name) ? 'Au' : 'Fused silica';
+        const els = on => [{ type: 'source', name: 'Laser', x: -20, y: 0, angle: 0, wavelength: 1550, gauss: true, w0: 0.05, z0: 20, popN: 256, pol: 'p', rays: 0, traceRays: false, power: 100 },
+          { type: 'particle', name: 'Particle', x: 0, y: 0, angle: 90, trapMat: mat, trapR: c.radius_nm, trapMed: 'vacuum', scatLight: on },
+          { type: 'detector', name: 'Detector', x: 100, y: 0, angle: 180, length: 10, material: 'ingaas' }];
+        const data = bench('A sphere of ' + c.name + ' in a 100 µm beam', els(true), { minPower: 1e-4 });
+        J.load(data); const on = J.detector('Detector'), S = J.scatter('Particle'), row = J.scattered('Particle').rows.find(r => r.name === 'Detector');
+        J.load(bench('off', els(false), { minPower: 1e-4 })); const off = J.detector('Detector');
+        checks.push(check(c.name + ': change in the detector’s reading', c.change_mW * 1e6, (on.mw - off.mw) * 1e6, { abs: 0.02 * c.Pext_mW * 1e6 }, ' nW'));
+        checks.push(check(c.name + ': share of the scattered power on the detector', c.share_on_detector, row.share, { rel: 0.01 }));
+        said.push(c.name + ': extinction ' + fmt(c.Pext_mW * 1e6, 4) + ' nW (JEKray’s Mie, with its own index ' + fmt(S.np[0], 5) + (S.np[1] > 0 ? ' + ' + fmt(S.np[1], 5) + 'i' : '') + ', ' + fmt(S.Pext * 1e9, 4) + ' nW), absorbed ' + fmt(c.Pabs_mW * 1e6, 4) + ' nW');
+        benches.push(['The sphere of ' + c.name, data]);
+        await idle();
+      }
+      return { checks, benches, notes: said.join('; ') + '. The detector reads the beam, the scattered light that lands on it, and their interference; the interference is what takes the extinction out. The beam itself is not made weaker on the bench.' };
+    },
+  },
+  {
+    id: 'scatter-position', area: 'Scattering', title: 'A particle’s place in a focus, from a split detector',
+    kind: 'Independent code', ref: 'scatter-bench.json', script: 'scatter_bench.py',
+    cite: 'F. Gittes and C. F. Schmidt, “Interference model for back-focal-plane displacement detection in optical tweezers”, Optics Letters 23, 7–9 (1998); Bohren and Huffman (1983), chapter 4, for the sphere’s field.',
+    what: 'A silica sphere 100 nm across is moved across a 1550 nm focus of waist 6.58 µm (a 0.3 mm beam through an ideal lens of f = 2 mm). A like lens collects the beam and the forward scatter onto a photodetector split in two along the line the sphere moves across. The signal is the difference of the halves over their sum. The reference integrates the interference of the beam’s far field with the sphere’s Mie field over each half, with no rays in it. At the middle its slope is within 1.1% of Gittes and Schmidt’s closed form for a Rayleigh sphere.',
+    tolerance: 'The slope of the signal at the middle within 3% of the reference.',
+    async run(J, R) {
+      const P = R.position, f = 2, lens = (name, x) => ({ type: 'mask', name, x, y: 0, angle: 0, length: 2.4, amp: '1', delay: '-(sqrt(r^2+4)-2)/lambda' });
+      const els = y => [{ type: 'source', name: 'Laser', x: -0.01, y: 0, angle: 0, wavelength: 1550, gauss: true, w0: 0.15, z0: 0, popN: 256, pol: 's', rays: 0, traceRays: false, power: 100 },
+        lens('Objective', 0), { type: 'particle', name: 'Particle', x: f, y, angle: 90, trapMat: 'Fused silica', trapR: P.radius_nm, trapMed: 'vacuum' }, lens('Collection lens', 2 * f),
+        { type: 'detector', name: 'Split detector', x: 10, y: 0, angle: 180, length: 4, quad: true, material: 'ingaas' }];
+      const sig = y => { J.load(bench('A sphere across a focus', els(y * 1e-3), { minPower: 1e-4 })); const d = J.detector('Split detector'); return d.X / d.mw; };
+      const h = 0.05 * P.waist_um, slope = (sig(h) - sig(-h)) / (2 * h);
+      // (which half is called right depends on which way the detector faces: the size of the slope is what is compared)
+      const checks = [check('slope of the signal at the middle', Math.abs(P.slope_per_um) * 1e6, Math.abs(slope) * 1e6, { rel: 0.03 }, ' ×10⁻⁶/µm')];
+      const xs = [], got = [], sgn = Math.sign(slope) * Math.sign(P.slope_per_um) || 1;
+      for (let i = 0; i < P.x_um.length; i += 2) { xs.push(P.x_um[i]); got.push(sgn * sig(P.x_um[i]) * 1e6); await idle(); }
+      const plots = [plot({ title: 'Split-detector signal against the sphere’s place across the focus', xlabel: 'displacement (µm)', ylabel: 'difference over sum (×10⁻⁶)',
+        series: [{ name: 'Reference', x: P.x_um, y: P.signal.map(v => v * 1e6), colour: REF_C, width: 2.4 }, { name: 'JEKray', x: xs, y: got, colour: GOT_C, dots: true }] })];
+      return { checks, plots, benches: [['The sphere at the focus', bench('A sphere across a focus', els(0), { minPower: 1e-4 })]],
+        notes: 'Gittes and Schmidt’s closed form gives ' + fmt(P.gittes_schmidt_per_um * 1e6, 4) + ' × 10⁻⁶ per µm for a Rayleigh sphere; the reference’s integration with the sphere’s Mie field gives ' + fmt(P.slope_per_um * 1e6, 4) + '. The beam here is gentle (NA 0.07), so JEKray adds the scattered cone to its Gaussian beam on the detector. In a steep focus it uses the focus’s own plane waves instead, which this case does not test.' };
+    },
+  },
+  {
+    id: 'scatter-collect', area: 'Scattering', title: 'Scattered light collected by a lens',
+    kind: 'Independent code', ref: 'scatter-bench.json', script: 'scatter_bench.py',
+    cite: 'C. F. Bohren and D. R. Huffman, Absorption and Scattering of Light by Small Particles (Wiley, 1983), chapter 4.',
+    what: 'A silica sphere 300 nm across in a wide 1550 nm beam, with ideal lenses of numerical aperture 0.5 ahead of it and at 90° to the beam, each with a photodetector behind it. The share of the scattered power each lens takes in, as the Particle’s Scattering tab lists it, for light polarised in the bench plane and out of it. The reference integrates the Mie pattern over each lens’s cone.',
+    tolerance: 'Each share within 1% of the reference; the side detector’s reading within 1% of the power its lens collects.',
+    async run(J, R) {
+      const lens = (name, x, y, angle) => ({ type: 'mask', name, x, y, angle, length: 11.547, amp: '1', delay: '-(sqrt(r^2+100)-10)/lambda' });
+      const els = pol => [{ type: 'source', name: 'Laser', x: -20, y: 0, angle: 0, wavelength: 1550, gauss: true, w0: 0.05, z0: 20, popN: 256, pol, rays: 0, traceRays: false, power: 100 },
+        { type: 'particle', name: 'Particle', x: 0, y: 0, angle: 90, trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum' },
+        lens('Lens ahead', 10, 0, 0), { type: 'detector', name: 'Detector ahead', x: 30, y: 0, angle: 180, length: 14, material: 'ingaas' },
+        lens('Side lens', 0, 10, 90), { type: 'detector', name: 'Side detector', x: 0, y: 30, angle: 270, length: 14, material: 'ingaas' }];
+      const checks = [], ref = n => R.collect.cases.find(c => c.name === n).share;
+      const p = bench('A sphere and two lenses of NA 0.5, light polarised in the plane', els('p'), { minPower: 1e-4 });
+      J.load(p); let Sc = J.scattered('Particle'), row = n => Sc.rows.find(r => r.name === n);
+      checks.push(check('ahead, polarised in the plane: share', ref('ahead, polarised in the plane'), row('Lens ahead').share, { rel: 0.01 }));
+      checks.push(check('at 90°, polarised in the plane: share', ref('at 90 degrees in the plane, polarised in the plane'), row('Side lens').share, { rel: 0.01 }));
+      checks.push(check('at 90°, polarised in the plane: the detector’s reading', row('Side lens').P * 1e12, J.detector('Side detector').mw * 1e9, { rel: 0.01 }, ' pW'));
+      await idle();
+      const s = bench('The same, light polarised out of the plane', els('s'), { minPower: 1e-4 });
+      J.load(s); Sc = J.scattered('Particle');
+      checks.push(check('at 90°, polarised out of the plane: share', ref('at 90 degrees in the plane, polarised out of it'), row('Side lens').share, { rel: 0.01 }));
+      checks.push(check('at 90°, polarised out of the plane: the detector’s reading', row('Side lens').P * 1e12, J.detector('Side detector').mw * 1e9, { rel: 0.01 }, ' pW'));
+      return { checks, benches: [['Polarised in the plane', p], ['Polarised out of the plane', s]],
+        notes: 'Not collected by either lens: ' + fmt(100 * Sc.lostShare, 4) + '% with the light polarised out of the plane. The lens ahead also passes the beam, so its detector reads the beam with the forward scatter; the case above checks that sum.' };
+    },
+  },
 ];
 
 /* ---------- Running and reporting ---------- */

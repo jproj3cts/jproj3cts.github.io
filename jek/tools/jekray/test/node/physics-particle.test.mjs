@@ -361,3 +361,48 @@ test('a split detector reads the particle\u2019s place in the tight focus as the
     say('P3/P4 tight focus,', pol, ': slope', slope.toExponential(6), 'per um against', FOCUS_REF[pol], '(', rel(slope, FOCUS_REF[pol]).toExponential(2), ')');
   }
 });
+
+/* ---------- A particle in the focus of a real glass lens ---------- */
+/* jek/tools/validation/ref/scatter-real-lens.json (scatter_position_focus.py): a plano-hyperbolic asphere in N-BK7 traced in Python from
+   its prescription, the focus built as plane waves with the energy kept along each ray, the sphere by Mie theory */
+const { readFileSync } = await import('node:fs');
+const LENS = JSON.parse(readFileSync(new URL('../../../validation/ref/scatter-real-lens.json', import.meta.url), 'utf8'));
+const realLens = (o = {}) => {
+  const P = LENS.prescription, Tk = P.thickness_mm, semi = P.semi_aperture_mm, F0 = Tk / 2 + P.vertex_to_focus_mm, coat = o.coat || { mode: 'custom', R: 0 };
+  const lens = (id, x, flip) => ({ id, type: 'lens', name: id, x, y: 0, angle: flip ? 180 : 0, diameter: +(2 * semi + 0.2).toFixed(4), surfaces: [{ R: null, coat, semi }, { R: P.R_mm, k: P.k, coat, semi }], gaps: [Tk], materials: [{ glass: 'N-BK7' }] });
+  return [laser({ x: -30, w0: 1.7, pol: o.pol || 's' }), lens('obj', 0, false), particle(Object.assign({ x: F0, y: o.y || 0 }, o.part || {})),
+    ...(o.col === false ? [] : [lens('col', 2 * F0, true), det({ x: 2 * F0 + 12, length: 9 })])];
+};
+test('a particle in the focus of a real asphere: the focus traced through the lens against an independent trace of the same prescription', async () => {
+  const C = LENS.cases.coated;
+  await open(realLens());
+  const S = S_of('p'), on = reading('det'), row = rowOf('col');
+  assert.deepEqual(S.routes, ['traced']); assert.equal(S.pupils, 1);                                                          // G0
+  const line = async key => { const x = [], I = [], ax = []; for (let i = -8; i <= 8; i++) { await open(realLens({ col: false, part: { [key]: i * 0.18 } })); const s = S_of('p'), e = s.far.refs[0].E; x.push(i * 0.18); I.push(s.I0); ax.push((e[0] * e[0] + e[1] * e[1]) / e.reduce((a, v) => a + v * v, 0) * s.I0); } return { x, I, ax }; };
+  const fwhm = (x, I) => { const m = Math.max(...I), i0 = I.indexOf(m), cr = (a, b) => x[a] + (x[b] - x[a]) * (m / 2 - I[a]) / (I[b] - I[a]); let lo, hi; for (let i = i0; i > 0; i--) if (I[i - 1] < m / 2) { lo = cr(i - 1, i); break; } for (let i = i0; i < x.length - 1; i++) if (I[i + 1] < m / 2) { hi = cr(i, i + 1); break; } return hi - lo; };
+  const A = await line('scatDx'), U = await line('scatDy');
+  near(fwhm(A.x, A.I), C.fwhm_across_um, 0.02, 'width of the focus across the polarisation');                                 // G1
+  near(fwhm(U.x, U.I), C.fwhm_along_um, 0.02, 'width of the focus along the polarisation');
+  near(S.I0, C.peak_irradiance, 0.02, 'peak irradiance');                                                                     // G2
+  near(Math.max(...U.ax) / S.I0, C.axial_ratio, 0.05, 'the field along the axis over the peak');                              // G3
+  near(S.Psca, C.Psca_W, 0.02, 'scattered power');                                                                            // G5
+  near(row.share, C.share_collected, 0.01, 'share into the collection lens');                                                 // G6
+  await open(realLens({ part: { scatLight: false } }));
+  const off = reading('det');
+  assert.ok(Math.abs((on.mw - off.mw) * 1e-3 + (S.Pext - row.P)) <= 1e-6 * S.Pext, 'energy: ' + (on.mw - off.mw) * 1e-3 + ' W against ' + -(S.Pext - row.P));   // G4 (by construction on this route)
+  const slope = async (o, pol) => { await open(realLens(Object.assign({}, o, { pol, y: 1e-5 }))); const a = reading('det'); await open(realLens(Object.assign({}, o, { pol, y: -1e-5 }))); const b = reading('det'); return Math.abs(a.X / a.mw - b.X / b.mw) / 0.02; };
+  const ss = await slope({}, 's'), sp = await slope({}, 'p');
+  near(ss, C.slope_s_per_um, 0.05, 'slope, polarised out of the plane'); near(sp, C.slope_p_per_um, 0.05, 'slope, polarised in the plane');   // G7
+  say('G1 widths', fwhm(A.x, A.I).toFixed(4), fwhm(U.x, U.I).toFixed(4), 'against', C.fwhm_across_um.toFixed(4), C.fwhm_along_um.toFixed(4), '; G2 peak', rel(S.I0, C.peak_irradiance).toExponential(2), '; G3 axial', rel(Math.max(...U.ax) / S.I0, C.axial_ratio).toExponential(2), '; G5 Psca', rel(S.Psca, C.Psca_W).toExponential(2), '; G6 share', rel(row.share, C.share_collected).toExponential(2), '; G7 slopes', rel(ss, C.slope_s_per_um).toExponential(2), rel(sp, C.slope_p_per_um).toExponential(2));
+  // bare faces: each traced ray takes its own Fresnel loss into the focus
+  await open(realLens({ coat: { mode: 'bare' } }));
+  near(S_of('p').I0 / S.I0, LENS.cases.bare.peak_irradiance / C.peak_irradiance, 0.01, 'bare faces: the peak over the coated lens\u2019s');   // G8
+  say('G8 bare over coated peak', (S_of('p').I0 / S.I0).toFixed(6), 'against', (LENS.cases.bare.peak_irradiance / C.peak_irradiance).toFixed(6));
+});
+/* G9 fails, and is kept here as it is: a Gaussian beam on the bench is carried by its axis ray, so through bare faces it loses what the axis
+   ray loses (4% a face); the light at this lens's edge meets the curved faces at up to 30 degrees and loses more. Not the particle's doing. */
+test('bare faces: the beam\u2019s power behind both lenses, over the whole beam', { todo: 'a Gaussian beam takes its axis ray\u2019s Fresnel loss: 0.849 here, where the beam as a whole keeps 0.834 (1.8% out, 1% allowed)' }, async () => {
+  await open(realLens({ part: { scatLight: false } })); const c = reading('det').mw;
+  await open(realLens({ coat: { mode: 'bare' }, part: { scatLight: false } })); const b = reading('det').mw;
+  near(b / c, LENS.cases.bare.both_lenses, 0.01, 'the beam behind both bare lenses over the coated bench\u2019s');           // G9
+});

@@ -37,6 +37,15 @@ Checks of the script itself, at a low numerical aperture (the gentle focus of sc
 Gittes and Schmidt's closed form for a Rayleigh sphere (Optics Letters 23, 7 (1998)) and against scatter_bench.py's
 own integration; and that the interference over the whole cone is minus the sphere's extinction in this light.
 
+A real lens (the last part of the file). In place of an ideal lens's rule, the pupil of a glass asphere is traced here,
+exactly, from its prescription: a ray of the collimated beam at height h through the flat first face and the conic second
+face (Snell's law at the face's own normal), its angle to the axis as it leaves, its optical path to the focus, and, where
+a face is bare, Fresnel's transmission of each polarisation. The energy between two heights is the energy between their
+two angles, which gives the wave in each direction:
+    A(d) = (i / lambda) U(h) sqrt(T_s,p) sqrt(h dh / (sin(theta) dtheta)) [the s part across the ray's plane, the p part turned with the ray].
+From it: the focal field (its widths, its peak, its part along the axis), the sphere's scattered power and the share of
+it inside the collection lens's cone, and the split detector's slope. Written to ../ref/scatter-real-lens.json.
+
 Writes ../ref/scatter-position-focus.json.
 
     python scatter_position_focus.py
@@ -67,8 +76,55 @@ def directions(theta_max, nt, nphi):
     return TH.ravel(), PH.ravel(), W.ravel(), d.reshape(-1, 3)
 
 
+def bk7_index(um):
+    """N-BK7, Schott's Sellmeier coefficients."""
+    l2 = um * um
+    return np.sqrt(1 + 1.03961212 * l2 / (l2 - 0.00600069867) + 0.231792344 * l2 / (l2 - 0.0200179144) + 1.01046945 * l2 / (l2 - 103.560653))
+
+
+def trace_lens(P, bare, nh=20001):
+    """The asphere P (n, R, k of its second face, centre thickness T, vertex to focus L, semi-aperture, all metres), a collimated
+    beam along its axis in at the flat face: for heights h, the angle theta each ray leaves at, its optical path to the focus
+    less the axis ray's, and the power each polarisation keeps through both faces."""
+    n, c, k = P['n'], 1 / abs(P['R']), P['k']
+    h = np.linspace(0, P['semi'], nh)
+    root = np.sqrt(1 - (1 + k) * c * c * h * h)
+    z = c * h * h / (1 + root)                  # the sag, back into the glass from the vertex
+    dz = c * h / root
+    # the face's normal towards the air, the ray inside along the axis: Snell in vector form
+    N = np.stack([1 / np.sqrt(1 + dz * dz), dz / np.sqrt(1 + dz * dz)], -1)
+    ci = N[:, 0]
+    ct = np.sqrt(1 - n * n * (1 - ci * ci))
+    t = n * np.array([1.0, 0.0])[None, :] + (ct - n * ci)[:, None] * N
+    theta = np.arctan2(np.abs(t[:, 1]), t[:, 0])
+    # the ray must go to the focus: where it meets the axis
+    xf = h / np.maximum(np.tan(theta), 1e-300) - z
+    opl = n * (P['T'] - z) + np.hypot(P['L'] + z, h) - (n * P['T'] + P['L'])
+    if bare:
+        rs = (n * ci - ct) / (n * ci + ct)
+        rp = (ci - n * ct) / (ci + n * ct)
+        t1 = 1 - ((n - 1) / (n + 1)) ** 2
+        Ts, Tp = t1 * (1 - rs * rs), t1 * (1 - rp * rp)
+    else:
+        Ts = Tp = np.ones_like(h)
+    return dict(h=h, theta=theta, opl=opl, Ts=Ts, Tp=Tp, focus_spread=float(np.max(np.abs(xf[1:] - P['L']))))
+
+
 def spectrum(lens, th, ph, d, f, w, e_in, power):
     """A(d) for each direction: complex vectors, V/m per steradian times m (so that A dOmega exp(ik d.r) is V/m)."""
+    if isinstance(lens, dict):
+        # a traced lens: the height each direction came from, and the energy between heights as the energy between angles
+        Tr = lens
+        h = np.interp(th, Tr['theta'], Tr['h'])
+        dh = np.gradient(Tr['h'], Tr['theta'])
+        jac = h * np.interp(th, Tr['theta'], dh) / np.sin(th)
+        u0 = np.sqrt(2 * Z0 * power * 2 / (np.pi * w * w))
+        U = u0 * np.exp(-h * h / (w * w)) * np.sqrt(jac) * np.exp(1j * K * np.interp(th, Tr['theta'], Tr['opl']))
+        azi = np.stack([np.zeros_like(ph), -np.sin(ph), np.cos(ph)], -1)
+        rad = np.stack([np.zeros_like(ph), np.cos(ph), np.sin(ph)], -1)
+        mer = np.stack([-np.sin(th), np.cos(th) * np.cos(ph), np.cos(th) * np.sin(ph)], -1)
+        v = (np.sqrt(np.interp(th, Tr['theta'], Tr['Ts'])) * (azi @ e_in))[:, None] * azi + (np.sqrt(np.interp(th, Tr['theta'], Tr['Tp'])) * (rad @ e_in))[:, None] * mer
+        return (1j / LAM) * U[:, None] * v
     rho = f * (np.sin(th) if lens == 'aplanatic' else np.tan(th))
     u0 = np.sqrt(2 * Z0 * power * 2 / (np.pi * w * w))          # the beam's field on its axis: Int |U|^2 / 2Z dA = P
     U = u0 * np.exp(-rho * rho / (w * w))
@@ -114,7 +170,7 @@ class Sphere:
         return F
 
 
-def signal(lens, f, w, theta_max, e_in, a, m, xs, power=0.1, nt=28, nphi=72, dipole=False):
+def signal(lens, f, w, theta_max, e_in, a, m, xs, power=0.1, nt=28, nphi=72, dipole=False, after=None):
     """(P+ - P-) / P for the sphere at each of the places xs (m, along y); and the interference over the whole cone."""
     th, ph, W, d = directions(theta_max, nt, nphi)
     A = spectrum(lens, th, ph, d, f, w, e_in, power)
@@ -131,15 +187,29 @@ def signal(lens, f, w, theta_max, e_in, a, m, xs, power=0.1, nt=28, nphi=72, dip
             for o in range(len(W)):
                 F += sph.far(d[o], Eo[o], d)
         F0 = F * np.exp(-1j * K * d[:, 1] * xs_)[:, None]                   # referred to the focus
-        inter = -(4 * np.pi / K) * np.imag(np.sum(np.conj(A) * F0, 1)) / (2 * Z0) * W
-        own = np.sum(abs(F0) ** 2, 1) / (2 * Z0) * W
+        if after is None:
+            inter = -(4 * np.pi / K) * np.imag(np.sum(np.conj(A) * F0, 1)) / (2 * Z0) * W
+            own = np.sum(abs(F0) ** 2, 1) / (2 * Z0) * W
+            norm = power
+        else:
+            # a collection lens with bare faces between the cone and the detector: the part of each field across its ray's
+            # plane and the part in it pass by their own transmissions (after: those two, by angle, and the beam's power behind it)
+            azi = np.stack([np.zeros_like(ph), -np.sin(ph), np.cos(ph)], -1)
+            mer = np.stack([-np.sin(th), np.cos(th) * np.cos(ph), np.cos(th) * np.sin(ph)], -1)
+            inter, own = 0, 0
+            for e, T in [(azi, after[0](th)), (mer, after[1](th))]:
+                ac, fc = np.sum(A * e, 1), np.sum(F0 * e, 1)
+                inter = inter - (4 * np.pi / K) * np.imag(np.conj(ac) * fc) / (2 * Z0) * W * T
+                own = own + abs(fc) ** 2 / (2 * Z0) * W * T
+            norm = after[2]
         sg = np.sign(d[:, 1])
-        out.append(float(np.sum(sg * (inter + own)) / power))
+        out.append(float(np.sum(sg * (inter + own)) / norm))
         tot.append(float(np.sum(inter)))
     return np.array(out), np.array(tot), dict(A=A, W=W, d=d, sph=sph)
 
 
 def slope(lens, f, w, theta_max, e_in, a, m, h, **kw):
+    """d/dx of the signal at the middle (per metre), and the interference over the whole cone (W)."""
     s, tot, _ = signal(lens, f, w, theta_max, e_in, a, m, [h, -h], **kw)
     return (s[0] - s[1]) / (2 * h), tot[0]
 
@@ -197,5 +267,78 @@ def main():
         json.dump(out, fh, indent=1)
 
 
+def focal_field(A, W, d, pts):
+    """E at the points (n, 3), metres from the focus."""
+    return (np.exp(1j * K * (pts @ d.T)) * W[None, :]) @ A
+
+
+def fwhm(x, I):
+    half = I.max() / 2
+    i = np.argmax(I)
+    lo = np.interp(half, I[:i + 1], x[:i + 1])
+    hi = np.interp(half, I[i:][::-1], x[i:][::-1])
+    return float(hi - lo)
+
+
+def real_lens():
+    n = float(bk7_index(1.55))
+    P = dict(n=n, R=-(n - 1) * 4e-3, k=-n * n, T=2.5e-3, L=4e-3)
+    # its clear aperture to NA 0.5: tan(theta) = h / (L + z) with the hyperbola h^2 = 2 (n - 1) L z + (n^2 - 1) z^2
+    tt = np.tan(np.arcsin(0.5)) ** 2
+    a, b, c = n * n - 1 - tt, 2 * (n - 1) * P['L'] - 2 * tt * P['L'], -tt * P['L'] ** 2
+    zr = (-b + np.sqrt(b * b - 4 * a * c)) / (2 * a)
+    P['semi'] = float(np.sqrt(tt) * (P['L'] + zr))
+    w, a_s, m, power = 1.7e-3, 150e-9, complex(float(silica_index(1.55)), 0), 0.1
+    ez, ey = np.array([0.0, 0.0, 1.0]), np.array([0.0, 1.0, 0.0])
+    out = dict(prescription=dict(glass='N-BK7', n=n, R_mm=P['R'] * 1e3, k=P['k'], thickness_mm=2.5, vertex_to_focus_mm=4, semi_aperture_mm=P['semi'] * 1e3, sag_at_edge_mm=float(zr) * 1e3),
+               beam_radius_mm=1.7, power_mW=100, sphere_radius_nm=150, cases={})
+    line = np.linspace(-3e-6, 3e-6, 1201)
+    for name, bare in [('coated', False), ('bare', True)]:
+        Tr = trace_lens(P, bare)
+        tmax = float(Tr['theta'][-1])
+        th, ph, W, d = directions(tmax, 40, 96)
+        A = spectrum(Tr, th, ph, d, None, w, ez, power)
+        E0 = focal_field(A, W, d, np.zeros((1, 3)))[0]
+        Ey = focal_field(A, W, d, np.stack([0 * line, line, 0 * line], -1))       # across the polarisation
+        Ezl = focal_field(A, W, d, np.stack([0 * line, 0 * line, line], -1))      # along it
+        I = lambda E: np.sum(abs(E) ** 2, -1)
+        c = dict(opl_spread_waves=float(np.max(np.abs(Tr['opl'])) / LAM), focus_spread_um=Tr['focus_spread'] * 1e6, marginal_angle_deg=float(np.degrees(tmax)),
+                 peak_irradiance=float(np.sum(abs(E0) ** 2) / (2 * Z0)), fwhm_across_um=fwhm(line, I(Ey)) * 1e6, fwhm_along_um=fwhm(line, I(Ezl)) * 1e6,
+                 axial_ratio=float(np.max(abs(Ezl[:, 0]) ** 2) / np.sum(abs(E0) ** 2)),
+                 # the beam through both lenses (the second the first turned round: each ray meets its faces at the same angles), half its light s and half p round the pupil
+                 both_lenses=float(np.sum(np.exp(-2 * Tr['h'] ** 2 / w ** 2) * Tr['h'] * 0.5 * (Tr['Ts'] ** 2 + Tr['Tp'] ** 2)) / np.sum(np.exp(-2 * Tr['h'] ** 2 / w ** 2) * Tr['h'])))
+        # the sphere at the focus: its scattered power, and the share inside the collection lens's cone
+        sph = Sphere(a_s, m)
+        tS, pS, WS, dS = directions(np.pi, 48, 96)
+        F = np.zeros((len(WS), 3), dtype=complex)
+        for o in range(len(W)):
+            F += sph.far(d[o], A[o] * W[o], dS)
+        psr = np.sum(abs(F) ** 2, 1) / (2 * Z0) * WS
+        c['Psca_W'] = float(np.sum(psr))
+        # (the cone on a grid of its own: cutting the sphere's grid at the cone's edge would be a ring out either way)
+        tC, pC, WC, dC = directions(tmax, 32, 96)
+        Fc = np.zeros((len(WC), 3), dtype=complex)
+        for o in range(len(W)):
+            Fc += sph.far(d[o], A[o] * W[o], dC)
+        c['share_collected'] = float(np.sum(np.sum(abs(Fc) ** 2, 1) / (2 * Z0) * WC) / np.sum(psr))
+        for pol, e_in in [('s', ez), ('p', ey)]:
+            sl, tot = slope(Tr, None, w, tmax, e_in, a_s, m, 10e-9, power=power)
+            c['slope_' + pol + '_per_um'] = abs(sl) * 1e-6
+            # and as a detector behind the collection lens reads it (the same lens turned round: each ray meets its faces at the
+            # angles it met the objective's), over the beam's power there
+            after = (lambda t: np.interp(t, Tr['theta'], Tr['Ts']), lambda t: np.interp(t, Tr['theta'], Tr['Tp']), power * c['both_lenses'])
+            sl2, _ = slope(Tr, None, w, tmax, e_in, a_s, m, 10e-9, power=power, after=after)
+            c['slope_' + pol + '_behind_lens_per_um'] = abs(sl2) * 1e-6
+            if pol == 's':
+                c['Pext_W'] = float(-tot)
+        out['cases'][name] = c
+        print(name, json.dumps(c))
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ref', 'scatter-real-lens.json')
+    with open(path, 'w') as fh:
+        json.dump(out, fh, indent=1)
+
+
 if __name__ == '__main__':
-    main()
+    if '--lens-only' not in sys.argv:
+        main()
+    real_lens()

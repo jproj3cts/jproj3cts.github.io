@@ -1,0 +1,51 @@
+{
+ "prescription": {
+  "glass": "N-BK7",
+  "n": 1.5006520430195947,
+  "R_mm": -2.0026081720783786,
+  "k": -2.2519565542188835,
+  "thickness_mm": 2.5,
+  "vertex_to_focus_mm": 4,
+  "semi_aperture_mm": 3.3421053289905696,
+  "sag_at_edge_mm": 1.7886962340583639
+ },
+ "beam_radius_mm": 1.7,
+ "power_mW": 100,
+ "sphere_radius_nm": 150,
+ "cases": {
+  "coated": {
+   "opl_spread_waves": 5.595882180570345e-13,
+   "focus_spread_um": 8.673617379884035e-12,
+   "marginal_angle_deg": 29.999999999999996,
+   "peak_irradiance": 24615283729.760723,
+   "fwhm_across_um": 1.9459082158840688,
+   "fwhm_along_um": 2.0311993889734783,
+   "axial_ratio": 0.020739399571914858,
+   "both_lenses": 1.0,
+   "Psca_W": 4.447385522307768e-05,
+   "share_collected": 0.1089579276287823,
+   "slope_s_per_um": 0.008377823531559025,
+   "slope_s_behind_lens_per_um": 0.008377823531559025,
+   "Pext_W": 4.447074422146024e-05,
+   "slope_p_per_um": 0.007865299221118073,
+   "slope_p_behind_lens_per_um": 0.007865299221118073
+  },
+  "bare": {
+   "opl_spread_waves": 5.595882180570345e-13,
+   "focus_spread_um": 8.673617379884035e-12,
+   "marginal_angle_deg": 29.999999999999996,
+   "peak_irradiance": 22239471358.739666,
+   "fwhm_across_um": 1.9718112579789202,
+   "fwhm_along_um": 2.0241948034557633,
+   "axial_ratio": 0.021835913318188096,
+   "both_lenses": 0.8341522473408894,
+   "Psca_W": 4.0181605906858974e-05,
+   "share_collected": 0.10896838556930608,
+   "slope_s_per_um": 0.0074654588151384016,
+   "slope_s_behind_lens_per_um": 0.007895249595728859,
+   "Pext_W": 4.017886554290381e-05,
+   "slope_p_per_um": 0.007128543183610741,
+   "slope_p_behind_lens_per_um": 0.007813547106825263
+  }
+ }
+}

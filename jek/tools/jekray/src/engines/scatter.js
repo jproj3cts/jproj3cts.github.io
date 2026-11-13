@@ -239,7 +239,7 @@ export function* scatterGen(el, R, opts) {
   if (trapMiss) flags.push('notrap');
   const out = { model, auto: pick.auto, shape: P.shape, D: P.D * 1e9, L: P.L * 1e9, rEq: P.rEq, mat: el.trapMat, np: [npr, npi], m: [mr, mi], nMed, nBench, nm, k,
     x: k * aEq, kL: k * Math.max(P.D, P.L) / 2, area, I0, E2, at: { x: at[0], y: at[1], z: at[2], trap: atTrap }, beams: TB.parts.length, launches: launches.length,
-    waves: launches.reduce((a, L) => a + L.n, 0), pupils: W.notes.pupils, plane: W.notes.plane, single, dir: d0, pol, axis, flags,
+    waves: launches.reduce((a, L) => a + L.n, 0), pupils: W.notes.pupils, plane: W.notes.plane, routes: TB.parts.map(q => (q.P ? q.P.route : 'beam')), single, dir: d0, pol, axis, flags,
     // where the particle is on the bench (mm; z its height above the breadboard), and the trap there (a Particle part's Trap tab)
     pos: [C[0], C[1], (b0.z0 !== undefined ? b0.z0 : BEAM_Z) + C[2]], elPos: [el.x, el.y, zOf(el)], ...(trapRaw ? { trapRaw } : {}) };
   // Rayleigh's answer beside whichever model runs, and Mie's for the sphere of the same volume

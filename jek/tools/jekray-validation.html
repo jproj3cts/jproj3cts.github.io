@@ -2420,6 +2420,53 @@ const ALL_CASES = [
           'One of the script’s own checks fails and is left failing: against the paraxial integration of the case above (' + fmt(L.scatter_bench_per_um * 1e6, 4) + ') the thin mask is ' + fmt(100 * (L.slope_per_um.mask / L.scatter_bench_per_um - 1), 2) + '% out, more than the 1% allowed, while the aplanatic lens is ' + fmt(100 * (L.slope_per_um.aplanatic / L.scatter_bench_per_um - 1), 2) + '% out. The paraxial waist λf/πw is an aplanatic lens’s; a lens that sends a ray at height ρ to tan θ = ρ/f makes a slightly wider focus even at NA 0.07.' };
     },
   },
+  {
+    id: 'scatter-real-lens', area: 'Scattering', title: 'A particle in the focus of a real glass asphere',
+    kind: 'Independent code', ref: 'scatter-real-lens.json', script: 'scatter_position_focus.py',
+    cite: 'B. Richards and E. Wolf, Proceedings of the Royal Society A 253, 358–379 (1959); Bohren and Huffman (1983), chapter 4. The lens is a Cartesian surface (a hyperboloid of eccentricity n), stigmatic for a collimated beam by Fermat’s principle.',
+    what: 'The 300 nm silica sphere at the focus of a plano-convex asphere in N-BK7: flat face to a collimated 1550 nm beam (1.7 mm in radius, 100 mW), second face a conic with k = −n² and R = −2.0026 mm, 2.5 mm thick, 4 mm from its vertex to the focus, clear to NA 0.5. The same lens turned round collects the light onto a split photodetector. JEKray takes this focus from rays traced through the lens’s own surfaces, with no ideal-lens rule. The reference traces the same prescription itself (heights to angles, optical path, Fresnel transmission where a face is bare), builds the focus as plane waves with the energy kept along each ray, and scatters each by Mie theory. Faces that reflect nothing, then bare faces.',
+    tolerance: 'Width of the focus at half its peak (two ways) and its peak irradiance within 2%; the field along the axis, as a share of the peak, within 5%; scattered power within 2%; the share into the collection lens within 1%; the detector’s change within 10⁻⁶ of the extinction; the split detector’s slope within 5% for both polarisations; with bare faces, the peak and the beam’s power behind both lenses, each as a ratio to the coated bench, within 1%.',
+    async run(J, R) {
+      const P = R.prescription, Tk = P.thickness_mm, L = P.vertex_to_focus_mm, semi = P.semi_aperture_mm, F0 = Tk / 2 + L, COAT = { mode: 'custom', R: 0 }, BARE = { mode: 'bare' };
+      const lens = (name, x, flip, coat) => ({ type: 'lens', name, x, y: 0, angle: flip ? 180 : 0, diameter: +(2 * semi + 0.2).toFixed(4), surfaces: [{ R: null, coat, semi }, { R: P.R_mm, k: P.k, coat, semi }], gaps: [Tk], materials: [{ glass: 'N-BK7' }] });
+      const els = o => [{ type: 'source', name: 'Laser', x: -30, y: 0, angle: 0, wavelength: 1550, gauss: true, w0: 1.7, z0: 0, popN: 256, pol: o.pol || 's', rays: 0, traceRays: false, power: 100 },
+        lens('Objective', 0, false, o.coat || COAT), Object.assign({ type: 'particle', name: 'Particle', x: F0, y: o.y || 0, angle: 90, trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum' }, o.part || {}),
+        ...(o.col === false ? [] : [lens('Collection lens', 2 * F0, true, o.coat || COAT), { type: 'detector', name: 'Split detector', x: 2 * F0 + 12, y: 0, angle: 180, length: 9, quad: true, material: 'ingaas' }])];
+      const open = o => { const d = bench('A sphere at an asphere’s focus', els(o), { minPower: 1e-4 }); J.load(d); return d; };
+      const checks = [], C = R.cases.coated, Cb = R.cases.bare;
+      const data = open({}), S = J.scatter('Particle'), on = J.detector('Split detector'), row = J.scattered('Particle').rows.find(r => r.name === 'Collection lens');
+      checks.push(check('the focus is taken from rays traced through the lens (1) and as plane waves (1)', 2, (S.routes[0] === 'traced' ? 1 : 0) + (S.pupils === 1 ? 1 : 0), { abs: 0 }));
+      // the focal field: the particle moved across the polarisation (in the plane) and along it (up), the light on it read each time
+      const line = async key => { const x = [], I = [], ax = []; for (let i = -8; i <= 8; i++) { open({ col: false, part: { [key]: i * 0.18 } }); const s = J.scatter('Particle'), e = s.far.refs[0].E, e2 = e.reduce((a, v) => a + v * v, 0); x.push(i * 0.18); I.push(s.I0); ax.push((e[0] * e[0] + e[1] * e[1]) / e2 * s.I0); if (i % 2 === 0) await idle(); } return { x, I, ax }; };
+      const fwhm = (x, I) => { const m = Math.max(...I), i0 = I.indexOf(m), cr = (a, b) => x[a] + (x[b] - x[a]) * (m / 2 - I[a]) / (I[b] - I[a]); let lo = NaN, hi = NaN; for (let i = i0; i > 0; i--) if (I[i - 1] < m / 2) { lo = cr(i - 1, i); break; } for (let i = i0; i < x.length - 1; i++) if (I[i + 1] < m / 2) { hi = cr(i, i + 1); break; } return hi - lo; };
+      const A = await line('scatDx'), U = await line('scatDy');
+      checks.push(check('width of the focus at half its peak, across the polarisation', C.fwhm_across_um, fwhm(A.x, A.I), { rel: 0.02 }, ' µm'));
+      checks.push(check('width of the focus at half its peak, along the polarisation', C.fwhm_along_um, fwhm(U.x, U.I), { rel: 0.02 }, ' µm'));
+      checks.push(check('peak irradiance', C.peak_irradiance / 1e10, S.I0 / 1e10, { rel: 0.02 }, ' ×10¹⁰ W/m²'));
+      checks.push(check('the field along the axis at its largest, over the peak', C.axial_ratio, Math.max(...U.ax) / S.I0, { rel: 0.05 }));
+      checks.push(check('power scattered', C.Psca_W * 1e6, S.Psca * 1e6, { rel: 0.02 }, ' µW'));
+      checks.push(check('share into the collection lens', C.share_collected, row.share, { rel: 0.01 }));
+      open({ part: { scatLight: false } }); const off = J.detector('Split detector');
+      checks.push(check('change in the detector’s reading, against −(extinction − caught)', -(S.Pext - row.P) * 1e6, (on.mw - off.mw) * 1e3, { abs: 1e-6 * S.Pext * 1e6 }, ' µW'));
+      const slope = (o, pol) => { open(Object.assign({}, o, { pol, y: 1e-5 })); const a = J.detector('Split detector'); open(Object.assign({}, o, { pol, y: -1e-5 })); const b = J.detector('Split detector'); return Math.abs(a.X / a.mw - b.X / b.mw) / 0.02; };
+      checks.push(check('split detector’s slope, polarised out of the plane', C.slope_s_per_um, slope({}, 's'), { rel: 0.05 }, ' /µm'));
+      checks.push(check('split detector’s slope, polarised in the plane', C.slope_p_per_um, slope({}, 'p'), { rel: 0.05 }, ' /µm'));
+      await idle();
+      // bare faces
+      open({ coat: BARE }); const Sb = J.scatter('Particle');
+      open({ coat: BARE, part: { scatLight: false } }); const offB = J.detector('Split detector');
+      checks.push(check('bare faces: peak irradiance over the coated lens’s', Cb.peak_irradiance / C.peak_irradiance, Sb.I0 / S.I0, { rel: 0.01 }));
+      checks.push(check('bare faces: the beam’s power behind both lenses over the coated bench’s', Cb.both_lenses, offB.mw / off.mw, { rel: 0.01 }));
+      const sb = slope({ coat: BARE }, 's'), pb = slope({ coat: BARE }, 'p');
+      const plots = [plot({ title: 'Irradiance across the focus (across the polarisation), as the particle is moved through it', xlabel: 'displacement (µm)', ylabel: 'irradiance (×10¹⁰ W/m²)',
+        series: [{ name: 'JEKray', x: A.x, y: A.I.map(v => v / 1e10), colour: GOT_C, dots: true }] })];
+      return { checks, plots, benches: [['The sphere at the asphere’s focus', data]],
+        notes: 'The change in the detector’s reading is right by construction here: in a steep focus the interference is the optical theorem taken wave by wave, so it checks only that every wave reaches the detector. ' +
+          'The last check fails and is left failing. A Gaussian beam on the bench is carried by its axis ray, so through bare faces it loses what the axis ray loses, 4% a face (' + fmt(offB.mw / off.mw, 4) + ' through four faces); the light at this lens’s edge meets the curved faces at up to ' + fmt(R.cases.bare.marginal_angle_deg, 3) + '° and loses more, and over the whole beam the reference keeps ' + fmt(Cb.both_lenses, 4) + '. The focus itself is right with bare faces (the check before it), because there each traced ray takes its own loss. ' +
+          'With bare faces the split detector’s slope is ' + fmt(sb, 4) + ' and ' + fmt(pb, 4) + ' per µm (out of the plane, in it) against the reference’s ' + fmt(Cb.slope_s_behind_lens_per_um, 4) + ' and ' + fmt(Cb.slope_p_behind_lens_per_um, 4) + ' behind the bare collection lens: about 1% low, the same beam power being its denominator. ' +
+          'The lens is free of aberration by design: the reference’s traced optical paths differ by ' + fmt(C.opl_spread_waves, 2) + ' waves across the aperture.' };
+    },
+  },
 ];
 
 /* ---------- Running and reporting ---------- */

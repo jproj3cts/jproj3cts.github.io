@@ -2,6 +2,7 @@ import { Z0_OHM, gaussLegendre } from '../core/scatter.js';
 import { wavelengthColour } from '../core/colour.js';
 import { lagOf, splitRoot } from '../core/coherence.js';
 import { toWorld } from '../core/mask.js';
+import { sagFn } from '../core/geometry.js';
 import { cross3, unit3 } from '../core/numeric.js';
 import { deg, project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
@@ -120,7 +121,8 @@ function partCone(P, el, ss) {
   const sq = PARTS[el.type] && PARTS[el.type].zSquare, zh = PARTS[el.type] && PARTS[el.type].zHalf;
   for (const s of ss) {
     if (s.kind === 'iris' || s.mesh || !(s.semi > 0)) continue;
-    const [wx, wy] = toWorld(s.f, s.z || 0, 0), v = [wx - P[0], wy - P[1], zOf(el) - P[2]], dist = Math.hypot(v[0], v[1], v[2]);
+    // (a curved face's disc is its rim's, where its sag has taken it: the cone to the rim is the face as the particle sees it)
+    const [wx, wy] = toWorld(s.f, (s.z || 0) + (s.flat ? 0 : sagFn(s, s.semi)), 0), v = [wx - P[0], wy - P[1], zOf(el) - P[2]], dist = Math.hypot(v[0], v[1], v[2]);
     if (dist < 1e-6) continue;
     const r = zh ? Math.hypot(s.semi, zh(el)) : sq ? s.semi * Math.SQRT2 : s.semi, one = [[v[0] / dist, v[1] / dist, v[2] / dist], Math.min(Math.atan2(r, dist), 89 * deg)];
     cone = cone ? coneJoin(cone, one) : one;

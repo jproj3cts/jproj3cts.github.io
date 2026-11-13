@@ -44525,7 +44525,7 @@ function* scatterGen(el, R, opts) {
   if (trapMiss) flags.push('notrap');
   const out = { model, auto: pick.auto, shape: P.shape, D: P.D * 1e9, L: P.L * 1e9, rEq: P.rEq, mat: el.trapMat, np: [npr, npi], m: [mr, mi], nMed, nBench, nm, k,
     x: k * aEq, kL: k * Math.max(P.D, P.L) / 2, area, I0, E2, at: { x: at[0], y: at[1], z: at[2], trap: atTrap }, beams: TB.parts.length, launches: launches.length,
-    waves: launches.reduce((a, L) => a + L.n, 0), pupils: W.notes.pupils, plane: W.notes.plane, single, dir: d0, pol, axis, flags,
+    waves: launches.reduce((a, L) => a + L.n, 0), pupils: W.notes.pupils, plane: W.notes.plane, routes: TB.parts.map(q => (q.P ? q.P.route : 'beam')), single, dir: d0, pol, axis, flags,
     // where the particle is on the bench (mm; z its height above the breadboard), and the trap there (a Particle part's Trap tab)
     pos: [C[0], C[1], (b0.z0 !== undefined ? b0.z0 : BEAM_Z) + C[2]], elPos: [el.x, el.y, zOf(el)], ...(trapRaw ? { trapRaw } : {}) };
   // Rayleigh's answer beside whichever model runs, and Mie's for the sphere of the same volume
@@ -44820,7 +44820,8 @@ function partCone(P, el, ss) {
   const sq = PARTS[el.type] && PARTS[el.type].zSquare, zh = PARTS[el.type] && PARTS[el.type].zHalf;
   for (const s of ss) {
     if (s.kind === 'iris' || s.mesh || !(s.semi > 0)) continue;
-    const [wx, wy] = toWorld(s.f, s.z || 0, 0), v = [wx - P[0], wy - P[1], zOf(el) - P[2]], dist = Math.hypot(v[0], v[1], v[2]);
+    // (a curved face's disc is its rim's, where its sag has taken it: the cone to the rim is the face as the particle sees it)
+    const [wx, wy] = toWorld(s.f, (s.z || 0) + (s.flat ? 0 : sagFn(s, s.semi)), 0), v = [wx - P[0], wy - P[1], zOf(el) - P[2]], dist = Math.hypot(v[0], v[1], v[2]);
     if (dist < 1e-6) continue;
     const r = zh ? Math.hypot(s.semi, zh(el)) : sq ? s.semi * Math.SQRT2 : s.semi, one = [[v[0] / dist, v[1] / dist, v[2] / dist], Math.min(Math.atan2(r, dist), 89 * deg)];
     cone = cone ? coneJoin(cone, one) : one;
@@ -58141,7 +58142,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    'A <b>Particle</b>\u2019s scattered light: two cones that reach one detector now add as fields when the same laser drives them (a particle seen directly and in a mirror, two particles in one beam), as each already did with the unscattered beam; cones driven by different lasers add as powers. A bench with a Particle retraces about twice as fast: a ray\u2019s tube area on a detector comes from its neighbours in the cone, in place of two extra rays each, and the parts with a clear line to the particle are only looked for again when a part or the particle moves. The validation page has a new case, a split detector\u2019s signal for a sphere in an NA 0.8 focus against an independent calculation.',
+    'A <b>Particle</b>\u2019s scattered light: two cones that reach one detector now add as fields when the same laser drives them (a particle seen directly and in a mirror, two particles in one beam), as each already did with the unscattered beam; cones driven by different lasers add as powers. A bench with a Particle retraces about twice as fast: a ray\u2019s tube area on a detector comes from its neighbours in the cone, in place of two extra rays each, and the parts with a clear line to the particle are only looked for again when a part or the particle moves. The validation page has a new case, a split detector\u2019s signal for a sphere in an NA 0.8 focus against an independent calculation, and another, a sphere at the focus of a real glass asphere against an independent trace of the same lens.',
     '<b>A part\u2019s own colours</b>: every part\u2019s panel has a <b>Colours</b> section with a <b>Line colour</b> and a <b>Fill colour</b> (and Default, to go back). The part is drawn in them on the bench and in every export; its glass stays as see-through as it was. Several parts selected together take a colour at once. <b>Export figure</b>, Journal and Technical drawing, has <b>Parts</b>: In their colours, or <b>Black and white</b> (black lines, white fills, the light still in its colour unless Light is Black too, the light inside a fibre with it). A fibre or a wire has a <b>Line colour</b> of its own too: click it, and it is in its panel.',
     '<b>Fibre tips and collimators are single-mode</b>, as the fibres and fibre parts they join are: the Multimode choice is gone from a tip’s panel. A tip saved as multimode opens as the standard single-mode fibre (4.4 µm core, NA 0.12), so the light it takes in is now its mode’s overlap, and less than it read before.',
     '<b>Export figure</b>: a name you placed by hand keeps its place unless it stands where another part’s name has to go; then it is set with the rest, if that leaves fewer names led out on lines.',

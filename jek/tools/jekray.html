@@ -40691,8 +40691,8 @@ function beamAxes(d) {
    length along d (L, mm; a rising leg's len3). For a level leg these are (x0, y0, z0), (dx, dy, 0), (-dy, dx, 0), (0, 0, 1)
    and len: the frame every reading of a level beam has always used. */
 function beamFrame(b) {
-  const d0 = b.d3 ? b.d3 : [b.dx, b.dy, 0], l = Math.hypot(d0[0], d0[1], d0[2]) || 1, d = [d0[0] / l, d0[1] / l, d0[2] / l];
-  const lev = !b.d3 || !d[2];
+  // (a level leg's own (dx, dy) as they are, so its readings stay what they were to the last bit)
+  const lev = !b.d3 || !b.d3[2], d0 = lev ? [b.dx, b.dy, 0] : b.d3, l = lev ? 1 : Math.hypot(d0[0], d0[1], d0[2]) || 1, d = [d0[0] / l, d0[1] / l, d0[2] / l];
   const [ex, ey] = lev ? [[-d[1], d[0], 0], [0, 0, 1]] : beamAxes(d);
   return { P0: [b.x0, b.y0, b.z0 !== undefined ? b.z0 : BEAM_Z], d, ex, ey, L: b.len3 > 0 ? b.len3 : b.len, level: lev };
 }
@@ -43654,14 +43654,14 @@ function trapShape(sg, len) {
     const curv = (f, u, d) => -(f(u + h) - 2 * f(u) + f(u - h)) / ((h * d) ** 2) / f(u);
     return { I: Math.max(lx(ux), ly(uy)), cx: curv(lx, ux, G.ax.d), cy: curv(ly, uy, G.ay.d) };
   };
-  const lam = sg.b.nm * 1e-6 / sg.b.n, P0 = probe(sg.leg.at(len));
+  const leg = legRaw(sg), lam = sg.b.nm * 1e-6 / sg.b.n, P0 = probe(leg.at(len));
   const wOf = c => c > 0 ? 2 / Math.sqrt(c) : Infinity;        // a Gaussian's radius with that curvature
   const zr = c => Math.PI * wOf(c) ** 2 / lam;
   const span = 3 * Math.max(zr(Math.min(P0.cx, P0.cy)), 1e-4);
-  const Pt = t => probe(sg.leg.at(t)).I;
+  const Pt = t => probe(leg.at(t)).I;
   let a = Math.max(1e-6, len - span), b = len + span;
   for (let it = 0; it < 32; it++) { const m1 = a + 0.382 * (b - a), m2 = a + 0.618 * (b - a); if (Pt(m1) > Pt(m2)) b = m2; else a = m1; }
-  const t = 0.5 * (a + b), F = probe(sg.leg.at(t));
+  const t = 0.5 * (a + b), F = probe(leg.at(t));
   const hz = 0.05 * zr(Math.min(F.cx, F.cy));
   const up = Pt(t + hz), dn = t - hz > 0 ? Pt(t - hz) : Pt(t);
   const cz = t - hz > 0 ? -(up - 2 * F.I + dn) / (hz * hz) / F.I : -2 * (up - F.I) / (hz * hz) / F.I;
@@ -43682,20 +43682,22 @@ function trapShape(sg, len) {
    phase exact, as the close-up does. Paraxial: no field along the beam. Returns the same
    [x, y, z] components, re and im, as vfAt. */
 function trapLegPart(sg, P0) {
-  const b = sg.b, rx = P0[0] - b.x0, ry = P0[1] - b.y0, tc = clamp(rx * b.dx + ry * b.dy, 0, b.len);
-  const G0 = sg.leg.at(tc), two = !!G0.ax, lam = G0.lam0 / G0.n, k = 2 * Math.PI / lam;
+  // (P0 a world point; its distance along the leg in 3D, which a rising leg's field runs by)
+  const b = sg.b, F = beamFrame(b), leg = legRaw(sg), r = [P0[0] - F.P0[0], P0[1] - F.P0[1], (P0.length > 2 ? P0[2] : F.P0[2]) - F.P0[2]];
+  const tc = clamp(r[0] * F.d[0] + r[1] * F.d[1] + r[2] * F.d[2], 0, F.L);
+  const G0 = leg.at(tc), two = !!G0.ax, lam = G0.lam0 / G0.n, k = 2 * Math.PI / lam;
   const zR = two ? Math.min(G0.ax.zR, G0.ay.zR) : G0.zR;
   // cuts along the beam a fiftieth of its Rayleigh range apart (half a wavelength at least):
   // fine enough for the curvature of a tight focus, coarse enough for a collimated beam's search;
   // a beam clipped by a rim ripples along itself far faster than its Rayleigh range says, so its
   // cuts are no further apart than 20 µm
   const H = Math.max(0.5 * lam, sg.clipped ? Math.min(0.02 * zR, 0.02) : 0.02 * zR);
-  return { sg, H, k, two, J: popJ(b), par: b.par, cuts: new Map() };
+  return { sg, leg, H, k, two, J: popJ(b), par: b.par, cuts: new Map() };
 }
 function trapLegCut(L, i) {
   let c = L.cuts.get(i);
   // before the leg's start, its field carried back through free space: smooth, as the stencil needs
-  if (!c) { c = L.sg.leg.at(i * L.H); L.cuts.set(i, c); }
+  if (!c) { c = L.leg.at(i * L.H); L.cuts.set(i, c); }
   return c;
 }
 function trapLegAt(L, px, py, pz) {
@@ -43730,16 +43732,20 @@ function trapLegAt(L, px, py, pz) {
    scatters: engines/scatter.js): each as its vector pupil (a steep focus) or its propagated
    field. dom is the screen's strongest arrival and len where it meets the screen. */
 function trapBeams(el, R, dom, len, pup) {
-  const sg0 = dom.sg, b0 = sg0.b;
-  const P0 = [b0.x0 + b0.dx * len, b0.y0 + b0.dy * len];
+  const sg0 = dom.sg, b0 = sg0.b, F0 = beamFrame(b0);
+  // where the strongest beam is len along its way (mm, in 3D: a rising leg's len3), a world point with its height
+  const P0 = [0, 1, 2].map(i => F0.P0[i] + F0.d[i] * len);
   const H = Math.min(Math.max(el.length / 2, 0.005), 2);
   // the beams through the region; a beam passing through a screen that lets it by is one beam
   const near = [], passed = new Set();
   for (const sg of R.segs) {
     const b = sg.b;
     if (b.fan || b.bench !== b0.bench) continue;
-    const rx = P0[0] - b.x0, ry = P0[1] - b.y0, t = rx * b.dx + ry * b.dy, x = -rx * b.dy + ry * b.dx;
-    if (t < -H || t > b.len + H || Math.abs(x) > H) continue;
+    const F = beamFrame(b), r = [P0[0] - F.P0[0], P0[1] - F.P0[1], P0[2] - F.P0[2]], dot = v => r[0] * v[0] + r[1] * v[1] + r[2] * v[2];
+    const t = dot(F.d), x = dot(F.ex);
+    if (t < -H || t > F.L + H || Math.abs(x) > H) continue;
+    // (level beams pass at whatever height, as they always have; a rising one must pass near)
+    if (!(F.level && F0.level) && Math.abs(dot(F.ey)) > H) continue;
     near.push(sg);
   }
   const inSet = new Set(near.map(sg => sg.i));
@@ -43771,8 +43777,7 @@ function trapBeams(el, R, dom, len, pup) {
 const trapMedium = (el, nBench, nm) => el.trap in TRAP_ATOMS ? 1 : el.trapMed === 'vacuum' ? 1 : el.trapMed === 'air' ? airIndex(el.trapP, el.trapT)
   : el.trapMed === 'water' ? refIndex({ glass: 'Water' }, nm) : nBench;
 function trapSolve(el, R, dom, len) {
-  const sg0 = dom.sg, b0 = sg0.b, lam0 = b0.nm * 1e-6;
-  const d0 = [b0.dx, b0.dy], a0v = [-b0.dy, b0.dx];
+  const sg0 = dom.sg, b0 = sg0.b, lam0 = b0.nm * 1e-6, F0 = beamFrame(b0);
   const { parts, skipped, P0, H } = trapBeams(el, R, dom, len);
   if (!parts.length) return { error: 'no focused beam' };
   const isAtom = el.trap in TRAP_ATOMS;
@@ -43788,17 +43793,18 @@ function trapSolve(el, R, dom, len) {
   const byL = new Map();
   for (const q of parts) { if (!byL.has(q.coh)) byL.set(q.coh, []); byL.get(q.coh).push(q); }
   const launches = [...byL.values()];
-  const world = (x, y, z) => [P0[0] + x * a0v[0] + z * d0[0], P0[1] + x * a0v[1] + z * d0[1], y];
+  // the trap frame: x across the strongest beam (in the bench plane when it is level), y up from it, z along it, from P0
+  const world = (x, y, z) => [0, 1, 2].map(i => P0[i] + x * F0.ex[i] + y * F0.ey[i] + z * F0.d[i]);
+  for (const q of parts) q.F = beamFrame(q.b);
   const fieldL = (L, x, y, z) => {
-    const [X, Y, Zo] = world(x, y, z), E = [0, 0, 0, 0, 0, 0];         // world X, Y (bench), Z (out of plane)
+    const W = world(x, y, z), E = [0, 0, 0, 0, 0, 0];                  // world X, Y (bench), Z (up)
     for (const q of L) {
-      const b = q.b, rx = X - b.x0, ry = Y - b.y0, pz = rx * b.dx + ry * b.dy, px = -rx * b.dy + ry * b.dx;
-      const e = q.P ? vfAt(q.P, px, Zo, pz) : trapLegAt(q.leg, px, Zo, pz), s = Math.sqrt(2 * q.Pw * 1e6 / (nMed * EPS0 * C_SI));
-      const ax = [-b.dy, b.dx];
-      // beam frame x (across, in the plane), y (out of it), z (along) to world X, Y, Z
-      E[0] += s * (e[0] * ax[0] + e[4] * b.dx); E[1] -= s * (e[1] * ax[0] + e[5] * b.dx);
-      E[2] += s * (e[0] * ax[1] + e[4] * b.dy); E[3] -= s * (e[1] * ax[1] + e[5] * b.dy);
-      E[4] += s * e[2]; E[5] -= s * e[3];
+      const F = q.F, r = [W[0] - F.P0[0], W[1] - F.P0[1], W[2] - F.P0[2]];
+      // where the point is in this beam's own frame: across, up, along (a level beam's are its run, the height, its x)
+      const px = r[0] * F.ex[0] + r[1] * F.ex[1] + r[2] * F.ex[2], py = F.level && F0.level ? y + (P0[2] - F.P0[2]) : r[0] * F.ey[0] + r[1] * F.ey[1] + r[2] * F.ey[2], pz = r[0] * F.d[0] + r[1] * F.d[1] + r[2] * F.d[2];
+      const e = q.P ? vfAt(q.P, px, py, pz) : trapLegAt(q.leg, px, py, pz), s = Math.sqrt(2 * q.Pw * 1e6 / (nMed * EPS0 * C_SI));
+      // the beam's frame (x across, y up, z along) to the world, the field conjugated as the physicists write it
+      for (let m = 0; m < 3; m++) { E[2 * m] += s * (e[0] * F.ex[m] + e[2] * F.ey[m] + e[4] * F.d[m]); E[2 * m + 1] -= s * (e[1] * F.ex[m] + e[3] * F.ey[m] + e[5] * F.d[m]); }
     }
     return E;
   };

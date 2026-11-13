@@ -25,8 +25,8 @@ export function beamAxes(d) {
    length along d (L, mm; a rising leg's len3). For a level leg these are (x0, y0, z0), (dx, dy, 0), (-dy, dx, 0), (0, 0, 1)
    and len: the frame every reading of a level beam has always used. */
 export function beamFrame(b) {
-  const d0 = b.d3 ? b.d3 : [b.dx, b.dy, 0], l = Math.hypot(d0[0], d0[1], d0[2]) || 1, d = [d0[0] / l, d0[1] / l, d0[2] / l];
-  const lev = !b.d3 || !d[2];
+  // (a level leg's own (dx, dy) as they are, so its readings stay what they were to the last bit)
+  const lev = !b.d3 || !b.d3[2], d0 = lev ? [b.dx, b.dy, 0] : b.d3, l = lev ? 1 : Math.hypot(d0[0], d0[1], d0[2]) || 1, d = [d0[0] / l, d0[1] / l, d0[2] / l];
   const [ex, ey] = lev ? [[-d[1], d[0], 0], [0, 0, 1]] : beamAxes(d);
   return { P0: [b.x0, b.y0, b.z0 !== undefined ? b.z0 : BEAM_Z], d, ex, ey, L: b.len3 > 0 ? b.len3 : b.len, level: lev };
 }

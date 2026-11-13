@@ -2390,6 +2390,36 @@ const ALL_CASES = [
         notes: 'Not collected by either lens: ' + fmt(100 * Sc.lostShare, 4) + '% with the light polarised out of the plane. The lens ahead also passes the beam, so its detector reads the beam with the forward scatter; the case above checks that sum.' };
     },
   },
+  {
+    id: 'scatter-position-focus', area: 'Scattering', title: 'A particle’s place in a steep focus, from a split detector',
+    kind: 'Independent code', ref: 'scatter-position-focus.json', script: 'scatter_position_focus.py',
+    cite: 'B. Richards and E. Wolf, “Electromagnetic diffraction in optical systems II”, Proceedings of the Royal Society A 253, 358–379 (1959), for a focus as a sum of plane waves; Bohren and Huffman (1983), chapter 4, for the sphere’s field in each; F. Gittes and C. F. Schmidt, Optics Letters 23, 7–9 (1998), for the limit the script is checked against.',
+    what: 'The 300 nm silica sphere of the example bench, moved across the NA 0.8 focus of a 100 mW, 1550 nm beam (1.5 mm in radius through an ideal lens of f = 2 mm, 5.333 mm across). A like lens collects the beam and the forward scatter onto a photodetector split in two. The signal is the difference of the halves over their sum, and the check is its slope at the middle. The reference sums the focus as plane waves from the field on the lens’s plane, scatters each by Mie theory, and integrates the interference of the scattered light with the unscattered beam over each half of the cone. It shares no code with JEKray and has no rays in it. The bench’s lens is a thin mask, which keeps the beam’s transverse field on its plane, and the reference takes the same lens.',
+    tolerance: 'The slope within 5% of the reference, for light polarised out of the bench plane and in it (the sphere moved in the plane both times).',
+    async run(J, R) {
+      const lens = (name, x) => ({ type: 'mask', name, x, y: 0, angle: 0, length: 5.333, amp: '1', delay: '-(sqrt(r^2+4)-2)/lambda' });
+      const els = (pol, y) => [{ type: 'source', name: 'Laser', x: -30, y: 0, angle: 0, wavelength: 1550, gauss: true, w0: 1.5, z0: 0, popN: 256, pol, rays: 0, traceRays: false, power: 100 },
+        lens('Objective', 0), { type: 'particle', name: 'Particle', x: 2, y, angle: 90, trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum' }, lens('Collection lens', 4),
+        { type: 'detector', name: 'Split detector', x: 10, y: 0, angle: 180, length: 8, quad: true, material: 'ingaas' }];
+      const sig = (pol, um) => { J.load(bench('A sphere across a steep focus', els(pol, um * 1e-3), { minPower: 1e-4 })); const d = J.detector('Split detector'); return d.X / d.mw; };
+      const checks = [], said = [];
+      for (const [pol, c] of [['s', R.tight.cases[0]], ['p', R.tight.cases[1]]]) {
+        const slope = Math.abs(sig(pol, 0.01) - sig(pol, -0.01)) / 0.02;
+        checks.push(check('slope at the middle, light polarised ' + (pol === 's' ? 'out of the plane' : 'in the plane'), c.mask.slope_per_um, slope, { rel: 0.05 }, ' /µm'));
+        said.push((pol === 's' ? 'Polarised out of the plane' : 'Polarised in the plane') + ': an energy-keeping thin lens would give ' + fmt(c['thin lens'].slope_per_um, 4) + ' per µm and an aplanatic lens ' + fmt(c.aplanatic.slope_per_um, 4) + ', against the thin mask’s ' + fmt(c.mask.slope_per_um, 4) + '; a single dipole in place of Mie theory ' + fmt(c.mask.dipole_per_um, 4));
+        await idle();
+      }
+      const xs = [], got = [], sgn = Math.sign(sig('s', 0.01)) * Math.sign(R.tight.signal[R.tight.x_um.findIndex(v => v > 0)]) || 1;
+      for (let i = 0; i < R.tight.x_um.length; i += 2) { xs.push(R.tight.x_um[i]); got.push(sgn * sig('s', R.tight.x_um[i])); await idle(); }
+      const plots = [plot({ title: 'Split-detector signal against the sphere’s place across the steep focus (polarised out of the plane)', xlabel: 'displacement (µm)', ylabel: 'difference over sum',
+        series: [{ name: 'Reference', x: R.tight.x_um, y: R.tight.signal, colour: REF_C, width: 2.4 }, { name: 'JEKray', x: xs, y: got, colour: GOT_C, dots: true }] })];
+      const L = R.low_na;
+      return { checks, plots, benches: [['The sphere at the focus', bench('A sphere across a steep focus', els('s', 0), { minPower: 1e-4 })]],
+        notes: said.join('. ') + '. Which ideal lens is meant matters by up to 6% at this aperture; the sphere is too large for a single dipole by 5%. ' +
+          'The script was first checked at a low aperture (waist ' + fmt(L.waist_um, 3) + ' µm, a 100 nm sphere): its slope is ' + fmt(L.slope_per_um.mask * 1e6, 4) + ' × 10⁻⁶ per µm for the thin mask and ' + fmt(L.slope_per_um.aplanatic * 1e6, 4) + ' for an aplanatic lens, against ' + fmt(L.gittes_schmidt_per_um * 1e6, 4) + ' from Gittes and Schmidt’s closed form. ' +
+          'One of the script’s own checks fails and is left failing: against the paraxial integration of the case above (' + fmt(L.scatter_bench_per_um * 1e6, 4) + ') the thin mask is ' + fmt(100 * (L.slope_per_um.mask / L.scatter_bench_per_um - 1), 2) + '% out, more than the 1% allowed, while the aplanatic lens is ' + fmt(100 * (L.slope_per_um.aplanatic / L.scatter_bench_per_um - 1), 2) + '% out. The paraxial waist λf/πw is an aplanatic lens’s; a lens that sends a ray at height ρ to tan θ = ρ/f makes a slightly wider focus even at NA 0.07.' };
+    },
+  },
 ];
 
 /* ---------- Running and reporting ---------- */

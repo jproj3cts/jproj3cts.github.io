@@ -347,3 +347,17 @@ test('two particles: in one laser’s light their cones add as fields, in two la
   assert.ok(Math.abs(r2.scat.mutual) <= 1e-9 * r2.scat.mw && r2.scat.mw > 0, 'two lasers: ' + r2.scat.mutual);                 // F4
   say('F4 two lasers: mutual', r2.scat.mutual, 'of', r2.scat.mw);
 });
+
+/* ---------- The tight focus's position signal against an independent reference ---------- */
+/* jek/tools/validation/scripts/scatter_position_focus.py, the bench's lens as it is (a thin mask): |dS/dx| at the middle, per um, for
+   the 300 nm sphere in the NA 0.8 focus of the example bench, light polarised out of the plane and in it */
+const FOCUS_REF = { s: 0.0392926, p: 0.0323136 };
+test('a split detector reads the particle\u2019s place in the tight focus as the angular spectrum and Mie theory give it', async () => {
+  for (const pol of ['s', 'p']) {
+    const sig = async y => { await open(tight(true).map(e => (e.type === 'source' ? Object.assign({}, e, { pol }) : e.type === 'particle' ? Object.assign({}, e, { y }) : e))); const r = reading('det'); return r.X / r.mw; };
+    const h = 1e-5, a = await sig(h), b = await sig(-h), slope = Math.abs(a - b) / (2 * h * 1e3);
+    assert.ok(Math.abs(a + b) <= 0.01 * Math.abs(a), 'odd in the displacement');
+    near(slope, FOCUS_REF[pol], 0.05, 'the slope at the middle, light polarised ' + (pol === 's' ? 'out of the plane' : 'in the plane') + ', per \u00b5m');   // P3, P4
+    say('P3/P4 tight focus,', pol, ': slope', slope.toExponential(6), 'per um against', FOCUS_REF[pol], '(', rel(slope, FOCUS_REF[pol]).toExponential(2), ')');
+  }
+});

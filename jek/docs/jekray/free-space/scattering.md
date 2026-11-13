@@ -168,6 +168,8 @@ The [validation page](/jek/tools/jekray-validation.html) runs the Mie sphere aga
 
 Three more cases check the light on the bench against a Mie calculation that has no rays in it: the change in a detector's reading when a sphere is put in a wide beam, for silica and for gold; the slope of a split detector's signal as a sphere crosses a focus; and the share of the scattered power a lens of NA 0.5 collects ahead of the particle and at 90°. The position signal's slope also agrees with the closed form of Gittes and Schmidt for a Rayleigh sphere (*Optics Letters* 23, 7, 1998) to 1.1%.
 
+A fourth case checks the split detector's slope in the NA 0.8 focus of the example bench. Its reference sums the focus as plane waves from the field on the lens's plane, scatters each wave by Mie theory and integrates the interference over each half of the collected cone. JEKray agrees with it to 0.6% for light polarised out of the bench plane and 0.5% for light polarised in it. The same script gives 4% to 6% more for an energy-keeping thin lens or an aplanatic lens in place of the bench's thin mask, so which ideal lens is meant matters more at this aperture than anything in the scattering.
+
 ## Assumptions
 
 <div class="dx-warn" markdown="1">

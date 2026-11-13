@@ -124,14 +124,5 @@ test('B4: a steep focus tipped up 30 deg with its laser scatters and traps as th
   const TA = SS.trapReport(A.el, A.S.trapRaw), TB = SS.trapReport(R.el, R.S.trapRaw);
   for (const q of ['fx', 'fy', 'fz']) got[q] = rel(TB[q], TA[q]);
   say('B4 routes', JSON.stringify(R.S.routes), 'pupils', R.S.pupils, JSON.stringify(Object.fromEntries(Object.entries(got).map(([k, v]) => [k, +v.toExponential(2)]))));
-  // (the trap frequency along the beam is held apart: the todo test below)
-  for (const k of Object.keys(got)) if (k !== 'fz') assert.ok(got[k] <= 1e-3, k + ': ' + got[k]);
-});
-/* Left failing: B4's trap frequency along the beam, 1.13e-3 out where 1e-3 was allowed. The tipped thin mask's focus is built
-   through the surface-frame trace (popScreen3) where the level one takes the plane route (popScreen); the two agree to
-   8e-4 on the irradiance at the focus, and the frequency along the beam, the softest, moves most. Not found further. */
-test('B4: the trap frequency along a rising steep focus', { todo: 'the tipped mask’s focus by the 3D trace: 1.13e-3 out, 1e-3 allowed' }, async () => {
-  const A = await runP(steep(0)), R = await runP(steep(30));
-  const f = X => SS.trapReport(X.el, X.S.trapRaw).fz;
-  assert.ok(Math.abs(f(R) / f(A) - 1) <= 1e-3, f(R) + ' against ' + f(A));
+  for (const k of Object.keys(got)) assert.ok(got[k] <= 1e-3, k + ': ' + got[k]);
 });

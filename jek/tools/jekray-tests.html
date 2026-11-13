@@ -12792,14 +12792,14 @@ const TESTS = [
   },
   {
     name: 'A bench from before the Particle part: a screen’s particle opens as a Particle and scatters as it did',
-    why: 'the example as it was, a screen at the NA 0.8 focus holding the 300 nm sphere: its scattered power 126.655 µW and the 10.2424 µW into NA 0.5 behind it, the figures the code gave before the Particle part, to 1 part in 10⁹, from the Particle part it opens as (named after the screen), whose scattered light is now on the bench (1 when all hold)',
+    why: 'the example as it was, a screen at the NA 0.8 focus holding the 300 nm sphere: its scattered power 126.551 µW and the 10.2338 µW into NA 0.5 behind it, the figures the code gave before the Particle part (less 8.2e-4 since the pupil takes the round field by its series), to 1 part in 10⁹, from the Particle part it opens as (named after the screen), whose scattered light is now on the bench (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       J.load(bench('old particle', [src({ name: 'L', id: 'laser', x: -30, wavelength: 1550, gauss: true, w0: 1.5, z0: 0, width: 3, rays: 7, pattern: 'hex', pol: 'p', power: 100, popN: 256 }),
         { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 5.333, amp: '1', delay: '-(sqrt(r^2+4)-2)/lambda' },
         screen({ name: 'S', x: 2, length: 0.1, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum', scatNA: 0.5, scatDir: 'back' })], { minPower: 1e-6, maxBounces: 20 }));
       const S = J.scatter('S particle');
-      const same = Math.abs(S.Psca / 0.0001266553436244437 - 1) < 1e-9 && Math.abs(S.collect.P / 0.000010242409067043762 - 1) < 1e-9;
+      const same = Math.abs(S.Psca / 0.00012655093745271483 - 1) < 1e-9 && Math.abs(S.collect.P / 0.000010233824053466721 - 1) < 1e-9;
       // (a Particle part, so its light is on the bench now; the screen is a screen with no trap)
       const moved = J.byName('S').trap === 'none' && J.byName('S particle').type === 'particle' && J.scattered('S particle') !== null;
       if (!(same && moved)) console.log('old particle', JSON.stringify({ same, moved, Psca: S.Psca, collect: S.collect.P }));

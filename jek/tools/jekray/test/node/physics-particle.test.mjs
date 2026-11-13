@@ -244,12 +244,14 @@ test('the power a lens collects is the pattern’s over its cone', async () => {
 });
 
 test('a screen’s particle opens as a Particle part and reads as it did, and a particle changes nothing of the beam', async () => {
-  // the example bench as it was before the Particle part: the figures it gave then (run on the code as it was, commit e54db8d4)
+  // the example bench as it was before the Particle part: the figures it gave then (run on the code as it was, commit e54db8d4),
+  // less 8.2e-4 since a steep focus's pupil takes the round field by its series (vector-focus.js: a straight line between
+  // the samples of a 256-point grid put that much on the peak; the tipped focus, by the 2D field, had it right)
   const old = [laser({ id: 'laser', x: -30, w0: 1.5, rays: 7, traceRays: true, width: 3, pattern: 'hex' }), ideal('obj', 0, 0, 0, 2, 5.333),
     { id: 'particle', type: 'screen', name: 'Particle at the focus', x: 2, y: 0, angle: 180, length: 0.1, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum', scatNA: 0.5, scatDir: 'back' }];
   const B = await open(old), S = await B.scatter('Particle at the focus particle');
-  near(S.Psca, 0.0001266553436244437, 1e-9, 'scattered power');                                                             // N20
-  near(S.collect.P, 0.000010242409067043762, 1e-9, 'collected power');
+  near(S.Psca, 0.00012655093745271483, 1e-9, 'scattered power');                                                             // N20
+  near(S.collect.P, 0.000010233824053466721, 1e-9, 'collected power');
   near(S.Csca, 1.8069657930882826e-15, 1e-9, 'scattering cross-section');
   // (it is a Particle part now, so its scattered light is on the bench too)
   assert.ok(TR.lastTrace.scat && TR.lastTrace.scat.parts['particle-particle'], 'the moved particle sends its light onto the bench');

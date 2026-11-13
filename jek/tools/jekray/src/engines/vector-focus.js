@@ -1,5 +1,5 @@
 import { clamp } from '../core/constants.js';
-import { popInside, popRadii, popStats, qdht } from './field.js';
+import { popFieldSeries, popInside, popRadii, popStats, qdht } from './field.js';
 import { polCoeff, polMatrix } from './polarisation.js';
 import { beamAxes, popScreen } from './phase-screen.js';
 import { cdft, interp2, popStats2 } from './field2d.js';
@@ -60,7 +60,7 @@ export function vfPupil(sg, R, opts) {
     const hx = Math.min(twoIn ? Fin.N / 2 * Fin.ax.d : Fin.R, reach * wx + Math.abs(stI.cx || 0)), hy = Math.min(twoIn ? Fin.N / 2 * Fin.ay.d : Fin.R, reach * wy + Math.abs(stI.cy || 0));
     const M = Mp, dA = (2 * hx / M) * (2 * hy / M), hs = 0.25 * Math.min(2 * hx, 2 * hy) / M;   // smooth once the sphere is off: 64 across is plenty
     const J = popJ(par.b), gi = par.b.par ? -1 : 1;
-    const rR = twoIn ? null : popRadii(qdht(Fin.re.length), Fin.R);
+    const rR = twoIn ? null : popRadii(qdht(Fin.re.length), Fin.R), serIn = twoIn ? null : popFieldSeries(Fin);
     const refX = twoIn ? (popInside(Fin.ax.z, Fin.ax.zR) ? 0 : -k1 / (2 * Fin.ax.z)) : 0;
     const refY = twoIn ? (popInside(Fin.ay.z, Fin.ay.zR) ? 0 : -k1 / (2 * Fin.ay.z)) : 0;
     const refR = twoIn ? 0 : (Fin.sphere ? -k1 / (2 * Fin.z) : 0);
@@ -84,9 +84,9 @@ export function vfPupil(sg, R, opts) {
       } else {
         const q = Math.hypot(x, y);
         if (q >= rR[rR.length - 1]) continue;
-        let lo = 0, hi = rR.length - 1;
-        if (q <= rR[0]) { lo = 0; hi = 1; } else while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (rR[mid] <= q) lo = mid; else hi = mid; }
-        const t = clamp((q - rR[lo]) / (rR[hi] - rR[lo]), 0, 1), er = Fin.re[lo] + (Fin.re[hi] - Fin.re[lo]) * t, ei = Fin.im[lo] + (Fin.im[hi] - Fin.im[lo]) * t;
+        // the round field between its radii exactly, by its Hankel series (a straight line between the samples of a
+        // 256-point grid put 8e-4 on a steep focus's peak), as the trap's legs take it
+        const [er, ei] = serIn(q);
         s = [er * J[0] - ei * J[1], er * J[1] + ei * J[0]]; p = [er * J[2] - ei * J[3], er * J[3] + ei * J[2]];
         if (gi < 0) p = [-p[0], -p[1]];                  // the round field's Jones p is physical; back to the parity basis
       }
@@ -123,7 +123,7 @@ export function vfPupil(sg, R, opts) {
     const wx = two ? st.wx : st.w, wy = two ? st.wy : st.w;
     const hx = Math.min(two ? F.N / 2 * F.ax.d : F.R, reach * wx + Math.abs(st.cx || 0)), hy = Math.min(two ? F.N / 2 * F.ay.d : F.R, reach * wy + Math.abs(st.cy || 0));
     const M = Mp, dA = (2 * hx / M) * (2 * hy / M), J = popJ(sg.b);
-    const rR = two ? null : popRadii(qdht(F.re.length), F.R);
+    const rR = two ? null : popRadii(qdht(F.re.length), F.R), ser = two ? null : popFieldSeries(F);
     const refX = two ? (popInside(F.ax.z, F.ax.zR) ? 0 : -k / (2 * F.ax.z)) : 0, refY = two ? (popInside(F.ay.z, F.ay.zR) ? 0 : -k / (2 * F.ay.z)) : 0;
     const refR = two ? 0 : (F.sphere ? -k / (2 * F.z) : 0);
     for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) {
@@ -136,9 +136,7 @@ export function vfPupil(sg, R, opts) {
       } else {
         const q = Math.hypot(x, y);
         if (q >= rR[rR.length - 1]) continue;
-        let lo = 0, hi = rR.length - 1;
-        if (q <= rR[0]) { lo = 0; hi = 1; } else while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (rR[mid] <= q) lo = mid; else hi = mid; }
-        const t = clamp((q - rR[lo]) / (rR[hi] - rR[lo]), 0, 1), er = F.re[lo] + (F.re[hi] - F.re[lo]) * t, ei = F.im[lo] + (F.im[hi] - F.im[lo]) * t;
+        const [er, ei] = ser(q);                       // (the round field by its series, as above)
         s = [er * J[0] - ei * J[1], er * J[1] + ei * J[0]]; p = [er * J[2] - ei * J[3], er * J[3] + ei * J[2]];
       }
       if (s[0] === 0 && s[1] === 0 && p[0] === 0 && p[1] === 0) continue;

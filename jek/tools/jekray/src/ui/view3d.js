@@ -1,3 +1,4 @@
+import { particleAz } from '../core/traps.js';
 import { SPEC_L, SPEC_W } from '../parts/spectrometer.js';
 import { ffSag } from '../core/freeform.js';
 import { grinDesign } from '../core/grin.js';
@@ -20,7 +21,7 @@ import { lastTrace, setRoll, setTip, setZ, tippable, traceKeyNow, traceStore, tr
 import {
   beamPowerShare, benchBg, benchHoles, benchLight, bez, byPowerOn, draw, fibreLight, fibreSegs, fibreSplit, filterColour, halfSize, hornShape, moveGrip, powerFade, powerTop, rayPowerShare, symbolCanvas, rayAlpha, rayDensity, rayTops,
   requestRender, resize, segPlanes, selFibre, selection, setSelFibreId, setSelection, surfPoints
-} from './render.js';
+, scatLevel } from './render.js';
 import { groupOf } from './drawings.js';
 import { mateSpread, poseCarry, poseSnap, poseTurn } from '../core/mates.js';
 import { snapVal } from './pointer.js';
@@ -585,6 +586,7 @@ export const V3D = (() => {
         add(...sagSolid(sg, s.semi, lo - t, false, R0 ? mat.metal() : Object.assign(mat.metal(0xd8e4ea, 0.05), { transparent: true, opacity: 0.35 + 0.55 * el.reflect / 100 }), mat.glass(0xa9d8e6, 0.45)));
         return g;
       }
+      case 'particle': add(particle3(el)); return g;          // the sign alone: it has no body
       case 'screen': {
         const [s] = elementSurfaces(el), sg = sag3(s);
         // a monitor the light goes through is see-through; a dump or a camera is a solid plate
@@ -754,7 +756,7 @@ export const V3D = (() => {
     const D = Math.max(1, 2 * el.trapR), Lr = shape === 'sphere' ? D : Math.max(shape === 'capsule' ? D : 1, el.trapLen || D);
     const k = 1 / Math.max(D, Lr), r = Math.max(1 / 16, D * k / 2), L = Math.max(1 / 8, Lr * k);      // its longest side 1: scaled each frame
     const m = PARTICLE_COL[el.trapMat] ? mat.metal(PARTICLE_COL[el.trapMat], 0.25) : new T.MeshStandardMaterial({ color: col(0xdff1f7), roughness: 0.15, metalness: 0, emissive: col(0x6fb7cf), emissiveIntensity: 0.25 });
-    const ax = new T.Group(); ax.userData.benchAxis = [(el.trapAz || 0) * deg, (el.trapTilt || 0) * deg]; ax.userData.particle = { shape, r, L };
+    const ax = new T.Group(); ax.userData.benchAxis = [(particleAz(el) || 0) * deg, (el.trapTilt || 0) * deg]; ax.userData.particle = { shape, r, L };
     const lie = geo => mesh(geo.rotateZ(Math.PI / 2), m);                       // a cylinder is made standing: laid along x, the axis
     if (shape === 'sphere') ax.add(mesh(new T.SphereGeometry(r, 28, 18), m));
     else if (shape === 'spheroid') { const s = mesh(new T.SphereGeometry(1, 28, 18), m); s.scale.set(L / 2, r, r); ax.add(s); }
@@ -971,7 +973,9 @@ export const V3D = (() => {
     for (const r of rays) {
       if (r.bench !== project.tab || !r.pts || r.pts.length < 4) continue;
       // (by power, as on the bench: against the bench's brightest source, the faintest gone)
-      const lvl = byPow ? Math.round(0.8 * powerFade(rayPowerShare(r, lastTrace, byPow, tops)) * dens * 12) : Math.max(1, Math.round(rayAlpha(r.w / (tops.get(r.src) || 1)) * dens * 12)), key = r.colour + '|' + lvl;
+      // (a particle's scattered light, far below the beam that drives it, is the faintest steps that show: as on the bench)
+      const lvl = r.sc ? Math.max(scatLevel(r, tops), byPow ? Math.round(0.8 * powerFade(rayPowerShare(r, lastTrace, byPow, tops)) * dens * 12) : 0)
+        : byPow ? Math.round(0.8 * powerFade(rayPowerShare(r, lastTrace, byPow, tops)) * dens * 12) : Math.max(1, Math.round(rayAlpha(r.w / (tops.get(r.src) || 1)) * dens * 12)), key = r.colour + '|' + lvl;
       if (!lvl) continue;
       if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: lvl / 12, pos: [] });
       const P = groups.get(key).pos, p = r.pts, zs = r.zs;
@@ -979,6 +983,19 @@ export const V3D = (() => {
         const x0 = p[i - 2], y0 = p[i - 1], x1 = p[i], y1 = p[i + 1], c = cut(x0, y0, x1, y1, rb);
         const z0 = zs ? zs[(i >> 1) - 1] : BEAM_H, z1 = zs ? zs[i >> 1] : BEAM_H;
         if (c) P.push(x0 + (x1 - x0) * c[0], y0 + (y1 - y0) * c[0], z0 + (z1 - z0) * c[0], x0 + (x1 - x0) * c[1], y0 + (y1 - y0) * c[1], z0 + (z1 - z0) * c[1]);
+      }
+    }
+    // a particle's fan (lastTrace.scat.fans): every ray of it, over the sphere, each as bright as the pattern is along it
+    R.nFan = 0;
+    for (const F of (lastTrace.scat && lastTrace.scat.fans) || []) {
+      if (!F.on || F.bench !== project.tab) continue;
+      for (let i = 0; i < F.n; i++) {
+        const o = 5 * i, w = F.rays[o + 4];
+        if (!(w > 1e-4)) continue;
+        const lvl = Math.min(4, 1 + Math.floor(3.999 * Math.sqrt(w))), key = F.colour + '|fan' + lvl, L = F.rays[o + 3];
+        if (!groups.has(key)) groups.set(key, { colour: F.colour, alpha: 0.06 * lvl, pos: [] });
+        const c = cut(F.pos[0], F.pos[1], F.pos[0] + F.rays[o] * L, F.pos[1] + F.rays[o + 1] * L, rb);
+        if (c) { groups.get(key).pos.push(F.pos[0] + F.rays[o] * L * c[0], F.pos[1] + F.rays[o + 1] * L * c[0], F.pos[2] + F.rays[o + 2] * L * c[0], F.pos[0] + F.rays[o] * L * c[1], F.pos[1] + F.rays[o + 1] * L * c[1], F.pos[2] + F.rays[o + 2] * L * c[1]); R.nFan++; }
       }
     }
     R.nRays = 0;
@@ -2071,6 +2088,8 @@ export const V3D = (() => {
       netBody(name) { const el = project.elements.find(e => e.name === name); if (!el || !NET_3D.has(el.type)) return null; const B = netBox(el); return { hx: B.hx, hy: B.hy, h: B.h, ports: B.P.length, top: symbolCanvas(el, B.hx, B.hy, 14).toDataURL() }; },
       // a screen's particle as drawn: its shape, its drawn half-width and length (mm), and its axis on the bench
       particleOf(name) { const el = project.elements.find(e => e.name === name), c = el && R && (sync(), R.partCache && R.partCache.get(el.id)); const o = c && c.obj.children.find(x => x.userData.particle); if (!o) return null; o.updateWorldMatrix(true, false); const v = new T.Vector3(1, 0, 0).transformDirection(o.matrixWorld); particleSizes(R.camera); return Object.assign({ axis: [v.x, v.y, v.z], px: o.scale.x * R.h / (2 * Math.tan(R.camera.fov * deg / 2) * o.getWorldPosition(new T.Vector3()).sub(R.camera.position).dot(R.camera.getWorldDirection(new T.Vector3()))) }, o.userData.particle); },
+      // a particle's scattered light as drawn: the fan's rays, and the cones' (how many leave the bench plane)
+      scatLight() { if (!R) return null; sync(); const rs = (lastTrace.rays || []).filter(r => r.sc && r.bench === project.tab); return { fan: R.nFan || 0, cone: rs.length, coneUp: rs.filter(r => r.zs && r.zs.some(z => Math.abs(z - r.zs[0]) > 1e-6)).length, lines: R.nRays }; },
       screenOf(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const v = new T.Vector3(el.x, el.y, z3(el)).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
     },
   };

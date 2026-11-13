@@ -375,7 +375,7 @@ export function lensKind(el) {
 
 /* the parts the 3D view can show: a bench with others on it cannot go to 3D */
 export const FREE_3D = new Set(['source', 'detector', 'spectrometer', 'screen', 'fibre', 'mirror', 'lens', 'cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator',
-  'stop', 'mask', 'filter', 'grating', 'prism', 'gain', 'cell', 'nlc', 'aom', 'eom', 'chopper', 'link', 'stl', 'draw']);
+  'stop', 'mask', 'filter', 'grating', 'prism', 'gain', 'cell', 'nlc', 'particle', 'aom', 'eom', 'chopper', 'link', 'stl', 'draw']);
 
 /* fibre components, circuit parts and chips: in the 3D view on the table, the fibres, wires and waveguides between
    them laid as tubes (ui/view3d.js); the light of free space does not meet them */

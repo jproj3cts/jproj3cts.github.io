@@ -87,7 +87,7 @@ From the brightest point, Newton's method on the force finds where it is zero. T
 
 ### Scattering
 
-The **Scattering** tab gives the light the screen's particle scatters: a sphere by Lorenz–Mie theory, a rod or spheroid as an array of dipoles. The particle is the Trap tab's sphere, with a shape of its own. See [Scattering by a particle](/jek/docs/jekray/free-space/scattering/).
+A [Particle](/jek/docs/jekray/free-space/scattering/) is now a part of its own, and its scattered light goes on to the parts that catch it. A screen can still hold one, as older benches do. The **Scattering** tab gives the light the screen's particle scatters: a sphere by Lorenz–Mie theory, a rod or spheroid as an array of dipoles. The particle is the Trap tab's sphere, with a shape of its own. See [Scattering by a particle](/jek/docs/jekray/free-space/scattering/).
 
 ## Phosphor screen
 

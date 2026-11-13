@@ -38,7 +38,8 @@ import {
 import { aberCache, aberSource, aberrations, diffractionLater } from '../engines/pd-cavity.js';
 import { pulseReport } from '../engines/pulse.js';
 import { screenStats, trapReport } from '../engines/screen-stats.js';
-import { particleMats, scatterSection } from './scatter.js';
+import { particleMats, particleTrapLater, scatterSection } from './scatter.js';
+import { scatterPrep } from '../engines/scatter.js';
 import { alignEls, changed, duplicateSel, moveToTab, removeEls, rotateEls, setLocked, zoomToSelection } from './actions.js';
 import { addBench, checkpoint, selectEl } from './tabs.js';
 import { exportScreen } from '../io/layout.js';
@@ -131,15 +132,18 @@ export function pulseSection(el) {
 }
 /* The screen's Trap tab: an optical trap for a chosen atom or dielectric sphere where the light here is brightest */
 function trapSection(el) {
+  const isPart = el.type === 'particle';           // a Particle part: the trap for it where it is, from its scattering run
   panel.append(h('h3', null, 'Optical trap'));
-  const rows0 = h('div', { class: 'rt-rows' }, selectField('Trap for', [['none', 'Nothing'], ...Object.entries(TRAP_ATOMS).map(([k, a]) => [k, a.name + ' atoms']), ['sphere', 'A dielectric sphere']],
+  const rows0 = h('div', { class: 'rt-rows' });
+  if (!isPart) rows0.append(selectField('Trap for', [['none', 'Nothing'], ...Object.entries(TRAP_ATOMS).map(([k, a]) => [k, a.name + ' atoms']), ['sphere', 'A dielectric sphere']],
     () => el.trap, v => { el.trap = v; }, { wide: true }));
   if (el.trap in TRAP_ATOMS) rows0.append(selectField('Ground state', [['avg', 'Hyperfine levels averaged'], ['lo', trapFLabel(el.trap, 'lo')], ['hi', trapFLabel(el.trap, 'hi')]],
     () => el.trapF, v => { el.trapF = v; }, { wide: true }));
   if (el.trap === 'sphere') {
-    rows0.append(
+    if (!isPart) rows0.append(
       selectField('Material', particleMats(), () => el.trapMat, v => { el.trapMat = v; if (SPHERE_DENSITY[v]) el.trapRho = SPHERE_DENSITY[v]; }),
-      param('Radius (nm)', el, 'trapR'),
+      param('Radius (nm)', el, 'trapR'));
+    rows0.append(
       param('Density (kg/m³)', el, 'trapRho'),
       param('Temperature (K)', el, 'trapT'),
       selectField('Medium', [['bench', 'As on the bench'], ['vacuum', 'Vacuum'], ['air', 'Air, at a pressure'], ['water', 'Water']], () => el.trapMed, v => { el.trapMed = v; }, { wide: el.trapMed !== 'air' }));
@@ -157,9 +161,9 @@ function trapSection(el) {
   const tK = K => Math.abs(K) >= 1 ? (+K.toPrecision(4)) + ' K' : Math.abs(K) >= 1e-3 ? (+(K * 1e3).toPrecision(4)) + ' mK' : Math.abs(K) >= 1e-6 ? (+(K * 1e6).toPrecision(4)) + ' µK' : (+(K * 1e9).toPrecision(4)) + ' nK';
   const off = (v, what) => fmtLen(Math.abs(v)) + ' ' + what;
   bindSync(box, () => {
-    const { D, busy } = diffractionLater(el), rows = [];
-    const T = D && D.trap ? trapReport(el, D.trap) : null;
-    if (!T) rows.push(['', busy || (D && !D.trap) ? 'Working out the trap…' : 'No Gaussian beam reaches this screen.']);
+    const PT = isPart ? particleTrapLater(el) : null, { D, busy } = isPart ? { D: null, busy: PT.busy } : diffractionLater(el), rows = [];
+    const T = isPart ? PT.T : D && D.trap ? trapReport(el, D.trap) : null;
+    if (!T) rows.push(['', isPart ? (PT.none ? 'No Gaussian beam passes the particle.' : 'Working out the trap…') : busy || (D && !D.trap) ? 'Working out the trap…' : 'No Gaussian beam reaches this screen.']);
     else if (T.error) rows.push(['', 'No trap: ' + (T.error === 'no focused beam' ? 'no beam through here has a field to take.' : T.error)]);
     else {
       const sph = el.trap === 'sphere';
@@ -167,10 +171,10 @@ function trapSection(el) {
       if (sph && el.trapShape !== 'sphere') rows.push(['', 'The particle is ' + ({ cylinder: 'a rod', capsule: 'a rod', spheroid: 'a spheroid' })[el.trapShape] + ' (the Scattering tab has its shape): the trap is read for the sphere of the same volume, ' + fmtLen(particleOf(el).rEq * 1e-6) + ' in radius.']);
       if (sph) rows.push(['Particle', (METAL_NAMES[el.trapMat] || el.trapMat) + ', n = ' + (+T.np.toPrecision(5)) + (T.kap > 0 ? ' + ' + (+T.kap.toPrecision(4)) + 'i' : '') + ', radius ' + fmtLen(particleOf(el).rEq * 1e-6) + ' in a medium of n = ' + (+T.nMed.toPrecision(5)) + (el.trapMed === 'bench' ? ' (the bench’s, where the light is)' : '') + ', mass ' + (+(T.mass * 1e3).toPrecision(3)) + ' g']);
       if (!T.trap && T.depthK < 0) rows.push(['', 'The particle is repelled by the light (' + (sph ? 'its index is below the medium’s' : 'blue of the D lines') + '): a barrier ' + tK(-T.depthK) + ' high at the brightest point, not a trap.']);
-      else if (!T.trap && T.away) rows.push(['', 'No trap near the screen: the light pulls the particle away along the beam (' + off(T.dz, T.dz >= 0 ? 'past the screen' : 'before it') + '), as a collimated beam on its own does. A focus, or a second beam against it for a standing wave, would hold it here.']);
+      else if (!T.trap && T.away) rows.push(['', 'No trap near ' + (isPart ? 'the part' : 'the screen') + ': the light pulls the particle away along the beam (' + off(T.dz, T.dz >= 0 ? (isPart ? 'past the part' : 'past the screen') : 'before it') + '), as a collimated beam on its own does. A focus, or a second beam against it for a standing wave, would hold it here.']);
       else if (!T.trap) rows.push(['', 'No stable trap: ' + (sph ? 'radiation pressure outweighs the pull of the focus along the beam (a higher numerical aperture, a smaller particle, or a second beam against it would hold it)' : 'the force does not settle to zero here') + '.']);
       else {
-        rows.push(['Where', 'along the beam ' + off(T.dz, T.dz >= 0 ? 'past the screen' : 'before it') + (Math.abs(T.dx) > 1e-7 || Math.abs(T.dy) > 1e-7 ? '; across ' + fmtLen(T.dx) + ' in the plane, ' + fmtLen(T.dy) + ' out of it' : '')]);
+        rows.push(['Where', 'along the beam ' + off(T.dz, T.dz >= 0 ? (isPart ? 'past the part' : 'past the screen') : 'before it') + (Math.abs(T.dx) > 1e-7 || Math.abs(T.dy) > 1e-7 ? '; across ' + fmtLen(T.dx) + ' in the plane, ' + fmtLen(T.dy) + ' out of it' : '')]);
         rows.push(['Depth', tK(T.depthK) + (sph ? ' (' + (+T.kT.toPrecision(4)) + ' kT at ' + el.trapT + ' K)' : ' (' + fmtHz(T.depthHz) + ')')]);
         rows.push(['Frequencies', 'across ' + fq(T.fx) + ' in the plane, ' + fq(T.fy) + ' out of it; along the beam ' + fq(T.fz)]);
       }
@@ -196,7 +200,7 @@ function trapSection(el) {
     const s2 = JSON.stringify(rows);
     if (s2 !== sig) { sig = s2; box.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
   });
-  panel.append(helpLine('The force on the particle from each beam’s full field near the focus.', ['Every beam through the screen’s region is taken as its full vector field near the focus (the Rayleigh–Sommerfeld integral from its pupil, so a steep focus and polarisation count); one not converging to a focus ahead (collimated, or past its focus) is taken as its propagated field instead. Beams of one laser added as fields. The particle is a dipole: the force on it is Re(α Σ Eⱼ ∇Eⱼ*)/2, its real part the pull towards bright light, its imaginary part radiation pressure. Beams may come in from any direction in the bench plane (crossed standing waves make a 2D lattice); their relative phases follow their path lengths, which in the lab drift unless locked. Nothing can come in from above or below the bench. Newton’s method finds where the force is zero, starting from the brightest point, and the stiffness there gives the trap frequencies (x across the arriving beam in the bench plane, y out of it, z along it). ' +
+  panel.append(helpLine('The force on the particle from each beam’s full field near the focus.', [(isPart ? 'The trap is looked for from where the strongest beam passes the part, and its place is given from there. ' : '') + 'Every beam through the screen’s region is taken as its full vector field near the focus (the Rayleigh–Sommerfeld integral from its pupil, so a steep focus and polarisation count); one not converging to a focus ahead (collimated, or past its focus) is taken as its propagated field instead. Beams of one laser added as fields. The particle is a dipole: the force on it is Re(α Σ Eⱼ ∇Eⱼ*)/2, its real part the pull towards bright light, its imaginary part radiation pressure. Beams may come in from any direction in the bench plane (crossed standing waves make a 2D lattice); their relative phases follow their path lengths, which in the lab drift unless locked. Nothing can come in from above or below the bench. Newton’s method finds where the force is zero, starting from the brightest point, and the stiffness there gives the trap frequencies (x across the arriving beam in the bench plane, y out of it, z along it). ' +
     (el.trap === 'sphere' ? 'A sphere’s polarisability is Clausius–Mossotti in its medium, with the radiation reaction that makes it scatter; good for radii well below the wavelength (Rayleigh particles).' : 'An atom’s is from its D lines, counter-rotating terms and core included, for linear polarisation; hyperfine structure and the vector shift of circular light are left out; heating is photon recoil only.')], 'note', 'margin-top:0.4rem'));
 }
 const pulsedFibreLaser = () => project.elements.find(e => e.type === 'fcomp' && e.kind === 'laser' && e.tau > 0);
@@ -253,8 +257,8 @@ export function readoutTabs(el, stabs) {
       aber: all.some(t => !t.chief) ? '' : 'No rays of a fan reach ' + what + ' to sweep across the field',
       plots: all.length ? '' : 'Nothing reaches ' + what,
       pulse: ((lastTrace.pulses && lastTrace.pulses[el.id]) || []).length ? '' : 'No pulse reaches ' + what + ' (a source or fibre laser with \u201cPulsed\u201d ticked)',
-      trap: all.some(t => t.chief) ? '' : 'No Gaussian beam reaches ' + what + ' (the bench\u2019s Light showing the beams\u2019 envelope or field)',
-      scatter: all.some(t => t.chief) ? '' : 'No Gaussian beam reaches ' + what + ' (the bench\u2019s Light showing the beams\u2019 envelope or field)',
+      trap: (el.type === 'particle' ? scatterPrep(el) : all.some(t => t.chief)) ? '' : 'No Gaussian beam reaches ' + what + ' (the bench\u2019s Light showing the beams\u2019 envelope or field)',
+      scatter: (el.type === 'particle' ? scatterPrep(el) : all.some(t => t.chief)) ? '' : 'No Gaussian beam reaches ' + what + ' (the bench\u2019s Light showing the beams\u2019 envelope or field)',
     };
     for (const [k, w] of Object.entries(why)) if (btns[k]) { btns[k].classList.toggle('empty', !!w); btns[k].title = w; }
   });

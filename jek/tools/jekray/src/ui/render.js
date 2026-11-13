@@ -37,6 +37,7 @@ import { cssColour } from '../io/pdf.js';
 import { scheduleSave } from '../io/autosave.js';
 import { updateEmpty } from './tours.js';
 import { TW, traceLater } from '../page/workers.js';
+import { scatterKeepUp } from './scatter.js';
 
 /* ==========================================================================
    Rendering
@@ -651,6 +652,37 @@ function whiteRuns(rays) {
   }
   return out;
 }
+/* a ray of a particle's scattered light, where its power would not show it: a step or two of the twelve, by its share of its cone's strongest */
+export const scatLevel = (r, tops) => (r.w / (tops.get(r.src) || 1) > 0.5 ? 2 : 1);
+/* A particle's fan (lastTrace.scat.fans, engines/scatter-light.js): its rays in the bench plane, each as bright as the
+   pattern is along it. A picture: nothing reads it. */
+function drawScatFans() {
+  const SC = lastTrace.scat;
+  if (!SC || !SC.fans) return;
+  const v = V(), k = v.scale, ox = W / 2 - v.cx * k, oy = H / 2 + v.cy * k;
+  ctx.save();
+  ctx.globalCompositeOperation = glowOp();
+  ctx.lineWidth = 1;
+  for (const F of SC.fans) {
+    if (!F.on || F.bench !== project.tab) continue;
+    const x0 = ox + F.pos[0] * k, y0 = oy - F.pos[1] * k;
+    for (let lvl = 1; lvl <= 4; lvl++) {
+      ctx.beginPath();
+      let any = false;
+      for (let i = 0; i < F.nPlane; i++) {
+        const o = 5 * i, w = F.rays[o + 4];
+        if (Math.min(4, 1 + Math.floor(3.999 * Math.sqrt(w))) !== lvl || !(w > 1e-4)) continue;
+        const L = Math.min(F.rays[o + 3], 3e3 / k);
+        ctx.moveTo(x0, y0); ctx.lineTo(x0 + F.rays[o] * L * k, y0 - F.rays[o + 1] * L * k); any = true;
+      }
+      if (!any) continue;
+      if (lightLayer) { ctx.globalAlpha = 1; ctx.strokeStyle = paperTint(lightInk(F.colour), glowA(0.05 * lvl)); }
+      else { ctx.globalAlpha = glowA(0.05 * lvl); ctx.strokeStyle = F.colour; }
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
 function drawRaysOn(ctx, rays, shared) {
   ctx.save();
   ctx.globalCompositeOperation = glowOp();
@@ -665,10 +697,11 @@ function drawRaysOn(ctx, rays, shared) {
   ctx.lineWidth = (dens < 1 ? 1.4 : 1.2) * RW;          // a dense fan: lines wide enough to run together into a fill (drawn at twice the resolution, see drawRays)
   if (shared === undefined) shared = lightLayer ? whiteRuns(rays) : null;
   for (const r of rays) {
-    if (r.bench !== project.tab) continue;
+    if (r.bench !== project.tab || r.sc === 2) continue;        // (sc 2: a particle's scattered ray off the cut the bench plane shows; 3D draws it)
     // a few steps: lines in one step are one stroke, and do not pile up where they cross; by power, the faintest go
     const alpha = (byPow ? 0.8 * powerFade(rayPowerShare(r, lastTrace, byPow, tops)) : rayAlpha(r.w / (tops.get(r.src) || 1))) * dens;
-    const lvl = byPow ? Math.round(alpha * 12) : Math.max(1, Math.round(alpha * 12));
+    // (a particle's scattered light is far below the beam that drives it: by power it is the faintest step that shows, never nothing)
+    const lvl = byPow ? Math.max(r.sc ? scatLevel(r, tops) : 0, Math.round(alpha * 12)) : r.sc ? scatLevel(r, tops) : Math.max(1, Math.round(alpha * 12));
     if (!lvl) continue;
     for (const part of shared && shared.has(r) ? shared.get(r) : [{ pts: r.pts, colour: r.colour }]) {
       const key = part.colour + '|' + lvl;
@@ -790,6 +823,7 @@ export function bodyOutline(el) {
   if (el.type === 'elec' || el.type === 'pic') return rect(-7, 7, r);
   if (el.type === 'detector') { const o = []; for (let i = 0; i <= 8; i++) { const a = -Math.PI / 2 + Math.PI * i / 8; o.push([r * Math.cos(a), r * Math.sin(a)]); } return o; }
   if (el.type === 'chopper') return rect(-2.5, 2.5, r);
+  if (el.type === 'particle') return rect(-r, r, r);
   if (el.type === 'spectrometer') return rect(-SPEC_L, 0, SPEC_W / 2);
   return [[0, -r], [0, r]];
 }
@@ -807,6 +841,7 @@ export function halfSize(el) {
   if (el.type === 'pic') return PIC.halfSize(el);                                             // PIC hook
   if (el.type === 'elec') return ELEC.halfSize(el);                                           // ELEC hook
   if (el.type === 'chopper') return el.length / 2 + 5;                                        // ELEC hook
+  if (el.type === 'particle') return 17 / V().scale;                                         // a sign that keeps its size on the page (ui/parts/particle.js)
   if (el.type === 'stl') return Math.max(1, ...meshHull(el).map(p => Math.hypot(p[0], p[1])));
   if (el.type === 'lens') return el.diameter / 2;
   if (el.type === 'source') return srcBody(el).hw;
@@ -1156,6 +1191,7 @@ export function render() {
   // stale: the bench moved on and a background trace is catching up; its rays are drawn,
   // and the beams and fields, which need the full trace, wait for it
   const stale = traceLater();
+  if (!stale) scatterKeepUp();       // a Particle part's scattered light, where the bench has moved on from it
   phosphorKick();                    // a phosphor screen's glow moves on with the light
   // a tab shown in 3D draws there instead (the 2D bench under it waits)
   let in3d = false;
@@ -1172,12 +1208,15 @@ export function render() {
 function renderAll(stale) {
   drawBench();
   const order = { lens: 0, prism: 0, cube: 0, crystal: 0, mirror: 1, grating: 1, screen: 2, stop: 2, waveplate: 2, polariser: 2,
-    mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, cell: 1, nlc: 1, link: 2, fcomp: 2, pic: 2, aom: 2, eom: 2, chopper: 2, elec: 2, source: 3, stl: 0, draw: 0 };
+    mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, cell: 1, nlc: 1, link: 2, fcomp: 2, pic: 2, aom: 2, eom: 2, chopper: 2, elec: 2, source: 3, stl: 0, draw: 0, particle: 2 };
   const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
   for (const el of els) if (el.type === 'draw' && el.layer === 'under') draw(el);
   drawFibres();
-  for (const el of els) if (el.type !== 'source' && el.type !== 'draw') draw(el);
+  for (const el of els) if (el.type !== 'source' && el.type !== 'draw' && el.type !== 'particle') draw(el);
   if (lightOf().rays) { if (lightOf().trail && !exporting) drawTrail(); drawRays(stale); }
+  if (!stale) drawScatFans();
+  // (a particle is a dot on a beam: drawn over the light, where it can be seen)
+  for (const el of els) if (el.type === 'particle') draw(el);
   if (!stale) {
     setCloseupOn(drawCloseup());
     const fieldShown = closeupOn ? new Set(popSources().map(e => e.id)) : drawPop();

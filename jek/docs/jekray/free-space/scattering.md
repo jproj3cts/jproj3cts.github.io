@@ -2,29 +2,34 @@
 layout: docs
 title: Scattering by a particle
 permalink: /jek/docs/jekray/free-space/scattering/
-description: How JEKray works out the light one small particle scatters, a sphere by Lorenz–Mie theory and a rod or spheroid by the discrete dipole approximation, in a tight focus or a wide beam, with each model's limits.
+description: The JEKray Particle part, one small sphere, rod or spheroid on the bench. How its scattered light is worked out by Lorenz–Mie theory or the discrete dipole approximation, and how that light reaches the lenses, detectors and fibres that can see it.
+element: { palette: Free space, type: particle }
 ---
 
-<p class="dx-lead">A screen can hold one small particle: a sphere, a rod or a spheroid. Its <b>Scattering</b> tab gives the particle's cross-sections, the power it scatters in the light on the bench, and where that light goes.</p>
+<p class="dx-lead">A <b>Particle</b> is one small sphere, rod or spheroid at a point of the bench. Its <b>Scattering</b> tab gives its cross-sections and the power it scatters in the light that reaches it. The scattered light goes on to the parts that can see the particle, as light of the laser that drives it.</p>
 
 ## The particle
 
-The particle belongs to a [screen](/jek/docs/jekray/free-space/screen/). Put the screen where the particle is, usually at a focus, and untick **Stop the rays it records** so the light carries on. On the Scattering tab choose:
+Add a Particle from the parts list (Active and atomic) and put it where the light is, usually at a focus. The light passes it untouched: it is a point, with no surface for a ray or a beam to meet. Its **Particle** tab has:
 
-- **Particle**: a sphere, a rod with flat ends (a cylinder), a rod with round ends (a capsule) or a spheroid. The same particle is the one the Trap tab reads. The Trap tab takes a shape that is not a sphere as the sphere of the same volume.
+- **Shape**: a sphere, a rod with flat ends (a cylinder), a rod with round ends (a capsule) or a spheroid.
 - **Material**: a glass from JEKray's list, or gold, silver or aluminium. The glasses are taken as lossless. The metals use their measured complex index, so they absorb.
 - **Diameter**, and for a rod or spheroid its **Length** along its axis. A capsule's length includes its round ends. A spheroid shorter than its diameter is oblate.
-- **Axis direction** and **Axis tilt** for a rod or spheroid: the direction of its axis in the bench plane, as a part's angle, and its tilt up out of the plane. A tilt of 90° stands the rod upright.
+- The part's **Angle** is the direction of a rod's or spheroid's axis in the bench plane, and **Axis tilt** its tilt up out of the plane. A tilt of 90° stands the rod upright.
 - **Medium**: the bench's where the light is, vacuum, air or water.
-- **Model**: Auto, Rayleigh, Mie or Dipole array (below).
-- **Where it is**: where the strongest beam meets the screen, or where the Trap tab finds the particle held. Three offsets move it from there across the beam, up, and along the beam.
-- **Collecting NA** and **Collected from**: the cone a lens or detector would gather, for the collected fraction.
+- **Send its scattered light to the parts** and **Draw the scattered light in every direction**, described [below](#scattered-light-on-the-bench).
 
-In the 3D view the particle is drawn where the light meets the screen, in its shape and at its orientation, as a sign that stays the same size on the page however far the view is zoomed. At its true size it would not show on a bench measured in millimetres.
+The Scattering tab has the **Model** (Auto, Rayleigh, Mie or Dipole array), **Where it is** (where the part is, or where the Trap tab finds the particle held) with three offsets across the beam, up and along it, and the **Collecting NA** and **Collected from** of the Collected figure.
+
+On the bench the particle is drawn as a sign 16 pixels long, and in the 3D view 36 pixels long, in its shape and at its orientation however far the view is zoomed. At its true size it would not show on a bench measured in millimetres.
+
+The **Trap** tab reads the optical trap the same light makes for the particle, as a [screen's Trap tab](/jek/docs/jekray/free-space/screen/) does. It takes a shape that is not a sphere as the sphere of the same volume.
+
+A screen can also hold a particle, as benches made before the Particle part do. Its Scattering tab gives the same figures. A screen's particle sends no light onto the bench.
 
 ## The light on the particle
 
-Every Gaussian beam through the screen's region counts, whichever way it goes, as on the Trap tab. Beams of one laser add as fields, so two counter-propagating beams light the particle with a standing wave. Separate lasers add as powers.
+Every Gaussian beam that passes within three of its radii of the particle counts (within 20 µm for a beam narrower than that), whichever way it goes. Beams of one laser add as fields, so two counter-propagating beams light the particle with a standing wave. Separate lasers add as powers. A beam that rises out of the bench plane is left out.
 
 **A steep focus** (numerical aperture above 0.3) is taken as its full vector field. JEKray already sums that field from the light leaving the last surface, the pupil. Each sample of the pupil is a plane wave travelling towards the focus, with its own direction $$\hat d_o$$, its own polarisation and its own phase:
 
@@ -97,25 +102,91 @@ Auto takes Mie for a sphere and the dipole array for any other shape. It takes R
 - **Rayleigh would give**: the single dipole's scattering cross-section beside the model's, so you can see how far Rayleigh is off.
 - **Plots**: the scattered intensity (W/sr) as a polar plot in the bench plane, drawn with the bench's own angles, and in the plane out of it through the beam, on a linear or a 40 dB logarithmic scale. The dashed curve is the part polarised square to the plotted plane. **Every direction** maps the intensity against the angle from the beam and the angle round it. Each plot saves as PNG and CSV.
 
-In a script, `JEKray.scatter(name)` returns the same numbers, the two cuts, the map and the far field's complex amplitude over the sphere of directions. `JEKray.mie(x, mr, mi, angles)` gives the Mie efficiencies and $$S_1$$, $$S_2$$ of any sphere.
+In a script, `JEKray.scatter(name)` returns the same numbers, the two cuts, the map and the far field's complex amplitude over the sphere of directions. `JEKray.scattered(name)` returns the Caught by rows: each part's name, share and power, and what is not collected. `JEKray.detector(name)` gives a detector's `X` and `Y` (right less left, top less bottom, mW) and the scattered light on it. `JEKray.mie(x, mr, mi, angles)` gives the Mie efficiencies and $$S_1$$, $$S_2$$ of any sphere.
+
+## Scattered light on the bench
+
+With **Send its scattered light to the parts** ticked, the far field the models give is launched from the particle as rays, in two steps.
+
+### Which parts catch it
+
+A fan of 132 rays over the whole sphere of directions is traced one step, to the first thing each ray meets. A coarse fan can miss a small part, so each part of the bench is also looked at on its own with 17 rays over the cone it fills as seen from the particle. A part that some ray reaches first has a clear line to the particle. A part hidden behind another is reached through it: a detector behind a lens gets the light the lens passes on.
+
+### The cones
+
+Each part with a clear line is sent a cone of 8 × 24 rays that fills its aperture as seen from the particle. Along the direction $$\hat r$$ of a ray the far field is $$\mathbf F(\hat r)$$, and the ray stands for a solid angle $$\Delta\Omega$$. It carries the power
+
+$$
+p = \frac{|\mathbf F(\hat r)|^2}{2Z}\,\Delta\Omega,
+$$
+
+with $$Z$$ the medium's impedance, and its two polarisation amplitudes are the components of $$\mathbf F$$ across the ray, with their phases. A ray that would meet another part first is left out of the cone, so no direction is counted twice. The ten cones that carry most power are traced on through the bench like any other rays.
+
+Where the driving beam goes on into a cone and fills only a small part of it, a second cone of 8 × 24 rays three far-field radii of the beam wide covers that part, and the first leaves it out.
+
+The Scattering tab's readout has a **Caught by** row for each part with a clear line: the share of the scattered power that enters its aperture, and the power. **Not collected** is everything else.
+
+### What a detector reads
+
+A photodetector adds the power of the scattered rays that land on it. Scattered light is also light of the laser that drives the particle, so it interferes with that laser's beams on the same detector. Each ray is traced with two companions 10⁻⁴ rad to either side. Where the three land gives the area $$\Delta A$$ of the ray's tube on the detector, and the ray is then a field of amplitude $$\sqrt{p/\Delta A}$$ there, with its polarisation and the phase of its optical path. The interference with a Gaussian beam $$\mathbf E_b$$ of the same laser is the sum over the rays
+
+$$
+P_\times = 2\operatorname{Re}\sum_i \mathbf E_b^*(u_i, v_i)\cdot\hat{\mathbf e}_i\,\sqrt{p_i\,\Delta A_i}\;e^{i\phi_i}.
+$$
+
+The phase of the scattered field is held against the driving beam's own phase at the particle, and the beam's Gouy phase from the particle to the detector is counted as it builds up along the way.
+
+**In a tight focus** the unscattered beam is not a Gaussian beam to the accuracy this needs. There the interference is taken from the focus's own plane waves. Wave $$o$$, with field $$\mathbf E_o$$ and direction $$\hat d_o$$, goes on from the particle along the same ray as the scattered light in that direction, and the two interfere by
+
+$$
+P_o = -\frac{4\pi}{k}\,\frac{\operatorname{Im}\left(\mathbf E_o^*\cdot\mathbf F(\hat d_o)\right)}{2Z}.
+$$
+
+This is the optical theorem one wave at a time: the sum of $$P_o$$ over the pupil is $$-P_\text{ext}$$. The waves are gathered into 20 × 20 bins across the pupil, each bin is traced as one ray, and its $$P_o$$ is added where the ray lands. A detector that takes in the whole beam therefore reads the incident power less the extinction, plus the scattered power that lands on it.
+
+A [photodetector](/jek/docs/jekray/free-space/detector/) set to **Split in four** also reads right less left and top less bottom. Behind a collection lens these follow a particle moved across the focus, the signal a levitation experiment reads its particle's position from.
+
+A [fibre tip](/jek/docs/jekray/free-space/fibre-tip/) takes in the overlap of the scattered field with its mode. Where the cone comes to a focus on the tip, the overlap is taken 30 Rayleigh ranges of the mode back from the tip, where the rays are apart.
+
+### The picture
+
+**Draw the scattered light in every direction** shows the fan: 48 rays in the bench plane, and in the 3D view 84 more above and below it. Each is as bright as the pattern is along it, so the forward and back lobes show, and light polarised in the bench plane shows the gap along its polarisation. The fan is a picture. No reading uses it.
+
+The cones are drawn as rays. With **Draw light by its power** on they are drawn at the faintest step that shows, because by power they would not show beside the beam at all. The 2D bench draws the two spokes of each cone nearest the bench plane, and the 3D view draws every ray.
 
 ## Validation
 
 The [validation page](/jek/tools/jekray-validation.html) runs the Mie sphere against an independent calculation, and the dipole array's rod against an independent dipole calculation on a finer lattice. A dipole-array sphere agrees with Mie to about 1% at the default lattice for silica at 1550 nm.
 
+Three more cases check the light on the bench against a Mie calculation that has no rays in it: the change in a detector's reading when a sphere is put in a wide beam, for silica and for gold; the slope of a split detector's signal as a sphere crosses a focus; and the share of the scattered power a lens of NA 0.5 collects ahead of the particle and at 90°. The position signal's slope also agrees with the closed form of Gittes and Schmidt for a Rayleigh sphere (*Optics Letters* 23, 7, 1998) to 1.1%.
+
 ## Assumptions
 
 <div class="dx-warn" markdown="1">
-- One particle, alone in a uniform medium. Nothing the scattered light meets afterwards is counted, and the scattered light is not put back on the bench as rays.
+- The particle and every part are in each other's far field. A part within a few wavelengths of the particle is not treated correctly.
+- Light that comes back to the particle is not scattered again. Two particles do not light each other: each scatters the bench's beams alone.
+- The beam that drives the particle is not made weaker by what was scattered. A detector that takes in the beam reads the loss through the interference above.
 - Forces and torques come from the Trap tab's dipole, not from these models.
+- The scattered light is launched as if the particle were in air or vacuum. A particle inside a block of glass or water still gets its cross-sections, but its cones are not refracted out of the block correctly.
+- A ray's field on a detector is geometric. It is right where the cone is many wavelengths wide on the face, as it is after a collimating lens or straight from the particle, and not at a focus.
+- Two scattered cones that reach the same detector add as powers with each other. Each adds as a field with the unscattered beam.
+- With a gentle beam (NA up to 0.3) the interference uses the bench's Gaussian beam. Its phase is good to about the square of the beam's divergence, and the extinction is a small difference of large terms: for a particle off the waist of a focus of NA 0.15 it was 8% out in our tests, and for a collimated beam 0.1%.
+- A screen does not record scattered rays, and the diffracted field does not hold them. Read them with a photodetector.
+- Scattered light coupled into a fibre tip is read at the tip. It does not travel on into a fibre network.
 - The glasses are lossless. Only the metals absorb.
 - The dipole array is good to a few per cent while $$|m|kd$$ stays below about 0.5 and at least 10 dipoles span the smallest dimension. The tab says when a lattice is coarser than that. It converges slowly for metals and other indices far from the medium's, where its error can reach tens of per cent.
 - A focus's plane waves are those of its pupil seen from the particle. This holds while the particle and its offset from the focus are much smaller than the distance to the pupil.
 - A beam below NA 0.3 is one plane wave at the particle. That is rough when the beam's waist is not much wider than the particle.
 - With the medium set to something other than the bench's, the wavelength in the medium is the one set but the focus is still the bench's.
+- A dipole array runs in the background. Until it has finished, the bench shows the scattered light of the last run, moved with the particle.
 </div>
+
+## Settings
+
+{% include jekray_params.html group="free" key="particle" %}
 
 ## Related
 
-- [Screen](/jek/docs/jekray/free-space/screen/), which holds the particle and reads the trap.
+- [Photodetector](/jek/docs/jekray/free-space/detector/), which reads the scattered light and a particle's position.
+- [Screen](/jek/docs/jekray/free-space/screen/), whose Trap tab also reads a trap for atoms.
 - [Free-space optics: steep foci](/jek/docs/jekray/free-space/#steep-foci), for the vector field at a focus.

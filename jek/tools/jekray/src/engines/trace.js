@@ -17,6 +17,8 @@ import { wavelengthColour } from '../core/colour.js';
 import { PARTS } from '../parts/registry.js';
 import { deg, project } from '../state/project.js';
 import { faceAmps } from '../core/face-pol.js';
+import { scatRevNow } from './scatter.js';
+import { scatterLaunch } from './scatter-light.js';
 import { FREE_3D, VSRC, applySpins, beamOn, getEl, lampBody, lampEmits, lampRaysOf, lightOf, raysOn, setVSRC } from '../state/elements.js';
 import { ensureBenches, linkPairs } from '../state/tabs.js';
 import { dsagFn, kapIn, makeSurf, maskOf, rawDsag, rawSag, sagFn, zoneHit } from '../core/geometry.js';
@@ -423,7 +425,7 @@ export function setLastTraceKey(v) { return (lastTraceKey = v); }
 /* RF parts met past their model (a grid or mesh with its pitch over the wavelength: a grating), by id, from the last trace */
 export const rfNotes = new Set();
 // (the bench's Show the rays among it: with it off, a Gaussian beam's rays are not traced at all, so ticking it traces again)
-export const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + (lightOf().rays !== false ? 'R' : '-') + '|' + project.benches.map(b => b.id).join(',') + '|' +
+export const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + scatRevNow() + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + (lightOf().rays !== false ? 'R' : '-') + '|' + project.benches.map(b => b.id).join(',') + '|' +
   JSON.stringify(project.elements.filter(e => e.type !== 'elec' && e.type !== 'draw'), keyCut) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire), keyCut);
 // what changes nothing in the light: a part's name and where it is written, its import notes, drawings; where a
 // fibre component or a chip part sits (their networks are solved by what joins what: a fibre's length is its own
@@ -531,7 +533,7 @@ export function rayPattern(src, n) {
 }
 export const zOf = el => el && el.z !== undefined ? el.z : BEAM_Z;
 export function setZ(el, z) { if (!isFinite(z)) return; z = clamp(+z, 0, 2000); if (Math.abs(z - BEAM_Z) < 1e-9) delete el.z; else el.z = +z.toFixed(4); }
-const anyHeights = () => project.elements.some(e => e.type === 'stl' || (e.z !== undefined && e.z !== BEAM_Z) || e.tip || e.roll || (e.type === 'source' && ((e.pattern && e.pattern !== 'line') || lampEmits(e))) || (e.type === 'fibre' && e.emitPattern));
+const anyHeights = () => project.elements.some(e => e.type === 'stl' || (e.z !== undefined && e.z !== BEAM_Z) || e.tip || e.roll || (e.type === 'source' && ((e.pattern && e.pattern !== 'line') || lampEmits(e))) || (e.type === 'fibre' && e.emitPattern) || (e.type === 'particle' && e.scatLight !== false));
 // a mirror tipped out of the plane: degrees, up positive; kept only when not 0
 export const tippable = el => FREE_3D.has(el.type) && el.type !== 'draw' && el.type !== 'link';
 // rolled about its own axis: degrees, right-handed about the way it faces; kept only when not 0
@@ -727,7 +729,7 @@ function faceToLocal(s, a, b, c) {
    the bench plane s is straight up, so nothing below changes there. Off it, a surface's own s
    (along n × d, across its plane of incidence) is turned from the ray's, so the amplitudes are
    turned into the surface's frame for its Fresnel coefficients and back out of it after. */
-function polFrame(d, sig, fx) {
+export function polFrame(d, sig, fx) {
   let sx, sy, sz;
   if (Math.hypot(d[0], d[1]) > 1e-6) { sx = -d[2] * d[0]; sy = -d[2] * d[1]; sz = d[0] * d[0] + d[1] * d[1]; }
   else {
@@ -802,7 +804,7 @@ function traceSceneOnce() {
   const blockedSrc = {};      // stop id -> the sources whose rays it stopped
   const blocked = {}, touched = {};          // touched: each part's id to the set of wavelengths (nm) whose light reached it
   for (const el of project.elements) if (el.type === 'screen' || el.type === 'fibre' || el.type === 'detector' || el.type === 'spectrometer' || el.type === 'mirror') { screens[el.id] = []; pulses[el.id] = []; }
-  const cellHits = [], nlcHits = [];
+  const cellHits = [], nlcHits = [], scHits = {};
   // splits at element edges, at most this many a trace (each part keeps 1% of its beam or more,
   // which bounds them too; a pile of elements on one spot would otherwise split every branch again)
   let splitsLeft = 200;
@@ -854,6 +856,17 @@ function traceSceneOnce() {
       states.forEach((st, si0) => stack.push({ px: src.x, py: src.y, dx: Math.cos(a) * ce0, dy: Math.sin(a) * ce0,
         sr: amp(st)[0], si: amp(st)[1], pr: amp(st)[2], pi: amp(st)[3], bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0,
         id: src.id + '::pulse' + pj + ':' + si0, fam: 'pulse', k: 0, path: '', chief: true, qr: 0, qi: 1, bn: src.bench, fo: src.vFo || 0, ...tipped }));
+    } else if (src.vRays) {
+      // a particle's scattered light (engines/scatter-light.js): each ray as it is given, its direction in 3D and its own
+      // amplitudes; drawn by the power the whole cone carries. (vProbe: rays traced one step, to see what each meets.)
+      const z0 = zOf(src);
+      if (!src.vProbe) { raySc[src.id] = lmw; srcMw[src.id] = src.power; }
+      const famS = famAt(famOf(0, false), src.vFo || 0);
+      for (let i = src.vRays.length - 1; i >= 0; i--) {
+        const r = src.vRays[i];
+        stack.push({ px: src.x, py: src.y, dx: r.d[0], dy: r.d[1], zh: z0, uz: r.d[2], sr: r.J[0], si: r.J[1], pr: r.J[2], pi: r.J[3],
+          bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0, id: src.id + ':' + wi + ':' + i, fam: famS, k: i, path: '', bn: src.bench, fo: src.vFo || 0 });
+      }
     } else {
     // the fan is optional: the Gaussian beam and the diffracted field follow their own reference rays
     const n = raysOn(src) ? src.rays : 0;
@@ -938,6 +951,7 @@ function traceSceneOnce() {
       fo = fo || 0;                     // its frequency offset from its laser, Hz
       wk = wk || 0;                     // inside a walk-off crystal: how far the energy leaves the wave normal
       const rayK = k;                   // the ray's number (k is reused for other things further in)
+      const vK = src.vRays ? +id.slice(id.lastIndexOf(':') + 1) : 0;       // a scattered ray's number in its source's list, which every branch of it keeps (its id)
       par = par || 0;                   // how many reflections so far, mod 2: the sense of p
       const pls = chief && id.indexOf('::pulse') > 0;     // a pulse's spectral sample
       const isQ = chief && !probe && !pls;      // the beam-parameter ray: its segments form the beam tree
@@ -948,7 +962,7 @@ function traceSceneOnce() {
       const pts = [px, py];
       // heights (see zOf): where the ray is out of the plane, and its slope there
       if (zh === undefined) { zh = zOf(src); uz = 0; }
-      if (anyZ) {
+      if (anyZ && !(src.vRays && !src.vRays[vK].draw)) {       // (a scattered ray that is never drawn, a probe or a ray that only measures, keeps no heights)
         const hid = (k2, v) => Object.defineProperty(pts, k2, { value: v, writable: true, enumerable: false });
         hid('zs', [zh]); hid('zNext', undefined);
         hid('push', function (x, y) { this.zs[this.length >> 1] = this.zNext !== undefined ? this.zNext : zh; this.zNext = undefined; return Array.prototype.push.call(this, x, y); });
@@ -1090,6 +1104,8 @@ function traceSceneOnce() {
           bounce--;
           continue;
         }
+        // a particle's probe ray: what it meets first, and how far off; it goes no further
+        if (src.vProbe) { src.vProbe[vK] = hit ? { el: hitSeg ? hit.el : hit.el.id, t: best, rim: hitSeg } : null; break; }
         if (!hit) {
           if (probe) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
           if (isQ) beams.push(Object.assign({ x0: px, y0: py, qr, qi, n: nCur, nm, colour, src: src.id, lmw, parent: bid, ev: evt, w: w * qShare, fan: !!fan, endEl: null,
@@ -1602,6 +1618,8 @@ function traceSceneOnce() {
           // the detecting face points along +x: record rays arriving on it, let the rest pass
           if (cosd < 0) {
             if (pls) pulses[s.el.id].push({ y: ly, sr, si, pr, pi, opl, nm, src: id.slice(0, id.indexOf('::pulse')), j: +id.slice(id.indexOf('::pulse') + 7).split(':')[0], pol: +id.split(':').pop(), path, dly: ldy, n: nCur });
+            // (scattered light is kept apart from the rays a face records: it is read as a field, with the cone it came in: engines/fibre-face.js)
+            else if (src.vRays) (scHits[s.el.id] || (scHits[s.el.id] = [])).push({ k: vK, sid: src.id, x: px, y: py, z: zh, d: [dx, dy, uz || 0], J: [sr, si, pr, pi], opl, par, path });
             else if (!probe && !fan) screens[s.el.id].push({ y: ly, ...(anyZ ? { z: zh - zOf(s.el), dz: uz / Math.max(1e-12, Math.hypot(dx, dy)) } : {}), w, sr, si, pr, pi, opl, gpl, nm, id, sid: src.id, fam, k, path, dly: ldy, n: nCur, chief, qr, qi, back: best });
             if (s.el.absorb && !probe) break;     // probe rays are not light; they measure the system
           }
@@ -1613,7 +1631,7 @@ function traceSceneOnce() {
         // a mirror notes the light arriving at its reflecting face, as a screen does, for its readouts
         if (s.kind === 'mirror' && cosd < 0 && screens[s.el.id]) {
           if (pls) pulses[s.el.id].push({ y: ly, sr, si, pr, pi, opl, nm, src: id.slice(0, id.indexOf('::pulse')), j: +id.slice(id.indexOf('::pulse') + 7).split(':')[0], pol: +id.split(':').pop(), path, dly: ldy, n: nCur });
-          else if (!probe && !fan) screens[s.el.id].push({ y: ly, ...(anyZ ? { z: zh - zOf(s.el), dz: uz / Math.max(1e-12, Math.hypot(dx, dy)) } : {}), w, sr, si, pr, pi, opl, gpl, nm, id, sid: src.id, fam, k, path, dly: ldy, n: nCur, chief, qr, qi, back: best });
+          else if (!probe && !fan && !src.vRays) screens[s.el.id].push({ y: ly, ...(anyZ ? { z: zh - zOf(s.el), dz: uz / Math.max(1e-12, Math.hypot(dx, dy)) } : {}), w, sr, si, pr, pi, opl, gpl, nm, id, sid: src.id, fam, k, path, dly: ldy, n: nCur, chief, qr, qi, back: best });
         }
         // Off the plane, a surface's plane of incidence is tilted from the ray's frame (see
         // polFrame): the amplitudes are turned into its s and p for what follows, and each ray
@@ -1887,7 +1905,9 @@ function traceSceneOnce() {
       }
       if (bounce >= maxB) limited++;
       if (probe && bounce >= maxB) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
-      if (!chief) rays.push({ pts, zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn, rid: id, fam, ev: path, J: [sr, si, pr, pi] });
+      // (of a particle's scattered light: not its probes, nor the companion rays that only measure a ray tube; sc 1 a ray of the
+      // cone's cut by the bench plane, drawn in 2D too, sc 2 the rest of the cone, in 3D)
+      if (!chief && !src.vProbe && !(src.vRays && !src.vRays[vK].draw)) rays.push({ pts, zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn, rid: id, fam, ev: path, J: [sr, si, pr, pi], ...(src.vRays ? { sc: src.vRays[vK].draw } : {}) });
     }
     }
   }
@@ -1956,6 +1976,19 @@ function traceSceneOnce() {
       runSources(las);
       lastTrace = { raySc, srcMw, rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net, pulses, cells: cellHits, nlc: lastTrace.nlc };
       setCavCache(null);
+    }
+  }
+  // Particles: the light each scatters, sent to the parts that catch it. A fan of probe rays one step out from each
+  // particle says what the light meets first; then a cone to each of those parts is traced as rays of the driving laser
+  {
+    const SL = scatterLaunch(surfsBy);
+    if (SL) {
+      const probe = list => { for (const v of list) VSRC.set(v.id, v); runSources(list); for (const v of list) VSRC.delete(v.id); };
+      probe(SL.probes); probe(SL.probes2());
+      const cones = SL.cones();
+      for (const v of cones) VSRC.set(v.id, v);
+      runSources(cones);
+      lastTrace.scat = SL.report(scHits);
     }
   }
   afterTrace();

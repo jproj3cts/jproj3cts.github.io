@@ -184,7 +184,10 @@ function updateReadoutsIn(container, el) {
     const f = v => v === 0 ? '0' : Math.abs(v) >= 0.01 ? String(+v.toPrecision(4)) : v.toExponential(3);
     const twisted = faceArrivals(el).some(A => A.QM && A.QM.twisted), twistNote = ['Note', 'a higher-order beam arrives twisted (parts at odd angles to each other turned its axes apart): its modes are only roughly placed; read it from the diffracted field'];
     parts = [[...(twisted && !r.field ? [twistNote] : []), ...(r.pending ? [['Behind a cavity', 'working out its steady state\u2026']] : r.field ? [['Behind a cavity', 'read from the solved field']] : []),
-      ['Optical power', f(r.mw) + ' mW'], r.mw > 0 ? ['Responsivity', (+(r.mA / r.mw).toPrecision(3)) + ' A/W, for the light arriving'] : ['Responsivity at ' + nm + ' nm', (+responsivity(el, nm).toPrecision(3)) + ' A/W'],
+      ['Optical power', f(r.mw) + ' mW'],
+      ...(r.scat ? [['Scattered light', f(r.scat.mw - r.scat.cross) + ' mW from a particle' + (Math.abs(r.scat.cross) > 0 ? '; its interference with the beam ' + (r.scat.cross < 0 ? 'takes ' : 'adds ') + f(Math.abs(r.scat.cross)) + ' mW' : '')]] : []),
+      ...(el.quad ? [['Right less left', f(r.X) + ' mW' + (r.mw > 0 ? ' (' + f(r.X / r.mw) + ' of the sum)' : '')], ['Top less bottom', f(r.Y) + ' mW' + (r.mw > 0 ? ' (' + f(r.Y / r.mw) + ' of the sum)' : '')]] : []),
+      r.mw > 0 ? ['Responsivity', (+(r.mA / r.mw).toPrecision(3)) + ' A/W, for the light arriving'] : ['Responsivity at ' + nm + ' nm', (+responsivity(el, nm).toPrecision(3)) + ' A/W'],
       ['Photocurrent', f(r.mA) + ' mA'], ...(el.diode ? [['Noise', f(r.noiseI * 1e9) + ' nA rms']] : [['Output', f(r.V) + ' V' + (r.sat ? ', at its limit' : '')],
       ['Noise', f(r.noiseV * 1e3) + ' mV rms']]), ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB']],
       'Sources count at the power set on each. Noise is over the noise bandwidth, \u03c0/2 times the bandwidth given (its single pole\u2019s 3 dB corner).'];

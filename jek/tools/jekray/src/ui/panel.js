@@ -182,7 +182,7 @@ function paramGrid(el, items, opts = {}, cells = []) {        // cells: filled w
   return h('div', { class: 'rt-f rt-pgridf' }, grid, ...boxes);
 }
 /* what a part's Angle means, for the line under it: the way it points, by kind */
-const ANGLE_MEANS = { source: 'the way its light leaves', lens: 'the way its optical axis points', mirror: 'the way its reflecting face points', grating: 'the way its grooved face points',
+const ANGLE_MEANS = { particle: 'the way a rod’s or spheroid’s axis points on the bench', source: 'the way its light leaves', lens: 'the way its optical axis points', mirror: 'the way its reflecting face points', grating: 'the way its grooved face points',
   screen: 'the way its face points, towards the light', detector: 'the way its face points, towards the light', spectrometer: 'the way its entrance faces, towards the light', fibre: 'the way its end faces, towards the light',
   isolator: 'the way light passes forward', faraday: 'the way its magnetic field points', cube: 'turns it about its centre', prism: 'turns it about its centre (an equilateral\u2019s apex points this way)',
   stl: 'turns it about its centre', draw: 'turns it about its x, y', fcomp: 'turns it about its centre', pic: 'turns it about its centre', elec: 'turns it about its centre' };

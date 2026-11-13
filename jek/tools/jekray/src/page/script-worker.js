@@ -1,3 +1,4 @@
+import { setScatMode } from '../engines/scatter.js';
 import { project } from '../state/project.js';
 import { loadProject, serialize } from '../state/elements.js';
 import { curBench } from '../state/tabs.js';
@@ -65,6 +66,7 @@ export function scriptWorkerMain() {
     const saves = [];
     try {
       if (m.mods) modAbsorb(m.mods);                       // the mods' results the page has (their code never runs here)
+      setScatMode('sync');                                  // a script's readings hold a particle's scattered light: worked out here as it is needed
       loadProject(JSON.parse(m.proj)); setLastTraceKey(null); traceScene();
       const key0 = snapshot(), tab0 = project.tab, ops = [], st = { loaded: false, pageOnly: '' };
       const P = Object.assign(scriptCalls(), workerCalls(ops, st));

@@ -6705,6 +6705,8 @@ const particleIndex = (mat, nm) => (METAL_NK[mat] ? metalNK(mat, nm) : [refIndex
 /* The particle a screen holds (trap: 'sphere'): its shape, its diameter D and whole length L
    along its axis (m; a sphere's are equal), its volume and the radius of the sphere of that
    volume (nm), which is what the Trap tab's dipole stands for when it is not a sphere */
+/* the direction of its axis in the bench plane, degrees: a Particle part's own angle, a screen's particle's trapAz */
+const particleAz = el => (el.type === 'particle' ? el.angle : el.trapAz);
 function particleOf(el) {
   const shape = ['cylinder', 'capsule', 'spheroid'].includes(el.trapShape) ? el.trapShape : 'sphere';
   const D = 2 * el.trapR * 1e-9, L = shape === 'sphere' ? D : Math.max(shape === 'capsule' ? D : 0, (el.trapLen || 2 * el.trapR) * 1e-9), V = ddaVolume(shape, D, L);
@@ -10659,6 +10661,7 @@ const DETECTOR = {
       vmax: Math.max(0.01, num(e.vmax, 10)),           // output swing, V
       demodF: Math.max(0, num(e.demodF, 0)),           // mixer frequency, MHz (0: none)
       demodPhase: num(e.demodPhase, 0),                // and its phase, degrees
+      ...(e.quad === true ? { quad: true } : {}),      // a split diode: also reads right less left and top less bottom
       absorb: true,
     });
   },
@@ -10667,7 +10670,7 @@ const DETECTOR = {
     angle: 'the direction its face points: towards the light.',
     fields: { length: 'mm: the active area’s diameter.', material: 'one of the detector materials below.', resp: 'A/W, used when material is "custom".', gain: 'V/A transimpedance.',
     bandwidth: 'Hz: the amplifier’s 3 dB bandwidth, a single pole; its noise counts over π/2 times it.', dark: 'nA dark current.', ampNoise: 'pA/√Hz input noise.', vmax: 'V output limit.',
-    demodF: 'MHz: mix the output down at this frequency (0: no mixer). With an EOM at fm, this gives a PDH error signal.', demodPhase: 'degrees: the mixer’s phase.' },
+    demodF: 'MHz: mix the output down at this frequency (0: no mixer). With an EOM at fm, this gives a PDH error signal.', demodPhase: 'degrees: the mixer’s phase.', quad: 'true: a split (quadrant) diode. Its readout adds right less left (across the face in the bench plane, towards the face’s own left as it looks at the light counted negative) and top less bottom, each the difference of the light on the two halves, in mW and as a share of the sum. For a particle’s place in a focus read from its scattered light.' },
   },
 };
 /* Spectrometer: a free-space spectrometer: light through its entrance (a slit, or a fibre's core) is spread by wavelength across a
@@ -11002,6 +11005,55 @@ const NLC_PART = {
     fields: { length: 'mm: the aperture across the beam.', nlLen: 'mm along the beam (10 to 50 is usual).', material: '"ppln" (MgO:PPLN, d_eff 14 pm/V) or "ppktp" (d_eff 9.5 pm/V).', period: 'poling period, µm; 0 (the default) picks the best period for the beam through it.', temp: '°C: tunes the phase matching (PPLN is usually run hot, 40 to 200).', axis: '"s" (z axis out of the bench plane: s light converts) or "p".', faces: '"ar" (end faces anti-reflection coated, 0.1%; the default) or "bare".' },
   },
 };
+/* Particle: one small particle (a sphere, a rod or a spheroid) at a point of the bench, in whatever light reaches it.
+   Its Trap and Scattering tabs read the trap the light makes for it and the light it scatters, and the scattered
+   light is put back on the bench (engines/scatter-light.js). It is a point: no surface, so the trace never meets it.
+   Its fields are the ones a screen's particle has (trapShape, trapR, ... scat*), so the engines take either. */
+const PARTICLE = {
+  type: 'particle', label: 'Particle',
+  picker: [{ key: 'particle', short: 'Particle', long: 'Particle (a sphere or rod that scatters the light)' }],
+  keys: ['particle'],
+  // its angle is the direction of its axis in the bench plane (a rod's or spheroid's; a sphere has none)
+  make: (x, y) => ({ type: 'particle', name: nextName('Particle'), x, y, angle: 90 }),
+  norm(e, base) {
+    return Object.assign(base, {
+      trap: 'sphere',
+      trapMat: particleMat(e.trapMat),                             // its material: a glass, or Au, Ag, Al
+      trapR: Math.max(1, num(e.trapR, 150)),                       // its radius, nm (half its diameter)
+      trapRho: Math.max(1, num(e.trapRho, SPHERE_DENSITY[particleMat(e.trapMat)] || 2200)),   // kg/m^3
+      trapMed: ['bench', 'vacuum', 'air', 'water'].includes(e.trapMed) ? e.trapMed : 'bench',
+      trapShape: ['cylinder', 'capsule', 'spheroid'].includes(e.trapShape) ? e.trapShape : 'sphere',
+      trapLen: Math.max(1, num(e.trapLen, 1000)),
+      trapTilt: clamp(num(e.trapTilt, 0), -90, 90),
+      trapP: Math.max(1e-12, num(e.trapP, 1013.25)),                // mbar, for air
+      trapT: Math.max(0.001, num(e.trapT, 295)),                   // K, for the depth in kT
+      scatModel: ['rayleigh', 'mie', 'dda'].includes(e.scatModel) ? e.scatModel : 'auto',
+      scatDip: Math.round(clamp(num(e.scatDip, 0), 0, 64)),
+      scatAt: e.scatAt === 'trap' ? 'trap' : 'part',               // where it is: at the part, or where the trap near it holds it
+      scatDx: num(e.scatDx, 0), scatDy: num(e.scatDy, 0), scatDz: num(e.scatDz, 0),
+      scatNA: clamp(num(e.scatNA, 0.5), 0.001, 4),
+      scatDir: ['back', 'side', 'up', 'angle'].includes(e.scatDir) ? e.scatDir : 'fwd',
+      scatAng: num(e.scatAng, 0),
+      scatScale: e.scatScale === 'lin' ? 'lin' : 'log',
+      scatView: ['out', 'map'].includes(e.scatView) ? e.scatView : 'in',
+      scatLight: e.scatLight !== false,                            // its scattered light on the bench, to the parts that catch it
+      scatFan: e.scatFan !== false,                                // and the faint fan in every direction (a picture only)
+    });
+  },
+  guide: {
+    what: 'One small particle at a point of the bench: a sphere, a rod or a spheroid, in whatever light reaches it. Its Scattering tab gives its cross-sections and the light it scatters (Lorenz–Mie for a sphere, a dipole array for a rod), its Trap tab the optical trap the light makes for it. The scattered light goes to the parts that catch it, as light of the laser that drives the particle: a lens collimates it, a photodetector reads it with the unscattered beam as fields. The light itself passes the particle untouched.',
+    angle: 'the direction of a rod’s or spheroid’s axis in the bench plane (a sphere has none).',
+    fields: { trap: 'always "sphere": the part is a particle (the field a screen\u2019s particle is told by).', trapMat: 'the particle’s material: a glass ("Fused silica", "Polystyrene" and so on), or "Au", "Ag", "Al" (metals, which absorb: their measured complex index).', trapR: 'the particle’s radius, nm: half its diameter (for a rod or spheroid, half the diameter across its axis).', trapRho: 'its density, kg/m³.',
+      trapMed: '"bench" (the index where the light is), "vacuum", "air" (with trapP) or "water".', trapShape: '"sphere", "cylinder" (a rod with flat ends), "capsule" (a rod with round ends) or "spheroid".', trapLen: 'nm: a rod’s or spheroid’s whole length along its axis.', trapTilt: 'degrees: its axis tilted up out of the bench plane (90: straight up).',
+      trapP: 'mbar: the air’s pressure, for trapMed "air".', trapT: 'K: the temperature the trap’s depth is compared with.',
+      scatModel: '"auto" (Mie for a sphere, a dipole array for other shapes, Rayleigh when tiny), "rayleigh", "mie" or "dda".', scatDip: 'dipoles across the smallest dimension of a dipole array (0 chooses).',
+      scatAt: '"part": the particle is where the part is; "trap": where the optical trap nearest the part holds it.', scatDx: 'µm: moved from there across the strongest beam, in the bench plane.', scatDy: 'µm: moved up out of the plane.', scatDz: 'µm: moved along the beam.',
+      scatNA: 'the numerical aperture of the cone the Scattering tab’s Collected figure is for.', scatDir: 'that cone’s direction: "fwd", "back", "side", "up" or "angle" (with scatAng).', scatAng: 'degrees: the cone’s direction on the bench, for scatDir "angle".',
+      scatScale: '"log" or "lin": the pattern plots’ scale.', scatView: '"in" (the bench plane), "out" (the plane out of it through the beam) or "map" (every direction).',
+      scatLight: 'true puts the scattered light on the bench: a cone to each part with a clear line to the particle, with the far field’s amplitude, phase and polarisation, coherent with the driving laser. false leaves the bench as it is without it.',
+      scatFan: 'true draws a faint fan of the scattered light in every direction, as bright as the pattern is; a picture only, never part of a reading.' },
+  },
+};
 /* Vapour cell: An atomic vapour cell (Rb, Cs or K; D1 or D2): Doppler-broadened hyperfine absorption and dispersion at the light’s frequency, and saturated absorption (Lamb dips and crossovers) for a weak beam crossing a strong one going the other way. Set a source’s wavelength to the line in vacuum nm (Rb D2 780.24, Cs D2 852.35). */
 const CELL = {
   type: 'cell', label: 'Vapour cell',
@@ -11087,19 +11139,19 @@ const RF = {
    by type in engines/trace.js and ui/view3d.js.
    ========================================================================== */
 const PARTS = {
-  stl: STL, source: SOURCE, mirror: MIRROR, screen: SCREEN, waveplate: WAVEPLATE, polariser: POLARISER, mask: MASK, stop: STOP, cube: CUBE, prism: PRISM, lens: LENS, grating: GRATING, fibre: FIBRE, detector: DETECTOR, spectrometer: SPECTROMETER, faraday: FARADAY, isolator: ISOLATOR, crystal: CRYSTAL, filter: FILTER, link: LINK, aom: AOM, eom: EOM, fcomp: FCOMP, draw: DRAW, pic: PIC_PART, elec: ELEC_PART, chopper: CHOPPER, nlc: NLC_PART, cell: CELL, gain: GAIN
+  stl: STL, source: SOURCE, mirror: MIRROR, screen: SCREEN, waveplate: WAVEPLATE, polariser: POLARISER, mask: MASK, stop: STOP, cube: CUBE, prism: PRISM, lens: LENS, grating: GRATING, fibre: FIBRE, detector: DETECTOR, spectrometer: SPECTROMETER, faraday: FARADAY, isolator: ISOLATOR, crystal: CRYSTAL, filter: FILTER, link: LINK, aom: AOM, eom: EOM, fcomp: FCOMP, draw: DRAW, pic: PIC_PART, elec: ELEC_PART, chopper: CHOPPER, nlc: NLC_PART, cell: CELL, gain: GAIN, particle: PARTICLE
 };
 /* the order the guide and the labels list them in */
-const PART_ORDER = ['source', 'mirror', 'lens', 'screen', 'stop', 'cube', 'prism', 'waveplate', 'polariser', 'mask', 'grating', 'fibre', 'detector', 'spectrometer', 'faraday', 'isolator', 'stl', 'crystal', 'filter', 'gain', 'cell', 'nlc', 'link', 'aom', 'eom', 'chopper', 'draw'];
+const PART_ORDER = ['source', 'mirror', 'lens', 'screen', 'stop', 'cube', 'prism', 'waveplate', 'polariser', 'mask', 'grating', 'fibre', 'detector', 'spectrometer', 'faraday', 'isolator', 'stl', 'crystal', 'filter', 'gain', 'cell', 'nlc', 'particle', 'link', 'aom', 'eom', 'chopper', 'draw'];
 const TYPE_LABEL = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].label]));
 /* the free-space palette: its parts in the picker's order, and the rail's groups */
-const FREE_PARTS = [SOURCE, MIRROR, LENS, CUBE, PRISM, WAVEPLATE, POLARISER, STOP, MASK, SCREEN, GRATING, CRYSTAL, FILTER, FARADAY, ISOLATOR, GAIN, CELL, NLC_PART, FIBRE, DETECTOR, SPECTROMETER, CHOPPER, AOM, EOM, LINK];
+const FREE_PARTS = [SOURCE, MIRROR, LENS, CUBE, PRISM, WAVEPLATE, POLARISER, STOP, MASK, SCREEN, GRATING, CRYSTAL, FILTER, FARADAY, ISOLATOR, GAIN, CELL, NLC_PART, PARTICLE, FIBRE, DETECTOR, SPECTROMETER, CHOPPER, AOM, EOM, LINK];
 const FREE_GROUPS = [['Sources and detectors', ['source', 'lamp', 'lamp2d', 'detector', 'spectrometer', 'screen', 'phosphor', 'fibre', 'collimator']],
   ['Mirrors', ['mirror']],
   ['Lenses', ['lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon']],
   ['Splitting and polarisation', ['cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator']],
   ['Shaping and filtering', ['stop', 'mask', 'filter', 'grating', 'prism']],
-  ['Active and atomic', ['gain', 'cell', 'nlc', 'aom', 'eom', 'elec:chopper']],
+  ['Active and atomic', ['gain', 'cell', 'nlc', 'particle', 'aom', 'eom', 'elec:chopper']],
   ['Tabs', ['link']]];
 /* the picker's rows, [key, short, long?], from the parts' entries */
 const pickerRows = parts => parts.flatMap(p => (p.picker || []).map(it => it.long ? [it.key, it.short, it.long] : [it.key, it.short]));
@@ -12025,7 +12077,7 @@ function lensKind(el) {
 
 /* the parts the 3D view can show: a bench with others on it cannot go to 3D */
 const FREE_3D = new Set(['source', 'detector', 'spectrometer', 'screen', 'fibre', 'mirror', 'lens', 'cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator',
-  'stop', 'mask', 'filter', 'grating', 'prism', 'gain', 'cell', 'nlc', 'aom', 'eom', 'chopper', 'link', 'stl', 'draw']);
+  'stop', 'mask', 'filter', 'grating', 'prism', 'gain', 'cell', 'nlc', 'particle', 'aom', 'eom', 'chopper', 'link', 'stl', 'draw']);
 
 /* fibre components, circuit parts and chips: in the 3D view on the table, the fibres, wires and waveguides between
    them laid as tubes (ui/view3d.js); the light of free space does not meet them */
@@ -14006,7 +14058,7 @@ function setLastTraceKey(v) { return (lastTraceKey = v); }
 /* RF parts met past their model (a grid or mesh with its pitch over the wavelength: a grating), by id, from the last trace */
 const rfNotes = new Set();
 // (the bench's Show the rays among it: with it off, a Gaussian beam's rays are not traced at all, so ticking it traces again)
-const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + (lightOf().rays !== false ? 'R' : '-') + '|' + project.benches.map(b => b.id).join(',') + '|' +
+const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + scatRevNow() + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + (lightOf().rays !== false ? 'R' : '-') + '|' + project.benches.map(b => b.id).join(',') + '|' +
   JSON.stringify(project.elements.filter(e => e.type !== 'elec' && e.type !== 'draw'), keyCut) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire), keyCut);
 // what changes nothing in the light: a part's name and where it is written, its import notes, drawings; where a
 // fibre component or a chip part sits (their networks are solved by what joins what: a fibre's length is its own
@@ -14114,7 +14166,7 @@ function rayPattern(src, n) {
 }
 const zOf = el => el && el.z !== undefined ? el.z : BEAM_Z;
 function setZ(el, z) { if (!isFinite(z)) return; z = clamp(+z, 0, 2000); if (Math.abs(z - BEAM_Z) < 1e-9) delete el.z; else el.z = +z.toFixed(4); }
-const anyHeights = () => project.elements.some(e => e.type === 'stl' || (e.z !== undefined && e.z !== BEAM_Z) || e.tip || e.roll || (e.type === 'source' && ((e.pattern && e.pattern !== 'line') || lampEmits(e))) || (e.type === 'fibre' && e.emitPattern));
+const anyHeights = () => project.elements.some(e => e.type === 'stl' || (e.z !== undefined && e.z !== BEAM_Z) || e.tip || e.roll || (e.type === 'source' && ((e.pattern && e.pattern !== 'line') || lampEmits(e))) || (e.type === 'fibre' && e.emitPattern) || (e.type === 'particle' && e.scatLight !== false));
 // a mirror tipped out of the plane: degrees, up positive; kept only when not 0
 const tippable = el => FREE_3D.has(el.type) && el.type !== 'draw' && el.type !== 'link';
 // rolled about its own axis: degrees, right-handed about the way it faces; kept only when not 0
@@ -14385,7 +14437,7 @@ function traceSceneOnce() {
   const blockedSrc = {};      // stop id -> the sources whose rays it stopped
   const blocked = {}, touched = {};          // touched: each part's id to the set of wavelengths (nm) whose light reached it
   for (const el of project.elements) if (el.type === 'screen' || el.type === 'fibre' || el.type === 'detector' || el.type === 'spectrometer' || el.type === 'mirror') { screens[el.id] = []; pulses[el.id] = []; }
-  const cellHits = [], nlcHits = [];
+  const cellHits = [], nlcHits = [], scHits = {};
   // splits at element edges, at most this many a trace (each part keeps 1% of its beam or more,
   // which bounds them too; a pile of elements on one spot would otherwise split every branch again)
   let splitsLeft = 200;
@@ -14437,6 +14489,17 @@ function traceSceneOnce() {
       states.forEach((st, si0) => stack.push({ px: src.x, py: src.y, dx: Math.cos(a) * ce0, dy: Math.sin(a) * ce0,
         sr: amp(st)[0], si: amp(st)[1], pr: amp(st)[2], pi: amp(st)[3], bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0,
         id: src.id + '::pulse' + pj + ':' + si0, fam: 'pulse', k: 0, path: '', chief: true, qr: 0, qi: 1, bn: src.bench, fo: src.vFo || 0, ...tipped }));
+    } else if (src.vRays) {
+      // a particle's scattered light (engines/scatter-light.js): each ray as it is given, its direction in 3D and its own
+      // amplitudes; drawn by the power the whole cone carries. (vProbe: rays traced one step, to see what each meets.)
+      const z0 = zOf(src);
+      if (!src.vProbe) { raySc[src.id] = lmw; srcMw[src.id] = src.power; }
+      const famS = famAt(famOf(0, false), src.vFo || 0);
+      for (let i = src.vRays.length - 1; i >= 0; i--) {
+        const r = src.vRays[i];
+        stack.push({ px: src.x, py: src.y, dx: r.d[0], dy: r.d[1], zh: z0, uz: r.d[2], sr: r.J[0], si: r.J[1], pr: r.J[2], pi: r.J[3],
+          bounce: 0, last: null, opl: 0, nCur: 1, aCur: 0, id: src.id + ':' + wi + ':' + i, fam: famS, k: i, path: '', bn: src.bench, fo: src.vFo || 0 });
+      }
     } else {
     // the fan is optional: the Gaussian beam and the diffracted field follow their own reference rays
     const n = raysOn(src) ? src.rays : 0;
@@ -14521,6 +14584,7 @@ function traceSceneOnce() {
       fo = fo || 0;                     // its frequency offset from its laser, Hz
       wk = wk || 0;                     // inside a walk-off crystal: how far the energy leaves the wave normal
       const rayK = k;                   // the ray's number (k is reused for other things further in)
+      const vK = src.vRays ? +id.slice(id.lastIndexOf(':') + 1) : 0;       // a scattered ray's number in its source's list, which every branch of it keeps (its id)
       par = par || 0;                   // how many reflections so far, mod 2: the sense of p
       const pls = chief && id.indexOf('::pulse') > 0;     // a pulse's spectral sample
       const isQ = chief && !probe && !pls;      // the beam-parameter ray: its segments form the beam tree
@@ -14531,7 +14595,7 @@ function traceSceneOnce() {
       const pts = [px, py];
       // heights (see zOf): where the ray is out of the plane, and its slope there
       if (zh === undefined) { zh = zOf(src); uz = 0; }
-      if (anyZ) {
+      if (anyZ && !(src.vRays && !src.vRays[vK].draw)) {       // (a scattered ray that is never drawn, a probe or a ray that only measures, keeps no heights)
         const hid = (k2, v) => Object.defineProperty(pts, k2, { value: v, writable: true, enumerable: false });
         hid('zs', [zh]); hid('zNext', undefined);
         hid('push', function (x, y) { this.zs[this.length >> 1] = this.zNext !== undefined ? this.zNext : zh; this.zNext = undefined; return Array.prototype.push.call(this, x, y); });
@@ -14673,6 +14737,8 @@ function traceSceneOnce() {
           bounce--;
           continue;
         }
+        // a particle's probe ray: what it meets first, and how far off; it goes no further
+        if (src.vProbe) { src.vProbe[vK] = hit ? { el: hitSeg ? hit.el : hit.el.id, t: best, rim: hitSeg } : null; break; }
         if (!hit) {
           if (probe) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
           if (isQ) beams.push(Object.assign({ x0: px, y0: py, qr, qi, n: nCur, nm, colour, src: src.id, lmw, parent: bid, ev: evt, w: w * qShare, fan: !!fan, endEl: null,
@@ -15185,6 +15251,8 @@ function traceSceneOnce() {
           // the detecting face points along +x: record rays arriving on it, let the rest pass
           if (cosd < 0) {
             if (pls) pulses[s.el.id].push({ y: ly, sr, si, pr, pi, opl, nm, src: id.slice(0, id.indexOf('::pulse')), j: +id.slice(id.indexOf('::pulse') + 7).split(':')[0], pol: +id.split(':').pop(), path, dly: ldy, n: nCur });
+            // (scattered light is kept apart from the rays a face records: it is read as a field, with the cone it came in: engines/fibre-face.js)
+            else if (src.vRays) (scHits[s.el.id] || (scHits[s.el.id] = [])).push({ k: vK, sid: src.id, x: px, y: py, z: zh, d: [dx, dy, uz || 0], J: [sr, si, pr, pi], opl, par, path });
             else if (!probe && !fan) screens[s.el.id].push({ y: ly, ...(anyZ ? { z: zh - zOf(s.el), dz: uz / Math.max(1e-12, Math.hypot(dx, dy)) } : {}), w, sr, si, pr, pi, opl, gpl, nm, id, sid: src.id, fam, k, path, dly: ldy, n: nCur, chief, qr, qi, back: best });
             if (s.el.absorb && !probe) break;     // probe rays are not light; they measure the system
           }
@@ -15196,7 +15264,7 @@ function traceSceneOnce() {
         // a mirror notes the light arriving at its reflecting face, as a screen does, for its readouts
         if (s.kind === 'mirror' && cosd < 0 && screens[s.el.id]) {
           if (pls) pulses[s.el.id].push({ y: ly, sr, si, pr, pi, opl, nm, src: id.slice(0, id.indexOf('::pulse')), j: +id.slice(id.indexOf('::pulse') + 7).split(':')[0], pol: +id.split(':').pop(), path, dly: ldy, n: nCur });
-          else if (!probe && !fan) screens[s.el.id].push({ y: ly, ...(anyZ ? { z: zh - zOf(s.el), dz: uz / Math.max(1e-12, Math.hypot(dx, dy)) } : {}), w, sr, si, pr, pi, opl, gpl, nm, id, sid: src.id, fam, k, path, dly: ldy, n: nCur, chief, qr, qi, back: best });
+          else if (!probe && !fan && !src.vRays) screens[s.el.id].push({ y: ly, ...(anyZ ? { z: zh - zOf(s.el), dz: uz / Math.max(1e-12, Math.hypot(dx, dy)) } : {}), w, sr, si, pr, pi, opl, gpl, nm, id, sid: src.id, fam, k, path, dly: ldy, n: nCur, chief, qr, qi, back: best });
         }
         // Off the plane, a surface's plane of incidence is tilted from the ray's frame (see
         // polFrame): the amplitudes are turned into its s and p for what follows, and each ray
@@ -15470,7 +15538,9 @@ function traceSceneOnce() {
       }
       if (bounce >= maxB) limited++;
       if (probe && bounce >= maxB) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
-      if (!chief) rays.push({ pts, zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn, rid: id, fam, ev: path, J: [sr, si, pr, pi] });
+      // (of a particle's scattered light: not its probes, nor the companion rays that only measure a ray tube; sc 1 a ray of the
+      // cone's cut by the bench plane, drawn in 2D too, sc 2 the rest of the cone, in 3D)
+      if (!chief && !src.vProbe && !(src.vRays && !src.vRays[vK].draw)) rays.push({ pts, zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn, rid: id, fam, ev: path, J: [sr, si, pr, pi], ...(src.vRays ? { sc: src.vRays[vK].draw } : {}) });
     }
     }
   }
@@ -15539,6 +15609,19 @@ function traceSceneOnce() {
       runSources(las);
       lastTrace = { raySc, srcMw, rays, screens, beams, blocked, touched, limited, truncated, dropped, emitted, emittedBy, blockedSrc, absorbed, system: lastTrace.system, net, pulses, cells: cellHits, nlc: lastTrace.nlc };
       setCavCache(null);
+    }
+  }
+  // Particles: the light each scatters, sent to the parts that catch it. A fan of probe rays one step out from each
+  // particle says what the light meets first; then a cone to each of those parts is traced as rays of the driving laser
+  {
+    const SL = scatterLaunch(surfsBy);
+    if (SL) {
+      const probe = list => { for (const v of list) VSRC.set(v.id, v); runSources(list); for (const v of list) VSRC.delete(v.id); };
+      probe(SL.probes); probe(SL.probes2());
+      const cones = SL.cones();
+      for (const v of cones) VSRC.set(v.id, v);
+      runSources(cones);
+      lastTrace.scat = SL.report(scHits);
     }
   }
   afterTrace();
@@ -16683,6 +16766,37 @@ function whiteRuns(rays) {
   }
   return out;
 }
+/* a ray of a particle's scattered light, where its power would not show it: a step or two of the twelve, by its share of its cone's strongest */
+const scatLevel = (r, tops) => (r.w / (tops.get(r.src) || 1) > 0.5 ? 2 : 1);
+/* A particle's fan (lastTrace.scat.fans, engines/scatter-light.js): its rays in the bench plane, each as bright as the
+   pattern is along it. A picture: nothing reads it. */
+function drawScatFans() {
+  const SC = lastTrace.scat;
+  if (!SC || !SC.fans) return;
+  const v = V(), k = v.scale, ox = W / 2 - v.cx * k, oy = H / 2 + v.cy * k;
+  ctx.save();
+  ctx.globalCompositeOperation = glowOp();
+  ctx.lineWidth = 1;
+  for (const F of SC.fans) {
+    if (!F.on || F.bench !== project.tab) continue;
+    const x0 = ox + F.pos[0] * k, y0 = oy - F.pos[1] * k;
+    for (let lvl = 1; lvl <= 4; lvl++) {
+      ctx.beginPath();
+      let any = false;
+      for (let i = 0; i < F.nPlane; i++) {
+        const o = 5 * i, w = F.rays[o + 4];
+        if (Math.min(4, 1 + Math.floor(3.999 * Math.sqrt(w))) !== lvl || !(w > 1e-4)) continue;
+        const L = Math.min(F.rays[o + 3], 3e3 / k);
+        ctx.moveTo(x0, y0); ctx.lineTo(x0 + F.rays[o] * L * k, y0 - F.rays[o + 1] * L * k); any = true;
+      }
+      if (!any) continue;
+      if (lightLayer) { ctx.globalAlpha = 1; ctx.strokeStyle = paperTint(lightInk(F.colour), glowA(0.05 * lvl)); }
+      else { ctx.globalAlpha = glowA(0.05 * lvl); ctx.strokeStyle = F.colour; }
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
 function drawRaysOn(ctx, rays, shared) {
   ctx.save();
   ctx.globalCompositeOperation = glowOp();
@@ -16697,10 +16811,11 @@ function drawRaysOn(ctx, rays, shared) {
   ctx.lineWidth = (dens < 1 ? 1.4 : 1.2) * RW;          // a dense fan: lines wide enough to run together into a fill (drawn at twice the resolution, see drawRays)
   if (shared === undefined) shared = lightLayer ? whiteRuns(rays) : null;
   for (const r of rays) {
-    if (r.bench !== project.tab) continue;
+    if (r.bench !== project.tab || r.sc === 2) continue;        // (sc 2: a particle's scattered ray off the cut the bench plane shows; 3D draws it)
     // a few steps: lines in one step are one stroke, and do not pile up where they cross; by power, the faintest go
     const alpha = (byPow ? 0.8 * powerFade(rayPowerShare(r, lastTrace, byPow, tops)) : rayAlpha(r.w / (tops.get(r.src) || 1))) * dens;
-    const lvl = byPow ? Math.round(alpha * 12) : Math.max(1, Math.round(alpha * 12));
+    // (a particle's scattered light is far below the beam that drives it: by power it is the faintest step that shows, never nothing)
+    const lvl = byPow ? Math.max(r.sc ? scatLevel(r, tops) : 0, Math.round(alpha * 12)) : r.sc ? scatLevel(r, tops) : Math.max(1, Math.round(alpha * 12));
     if (!lvl) continue;
     for (const part of shared && shared.has(r) ? shared.get(r) : [{ pts: r.pts, colour: r.colour }]) {
       const key = part.colour + '|' + lvl;
@@ -16822,6 +16937,7 @@ function bodyOutline(el) {
   if (el.type === 'elec' || el.type === 'pic') return rect(-7, 7, r);
   if (el.type === 'detector') { const o = []; for (let i = 0; i <= 8; i++) { const a = -Math.PI / 2 + Math.PI * i / 8; o.push([r * Math.cos(a), r * Math.sin(a)]); } return o; }
   if (el.type === 'chopper') return rect(-2.5, 2.5, r);
+  if (el.type === 'particle') return rect(-r, r, r);
   if (el.type === 'spectrometer') return rect(-SPEC_L, 0, SPEC_W / 2);
   return [[0, -r], [0, r]];
 }
@@ -16839,6 +16955,7 @@ function halfSize(el) {
   if (el.type === 'pic') return PIC.halfSize(el);                                             // PIC hook
   if (el.type === 'elec') return ELEC.halfSize(el);                                           // ELEC hook
   if (el.type === 'chopper') return el.length / 2 + 5;                                        // ELEC hook
+  if (el.type === 'particle') return 17 / V().scale;                                         // a sign that keeps its size on the page (ui/parts/particle.js)
   if (el.type === 'stl') return Math.max(1, ...meshHull(el).map(p => Math.hypot(p[0], p[1])));
   if (el.type === 'lens') return el.diameter / 2;
   if (el.type === 'source') return srcBody(el).hw;
@@ -17188,6 +17305,7 @@ function render() {
   // stale: the bench moved on and a background trace is catching up; its rays are drawn,
   // and the beams and fields, which need the full trace, wait for it
   const stale = traceLater();
+  if (!stale) scatterKeepUp();       // a Particle part's scattered light, where the bench has moved on from it
   phosphorKick();                    // a phosphor screen's glow moves on with the light
   // a tab shown in 3D draws there instead (the 2D bench under it waits)
   let in3d = false;
@@ -17204,12 +17322,15 @@ function render() {
 function renderAll(stale) {
   drawBench();
   const order = { lens: 0, prism: 0, cube: 0, crystal: 0, mirror: 1, grating: 1, screen: 2, stop: 2, waveplate: 2, polariser: 2,
-    mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, cell: 1, nlc: 1, link: 2, fcomp: 2, pic: 2, aom: 2, eom: 2, chopper: 2, elec: 2, source: 3, stl: 0, draw: 0 };
+    mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, cell: 1, nlc: 1, link: 2, fcomp: 2, pic: 2, aom: 2, eom: 2, chopper: 2, elec: 2, source: 3, stl: 0, draw: 0, particle: 2 };
   const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
   for (const el of els) if (el.type === 'draw' && el.layer === 'under') draw(el);
   drawFibres();
-  for (const el of els) if (el.type !== 'source' && el.type !== 'draw') draw(el);
+  for (const el of els) if (el.type !== 'source' && el.type !== 'draw' && el.type !== 'particle') draw(el);
   if (lightOf().rays) { if (lightOf().trail && !exporting) drawTrail(); drawRays(stale); }
+  if (!stale) drawScatFans();
+  // (a particle is a dot on a beam: drawn over the light, where it can be seen)
+  for (const el of els) if (el.type === 'particle') draw(el);
   if (!stale) {
     setCloseupOn(drawCloseup());
     const fieldShown = closeupOn ? new Set(popSources().map(e => e.id)) : drawPop();
@@ -20143,6 +20264,14 @@ function faceArrivalsOf(el) {
   const B = lastTrace.beams || [], out = [], f = frame(el);
   B.forEach((b, i) => {
     if (b.endEl !== el.id || b.fan || b.dx * f.c + b.dy * f.s >= 0) return;
+    beamArrivals(el, B, i, b, out);
+  });
+  return out;
+}
+/* beam i of the trace as it lands on a face: b is the beam itself, or the beam cut short where a face that is not
+   a part stands in it (beamFieldAt) */
+function beamArrivals(el, B, i, b, out) {
+  {
     const src = getEl(b.src);
     if (!src || !beamOn(src)) return;
     const lam0 = b.nm * 1e-6;
@@ -20151,9 +20280,22 @@ function faceArrivalsOf(el) {
     chain.reverse();
     const r0 = B[chain[0]];
     let qy = [r0.qr / r0.n, r0.qi / r0.n];
-    for (let c = 0; c < chain.length && qy; c++) {
-      const bb = B[chain[c]];
-      if (c > 0) { const m = cavEventABCD(bb.ev, lam0); qy = m ? qThrough(m.y, qy) : null; }
+    // gj: what arg(q) jumps by at the parts the beam has passed, across and up, added up along its way. A beam's Gouy
+    // phase builds up only as it travels; the field below writes it as arg(q) at the face, which holds these jumps too (a lens
+    // changes q at once and the phase not at all). Two branches of one beam through the same parts share them, so nothing
+    // else here needs them; light that leaves the beam part way (a particle's scattered light) is set against the beam
+    // with them taken out (scatOnDisc)
+    let gj = 0, qyOk = true;
+    const arg = q => Math.atan2(q[1], q[0]);
+    for (let c = 0; c < chain.length; c++) {
+      const bb = c === chain.length - 1 ? b : B[chain[c]];
+      if (c > 0) {
+        const pb = B[chain[c - 1]], jx = arg([bb.qr / bb.n, bb.qi / bb.n]) - arg([(pb.qr + (pb.len3 || pb.len)) / pb.n, pb.qi / pb.n]);
+        let jy = jx;
+        if (qy) { const m = cavEventABCD(bb.ev, lam0), q2 = m ? qThrough(m.y, qy) : null; if (q2 && qyOk) jy = arg(q2) - arg(qy); qy = q2; }
+        if (!qy) qyOk = false;
+        gj += jx + jy;
+      }
       if (qy) qy = qThrough(mfree(bb.len3 || bb.len, bb.n), qy);
     }
     const bL = b.len3 || b.len;                    // along the beam: in 3D, for a leg that rises
@@ -20165,7 +20307,7 @@ function faceArrivalsOf(el) {
     const split = share < 0.999;
     // a beam whose axes were turned on its way: its whole Q (see beamQ)
     const QG = beamQ(B, i, lam0);
-    const A = { b, src, lam0, qx, qy: qy || qx, ...(QG ? { Q: QG } : {}), u0, v0, vs, ldx, ldy, J: split ? b.J.map(v => v * Math.sqrt(share)) : b.J, coh: split ? b.coh + '#split' + i : b.coh, opl: (b.opl || 0) + b.n * bL, gpl: (b.gpl || 0) + (b.ng || b.n) * bL, lag: lagOf(src), nm: b.nm, fo: b.fo || 0 };
+    const A = { b, src, lam0, qx, qy: qy || qx, ...(QG ? { Q: QG } : {}), u0, v0, vs, ldx, ldy, gj, J: split ? b.J.map(v => v * Math.sqrt(share)) : b.J, coh: split ? b.coh + '#split' + i : b.coh, opl: (b.opl || 0) + b.n * bL, gpl: (b.gpl || 0) + (b.ng || b.n) * bL, lag: lagOf(src), nm: b.nm, fo: b.fo || 0 };
     // a beam of M^2 above 1: its Hermite-Gauss modes, each a launch of its own; a higher-order
     // mode, its coherent sum of them
     const modes = srcModes(src);
@@ -20176,8 +20318,21 @@ function faceArrivalsOf(el) {
     const withModes = (A2, c0) => { const c = launch(c0), QM = beamQM(B, i, lam0, c, (src.roll || 0) * deg); return QM ? Object.assign(A2, { comps: QM.comps, QM }) : Object.assign(A2, { comps: c }); };
     if (modes.length === 1) out.push(modes[0].c.length === 1 && !modes[0].c[0][0] && !modes[0].c[0][1] && !src.roll ? A : withModes(A, modes[0].c));
     else modes.forEach(({ w, c }, k) => out.push(withModes(Object.assign({}, A, { J: b.J.map(v => v * Math.sqrt(w)), coh: b.coh + '#m' + k }), c)));
-  });
-  return out;
+  }
+}
+/* One Gaussian beam's field at a point of the bench it passes (Z the height above the breadboard), exactly as a
+   face standing there square to the beam would read it: [s re, s im, p re, p im] in the faces' convention
+   (arrivalField's), per root of area, with the arrival it was read from. Null for a beam that is several modes
+   adding as powers (M^2 above 1): it has no one phase. A particle's scattered light takes its phase from this, so
+   it adds to the same beam on a detector as a field (engines/scatter-light.js). */
+function beamFieldAt(i, X, Y, Z) {
+  const B = lastTrace.beams || [], b = B[i];
+  if (!b || b.fan || b.d3 || b.uz) return null;
+  const t = (X - b.x0) * b.dx + (Y - b.y0) * b.dy, out = [];
+  const el = { id: '~point', type: 'detector', x: X, y: Y, z: Z, angle: Math.atan2(-b.dy, -b.dx) / deg, length: 1 };
+  beamArrivals(el, B, i, Object.assign({}, b, { len: t }), out);
+  if (out.length !== 1) return null;
+  return { A: out[0], E: arrivalField(out[0], 0, 0) };
 }
 const qW = (q, lam0) => Math.sqrt(-lam0 / (Math.PI * (-q[1] / (q[0] * q[0] + q[1] * q[1]))));
 /* Where a face's arrivals are worth sampling: four beam radii round each, across (u) and up (v),
@@ -20257,6 +20412,159 @@ function arrivalField(A, u, v0) {
   const J = A.J;
   // the tracer's Jones vector, conjugated into this convention
   return [c * J[0] + sn * J[1], sn * J[0] - c * J[1], c * J[2] + sn * J[3], sn * J[2] - c * J[3]];
+}
+/* ---------- A particle's scattered light on a face ----------
+   The cones the trace launched from a Particle part (engines/scatter-light.js) arrive as rays, kept apart from the
+   rays a face records (lastTrace.scat.hits). Each ray of a cone landed with two companions a hair to either side of
+   it at launch; the three give the area dA the ray's tube has on the face, so the ray's power p is a field of
+   amplitude sqrt(p / dA) there, with the ray's own polarisation and the phase of its optical path. An integral
+   over the face of that field against anything smooth is then a sum over the rays, f(u_i, v_i) sqrt(p_i dA_i):
+   so it adds to the Gaussian beams of its own coherence family as a field, on a photodiode (and each half of
+   one) and in a fibre's mode. Geometric: right where the cone is wide on the face against a wavelength, as it is
+   after a collimating lens or straight from the particle, and not at a focus (a fibre's mode is taken a little
+   way back from the tip for that: scatModeAmp). Two cones on one face add as powers with each other.
+   Gives the cones on a face: [{ src, coh, lmw (mW a ray of unit power carries), nm, gpl0, lag, rays: [{ u, v (on the
+   face, mm), pw, dA (0 when a companion missed), E (the field's vector on the bench's axes, 6 numbers, in the
+   faces' convention, |E|^2 = pw), opl, d (its way), h (the three hits) }] }] */
+const facePoint = (el, f, x, y, z) => {
+  let [lx, u] = toLocal(f, x, y), v = z - zOf(el);
+  if (el.tip || el.roll) { const F = { tip: (el.tip || 0) * deg, roll: (el.roll || 0) * deg }, [, qz0] = tipFrame(F, lx, v); [u, v] = rollFrame(F, u, qz0); }
+  return [u, v];
+};
+function scatFace(el) {
+  const SC = lastTrace.scat, H = SC && SC.hits && SC.hits[el.id];
+  if (!H || !H.length) return [];
+  return deviceMemo(el, () => {
+    const f = frame(el), bySrc = new Map();
+    for (const h of H) {
+      let M = bySrc.get(h.sid); if (!M) bySrc.set(h.sid, M = new Map());
+      const k = Math.floor(h.k / 3) + '|' + h.path;
+      let T = M.get(k); if (!T) M.set(k, T = [null, null, null]);
+      T[h.k % 3] = h;
+    }
+    const out = [];
+    for (const [sid, M] of bySrc) {
+      const src = getEl(sid), sc = src && src.scat;
+      if (!sc) continue;
+      if (sc.wave) {
+        // a focus's own waves: each ray's place on the face and the share of its power that reached it
+        const rays = [];
+        for (const T of M.values()) for (const h of T) if (h) { const [u, v] = facePoint(el, f, h.x, h.y, h.z), J = h.J; rays.push({ u, v, k: h.k, T: J[0] * J[0] + J[1] * J[1] + J[2] * J[2] + J[3] * J[3] }); }
+        out.push({ src, wave: true, coh: sc.coh, part: sc.part, launch: sc.launch, p: sc.p, nm: src.wavelength, rays });
+        continue;
+      }
+      const k0 = 2 * Math.PI / (src.wavelength * 1e-6), rays = [];
+      for (const T of M.values()) {
+        const h = T[0];
+        if (!h) continue;
+        const [u, v] = facePoint(el, f, h.x, h.y, h.z), J = h.J, pw = J[0] * J[0] + J[1] * J[1] + J[2] * J[2] + J[3] * J[3];
+        let dA = 0;
+        if (T[1] && T[2]) {
+          const [u1, v1] = facePoint(el, f, T[1].x, T[1].y, T[1].z), [u2, v2] = facePoint(el, f, T[2].x, T[2].y, T[2].z);
+          dA = Math.abs((u1 - u) * (v2 - v) - (v1 - v) * (u2 - u)) / (sc.eps * sc.eps) * src.vRays[3 * Math.floor(h.k / 3)].sa;
+        }
+        // conj(J e^{i k opl}) on the ray's own s and p, as a vector
+        const ph = k0 * h.opl, c = Math.cos(ph), sn = Math.sin(ph), [S, P] = polFrame(h.d, h.par ? -1 : 1);
+        const sR = J[0] * c - J[1] * sn, sI = -(J[0] * sn + J[1] * c), pR = J[2] * c - J[3] * sn, pI = -(J[2] * sn + J[3] * c);
+        rays.push({ u, v, pw, dA, opl: h.opl, d: h.d, h: T, E: [sR * S[0] + pR * P[0], sI * S[0] + pI * P[0], sR * S[1] + pR * P[1], sI * S[1] + pI * P[1], sR * S[2] + pR * P[2], sI * S[2] + pI * P[2]] });
+      }
+      if (rays.length) out.push({ src, coh: sc.coh, lmw: src.vLp, nm: src.wavelength, gpl0: sc.gpl0, lag: sc.lag, gj0: sc.gj0, part: sc.part, launch: sc.launch, rays });
+    }
+    return out;
+  }, 'scat');
+}
+/* a Gaussian arrival's field at a point of the face as a vector on the bench's axes (6 numbers, the faces' convention) */
+function arrivalVec(A, u, v) {
+  const E = arrivalField(A, u, v), b = A.b, [S, P] = polFrame(b.d3 ? b.d3 : [b.dx, b.dy, b.uz || 0], b.par ? -1 : 1);
+  return [E[0] * S[0] + E[2] * P[0], E[1] * S[0] + E[3] * P[0], E[0] * S[1] + E[2] * P[1], E[1] * S[1] + E[3] * P[1], E[0] * S[2] + E[2] * P[2], E[1] * S[2] + E[3] * P[2]];
+}
+/* A Gaussian arrival's phase at a point of the face, less what arrivalField gives it: arrivalField writes the wavefront as
+   the parabola x^2/2R, and a beam far from its waist has a sphere's, R (sqrt(1 + x^2/R^2) - 1). The difference, x^4/8R^3,
+   is nothing to the Gaussian beams themselves, which all carry it alike, but a ray from a particle has its exact path,
+   so the beam it is added to is given its sphere (each way across by its own radius; a beam with its axes turned or of
+   higher modes is left as it is). As the phase to turn conj(E_beam) E by: +k times the difference. */
+function frontFix(A, u, v0) {
+  if (A.Q || A.QM || A.comps) return 0;
+  const k = 2 * Math.PI / A.lam0, hx = A.vs ? 1 / Math.sqrt(1 + A.vs * A.vs) : 1, ez = (A.vs || 0) * hx;
+  const du = u - A.u0, dv = v0 - (A.v0 || 0), xb = du * A.ldx, v = A.vs ? hx * dv - ez * A.ldy * du : dv;
+  const iR = q => q[0] / (q[0] * q[0] + q[1] * q[1]), cx = iR(A.qx), cy = iR(A.qy);
+  const sag = (c, r2) => (Math.abs(c) < 1e-12 ? 0 : (Math.sqrt(1 + c * c * r2) - 1) / c - 0.5 * c * r2);
+  // one sphere when the beam is round, else each way on its own
+  return k * (Math.abs(cx - cy) <= 1e-6 * Math.max(Math.abs(cx), Math.abs(cy)) ? sag(cx, xb * xb + v * v) : sag(cx, xb * xb) + sag(cy, v * v));
+}
+/* Scattered light on a round face of radius a: its own power, and what it adds by interfering with the Gaussian
+   beams of its family that land there, each also as right less left (X, along the face in the bench plane) and
+   top less bottom (Y). In mW: { mw, cross, X, Y, byNm: [[nm, mW]], cones }. */
+function scatOnDisc(el, a) {
+  const cones = scatFace(el), out = { mw: 0, cross: 0, X: 0, Y: 0, byNm: [], cones: cones.filter(C => !C.wave).length };
+  if (!cones.length) return out;
+  const arr = faceArrivals(el);
+  // a launch whose light at the particle is a focus's plane waves: its interference with the unscattered beam is those waves'
+  // (each where its ray landed), and is not taken from the Gaussian beam again
+  const byWave = new Set();
+  for (const C of cones) {
+    if (!C.wave) continue;
+    byWave.add(C.part + '|' + C.launch);
+    let cross = 0, X = 0, Y = 0;
+    for (const r of C.rays) { if (r.u * r.u + r.v * r.v > a * a) continue; const t = C.p[r.k] * r.T * 1e3; cross += t; X += Math.sign(r.u) * t; Y += Math.sign(r.v) * t; }
+    out.mw += cross; out.cross += cross; out.X += X; out.Y += Y; out.byNm.push([C.nm, cross]);
+  }
+  for (const C of cones) {
+    if (C.wave) continue;
+    const inD = C.rays.filter(r => r.u * r.u + r.v * r.v <= a * a);
+    let p = 0, x = 0, y = 0;
+    for (const r of inD) { p += r.pw; x += Math.sign(r.u) * r.pw; y += Math.sign(r.v) * r.pw; }
+    const mw = p * C.lmw;
+    let X = x * C.lmw, Y = y * C.lmw, cross = 0;
+    if (C.coh && !byWave.has(C.part + '|' + C.launch)) for (const A of arr) {
+      if (A.b.coh !== C.coh || A.coh.indexOf('#m') >= 0) continue;
+      const g = cohGamma(splitRoot(A.src)), sc = Math.sqrt(Math.max(0, A.b.lmw) * C.lmw);
+      // (the beam's Gouy phase from the particle to here, as it builds up, not as arg(q) writes it: see gj)
+      const dg = 0.5 * ((C.gj0 || 0) - (A.gj || 0));
+      for (const r of inD) {
+        if (!(r.dA > 0)) continue;
+        const Eg = arrivalVec(A, r.u, r.v);
+        // conj(E_beam) . E_scattered
+        let re = 0, im = 0; for (let q = 0; q < 6; q += 2) { re += Eg[q] * r.E[q] + Eg[q + 1] * r.E[q + 1]; im += Eg[q] * r.E[q + 1] - Eg[q + 1] * r.E[q]; }
+        // (the beam's wavefront as the sphere it is, where the field above writes its parabola: the rays' own paths are exact)
+        const fx = frontFix(A, r.u, r.v), cf = Math.cos(dg + fx), sf = Math.sin(dg + fx);
+        const t = 2 * (re * cf - im * sf) * Math.sqrt(r.dA) * (g ? g(A.gpl + A.lag - (C.gpl0 + r.opl + C.lag)) : 1) * sc;
+        cross += t; X += Math.sign(r.u) * t; Y += Math.sign(r.v) * t;
+      }
+    }
+    out.mw += mw + cross; out.cross += cross; out.X += X; out.Y += Y; out.byNm.push([C.nm, mw + cross]);
+  }
+  return out;
+}
+/* A cone's overlap with a single-mode fibre's mode (1/e^2 radius wf at the tip), as amplitudes on s (up) and p
+   (along the face): [s re, s im, p re, p im], whose squares add to the share of a unit ray's power taken in. Where
+   the cone comes to a focus on the tip its rays' tubes have no area there, so the overlap is taken on a plane 30
+   Rayleigh ranges of the mode back from the tip, where the mode is a wide converging beam and the rays are apart
+   (free space is assumed that far back; a tip tipped out of the plane is taken level). */
+function scatModeAmp(el, C, wf) {
+  const f = frame(el), lam0 = C.nm * 1e-6, k = 2 * Math.PI / lam0, zR = Math.PI * wf * wf / lam0, n = C.rays.length;
+  let ru = 0; for (const r of C.rays) ru += r.u * r.u + r.v * r.v;
+  const back = Math.sqrt(ru / Math.max(1, n)) < 3 * wf ? 30 * zR : 0;
+  const A = { lam0, qx: [-back, zR], qy: [-back, zR], u0: 0, v0: 0, vs: 0, ldx: 1, ldy: 0, J: [1, 0, 0, 0], opl: -back };
+  const o = [0, 0, 0, 0], at = h => {
+    const [u, v] = facePoint(el, f, h.x, h.y, h.z), [ldx, ldy] = toLocalDir(f, h.d[0], h.d[1]), s = back / Math.max(1e-9, Math.abs(ldx));
+    return [u - ldy * s, v - h.d[2] * s, s];
+  };
+  for (const r of C.rays) {
+    const T = r.h;
+    if (!T[1] || !T[2]) continue;
+    const [u, v, s] = at(T[0]), [u1, v1] = at(T[1]), [u2, v2] = at(T[2]);
+    const sa = C.src.vRays[3 * Math.floor(T[0].k / 3)].sa, eps = C.src.scat.eps, dA = Math.abs((u1 - u) * (v2 - v) - (v1 - v) * (u2 - u)) / (eps * eps) * sa;
+    if (!(dA > 0)) continue;
+    // the mode there, real and positive at the tip itself: arrivalField's Gaussian turned by a quarter wave
+    const m = arrivalField(A, u, v), Mr = -m[1], Mi = m[0];
+    // the ray's field carried back that far: e^{+iks} on the faces' convention
+    const c = Math.cos(k * s), sn = Math.sin(k * s), g = Math.sqrt(dA);
+    const comp = (er, ei) => { const br = er * c - ei * sn, bi = er * sn + ei * c; return [g * (Mr * br + Mi * bi), g * (Mr * bi - Mi * br)]; };
+    const es = comp(r.E[4], r.E[5]), ep = comp(-r.E[0] * f.s + r.E[2] * f.c, -r.E[1] * f.s + r.E[3] * f.c);
+    o[0] += es[0]; o[1] += es[1]; o[2] += ep[0]; o[3] += ep[1];
+  }
+  return o;
 }
 function groupsOf(arr) {
   const g = new Map(), out = [];
@@ -20358,19 +20666,27 @@ function mmShareOf(el, A) {
 function fibreCoupling(el) {
   if (el.mm) return deviceMemo(el, () => {
     const arr = faceArrivals(el);
-    if (!arr.length) return null;
+    if (!arr.length && !scatFace(el).length) return null;
     let inMw = 0, coupledMw = 0, pinS = 0, gotS = 0;
     for (const A of arr) {
       const pin = A.J[0] ** 2 + A.J[1] ** 2 + A.J[2] ** 2 + A.J[3] ** 2, got = pin * mmShare(el, A), P = A.b.lmw;
       pinS += pin; gotS += got; inMw += pin * P; coupledMw += got * P;
     }
-    return { eff: pinS > 0 ? gotS / pinS : 0, mw: coupledMw, inMw, mode: null, share: gotS, mm: true };
+    // a particle's scattered light: its rays that land on the core within the acceptance angle
+    const f = frame(el), aC = el.core / 2 * 1e-3, thA = Math.asin(Math.min(1, el.na));
+    for (const C of scatFace(el)) if (!C.wave) for (const r of C.rays) {
+      const [ldx] = toLocalDir(f, r.d[0], r.d[1]), ok = r.u * r.u + r.v * r.v <= aC * aC && Math.acos(Math.min(1, Math.abs(ldx))) <= thA;
+      inMw += r.pw * C.lmw; if (ok) coupledMw += r.pw * C.lmw;
+    }
+    return { eff: inMw > 0 && pinS === 0 ? coupledMw / inMw : pinS > 0 ? gotS / pinS : 0, mw: coupledMw, inMw, mode: null, share: gotS, mm: true };
   });
   return deviceMemo(el, () => {
-    const arr = faceArrivals(el);
-    if (!arr.length) return null;
+    const arr = faceArrivals(el), cones = scatFace(el).filter(C => !C.wave), used = new Set();
+    if (!arr.length && !cones.length) return null;
     const N = 96;
     let inMw = 0, coupledMw = 0, arrivingShare = 0, coupledShare = 0, mode = null;
+    // a particle's scattered light with no beam of its laser here: what its mode overlap takes in, a cone at a time
+    const modeAt = nm => { let m = fibreMode(el.core, el.na, nm); if (el.coll > 0) m = Object.assign({}, m, { w: tipModeW(el, nm) }); return m; };
     for (const G of groupsOf(arr)) {
       const nm = G[0].nm;
       mode = fibreMode(el.core, el.na, nm); if (el.coll > 0) mode = Object.assign({}, mode, { w: tipModeW(el, nm) });
@@ -20386,12 +20702,29 @@ function fibreCoupling(el) {
           cs[0] += E[0] * M; cs[1] += E[1] * M; cp[0] += E[2] * M; cp[1] += E[3] * M;
         }
       }
+      const P = G[0].b.lmw;           // amplitudes are against the laser's own source, this line's share of it
+      // scattered light of the same laser adds to the overlap as a field (its amplitudes against this line's)
+      for (const C of cones) {
+        if (!C.coh || C.coh !== G[0].b.coh || G[0].coh.indexOf('#m') >= 0 || used.has(C) || !(P > 0)) continue;
+        used.add(C);
+        const o = scatModeAmp(el, C, wf), k = Math.sqrt(C.lmw / P) / (d * d), dg = 0.5 * ((C.gj0 || 0) - (G[0].gj || 0)), c = Math.cos(dg), sn = Math.sin(dg);
+        cs[0] += k * (o[0] * c - o[1] * sn); cs[1] += k * (o[0] * sn + o[1] * c); cp[0] += k * (o[2] * c - o[3] * sn); cp[1] += k * (o[2] * sn + o[3] * c);
+        for (const r of C.rays) pin += r.pw * C.lmw / P;
+      }
       const got = (cs[0] ** 2 + cs[1] ** 2 + cp[0] ** 2 + cp[1] ** 2) * d * d * d * d;
       arrivingShare += pin; coupledShare += got;
-      const P = G[0].b.lmw;           // amplitudes are against the laser's own source, this line's share of it
       inMw += pin * P; coupledMw += got * P;
     }
-    return { eff: arrivingShare > 0 ? coupledShare / arrivingShare : 0, mw: coupledMw, inMw, mode, share: coupledShare };
+    let scMw = 0;
+    for (const C of cones) {
+      if (used.has(C)) continue;
+      mode = modeAt(C.nm);
+      const o = scatModeAmp(el, C, mode.w), got = o[0] ** 2 + o[1] ** 2 + o[2] ** 2 + o[3] ** 2;
+      let pin = 0; for (const r of C.rays) pin += r.pw;
+      inMw += pin * C.lmw; coupledMw += got * C.lmw; scMw += got * C.lmw;
+      if (arrivingShare === 0) { arrivingShare = pin; coupledShare = got; }
+    }
+    return { eff: inMw > 0 && cones.length ? coupledMw / inMw : arrivingShare > 0 ? coupledShare / arrivingShare : 0, mw: coupledMw, inMw, mode, share: coupledShare, ...(cones.length ? { scat: cones.length } : {}) };
   });
 }
 /* A receiving horn takes in the overlap of the arriving field with its own aperture mode: the
@@ -20481,21 +20814,32 @@ function detectorReading(el) {
     if (viaCavity(el) && !F) pending = true;       // being worked out: the tracer's figure meanwhile
     if (F) { P = F.mw; I = F.mw * responsivity(el, F.nm || benchNms()[0]); }
     // Gaussian launches: |E|^2 over the active disc, fields added within each launch
+    // (X, Y: the light right of the face's middle less that left of it, and above less below, as a split or quadrant diode's
+    // halves would read: a cell of the grid the middle runs through is shared between the sides)
+    let X = 0, Y = 0, SCA = null;
     if (!F) for (const G of groupsOf(faceArrivals(el))) {
       const [u0, u1, v0, v1] = arrivalWindow(G, a);
       if (!(u1 > u0) || !(v1 > v0)) continue;
       // while the cavity's field is worked out in the worker, the figure meanwhile on a coarser grid
       const N = pending ? 48 : 128, du = (u1 - u0) / N, dv = (v1 - v0) / N;
-      let pw = 0;
+      let pw = 0, px = 0, py = 0;
       for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
         const u = u0 + (i + 0.5) * du, v = v0 + (j + 0.5) * dv;
         if (u * u + v * v > a * a) continue;
         let e0 = 0, e1 = 0, e2 = 0, e3 = 0;
         for (const A of G) { const E = arrivalField(A, u, v); e0 += E[0]; e1 += E[1]; e2 += E[2]; e3 += E[3]; }
-        pw += e0 * e0 + e1 * e1 + e2 * e2 + e3 * e3;
+        const c = e0 * e0 + e1 * e1 + e2 * e2 + e3 * e3;
+        pw += c; px += c * clamp(2 * u / du, -1, 1); py += c * clamp(2 * v / dv, -1, 1);
       }
       const mw = pw * du * dv * G[0].b.lmw;
       P += mw; I += mw * responsivity(el, G[0].nm);
+      X += px * du * dv * G[0].b.lmw; Y += py * du * dv * G[0].b.lmw;
+    }
+    // a particle's scattered light: its own power, and its interference with the beams of its laser that land here
+    if (!F) {
+      SCA = scatOnDisc(el, a);
+      P += SCA.mw; X += SCA.X; Y += SCA.Y;
+      for (const [nm, mw] of SCA.byNm) I += mw * responsivity(el, nm);
     }
     // ray fans, ray by ray: each launched ray carries its share of its source's power
     const hits = (lastTrace.screens[el.id] || []).filter(t => !t.chief);
@@ -20511,7 +20855,7 @@ function detectorReading(el) {
     const q = 1.602176634e-19, kT = 1.380649e-23 * 295, B = Math.PI / 2 * el.bandwidth, Ia = I * 1e-3;
     const i2 = 2 * q * (Ia + el.dark * 1e-9) * B + (el.gain > 0 ? 4 * kT * B / el.gain : 0) + (el.ampNoise * 1e-12) ** 2 * B;
     const noiseI = Math.sqrt(i2), V = Ia * el.gain;
-    return { mw: P, mA: I, V: Math.min(V, el.vmax), sat: V > el.vmax, noiseV: noiseI * el.gain, noiseI, pending, field: !!F,
+    return { mw: P, mA: I, V: Math.min(V, el.vmax), sat: V > el.vmax, noiseV: noiseI * el.gain, noiseI, pending, field: !!F, X, Y, ...(SCA && SCA.cones ? { scat: { mw: SCA.mw, cross: SCA.cross, cones: SCA.cones } } : {}),
       snr: Ia > 0 ? 20 * Math.log10(Ia / noiseI) : null };
   });
 }
@@ -23838,6 +24182,7 @@ const V3D = (() => {
         add(...sagSolid(sg, s.semi, lo - t, false, R0 ? mat.metal() : Object.assign(mat.metal(0xd8e4ea, 0.05), { transparent: true, opacity: 0.35 + 0.55 * el.reflect / 100 }), mat.glass(0xa9d8e6, 0.45)));
         return g;
       }
+      case 'particle': add(particle3(el)); return g;          // the sign alone: it has no body
       case 'screen': {
         const [s] = elementSurfaces(el), sg = sag3(s);
         // a monitor the light goes through is see-through; a dump or a camera is a solid plate
@@ -24007,7 +24352,7 @@ const V3D = (() => {
     const D = Math.max(1, 2 * el.trapR), Lr = shape === 'sphere' ? D : Math.max(shape === 'capsule' ? D : 1, el.trapLen || D);
     const k = 1 / Math.max(D, Lr), r = Math.max(1 / 16, D * k / 2), L = Math.max(1 / 8, Lr * k);      // its longest side 1: scaled each frame
     const m = PARTICLE_COL[el.trapMat] ? mat.metal(PARTICLE_COL[el.trapMat], 0.25) : new T.MeshStandardMaterial({ color: col(0xdff1f7), roughness: 0.15, metalness: 0, emissive: col(0x6fb7cf), emissiveIntensity: 0.25 });
-    const ax = new T.Group(); ax.userData.benchAxis = [(el.trapAz || 0) * deg, (el.trapTilt || 0) * deg]; ax.userData.particle = { shape, r, L };
+    const ax = new T.Group(); ax.userData.benchAxis = [(particleAz(el) || 0) * deg, (el.trapTilt || 0) * deg]; ax.userData.particle = { shape, r, L };
     const lie = geo => mesh(geo.rotateZ(Math.PI / 2), m);                       // a cylinder is made standing: laid along x, the axis
     if (shape === 'sphere') ax.add(mesh(new T.SphereGeometry(r, 28, 18), m));
     else if (shape === 'spheroid') { const s = mesh(new T.SphereGeometry(1, 28, 18), m); s.scale.set(L / 2, r, r); ax.add(s); }
@@ -24224,7 +24569,9 @@ const V3D = (() => {
     for (const r of rays) {
       if (r.bench !== project.tab || !r.pts || r.pts.length < 4) continue;
       // (by power, as on the bench: against the bench's brightest source, the faintest gone)
-      const lvl = byPow ? Math.round(0.8 * powerFade(rayPowerShare(r, lastTrace, byPow, tops)) * dens * 12) : Math.max(1, Math.round(rayAlpha(r.w / (tops.get(r.src) || 1)) * dens * 12)), key = r.colour + '|' + lvl;
+      // (a particle's scattered light, far below the beam that drives it, is the faintest steps that show: as on the bench)
+      const lvl = r.sc ? Math.max(scatLevel(r, tops), byPow ? Math.round(0.8 * powerFade(rayPowerShare(r, lastTrace, byPow, tops)) * dens * 12) : 0)
+        : byPow ? Math.round(0.8 * powerFade(rayPowerShare(r, lastTrace, byPow, tops)) * dens * 12) : Math.max(1, Math.round(rayAlpha(r.w / (tops.get(r.src) || 1)) * dens * 12)), key = r.colour + '|' + lvl;
       if (!lvl) continue;
       if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: lvl / 12, pos: [] });
       const P = groups.get(key).pos, p = r.pts, zs = r.zs;
@@ -24232,6 +24579,19 @@ const V3D = (() => {
         const x0 = p[i - 2], y0 = p[i - 1], x1 = p[i], y1 = p[i + 1], c = cut(x0, y0, x1, y1, rb);
         const z0 = zs ? zs[(i >> 1) - 1] : BEAM_H, z1 = zs ? zs[i >> 1] : BEAM_H;
         if (c) P.push(x0 + (x1 - x0) * c[0], y0 + (y1 - y0) * c[0], z0 + (z1 - z0) * c[0], x0 + (x1 - x0) * c[1], y0 + (y1 - y0) * c[1], z0 + (z1 - z0) * c[1]);
+      }
+    }
+    // a particle's fan (lastTrace.scat.fans): every ray of it, over the sphere, each as bright as the pattern is along it
+    R.nFan = 0;
+    for (const F of (lastTrace.scat && lastTrace.scat.fans) || []) {
+      if (!F.on || F.bench !== project.tab) continue;
+      for (let i = 0; i < F.n; i++) {
+        const o = 5 * i, w = F.rays[o + 4];
+        if (!(w > 1e-4)) continue;
+        const lvl = Math.min(4, 1 + Math.floor(3.999 * Math.sqrt(w))), key = F.colour + '|fan' + lvl, L = F.rays[o + 3];
+        if (!groups.has(key)) groups.set(key, { colour: F.colour, alpha: 0.06 * lvl, pos: [] });
+        const c = cut(F.pos[0], F.pos[1], F.pos[0] + F.rays[o] * L, F.pos[1] + F.rays[o + 1] * L, rb);
+        if (c) { groups.get(key).pos.push(F.pos[0] + F.rays[o] * L * c[0], F.pos[1] + F.rays[o + 1] * L * c[0], F.pos[2] + F.rays[o + 2] * L * c[0], F.pos[0] + F.rays[o] * L * c[1], F.pos[1] + F.rays[o + 1] * L * c[1], F.pos[2] + F.rays[o + 2] * L * c[1]); R.nFan++; }
       }
     }
     R.nRays = 0;
@@ -25324,6 +25684,8 @@ const V3D = (() => {
       netBody(name) { const el = project.elements.find(e => e.name === name); if (!el || !NET_3D.has(el.type)) return null; const B = netBox(el); return { hx: B.hx, hy: B.hy, h: B.h, ports: B.P.length, top: symbolCanvas(el, B.hx, B.hy, 14).toDataURL() }; },
       // a screen's particle as drawn: its shape, its drawn half-width and length (mm), and its axis on the bench
       particleOf(name) { const el = project.elements.find(e => e.name === name), c = el && R && (sync(), R.partCache && R.partCache.get(el.id)); const o = c && c.obj.children.find(x => x.userData.particle); if (!o) return null; o.updateWorldMatrix(true, false); const v = new T.Vector3(1, 0, 0).transformDirection(o.matrixWorld); particleSizes(R.camera); return Object.assign({ axis: [v.x, v.y, v.z], px: o.scale.x * R.h / (2 * Math.tan(R.camera.fov * deg / 2) * o.getWorldPosition(new T.Vector3()).sub(R.camera.position).dot(R.camera.getWorldDirection(new T.Vector3()))) }, o.userData.particle); },
+      // a particle's scattered light as drawn: the fan's rays, and the cones' (how many leave the bench plane)
+      scatLight() { if (!R) return null; sync(); const rs = (lastTrace.rays || []).filter(r => r.sc && r.bench === project.tab); return { fan: R.nFan || 0, cone: rs.length, coneUp: rs.filter(r => r.zs && r.zs.some(z => Math.abs(z - r.zs[0]) > 1e-6)).length, lines: R.nRays }; },
       screenOf(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const v = new T.Vector3(el.x, el.y, z3(el)).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
     },
   };
@@ -27877,6 +28239,12 @@ function detectorPanel(el) {
     selectField('Material', Object.entries(DETECTOR_MATERIALS).map(([k, v]) => [k, v.name]), () => el.material, v => { el.material = v; }));
   if (el.material === 'custom') rows.append(param('Responsivity (A/W)', el, 'resp', { wide: true }));
   rows.append(param('Diameter (mm)', el, 'length'));
+  {
+    // a split diode: the readout adds the difference of its halves
+    const q = h('input', { type: 'checkbox' }); q.checked = el.quad === true;
+    q.onchange = () => { checkpoint(); if (q.checked) el.quad = true; else delete el.quad; changed(false); };
+    rows.append(h('label', { class: 'rt-check wide' }, q, 'Split in four (reads right less left, top less bottom)'));
+  }
   panel.append(rows);
   if (el.diode) panel.append(h('div', { class: 'rt-rows' }, param('Bandwidth (Hz)', el, 'bandwidth'), param('Dark (nA)', el, 'dark')));   // a bare diode: no amplifier
   else {
@@ -28261,6 +28629,72 @@ const hitNlc = (el, lx, ly, tol) => Math.abs(lx) <= el.nlLen / 2 + tol && Math.a
 const NLC_UI = {
   draw: drawNlc, hit: hitNlc, panel: nlcPanel, rank: 2,
 };
+/* Particle on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/particle.js */
+
+/* It is nanometres across on a bench of millimetres, so it is drawn as a sign that keeps its size on the page: its shape and
+   proportions, its axis along the part's angle (a rod tilted up out of the plane is seen shortened), in its material's
+   colour, with four ticks round it so that a dot on a beam can be found */
+const PARTICLE_PX = 16;             // its longest side on the page
+const PARTICLE_INK = { Au: '#d8a650', Ag: '#dfe3e6', Al: '#c9ced3' };
+/* the sign's half-length along its axis and half-width across it, px */
+function particleSign(el) {
+  const sphere = !['cylinder', 'capsule', 'spheroid'].includes(el.trapShape), D = Math.max(1, 2 * el.trapR), L = sphere ? D : Math.max(el.trapShape === 'capsule' ? D : 1, el.trapLen || D);
+  const k = PARTICLE_PX / Math.max(D, L), across = Math.max(2.5, D * k / 2), tl = (el.trapTilt || 0) * deg;
+  // along its axis as the bench plane shows it: a rod tilted up is seen end on
+  const along = sphere ? across : Math.max(2.5, Math.hypot(L * k / 2 * Math.cos(tl), D * k / 2 * Math.sin(tl)));
+  return { along, across, shape: sphere ? 'sphere' : el.trapShape };
+}
+function drawParticle(el, sel) {
+  const S = particleSign(el), cx = sx(el.x), cy = sy(el.y), a = el.angle * deg;
+  ctx.save();
+  ctx.translate(cx, cy); ctx.rotate(-a);
+  ctx.beginPath();
+  if (S.shape === 'cylinder') ctx.rect(-S.along, -S.across, 2 * S.along, 2 * S.across);
+  else if (S.shape === 'capsule' && S.along > S.across) {
+    const m = S.along - S.across;
+    ctx.moveTo(-m, -S.across); ctx.lineTo(m, -S.across); ctx.arc(m, 0, S.across, -Math.PI / 2, Math.PI / 2); ctx.lineTo(-m, S.across); ctx.arc(-m, 0, S.across, Math.PI / 2, 3 * Math.PI / 2); ctx.closePath();
+  } else ctx.ellipse(0, 0, S.along, S.across, 0, 0, 2 * Math.PI);
+  ctx.fillStyle = PARTICLE_INK[el.trapMat] || '#dff1f7';
+  ctx.fill();
+  ctx.strokeStyle = sel ? selInk() : getCss('--rt-screen');
+  ctx.lineWidth = sel ? 2 : 1.2;
+  ctx.stroke();
+  ctx.restore();
+  // the ticks, level and upright whatever the axis
+  const r0 = Math.max(S.along, S.across) + 4, r1 = r0 + 5;
+  ctx.beginPath();
+  for (const [ux, uy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { ctx.moveTo(cx + ux * r0, cy + uy * r0); ctx.lineTo(cx + ux * r1, cy + uy * r1); }
+  ctx.strokeStyle = sel ? selInk() : getCss('--rt-screen');
+  ctx.lineWidth = sel ? 2 : 1.2;
+  ctx.stroke();
+}
+/* picked within its ticks: a disc that keeps its size on the page */
+const hitParticle = (el, lx, ly, tol) => Math.hypot(lx, ly) <= tol + (PARTICLE_PX / 2 + 9) / V().scale;
+
+function particleParams(el) {
+  const rows = h('div', { class: 'rt-rows' }), sph = el.trapShape === 'sphere';
+  const did = 'rtf' + setFid(fid + 1);
+  rows.append(selectField('Shape', PARTICLE_SHAPES, () => el.trapShape, v => { el.trapShape = v; }, { wide: true }),
+    selectField('Material', particleMats(), () => el.trapMat, v => { el.trapMat = v; if (SPHERE_DENSITY[v]) el.trapRho = SPHERE_DENSITY[v]; }),
+    h('div', { class: 'rt-f' }, h('label', { for: did }, 'Diameter (nm)'), numInput(did, () => 2 * el.trapR, v => { el.trapR = Math.max(1, v / 2); })));
+  if (!sph) rows.append(param('Length (nm)', el, 'trapLen'), param('Axis tilt up (°)', el, 'trapTilt'));
+  rows.append(selectField('Medium', [['bench', 'As on the bench'], ['vacuum', 'Vacuum'], ['air', 'Air, at a pressure'], ['water', 'Water']], () => el.trapMed, v => { el.trapMed = v; }));
+  if (el.trapMed === 'air') rows.append(param('Pressure (mbar)', el, 'trapP'));
+  const check = (key, text) => { const c = h('input', { type: 'checkbox' }); c.checked = el[key] !== false; c.onchange = () => { checkpoint(); el[key] = c.checked; changed(true); }; return h('label', { class: 'rt-check wide' }, c, text); };
+  rows.append(check('scatLight', 'Send its scattered light to the parts'), check('scatFan', 'Draw the scattered light in every direction'));
+  panel.append(h('h3', null, 'Particle'), rows);
+  panel.append(helpLine('A point of the bench: the light passes it untouched, and what it scatters goes to the parts that can see it.', ['The particle is ' + (METAL_NAMES[el.trapMat] || el.trapMat) + ', in whatever light reaches where it is put. The part’s angle is the direction of a rod’s or spheroid’s axis in the bench plane. Its Scattering tab gives its cross-sections, the power it scatters and where that goes; its Trap tab the optical trap the light makes for it. ',
+    'With its scattered light sent to the parts, each part with a clear line to the particle is sent a cone of rays that carry the scattered field along them: its power in that solid angle, its polarisation and its phase, as light of the laser that drives the particle. A lens collimates the cone, a photodetector reads it and adds it to the unscattered beam as a field, a fibre takes its overlap with its mode. The faint fan in every direction is a picture only: it is as bright as the pattern is along each ray and is never part of a reading. ',
+    'The particle and everything the light meets are in each other’s far field. Light that comes back to the particle is not scattered again, and two particles do not light each other.'], 'note', 'margin-top:0.5rem'));
+}
+function particlePanel(el) {
+  if (readoutTabs(el, [['params', 'Particle'], ['trap', 'Trap'], ['scatter', 'Scattering']])) return;
+  particleParams(el);
+}
+
+const PARTICLE_UI = {
+  draw: drawParticle, hit: hitParticle, panel: particlePanel, rank: 0,
+};
 /* Link plane on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/link.js */
 
 /* A link plane: a dashed line, with where it leads */
@@ -28511,7 +28945,7 @@ const ELEC_PART_UI = {
    ui/view3d.js. What each part is: parts/<type>.js.
    ========================================================================== */
 const PART_UI = {
-  source: SOURCE_UI, mirror: MIRROR_UI, lens: LENS_UI, screen: SCREEN_UI, stop: STOP_UI, cube: CUBE_UI, prism: PRISM_UI, waveplate: WAVEPLATE_UI, polariser: POLARISER_UI, mask: MASK_UI, grating: GRATING_UI, fibre: FIBRE_UI, detector: DETECTOR_UI, spectrometer: SPECTROMETER_UI, faraday: FARADAY_UI, isolator: ISOLATOR_UI, stl: STL_UI, crystal: CRYSTAL_UI, filter: FILTER_UI, gain: GAIN_UI, cell: CELL_UI, nlc: NLC_UI, link: LINK_UI, aom: AOM_UI, eom: EOM_UI, chopper: CHOPPER_UI, draw: DRAW_UI, fcomp: FCOMP_UI, pic: PIC_PART_UI, elec: ELEC_PART_UI,
+  source: SOURCE_UI, mirror: MIRROR_UI, lens: LENS_UI, screen: SCREEN_UI, stop: STOP_UI, cube: CUBE_UI, prism: PRISM_UI, waveplate: WAVEPLATE_UI, polariser: POLARISER_UI, mask: MASK_UI, grating: GRATING_UI, fibre: FIBRE_UI, detector: DETECTOR_UI, spectrometer: SPECTROMETER_UI, faraday: FARADAY_UI, isolator: ISOLATOR_UI, stl: STL_UI, crystal: CRYSTAL_UI, filter: FILTER_UI, particle: PARTICLE_UI, gain: GAIN_UI, cell: CELL_UI, nlc: NLC_UI, link: LINK_UI, aom: AOM_UI, eom: EOM_UI, chopper: CHOPPER_UI, draw: DRAW_UI, fcomp: FCOMP_UI, pic: PIC_PART_UI, elec: ELEC_PART_UI,
 };
 /* ==========================================================================
    Readouts: the live numbers in a part's panel, refreshed as the bench plays.
@@ -28663,7 +29097,10 @@ function updateReadoutsIn(container, el) {
     const f = v => v === 0 ? '0' : Math.abs(v) >= 0.01 ? String(+v.toPrecision(4)) : v.toExponential(3);
     const twisted = faceArrivals(el).some(A => A.QM && A.QM.twisted), twistNote = ['Note', 'a higher-order beam arrives twisted (parts at odd angles to each other turned its axes apart): its modes are only roughly placed; read it from the diffracted field'];
     parts = [[...(twisted && !r.field ? [twistNote] : []), ...(r.pending ? [['Behind a cavity', 'working out its steady state\u2026']] : r.field ? [['Behind a cavity', 'read from the solved field']] : []),
-      ['Optical power', f(r.mw) + ' mW'], r.mw > 0 ? ['Responsivity', (+(r.mA / r.mw).toPrecision(3)) + ' A/W, for the light arriving'] : ['Responsivity at ' + nm + ' nm', (+responsivity(el, nm).toPrecision(3)) + ' A/W'],
+      ['Optical power', f(r.mw) + ' mW'],
+      ...(r.scat ? [['Scattered light', f(r.scat.mw - r.scat.cross) + ' mW from a particle' + (Math.abs(r.scat.cross) > 0 ? '; its interference with the beam ' + (r.scat.cross < 0 ? 'takes ' : 'adds ') + f(Math.abs(r.scat.cross)) + ' mW' : '')]] : []),
+      ...(el.quad ? [['Right less left', f(r.X) + ' mW' + (r.mw > 0 ? ' (' + f(r.X / r.mw) + ' of the sum)' : '')], ['Top less bottom', f(r.Y) + ' mW' + (r.mw > 0 ? ' (' + f(r.Y / r.mw) + ' of the sum)' : '')]] : []),
+      r.mw > 0 ? ['Responsivity', (+(r.mA / r.mw).toPrecision(3)) + ' A/W, for the light arriving'] : ['Responsivity at ' + nm + ' nm', (+responsivity(el, nm).toPrecision(3)) + ' A/W'],
       ['Photocurrent', f(r.mA) + ' mA'], ...(el.diode ? [['Noise', f(r.noiseI * 1e9) + ' nA rms']] : [['Output', f(r.V) + ' V' + (r.sat ? ', at its limit' : '')],
       ['Noise', f(r.noiseV * 1e3) + ' mV rms']]), ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB']],
       'Sources count at the power set on each. Noise is over the noise bandwidth, \u03c0/2 times the bandwidth given (its single pole\u2019s 3 dB corner).'];
@@ -29647,7 +30084,7 @@ function paramGrid(el, items, opts = {}, cells = []) {        // cells: filled w
   return h('div', { class: 'rt-f rt-pgridf' }, grid, ...boxes);
 }
 /* what a part's Angle means, for the line under it: the way it points, by kind */
-const ANGLE_MEANS = { source: 'the way its light leaves', lens: 'the way its optical axis points', mirror: 'the way its reflecting face points', grating: 'the way its grooved face points',
+const ANGLE_MEANS = { particle: 'the way a rod’s or spheroid’s axis points on the bench', source: 'the way its light leaves', lens: 'the way its optical axis points', mirror: 'the way its reflecting face points', grating: 'the way its grooved face points',
   screen: 'the way its face points, towards the light', detector: 'the way its face points, towards the light', spectrometer: 'the way its entrance faces, towards the light', fibre: 'the way its end faces, towards the light',
   isolator: 'the way light passes forward', faraday: 'the way its magnetic field points', cube: 'turns it about its centre', prism: 'turns it about its centre (an equilateral\u2019s apex points this way)',
   stl: 'turns it about its centre', draw: 'turns it about its x, y', fcomp: 'turns it about its centre', pic: 'turns it about its centre', elec: 'turns it about its centre' };
@@ -30269,15 +30706,18 @@ function pulseSection(el) {
 }
 /* The screen's Trap tab: an optical trap for a chosen atom or dielectric sphere where the light here is brightest */
 function trapSection(el) {
+  const isPart = el.type === 'particle';           // a Particle part: the trap for it where it is, from its scattering run
   panel.append(h('h3', null, 'Optical trap'));
-  const rows0 = h('div', { class: 'rt-rows' }, selectField('Trap for', [['none', 'Nothing'], ...Object.entries(TRAP_ATOMS).map(([k, a]) => [k, a.name + ' atoms']), ['sphere', 'A dielectric sphere']],
+  const rows0 = h('div', { class: 'rt-rows' });
+  if (!isPart) rows0.append(selectField('Trap for', [['none', 'Nothing'], ...Object.entries(TRAP_ATOMS).map(([k, a]) => [k, a.name + ' atoms']), ['sphere', 'A dielectric sphere']],
     () => el.trap, v => { el.trap = v; }, { wide: true }));
   if (el.trap in TRAP_ATOMS) rows0.append(selectField('Ground state', [['avg', 'Hyperfine levels averaged'], ['lo', trapFLabel(el.trap, 'lo')], ['hi', trapFLabel(el.trap, 'hi')]],
     () => el.trapF, v => { el.trapF = v; }, { wide: true }));
   if (el.trap === 'sphere') {
-    rows0.append(
+    if (!isPart) rows0.append(
       selectField('Material', particleMats(), () => el.trapMat, v => { el.trapMat = v; if (SPHERE_DENSITY[v]) el.trapRho = SPHERE_DENSITY[v]; }),
-      param('Radius (nm)', el, 'trapR'),
+      param('Radius (nm)', el, 'trapR'));
+    rows0.append(
       param('Density (kg/m³)', el, 'trapRho'),
       param('Temperature (K)', el, 'trapT'),
       selectField('Medium', [['bench', 'As on the bench'], ['vacuum', 'Vacuum'], ['air', 'Air, at a pressure'], ['water', 'Water']], () => el.trapMed, v => { el.trapMed = v; }, { wide: el.trapMed !== 'air' }));
@@ -30295,9 +30735,9 @@ function trapSection(el) {
   const tK = K => Math.abs(K) >= 1 ? (+K.toPrecision(4)) + ' K' : Math.abs(K) >= 1e-3 ? (+(K * 1e3).toPrecision(4)) + ' mK' : Math.abs(K) >= 1e-6 ? (+(K * 1e6).toPrecision(4)) + ' µK' : (+(K * 1e9).toPrecision(4)) + ' nK';
   const off = (v, what) => fmtLen(Math.abs(v)) + ' ' + what;
   bindSync(box, () => {
-    const { D, busy } = diffractionLater(el), rows = [];
-    const T = D && D.trap ? trapReport(el, D.trap) : null;
-    if (!T) rows.push(['', busy || (D && !D.trap) ? 'Working out the trap…' : 'No Gaussian beam reaches this screen.']);
+    const PT = isPart ? particleTrapLater(el) : null, { D, busy } = isPart ? { D: null, busy: PT.busy } : diffractionLater(el), rows = [];
+    const T = isPart ? PT.T : D && D.trap ? trapReport(el, D.trap) : null;
+    if (!T) rows.push(['', isPart ? (PT.none ? 'No Gaussian beam passes the particle.' : 'Working out the trap…') : busy || (D && !D.trap) ? 'Working out the trap…' : 'No Gaussian beam reaches this screen.']);
     else if (T.error) rows.push(['', 'No trap: ' + (T.error === 'no focused beam' ? 'no beam through here has a field to take.' : T.error)]);
     else {
       const sph = el.trap === 'sphere';
@@ -30305,10 +30745,10 @@ function trapSection(el) {
       if (sph && el.trapShape !== 'sphere') rows.push(['', 'The particle is ' + ({ cylinder: 'a rod', capsule: 'a rod', spheroid: 'a spheroid' })[el.trapShape] + ' (the Scattering tab has its shape): the trap is read for the sphere of the same volume, ' + fmtLen(particleOf(el).rEq * 1e-6) + ' in radius.']);
       if (sph) rows.push(['Particle', (METAL_NAMES[el.trapMat] || el.trapMat) + ', n = ' + (+T.np.toPrecision(5)) + (T.kap > 0 ? ' + ' + (+T.kap.toPrecision(4)) + 'i' : '') + ', radius ' + fmtLen(particleOf(el).rEq * 1e-6) + ' in a medium of n = ' + (+T.nMed.toPrecision(5)) + (el.trapMed === 'bench' ? ' (the bench’s, where the light is)' : '') + ', mass ' + (+(T.mass * 1e3).toPrecision(3)) + ' g']);
       if (!T.trap && T.depthK < 0) rows.push(['', 'The particle is repelled by the light (' + (sph ? 'its index is below the medium’s' : 'blue of the D lines') + '): a barrier ' + tK(-T.depthK) + ' high at the brightest point, not a trap.']);
-      else if (!T.trap && T.away) rows.push(['', 'No trap near the screen: the light pulls the particle away along the beam (' + off(T.dz, T.dz >= 0 ? 'past the screen' : 'before it') + '), as a collimated beam on its own does. A focus, or a second beam against it for a standing wave, would hold it here.']);
+      else if (!T.trap && T.away) rows.push(['', 'No trap near ' + (isPart ? 'the part' : 'the screen') + ': the light pulls the particle away along the beam (' + off(T.dz, T.dz >= 0 ? (isPart ? 'past the part' : 'past the screen') : 'before it') + '), as a collimated beam on its own does. A focus, or a second beam against it for a standing wave, would hold it here.']);
       else if (!T.trap) rows.push(['', 'No stable trap: ' + (sph ? 'radiation pressure outweighs the pull of the focus along the beam (a higher numerical aperture, a smaller particle, or a second beam against it would hold it)' : 'the force does not settle to zero here') + '.']);
       else {
-        rows.push(['Where', 'along the beam ' + off(T.dz, T.dz >= 0 ? 'past the screen' : 'before it') + (Math.abs(T.dx) > 1e-7 || Math.abs(T.dy) > 1e-7 ? '; across ' + fmtLen(T.dx) + ' in the plane, ' + fmtLen(T.dy) + ' out of it' : '')]);
+        rows.push(['Where', 'along the beam ' + off(T.dz, T.dz >= 0 ? (isPart ? 'past the part' : 'past the screen') : 'before it') + (Math.abs(T.dx) > 1e-7 || Math.abs(T.dy) > 1e-7 ? '; across ' + fmtLen(T.dx) + ' in the plane, ' + fmtLen(T.dy) + ' out of it' : '')]);
         rows.push(['Depth', tK(T.depthK) + (sph ? ' (' + (+T.kT.toPrecision(4)) + ' kT at ' + el.trapT + ' K)' : ' (' + fmtHz(T.depthHz) + ')')]);
         rows.push(['Frequencies', 'across ' + fq(T.fx) + ' in the plane, ' + fq(T.fy) + ' out of it; along the beam ' + fq(T.fz)]);
       }
@@ -30334,7 +30774,7 @@ function trapSection(el) {
     const s2 = JSON.stringify(rows);
     if (s2 !== sig) { sig = s2; box.replaceChildren(h('dl', null, ...rows.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
   });
-  panel.append(helpLine('The force on the particle from each beam’s full field near the focus.', ['Every beam through the screen’s region is taken as its full vector field near the focus (the Rayleigh–Sommerfeld integral from its pupil, so a steep focus and polarisation count); one not converging to a focus ahead (collimated, or past its focus) is taken as its propagated field instead. Beams of one laser added as fields. The particle is a dipole: the force on it is Re(α Σ Eⱼ ∇Eⱼ*)/2, its real part the pull towards bright light, its imaginary part radiation pressure. Beams may come in from any direction in the bench plane (crossed standing waves make a 2D lattice); their relative phases follow their path lengths, which in the lab drift unless locked. Nothing can come in from above or below the bench. Newton’s method finds where the force is zero, starting from the brightest point, and the stiffness there gives the trap frequencies (x across the arriving beam in the bench plane, y out of it, z along it). ' +
+  panel.append(helpLine('The force on the particle from each beam’s full field near the focus.', [(isPart ? 'The trap is looked for from where the strongest beam passes the part, and its place is given from there. ' : '') + 'Every beam through the screen’s region is taken as its full vector field near the focus (the Rayleigh–Sommerfeld integral from its pupil, so a steep focus and polarisation count); one not converging to a focus ahead (collimated, or past its focus) is taken as its propagated field instead. Beams of one laser added as fields. The particle is a dipole: the force on it is Re(α Σ Eⱼ ∇Eⱼ*)/2, its real part the pull towards bright light, its imaginary part radiation pressure. Beams may come in from any direction in the bench plane (crossed standing waves make a 2D lattice); their relative phases follow their path lengths, which in the lab drift unless locked. Nothing can come in from above or below the bench. Newton’s method finds where the force is zero, starting from the brightest point, and the stiffness there gives the trap frequencies (x across the arriving beam in the bench plane, y out of it, z along it). ' +
     (el.trap === 'sphere' ? 'A sphere’s polarisability is Clausius–Mossotti in its medium, with the radiation reaction that makes it scatter; good for radii well below the wavelength (Rayleigh particles).' : 'An atom’s is from its D lines, counter-rotating terms and core included, for linear polarisation; hyperfine structure and the vector shift of circular light are left out; heating is photon recoil only.')], 'note', 'margin-top:0.4rem'));
 }
 const pulsedFibreLaser = () => project.elements.find(e => e.type === 'fcomp' && e.kind === 'laser' && e.tau > 0);
@@ -30391,8 +30831,8 @@ function readoutTabs(el, stabs) {
       aber: all.some(t => !t.chief) ? '' : 'No rays of a fan reach ' + what + ' to sweep across the field',
       plots: all.length ? '' : 'Nothing reaches ' + what,
       pulse: ((lastTrace.pulses && lastTrace.pulses[el.id]) || []).length ? '' : 'No pulse reaches ' + what + ' (a source or fibre laser with \u201cPulsed\u201d ticked)',
-      trap: all.some(t => t.chief) ? '' : 'No Gaussian beam reaches ' + what + ' (the bench\u2019s Light showing the beams\u2019 envelope or field)',
-      scatter: all.some(t => t.chief) ? '' : 'No Gaussian beam reaches ' + what + ' (the bench\u2019s Light showing the beams\u2019 envelope or field)',
+      trap: (el.type === 'particle' ? scatterPrep(el) : all.some(t => t.chief)) ? '' : 'No Gaussian beam reaches ' + what + ' (the bench\u2019s Light showing the beams\u2019 envelope or field)',
+      scatter: (el.type === 'particle' ? scatterPrep(el) : all.some(t => t.chief)) ? '' : 'No Gaussian beam reaches ' + what + ' (the bench\u2019s Light showing the beams\u2019 envelope or field)',
     };
     for (const [k, w] of Object.entries(why)) if (btns[k]) { btns[k].classList.toggle('empty', !!w); btns[k].title = w; }
   });
@@ -37162,7 +37602,8 @@ function scatWorker() {
       if (m.prog) { J.prog = m.prog; syncPanel(); return; }
       SCW.job = null;
       if (!m.ok) { console.warn('JEKray scattering worker:', m.err); scatFail(); return; }
-      if (m.out && m.out.S) scatCache.set(J.elId, { key: m.out.key, S: m.out.S });
+      // (a Particle part's answer is what the bench's trace launches its scattered light from: kept, the bench is drawn again)
+      if (m.out && m.out.S) { scatKeep(J.elId, m.out.key, m.out.S); requestRender(); }
       syncPanel(); scatPump();
     };
     w.onerror = e => { e.preventDefault(); scatFail(); };
@@ -37173,6 +37614,7 @@ function scatWorker() {
 // the worker cannot be relied on: the page does the work itself from here on
 function scatFail() {
   SCW.failed = true;
+  setScatMode('sync');
   if (SCW.w) SCW.w.terminate();
   SCW.w = null; SCW.job = null;
   syncPanel();
@@ -37230,6 +37672,18 @@ const particleMats = () => [...Object.keys(GLASS).filter(g => g !== 'Water').map
 /* the particle's own rows, as the Scattering tab gives them (the Trap tab has the sphere's) */
 function particleRows(el) {
   const rows = h('div', { class: 'rt-rows' });
+  if (el.type === 'particle') {
+    // a Particle part: what it is made of is on its own tab; here the model, where it is and the cone the Collected figure is for
+    const sph = el.trapShape === 'sphere';
+    rows.append(selectField('Model', [['auto', 'Auto'], ['rayleigh', 'Rayleigh (one dipole)'], ['mie', 'Mie (a sphere, exact)'], ['dda', 'Dipole array']], () => el.scatModel, v => { el.scatModel = v; }));
+    if (el.scatModel === 'dda' || (el.scatModel === 'auto' && !sph)) rows.append(param('Dipoles across (0: chosen)', el, 'scatDip', { noSweep: true }));
+    rows.append(selectField('Where it is', [['part', 'Where the part is'], ['trap', 'Where the trap holds it']], () => el.scatAt, v => { el.scatAt = v; }, { wide: true }),
+      param('Moved across (µm)', el, 'scatDx'), param('Moved up (µm)', el, 'scatDy'), param('Moved along the beam (µm)', el, 'scatDz'));
+    rows.append(param('Collecting NA', el, 'scatNA'),
+      selectField('Collected from', [['fwd', 'Ahead (the beam’s way)'], ['back', 'Behind (back along it)'], ['side', 'The side, in the plane'], ['up', 'Above'], ['angle', 'A direction on the bench']], () => el.scatDir, v => { el.scatDir = v; }));
+    if (el.scatDir === 'angle') rows.append(param('Direction (°)', el, 'scatAng'));
+    return rows;
+  }
   const isP = el.trap === 'sphere';
   rows.append(selectField('Particle', [['none', el.trap in TRAP_ATOMS ? 'None (the Trap tab is set for atoms)' : 'None'], ...PARTICLE_SHAPES],
     () => (isP ? el.trapShape : 'none'), v => { if (v === 'none') el.trap = 'none'; else { el.trap = 'sphere'; el.trapShape = v; } }, { wide: true }));
@@ -37298,10 +37752,37 @@ function scatterRows(el, S) {
     rows.push(['Rayleigh would give', 'scattering ' + scatArea(S.rayleigh.Csca) + ', ' + (Math.abs(off) < 5e-4 ? 'the same' : scatSig(100 * Math.abs(off), 2) + '% ' + (off > 0 ? 'more' : 'less')) + ', and as much back as forward']);
   }
   if (S.model === 'dda' && S.shape === 'sphere') rows.push(['Mie gives', 'scattering ' + scatArea(S.mieEq.Csca) + ': the dipole array is ' + scatSig(100 * (S.Csca / S.mieEq.Csca - 1), 2) + '% from it']);
-  if (S.at.trap) rows.push(['Where', 'where the trap holds it: ' + fmtLen(Math.abs(S.at.z)) + (S.at.z >= 0 ? ' past the screen' : ' before it') + ' along the beam']);
+  if (S.at.trap) rows.push(['Where', 'where the trap holds it: ' + fmtLen(Math.abs(S.at.z)) + (S.at.z >= 0 ? (el.type === 'particle' ? ' past the part' : ' past the screen') : ' before it') + ' along the beam']);
   for (const f of S.flags) if (FLAG_TEXT[f]) rows.push(['', FLAG_TEXT[f]]);
   return rows;
 }
+/* A Particle part: where its scattered light goes on the bench (the readout's last rows), a row for each part that catches some (its share of the
+   scattered power and the power, as launched into the part's aperture) and one for what no part catches */
+function caughtRows(el) {
+  const R = lastTrace.scat && lastTrace.scat.parts && lastTrace.scat.parts[el.id], rows = [];
+  if (el.scatLight === false) return [['On the bench', 'Its scattered light is not sent to the parts (the Particle tab turns it on).']];
+  if (!R || R.state === 'dark' || R.state === 'none') return rows;
+  if (R.state === 'wait') return [['On the bench', 'Working out the scattered light…']];
+  for (const r of R.rows) rows.push(['Caught by ' + r.name, scatPct(r.share) + ' of the scattered power, ' + scatPw(r.P) + (r.followed ? '' : ' (not traced on: only the ' + R.rows.filter(q => q.followed).length + ' parts that catch most are)')]);
+  rows.push(['Not collected', scatPct(R.lostShare) + ', ' + scatPw(R.lost) + (R.rows.length ? '' : ': no part has a clear line to the particle')]);
+  if (R.state === 'stale') rows.push(['', 'From before the last change: being worked out again.']);
+  return rows;
+}
+/* A Particle part's trap, from its scattering run (which solves the trap where it is): { T, busy } as the Trap tab takes them */
+function particleTrapLater(el) {
+  const A = scatterLater(el), S = A.S;
+  return { T: S && S.trapRaw ? trapReport(el, S.trapRaw) : S && S.error ? { error: S.error === 'no beam' ? 'no focused beam' : S.error } : null, busy: !!A.busy, none: !!A.none };
+}
+/* The bench's trace launches each Particle part's scattered light from the answer kept for it. Where that answer is from
+   before the last change (or there is none yet), the worker is asked for a new one; when it comes the bench is drawn
+   again with it. Called as the bench is drawn. */
+function scatterKeepUp() {
+  const P = lastTrace.scat && lastTrace.scat.parts;
+  if (!P) return;
+  for (const el of project.elements) if (el.type === 'particle' && el.scatLight !== false && P[el.id] && (P[el.id].state === 'stale' || P[el.id].state === 'wait')) scatterLater(el);
+}
+/* the page's wiring: where there are workers a trace does not wait for a scattering run */
+function wireScatter() { if (!TEST_MODE && WORKERS_OK) setScatMode('async'); }
 const SCAT_DB = 40;        // a log plot's depth
 /* the pattern on one cut as a polar plot: the angle as on the bench (or from the beam, up), the radius the intensity */
 function drawPolar(cv, el, S, which) {
@@ -37395,6 +37876,7 @@ function drawScatMap(cv, el, S) {
 }
 /* The screen's Scattering tab */
 function scatterSection(el) {
+  const isPart = el.type === 'particle';
   panel.append(h('h3', null, 'Scattering'));
   panel.append(particleRows(el));
   if (el.trap !== 'sphere') {
@@ -37424,7 +37906,7 @@ function scatterSection(el) {
       st = [what, 'stop'];
     } else if (A.stopped) st = ['Stopped.', 'run'];
     else if (A.S && A.S.error) st = ['No scattering: ' + (A.S.error === 'no beam' || A.S.error === 'no focused beam' || A.S.error === 'no light' ? 'no Gaussian beam through here has a field to take.' : A.S.error), ''];
-    else if (A.none) st = ['No Gaussian beam reaches this screen.', ''];
+    else if (A.none) st = [isPart ? 'No Gaussian beam passes the particle (within three beam radii of it).' : 'No Gaussian beam reaches this screen.', ''];
     const s1 = JSON.stringify(st);
     if (s1 !== sigT) {
       sigT = s1;
@@ -37433,7 +37915,8 @@ function scatterSection(el) {
       status.style.display = st.length ? 'flex' : 'none';
     }
     box.style.opacity = A.busy && S ? '0.55' : '';              // figures from before the last change, while their run is redone
-    const rows = S ? scatterRows(el, S) : [];
+    // (a Particle part: after its own figures, where its scattered light goes on the bench)
+    const rows = (S ? scatterRows(el, S) : []).concat(isPart && (S || A.none) ? caughtRows(el) : []);
     const s2 = JSON.stringify(rows) + '|' + el.scatScale + '|' + (vs(el).scatView || el.scatView);
     if (s2 !== sigS || S !== last) {
       sigS = s2; last = S;
@@ -37443,9 +37926,15 @@ function scatterSection(el) {
     }
   });
   const P = particleOf(el);
+  if (isPart) {
+    panel.append(helpLine('The light the particle scatters, and the parts that catch it.', ['Lorenz–Mie is exact for a sphere of any size; a dipole array (the discrete dipole approximation) takes a rod or a spheroid; Rayleigh is one dipole, right only for a particle much smaller than the wavelength. Auto takes Mie for a sphere and the dipole array for other shapes. ',
+      'The light is every Gaussian beam that passes within three of its radii of the particle. A steep focus (NA above 0.3) is its full vector field, as plane waves from its pupil; a gentler beam is one plane wave where the particle is. Beams of one laser add as fields; separate lasers as powers. ',
+      'On the bench each part with a clear line to the particle is sent a cone of rays carrying the scattered field, and its Caught by row gives the share of the scattered power that enters its aperture. What no part catches is the Not collected row. The plots and the Collected figure are the pattern itself, whatever is on the bench.'], 'note', 'margin-top:0.4rem'));
+    return;
+  }
   panel.append(helpLine('The light the particle scatters, from the beams through this screen.', ['Three models. Lorenz–Mie is exact for a homogeneous sphere of any size. A dipole array (the discrete dipole approximation) takes any shape: the particle as point dipoles on a cubic lattice, each driven by the light and by all the others, their polarisability from the lattice dispersion relation; good to a few percent while |m|kd stays under about 0.5 and the lattice draws the shape (10 dipoles across unless set; ' + SCAT_NMAX + ' dipoles at most unless more across are asked for), and poor for metals. Rayleigh is one dipole, right only for a particle much smaller than the wavelength; Auto takes it only then. ',
     'The light is every beam through the screen’s region, as the Trap tab takes them. A steep focus (NA above 0.3) is its full vector field: each sample of its pupil is a plane wave onto the particle with its own direction, polarisation and phase, and a sphere’s scattered field is the sum of every wave’s Mie field, added as fields, so the particle may sit off the focus. A gentler beam is taken as one plane wave where the particle is. Beams of one laser add as fields; separate lasers as powers. ',
-    'Cross-sections and efficiencies are a plane wave’s (for a shape that is not a sphere: along the strongest beam, polarised as the light at the particle is); the powers, the forward and back shares, the collected fraction and the plots are for the light as it is. The collected fraction is the scattered power into a cone of the numerical aperture set, about the direction chosen. One particle, alone: nothing the scattered light meets afterwards is counted, and the light is not put back on the bench.' +
+    'Cross-sections and efficiencies are a plane wave’s (for a shape that is not a sphere: along the strongest beam, polarised as the light at the particle is); the powers, the forward and back shares, the collected fraction and the plots are for the light as it is. The collected fraction is the scattered power into a cone of the numerical aperture set, about the direction chosen. One particle, alone: nothing the scattered light meets afterwards is counted, and a screen’s particle sends no light onto the bench. A Particle part (Add, Active and atomic) does: its scattered light goes on to the lenses, detectors and fibres that can see it.' +
     (P.shape !== 'sphere' ? ' The Trap tab takes this particle as the sphere of its volume.' : '')], 'note', 'margin-top:0.4rem'));
 }
 /* A card with nothing solved yet starts a field run of the bench in the background, in
@@ -43691,12 +44180,52 @@ const SCAT_MODELS = ['auto', 'rayleigh', 'mie', 'dda'];
 const SCAT_DIRS = ['fwd', 'back', 'side', 'up', 'angle'];
 const SCAT_NMAX = 12000;           // dipoles in a run, unless more across are asked for
 const SCAT_NHARD = 24000;          // and never more than this
+const WAVE_BINS = 20;                    // a focus's waves on the bench: bins across its pupil each way (waveInt)
 const SCAT_TINY = 0.1;                    // |m| k (half the longest dimension) under which Auto takes the single dipole
 
-const scatFields = el => [el.trapShape, el.trapLen, el.trapAz, el.trapTilt, el.scatModel, el.scatDip, el.scatAt, el.scatDx, el.scatDy, el.scatDz, el.scatNA, el.scatDir, el.scatAng];
+const scatFields = el => [el.trapShape, el.trapLen, particleAz(el), el.trapTilt, el.scatModel, el.scatDip, el.scatAt, el.scatDx, el.scatDy, el.scatDz, el.scatNA, el.scatDir, el.scatAng];
+/* A Particle part is a point of the bench, in whatever light reaches it: the beams of a trace that pass it, each
+   with where along it the particle is nearest (t), how far the particle is off its axis in the bench plane (x, to
+   the beam's left) and above it (dz), and the beam's irradiance there against the others'. A beam counts when the
+   particle is within three of its radii of its axis there (20 um at least). Level beams only: one that rises
+   out of the plane is left out. */
+function particleBeams(el, B = lastTrace.beams || []) {
+  const out = [], z = zOf(el);
+  B.forEach((b, i) => {
+    if (b.fan || b.bench !== el.bench || b.uz || b.d3) return;
+    const rx = el.x - b.x0, ry = el.y - b.y0, t = rx * b.dx + ry * b.dy, x = -rx * b.dy + ry * b.dx, dz = z - (b.z0 !== undefined ? b.z0 : BEAM_Z);
+    if (t < 0 || t > b.len) return;
+    const bw = beamAt(b.qr + t, b.qi, b.n, b.nm, 1), w = bw ? bw.w : 0, r2 = x * x + dz * dz, reach = Math.max(0.02, 3 * w);
+    if (!(w > 0) || r2 > reach * reach) return;
+    out.push({ i, t, x, dz, w, I: Math.max(0, b.w === undefined ? 1 : b.w) * Math.max(0, b.lmw || 0) * Math.exp(-2 * r2 / (w * w)) / (w * w) });
+  });
+  return out;
+}
+function particlePrep(el) {
+  const B = lastTrace.beams || [], near = particleBeams(el, B);
+  if (!near.length) return null;
+  const keep = new Set();
+  for (let { i } of near) while (i >= 0 && !keep.has(i)) { keep.add(i); i = B[i].parent; }
+  const ids = new Set([...keep].map(i => B[i].src));
+  const srcs = allSources().filter(e => ids.has(e.id));
+  const kept = [...keep].sort((x, y) => x - y).map(i => B[i]);
+  const key = el.id + '|' + [el.x, el.y, el.z] + '|' + popKeyOf(kept, srcs) + JSON.stringify(srcs.map(e => [e.popModel, beamOn(e)])) + JSON.stringify(project.cavityLock || {})
+    + '|trap' + JSON.stringify([el.trap, el.trapMat, el.trapR, el.trapRho, el.trapMed, el.trapP, el.trapT, el.trapShape, el.trapLen]);
+  return { keep, srcs, key };
+}
+/* the strongest of them in a field run, as screenDom gives a screen's: { dom: { sg }, len, x, dz } */
+function particleDom(el, R) {
+  const near = particleBeams(el).sort((a, b) => b.I - a.I);
+  for (const q of near) { const sg = R.segs.find(s => s.i === q.i); if (sg) return { dom: { sg }, len: q.t, x: q.x, dz: q.dz, w: q.w }; }
+  return null;
+}
 /* what a scattering run depends on, as popScreenPrep gives it for the screen's field, with
    the particle's own settings; null where there is no particle or no light */
 function scatterPrep(el) {
+  if (el && el.type === 'particle') {
+    const job = particlePrep(el);
+    return job ? { keep: job.keep, srcs: job.srcs, key: job.key + '|scat' + JSON.stringify(scatFields(el)) } : null;
+  }
   if (!el || el.type !== 'screen' || el.trap !== 'sphere') return null;
   const job = popScreenPrep(el);
   return job ? { keep: job.keep, srcs: job.srcs, key: job.key + '|scat' + JSON.stringify(scatFields(el)) } : null;
@@ -43729,7 +44258,7 @@ function fromFrame(fr, v, step, out) {
    launch: { n, d, E } with d each wave's direction and E its field at C (V/m, exp(-i w t)),
    and what was made of each beam. nMed scales the fields as the trap does. */
 function scatterWaves(parts, C, nMed, size) {
-  const byL = new Map(), notes = { varies: false, pupils: 0, plane: 0 };
+  const byL = new Map(), notes = { varies: false, pupils: 0, plane: 0 }, refs = new Map();
   for (const q of parts) {
     const b = q.b, rx = C[0] - b.x0, ry = C[1] - b.y0, pz = rx * b.dx + ry * b.dy, px = -rx * b.dy + ry * b.dx, py = C[2];
     const s = Math.sqrt(2 * q.Pw * 1e6 / (nMed * EPS0 * C_SI)), ax = [-b.dy, b.dx];
@@ -43768,6 +44297,10 @@ function scatterWaves(parts, C, nMed, size) {
     }
     if (!byL.has(q.coh)) byL.set(q.coh, { d: [], E: [] });
     const L = byL.get(q.coh);
+    // this beam's own field at the centre: the launch's strongest is what the scattered light's phase is held against
+    { const e0 = [0, 0, 0, 0, 0, 0]; for (let o = 0; o < E.length; o++) e0[o % 6] += E[o];
+      const I0 = e0.reduce((a, v) => a + v * v, 0), r0 = refs.get(q.coh);
+      if (!r0 || I0 > r0.I) refs.set(q.coh, { I: I0, E: e0, beam: q.sg ? q.sg.i : -1, src: b.src, lmw: b.lmw, nm: b.nm, coh: q.coh }); }
     for (const v of d) L.d.push(v);
     for (const v of E) L.E.push(v);
   }
@@ -43782,6 +44315,7 @@ function scatterWaves(parts, C, nMed, size) {
     keep.forEach((o, i) => { for (let m = 0; m < 3; m++) d[3 * i + m] = L.d[3 * o + m]; for (let m = 0; m < 6; m++) E[6 * i + m] = L.E[6 * o + m]; });
     launches.push({ n: keep.length, d, E });
   }
+  [...byL.keys()].forEach((c, i) => { launches[i].ref = refs.get(c); });
   return { launches, notes };
 }
 // the waves' sum at the centre: [xr, xi, yr, yi, zr, zi]
@@ -43810,9 +44344,11 @@ function scatterModel(el, P, k, mAbs) {
 /* The run, as a generator: it yields { stage, ... } as it goes (so a worker can report and be
    stopped) and returns the answer, or { error }. R is the field run of scatterPrep's beams. */
 function* scatterGen(el, R, opts) {
-  const t0 = Date.now(), sd = screenDom(el, R);
+  const isPart = el.type === 'particle', t0 = Date.now(), sd = isPart ? particleDom(el, R) : screenDom(el, R);
   if (!sd) return { error: 'no beam' };
   const { dom, len } = sd, b0 = dom.sg.b, nm = b0.nm;
+  // (a Particle part: the trap's and the beams' reach round it is three radii of its strongest beam, as particleBeams takes them)
+  if (isPart) el = Object.assign(Object.create(el), { length: 2 * Math.max(0.02, 3 * sd.w) });
   const P = particleOf(el), nBench = b0.n, nMed = trapMedium(el, nBench, nm);
   const [npr, npi] = particleIndex(el.trapMat, nm), mr = npr / nMed, mi = npi / nMed, mAbs = Math.hypot(mr, mi);
   const k = 2 * Math.PI * nMed / (nm * 1e-9), Z = Z0_OHM / nMed, aEq = P.rEq * 1e-9, area = Math.PI * aEq * aEq;
@@ -43822,11 +44358,13 @@ function* scatterGen(el, R, opts) {
   const TB = trapBeams(el, R, dom, len, { reach: 3.2, M: 64 });
   if (!TB.parts.length) return { error: 'no focused beam' };
   const d0 = [b0.dx, b0.dy, 0], a0 = [-b0.dy, b0.dx, 0], up = [0, 0, 1];
-  let at = [0, 0, 0], atTrap = false, trapMiss = false;
-  if (el.scatAt === 'trap') {
+  // (a Particle part sits where it is put: off the beam's axis by what it is)
+  let at = isPart ? [sd.x, sd.dz, 0] : [0, 0, 0], atTrap = false, trapMiss = false, trapRaw = null;
+  if (el.scatAt === 'trap' || isPart) {
     let T = null;
     try { T = trapSolve(el, R, dom, len); } catch (err) { T = null; }
-    if (T && T.trap) { at = [T.x, T.y, T.z]; atTrap = true; } else trapMiss = true;
+    if (isPart && T) trapRaw = T.error ? { error: T.error } : Object.assign({}, T, { nm });
+    if (el.scatAt === 'trap') { if (T && T.trap) { at = [T.x, T.y, T.z]; atTrap = true; } else trapMiss = true; }
   }
   at = [at[0] + (el.scatDx || 0) * 1e-3, at[1] + (el.scatDy || 0) * 1e-3, at[2] + (el.scatDz || 0) * 1e-3];
   const C = [TB.P0[0] + at[0] * a0[0] + at[2] * d0[0], TB.P0[1] + at[0] * a0[1] + at[2] * d0[1], at[1]];
@@ -43841,7 +44379,7 @@ function* scatterGen(el, R, opts) {
   { const l = Math.sqrt(abs2(pol)); pol = l > 0 ? pol.map(v => v / l) : [a0[0], 0, a0[1], 0, 0, 0]; }
   const single = launches.length === 1 && launches[0].n === 1;
   // the particle's axis and its frame
-  const az = (el.trapAz || 0) * deg, tl = (el.trapTilt || 0) * deg, axis = [Math.cos(tl) * Math.cos(az), Math.cos(tl) * Math.sin(az), Math.sin(tl)];
+  const az = (particleAz(el) || 0) * deg, tl = (el.trapTilt || 0) * deg, axis = [Math.cos(tl) * Math.cos(az), Math.cos(tl) * Math.sin(az), Math.sin(tl)];
   const body = frameOn(axis);
   const flags = [];
   if (Math.abs(nMed - nBench) > 1e-3) flags.push('medium');
@@ -43850,7 +44388,9 @@ function* scatterGen(el, R, opts) {
   if (trapMiss) flags.push('notrap');
   const out = { model, auto: pick.auto, shape: P.shape, D: P.D * 1e9, L: P.L * 1e9, rEq: P.rEq, mat: el.trapMat, np: [npr, npi], m: [mr, mi], nMed, nBench, nm, k,
     x: k * aEq, kL: k * Math.max(P.D, P.L) / 2, area, I0, E2, at: { x: at[0], y: at[1], z: at[2], trap: atTrap }, beams: TB.parts.length, launches: launches.length,
-    waves: launches.reduce((a, L) => a + L.n, 0), pupils: W.notes.pupils, plane: W.notes.plane, single, dir: d0, pol, axis, flags };
+    waves: launches.reduce((a, L) => a + L.n, 0), pupils: W.notes.pupils, plane: W.notes.plane, single, dir: d0, pol, axis, flags,
+    // where the particle is on the bench (mm; z its height above the breadboard), and the trap there (a Particle part's Trap tab)
+    pos: [C[0], C[1], (b0.z0 !== undefined ? b0.z0 : BEAM_Z) + C[2]], elPos: [el.x, el.y, zOf(el)], ...(trapRaw ? { trapRaw } : {}) };
   // Rayleigh's answer beside whichever model runs, and Mie's for the sphere of the same volume
   const aSm = smallAlpha(P.V, P.shape === 'sphere' ? 1 : P.L / P.D, mr, mi, k);
   const smallP = e => {            // p = alpha E, alpha a tensor about the axis: [6]
@@ -43934,6 +44474,42 @@ function* scatterGen(el, R, opts) {
     }
     if (!D.converged) flags.push('noconv');
   }
+  // A focus's plane waves and the scattered light, direction by direction: where wave o goes on, the scattered field along
+  // d_o meets it, and the two interfere there by -(4 pi / k) Im(conj(E_o) . F(d_o)) / 2Z watts (the optical theorem, one wave at
+  // a time: their sum is -P_ext). Kept for a focus (more than one wave), so the bench can put each wave's share where its ray
+  // lands (engines/scatter-light.js): a detector that takes in the beam reads the extinction, and one split in two the
+  // particle's place
+  const waveInt = launches.map((L, i) => {
+    if (L.n < 2) return null;
+    const F = fars[i](L.d), p = new Float64Array(L.n), e2 = new Float64Array(L.n);
+    let ext = 0;
+    for (let o = 0; o < L.n; o++) {
+      let sm = 0;
+      for (let q = 0; q < 6; q += 2) { sm += L.E[6 * o + q] * F[6 * o + q + 1] - L.E[6 * o + q + 1] * F[6 * o + q]; e2[o] += L.E[6 * o + q] ** 2 + L.E[6 * o + q + 1] ** 2; }
+      p[o] = -4 * Math.PI / k * sm / (2 * Z);
+      ext = Math.max(ext, Math.abs(L.d[3 * o] * a0[0] + L.d[3 * o + 1] * a0[1]), Math.abs(L.d[3 * o + 2]));
+    }
+    // The waves are a pupil's samples, a thousand or more: gathered WAVE_BINS across the pupil each way (about the beam's
+    // axis, so no bin lies across it), each bin one ray along its waves' mean way (weighted by their power), polarised as
+    // its strongest wave is, with the sum of their shares
+    const dl = ext > 0 ? 2 * ext / WAVE_BINS : 1, bins = new Map();
+    for (let o = 0; o < L.n; o++) {
+      const a = L.d[3 * o] * a0[0] + L.d[3 * o + 1] * a0[1], c = L.d[3 * o + 2], fw = L.d[3 * o] * d0[0] + L.d[3 * o + 1] * d0[1] >= 0;
+      const key = (Math.floor(a / dl) + 64) * 256 + (Math.floor(c / dl) + 64) + (fw ? 0 : 65536);
+      let B = bins.get(key); if (!B) bins.set(key, B = { p: 0, w: 0, d: [0, 0, 0], top: -1, o: 0 });
+      B.p += p[o]; B.w += e2[o]; for (let q = 0; q < 3; q++) B.d[q] += e2[o] * L.d[3 * o + q];
+      if (e2[o] > B.top) { B.top = e2[o]; B.o = o; }
+    }
+    const n = bins.size, d = new Float32Array(3 * n), pb = new Float64Array(n), e = new Float32Array(6 * n);
+    let j = 0;
+    for (const B of bins.values()) {
+      const l = Math.hypot(B.d[0], B.d[1], B.d[2]) || 1, le = Math.sqrt(B.top) || 1;
+      for (let q = 0; q < 3; q++) d[3 * j + q] = B.d[q] / l;
+      for (let q = 0; q < 6; q++) e[6 * j + q] = L.E[6 * B.o + q] / le;
+      pb[j++] = B.p;
+    }
+    return { n, d, p: pb, e };
+  });
   yield { stage: 'pattern' };
   // the pattern in the light as it is: over the sphere (the axis along the strongest beam), on two cuts, into the cone
   const nT = Math.max(36, Math.min(96, 2 * Math.ceil(out.kL + 8))), G = sphereGrid(nT, 2 * nT, a0, up, d0), nG = nT * 2 * nT;
@@ -43959,13 +44535,26 @@ function* scatterGen(el, R, opts) {
   { const Ic = farPower(fars.map(f => f(CG.dirs)), CG.w.length); let s = 0; for (let i = 0; i < Ic.length; i++) s += Ic[i] * CG.w[i]; out.collect = { P: s / (2 * Z), frac: tot.total > 0 ? s / tot.total : 0, halfDeg: half / deg, na: el.scatNA, dir: el.scatDir, axis: cAxis }; }
   out.map = { nT, nP: 2 * nT, theta: Array.from(G.mu, v => Math.acos(v) / deg), phi: Array.from(G.phi, v => v / deg), I: Float32Array.from(IG, v => v / (2 * Z)) };
   // the far field itself: F (volts; E = F e^{ikr}/r in V/m) at the map's directions, a launch each, in the world's x, y (the bench) and z (up)
-  out.far = { axes: [a0, up, d0], mu: Array.from(G.mu), phi: Array.from(G.phi), F: FG.map(F => Float32Array.from(F)) };
+  // refs: each launch's strongest beam (its number in the trace, its source and line, its coherence family) and that beam's own
+  // field at the particle, which the scattered light's phase on the bench is held against (engines/scatter-light.js)
+  out.far = { axes: [a0, up, d0], mu: Array.from(G.mu), phi: Array.from(G.phi), F: FG.map(F => Float32Array.from(F)), refs: launches.map(L => L.ref || null), waves: waveInt };
   out.ms = Date.now() - t0;
   return out;
 }
 /* The answers kept, a screen each, under the key they were worked out for: the page's worker fills it (ui/scatter.js),
    and scatterNow; the data export and the 3D view read it */
 const scatCache = new Map();
+/* An answer taken into the cache. The bench's trace launches a Particle part's scattered light from the answer kept
+   for it, so the trace's key counts the answers taken (scatRevNow): a new one is a new trace. */
+let scatRev = 0;
+const scatRevNow = () => scatRev;
+function scatKeep(id, key, S) { scatCache.set(id, { key, S }); const el = getEl(id); if (el && el.type === 'particle') scatRev++; }
+/* How a trace gets an answer it does not have: 'sync', worked out there and then (Node, the tests, a script's
+   worker); 'async', the page's own worker is asked and the last answer stands meanwhile (ui/scatter.js); 'off',
+   none (the other workers, which trace a bench for something else). */
+let scatMode = null;
+const scatModeNow = () => scatMode || (IN_WORKER ? 'off' : 'sync');
+function setScatMode(m) { scatMode = m; }
 function scatterCached(el) { const J = scatterPrep(el), c = J && scatCache.get(el.id); return c && c.key === J.key ? c.S : null; }
 /* an answer as plain numbers and lists (a script's, a file's) */
 const scatterPlain = S => JSON.parse(JSON.stringify(S, (k, v) => (ArrayBuffer.isView(v) ? Array.from(v) : v)));
@@ -43981,8 +44570,320 @@ function scatterNow(el, opts) {
   const job = scatterPrep(el);
   if (!job) return null;
   const S = scatterRun(el, popRun(lastTrace.beams, job.srcs, { keep: job.keep }), opts);
-  scatCache.set(el.id, { key: job.key, S });
+  scatKeep(el.id, job.key, S);
   return S;
+}
+/* ---------- A particle's scattered light, put back on the bench ----------
+   A Particle part's scattering answer (engines/scatter.js) holds the far field's complex amplitude over the sphere
+   of directions, a launch each. The trace puts that light on the bench in two steps (see the end of traceSceneOnce).
+   The probe: a fan of rays over the whole sphere, and with it a look at each part of the bench (a few rays over the
+   cone it fills as seen from the particle), traced one step by the tracer itself, which says what each meets first;
+   then, for the parts that were seen, every ray of their cones the same way. So a part hidden behind another catches
+   nothing directly, and a part too small for the fan to find still has its own cone looked at.
+   The cones: for each part that some ray met first, the rays of its cone that did are launched as light of the
+   driving laser: each ray's amplitudes are the far field's along it (its two polarisations, with their phases),
+   scaled so the ray carries the power scattered into the solid angle it stands for, and in the coherence family
+   of the beam that drives the particle, with its phase held against that beam's own at the particle (beamFieldAt).
+   Each ray has two companions a hair to either side, which carry nothing and are never drawn or read: where the
+   three land gives the area the ray's tube has there, so a face can turn the ray's power into a field (per root
+   of area) and add it to the Gaussian beams it reads (engines/fibre-face.js). The fan itself is kept as a picture
+   (lastTrace.scat.fans), as bright as the pattern is along each ray, and is never part of a reading.
+   Bounded: per particle one probe of SC_FAN directions and a cone of SC_RINGS x SC_SPOKES rays for each part looked
+   at; of the cones that catch light the SC_MAX_CONES + 2 that catch most are followed (a part's cone, and its patch
+   where the driving beam runs on into it), each three rays a direction, for each coherent launch that drives the
+   particle. */
+const SC_MAX_CONES = 8;
+let SC_RINGS = 8, SC_SPOKES = 24;
+/* (the tests: a finer cone, to tell what a figure owes to the cone's sampling) */
+function setScGrid(rings, spokes) { SC_RINGS = rings; SC_SPOKES = spokes; }
+const SC_PLANE = 48;                        // the fan's rays in the bench plane, which the 2D view draws
+const SC_UP = [[30, 24], [60, 12], [80, 6]];   // and its rings above and below the plane: elevation (degrees), rays round
+const SC_EPS = 1e-4;                        // rad: how far a companion ray is from its ray
+const SC_LOOK = 17;                         // the rays that look at a part before its whole cone is probed: its axis and two rings of eight
+const SC_PATCH = 3;                         // a patch about a driving beam's way: this many of the beam's far-field radii
+
+/* The far field of launch L along any directions, from the answer's map: F as core/scatter.js writes it, 6 numbers a
+   direction. The map's nodes are Gauss-Legendre in cos(theta) about far.axes[2] and even in phi from axes[0] towards
+   axes[1]; between them a cubic through the four nearest each way (the Cartesian components, which are smooth over
+   the poles), then the part along the direction itself taken off. */
+function farAt(far, L, dirs, out) {
+  const [ex, ey, ez] = far.axes, nT = far.mu.length, nP = far.phi.length, F = far.F[L], n = dirs.length / 3, o = out || new Float64Array(6 * n);
+  const th = Float64Array.from(far.mu, v => Math.acos(v));          // falling from near pi to near 0
+  const wt = [0, 0, 0, 0], wp = [0, 0, 0, 0];
+  for (let i = 0; i < n; i++) {
+    const rx = dirs[3 * i], ry = dirs[3 * i + 1], rz = dirs[3 * i + 2];
+    const c = Math.max(-1, Math.min(1, rx * ez[0] + ry * ez[1] + rz * ez[2])), t = Math.acos(c);
+    let ph = Math.atan2(rx * ey[0] + ry * ey[1] + rz * ey[2], rx * ex[0] + ry * ex[1] + rz * ex[2]);
+    if (ph < 0) ph += 2 * Math.PI;
+    // the theta nodes either side
+    let lo = 0, hi = nT - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (th[m] >= t) lo = m; else hi = m; }
+    const i0 = Math.max(0, Math.min(nT - 4, lo - 1));
+    for (let a = 0; a < 4; a++) { let l = 1; for (let b = 0; b < 4; b++) if (b !== a) l *= (t - th[i0 + b]) / (th[i0 + a] - th[i0 + b]); wt[a] = l; }
+    const p = ph / (2 * Math.PI) * nP, j = Math.floor(p), f = p - j;
+    wp[0] = -f * (f - 1) * (f - 2) / 6; wp[1] = (f + 1) * (f - 1) * (f - 2) / 2; wp[2] = -(f + 1) * f * (f - 2) / 2; wp[3] = (f + 1) * f * (f - 1) / 6;
+    let v0 = 0, v1 = 0, v2 = 0, v3 = 0, v4 = 0, v5 = 0;
+    for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) {
+      const q = 6 * ((i0 + a) * nP + ((j - 1 + b) % nP + nP) % nP), w = wt[a] * wp[b];
+      v0 += w * F[q]; v1 += w * F[q + 1]; v2 += w * F[q + 2]; v3 += w * F[q + 3]; v4 += w * F[q + 4]; v5 += w * F[q + 5];
+    }
+    const lr = v0 * rx + v2 * ry + v4 * rz, li = v1 * rx + v3 * ry + v5 * rz;
+    o[6 * i] = v0 - lr * rx; o[6 * i + 1] = v1 - li * rx; o[6 * i + 2] = v2 - lr * ry; o[6 * i + 3] = v3 - li * ry; o[6 * i + 4] = v4 - lr * rz; o[6 * i + 5] = v5 - li * rz;
+  }
+  return o;
+}
+/* The rays of a cone of half-angle `half` about a unit axis: their directions (SC_RINGS Gauss-Legendre rings in the
+   angle from the axis, so the middle of the cone, where a beam going the same way is, has its share of them; SC_SPOKES
+   round, phi from the level direction across the axis) and the solid angle each stands for. flat[i]: 1 for the rays of the two spokes nearest the level plane through the axis, one either side,
+   which stand for the cone where a 2D view shows it. */
+function coneDirs(axis, half) {
+  const g = gaussLegendre(SC_RINGS), n = SC_RINGS * SC_SPOKES, dirs = new Float64Array(3 * n), w = new Float64Array(n), flat = new Uint8Array(n);
+  const t = Math.abs(axis[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0], ex = unit3(cross3(t, axis)), ey = cross3(axis, ex);
+  for (let i = 0; i < SC_RINGS; i++) {
+    const th = 0.5 * half * (g.x[i] + 1), s = Math.sin(th), mu = Math.cos(th);
+    for (let j = 0; j < SC_SPOKES; j++) {
+      const ph = 2 * Math.PI * (j + 0.5) / SC_SPOKES, c = Math.cos(ph) * s, sn = Math.sin(ph) * s, o = i * SC_SPOKES + j;
+      for (let q = 0; q < 3; q++) dirs[3 * o + q] = c * ex[q] + sn * ey[q] + mu * axis[q];
+      w[o] = g.w[i] * 0.5 * half * s * 2 * Math.PI / SC_SPOKES;
+    }
+    for (const j of [0, SC_SPOKES / 2]) flat[i * SC_SPOKES + j] = 1;
+  }
+  return { dirs, w, flat, n };
+}
+/* The power (W) of launch L into each ray of a set (dirs, with the solid angle w of each), and the rays'
+   amplitudes on the tracer's own s and p (polFrame): the far field along the ray turned by the phase `rot`
+   (radians), each scaled to carry its power against `Pref` W. */
+function coneAmps(far, L, nMed, dirs, w, rot = 0, Pref = 0) {
+  const n = w.length, F = farAt(far, L, dirs), P = new Float64Array(n), J = new Float64Array(4 * n), Z = Z0_OHM / nMed, cr = Math.cos(rot), sr = Math.sin(rot);
+  let top = 0;
+  for (let i = 0; i < n; i++) { let s = 0; for (let q = 0; q < 6; q++) s += F[6 * i + q] ** 2; P[i] = s * w[i] / (2 * Z); if (P[i] > top) top = P[i]; }
+  const ref = Pref > 0 ? Pref : top;
+  if (ref > 0) for (let i = 0; i < n; i++) {
+    const d = [dirs[3 * i], dirs[3 * i + 1], dirs[3 * i + 2]], [S, Pv] = polFrame(d, 1), g = Math.sqrt(w[i] / (2 * Z) / ref), o = 6 * i;
+    const sR = F[o] * S[0] + F[o + 2] * S[1] + F[o + 4] * S[2], sI = F[o + 1] * S[0] + F[o + 3] * S[1] + F[o + 5] * S[2];
+    const pR = F[o] * Pv[0] + F[o + 2] * Pv[1] + F[o + 4] * Pv[2], pI = F[o + 1] * Pv[0] + F[o + 3] * Pv[1] + F[o + 5] * Pv[2];
+    J[4 * i] = g * (sR * cr - sI * sr); J[4 * i + 1] = g * (sR * sr + sI * cr); J[4 * i + 2] = g * (pR * cr - pI * sr); J[4 * i + 3] = g * (pR * sr + pI * cr);
+  }
+  return { P, J, top: ref };
+}
+/* the smallest cone that holds two: [axis, half] each */
+function coneJoin(a, b) {
+  const c = Math.max(-1, Math.min(1, a[0][0] * b[0][0] + a[0][1] * b[0][1] + a[0][2] * b[0][2])), dl = Math.acos(c);
+  if (dl + b[1] <= a[1]) return a;
+  if (dl + a[1] <= b[1]) return b;
+  const half = Math.min(0.5 * (dl + a[1] + b[1]), 89 * deg), turn = (half - a[1]) / (dl || 1);
+  // the axis: a's turned towards b's by half - a's half
+  const s = Math.sin(dl) || 1, k0 = Math.sin((1 - turn) * dl) / s, k1 = Math.sin(turn * dl) / s;
+  return [unit3([k0 * a[0][0] + k1 * b[0][0], k0 * a[0][1] + k1 * b[0][1], k0 * a[0][2] + k1 * b[0][2]]), half];
+}
+/* The cone a part fills as seen from a point P (mm; P[2] the height): about its faces' discs (a square part's
+   corners too), each face where the trace has it. Null for a part with no face to aim at (an STL object is met
+   by the probe's fan and stops light, but is not sent a cone). */
+function partCone(P, el, ss) {
+  let cone = null;
+  const sq = PARTS[el.type] && PARTS[el.type].zSquare, zh = PARTS[el.type] && PARTS[el.type].zHalf;
+  for (const s of ss) {
+    if (s.kind === 'iris' || s.mesh || !(s.semi > 0)) continue;
+    const [wx, wy] = toWorld(s.f, s.z || 0, 0), v = [wx - P[0], wy - P[1], zOf(el) - P[2]], dist = Math.hypot(v[0], v[1], v[2]);
+    if (dist < 1e-6) continue;
+    const r = zh ? Math.hypot(s.semi, zh(el)) : sq ? s.semi * Math.SQRT2 : s.semi, one = [[v[0] / dist, v[1] / dist, v[2] / dist], Math.min(Math.atan2(r, dist), 89 * deg)];
+    cone = cone ? coneJoin(cone, one) : one;
+  }
+  return cone;
+}
+const vsrc = (el, pos, nm, root, extra) => Object.assign({ type: 'source', virtual: true, name: el.name, bench: el.bench, x: pos[0], y: pos[1], z: pos[2], angle: 0, wavelength: nm, lines: [],
+  colourAuto: true, colour: wavelengthColour(nm), gauss: false, rays: 1, traceRays: true, width: 0, divergence: 0, pol: 's', polAngle: 0, coh: (root && root.coh) || 0,
+  lineshape: (root && root.lineshape) || 'lorentz', power: 0, vLp: 0, tau: 0, vJ: [1, 0, 0, 0], vRoot: root, vLag: 0, vKey: 'scat:q0', vFo: 0, sweeps: {} }, extra);
+
+/* The trace's two steps for every Particle part with its light on: { probes, cones(), report(hits) }, or null when
+   there is none. surfsBy: the trace's own surfaces, a bench each. */
+function scatterLaunch(surfsBy) {
+  const parts = project.elements.filter(e => e.type === 'particle' && e.scatLight !== false);
+  if (!parts.length) return null;
+  const B = lastTrace.beams || [], states = [];
+  for (const el of parts) {
+    const st = { el, state: 'none', S: null, key: null, cands: [], fan: null, caught: [], cones: [], waveSrc: [] };
+    states.push(st);
+    const job = scatterPrep(el);
+    if (!job) { st.state = 'dark'; continue; }
+    st.key = job.key;
+    let c = scatCache.get(el.id);
+    if (!(c && c.key === job.key) && scatModeNow() === 'sync') { scatterNow(el); c = scatCache.get(el.id); }
+    if (!c || !c.S || c.S.error || !c.S.far) { st.state = c && c.key === job.key ? 'dark' : 'wait'; continue; }
+    st.S = c.S; st.state = c.key === job.key ? 'ok' : 'stale';
+    const S = st.S, e0 = S.elPos || [el.x, el.y, zOf(el)];
+    // where it is: where the answer has it, moved with the part while a new answer is on its way
+    st.pos = [S.pos[0] + el.x - e0[0], S.pos[1] + el.y - e0[1], S.pos[2] + zOf(el) - e0[2]];
+    // each launch against the beam that drives it: the beam must still be the one the answer was worked out for
+    st.launches = S.far.F.map((F, L) => {
+      const ref = S.far.refs && S.far.refs[L], b = ref && B[ref.beam];
+      if (!b || b.src !== ref.src || b.bench !== el.bench) return null;
+      const src0 = getEl(b.src), root = src0 ? splitRoot(src0) : null;
+      if (!root) return null;
+      // the phase to turn the answer's far field by, so that it stands against the trace's own beam as it does against the answer's
+      const BF = b.coh === ref.coh ? beamFieldAt(ref.beam, st.pos[0], st.pos[1], st.pos[2]) : null;
+      let rot = null, gj0 = 0;
+      if (BF) {
+        gj0 = BF.A.gj || 0;
+        const [S3, P3] = polFrame([b.dx, b.dy, 0], b.par ? -1 : 1), E = BF.E;
+        let re = 0, im = 0;
+        // the trace's field there as the physicists write it (the faces' convention conjugated), against the answer's: sum conj(E_ref) . E_trace
+        for (let q = 0; q < 3; q++) { const vr = E[0] * S3[q] + E[2] * P3[q], vi = -(E[1] * S3[q] + E[3] * P3[q]); re += ref.E[2 * q] * vr + ref.E[2 * q + 1] * vi; im += ref.E[2 * q] * vi - ref.E[2 * q + 1] * vr; }
+        if (re * re + im * im > 0) rot = Math.atan2(im, re);
+      }
+      const t = (st.pos[0] - b.x0) * b.dx + (st.pos[1] - b.y0) * b.dy;
+      // the beam's own far-field half-angle (1/e^2), which its light fills about its way on from the particle
+      const lamM = b.nm * 1e-6 / b.n, th0 = lamM / (Math.PI * Math.sqrt(lamM * b.qi / Math.PI));
+      return { L, b, root, rot, gj0, th0, nm: b.nm, fo: b.fo || 0, coh: b.coh, gpl0: (b.gpl || 0) + (b.ng || b.n) * t, lag: lagOf(src0) };
+    }).filter(Boolean);
+    if (!st.launches.length) { st.state = 'wait'; continue; }
+    // the probe's rays: the fan, and a look at every part of the particle's bench (its cone's axis and two rings of it: SC_LOOK
+    // rays), which says which parts have a clear line to the particle; those then have every ray of their cones probed (probes2)
+    const dirs = [];
+    for (let i = 0; i < SC_PLANE; i++) { const a = 2 * Math.PI * (i + 0.5) / SC_PLANE; dirs.push([Math.cos(a), Math.sin(a), 0]); }
+    for (const sg of [1, -1]) for (const [ev, n] of SC_UP) for (let i = 0; i < n; i++) { const a = 2 * Math.PI * (i + (sg > 0 ? 0.25 : 0.75)) / n, ce = Math.cos(ev * deg); dirs.push([Math.cos(a) * ce, Math.sin(a) * ce, sg * Math.sin(ev * deg)]); }
+    st.nFan = dirs.length;
+    const byEl = new Map();
+    for (const s of surfsBy.get(el.bench) || []) { if (!byEl.has(s.el)) byEl.set(s.el, []); byEl.get(s.el).push(s); }
+    for (const [e2, ss] of byEl) {
+      if (e2 === el || e2.type === 'particle' || e2.type === 'source') continue;
+      const cone = partCone(st.pos, e2, ss);
+      if (!cone) continue;
+      const cand = { el: e2, axis: cone[0], half: cone[1], look: dirs.length, cut: [] };
+      st.cands.push(cand);
+      const t = Math.abs(cone[0][2]) < 0.9 ? [0, 0, 1] : [1, 0, 0], ex = unit3(cross3(t, cone[0])), ey = cross3(cone[0], ex);
+      dirs.push(cone[0]);
+      for (const fr of [0.55, 0.93]) for (let j = 0; j < 8; j++) { const th = fr * cone[1], ph = 2 * Math.PI * (j + (fr > 0.6 ? 0.5 : 0)) / 8, sn = Math.sin(th), c = Math.cos(th); dirs.push([0, 1, 2].map(q => sn * Math.cos(ph) * ex[q] + sn * Math.sin(ph) * ey[q] + c * cone[0][q])); }
+    }
+    st.dirs = dirs;
+    st.probe = vsrc(el, st.pos, st.launches[0].nm, st.launches[0].root, { id: el.id + '~probe', vRays: dirs.map(d => ({ d, J: [1, 0, 0, 0] })), vProbe: [] });
+  }
+  const live = states.filter(st => st.probe);
+  return {
+    probes: live.map(st => st.probe),
+    /* the second step of the probe: every ray of the cone of each part the first step saw */
+    probes2() {
+      const out = [];
+      for (const st of live) {
+        const met = st.probe.vProbe, dirs = [], seen = [];
+        for (const c of st.cands) {
+          let any = false; for (let i = 0; i < SC_LOOK; i++) { const m = met[c.look + i]; if (m && m.el === c.el.id) any = true; }
+          if (!any) continue;
+          c.G = coneDirs(c.axis, c.half); c.at = dirs.length; seen.push(c);
+          for (let i = 0; i < c.G.n; i++) dirs.push([c.G.dirs[3 * i], c.G.dirs[3 * i + 1], c.G.dirs[3 * i + 2]]);
+          // Where a driving beam goes on into this cone and is narrow in it, the cone's rays are too far apart to add to it as a
+          // field (the two interfere only over the beam's own footprint): a patch about the beam's way, SC_PATCH of its far-field
+          // radii wide, has rays of its own, and the cone leaves that patch out
+          for (const La of st.launches) {
+            const d0 = [La.b.dx, La.b.dy, 0], hp = SC_PATCH * La.th0, off = Math.acos(Math.max(-1, Math.min(1, d0[0] * c.axis[0] + d0[1] * c.axis[1] + d0[2] * c.axis[2])));
+            if (!(hp < c.half / 3) || off + hp > c.half || c.cut.some(q => q.axis[0] * d0[0] + q.axis[1] * d0[1] > Math.cos(q.half + hp))) continue;
+            const Gp = coneDirs(d0, hp), patch = { el: c.el, axis: d0, half: hp, G: Gp, at: dirs.length, cut: [], patch: true };
+            c.cut.push(patch); seen.push(patch);
+            for (let i = 0; i < Gp.n; i++) dirs.push([Gp.dirs[3 * i], Gp.dirs[3 * i + 1], Gp.dirs[3 * i + 2]]);
+          }
+        }
+        st.cands = seen; st.dirs2 = dirs;
+        st.probe2 = vsrc(st.el, st.pos, st.launches[0].nm, st.launches[0].root, { id: st.el.id + '~probe2', vRays: dirs.map(d => ({ d, J: [1, 0, 0, 0] })), vProbe: [] });
+        if (dirs.length) out.push(st.probe2);
+      }
+      return out;
+    },
+    cones() {
+      const out = [];
+      for (const st of live) {
+        const S = st.S, el = st.el, met0 = st.probe.vProbe, met = st.probe2.vProbe, nMed = S.nMed || 1;
+        // each part's cone: the rays that met it first, and the power of every launch into them
+        for (const c of st.cands) {
+          const keep = [];
+          for (let i = 0; i < c.G.n; i++) {
+            const m = met[c.at + i];
+            if (!m || m.el !== c.el.id) continue;
+            if (c.cut.some(q => c.G.dirs[3 * i] * q.axis[0] + c.G.dirs[3 * i + 1] * q.axis[1] + c.G.dirs[3 * i + 2] * q.axis[2] > Math.cos(q.half))) continue;   // in a patch: the patch's own rays stand for it
+            keep.push(i);
+          }
+          if (!keep.length) continue;
+          const dirs = new Float64Array(3 * keep.length), w = new Float64Array(keep.length);
+          let far = 0;
+          keep.forEach((i, q) => { for (let m = 0; m < 3; m++) dirs[3 * q + m] = c.G.dirs[3 * i + m]; w[q] = c.G.w[i]; far = Math.max(far, met[c.at + i].t); });
+          const amps = st.launches.map(La => coneAmps(S.far, La.L, nMed, dirs, w, La.rot || 0));
+          const P = amps.reduce((a, A) => a + A.P.reduce((x, y) => x + y, 0), 0);
+          st.caught.push({ c, keep, dirs, w, amps, P, far });
+        }
+        st.caught.sort((a, b) => b.P - a.P);
+        st.caught.forEach((K, n) => {
+          K.followed = n < SC_MAX_CONES + 2;
+          if (!K.followed) return;
+          const c = K.c, eps = Math.min(SC_EPS, c.half / 50);
+          st.launches.forEach((La, li) => {
+            const A = K.amps[li], Pc = A.P.reduce((x, y) => x + y, 0);
+            if (!(Pc > 0)) return;
+            const vRays = [];
+            K.keep.forEach((i, q) => {
+              const d = [K.dirs[3 * q], K.dirs[3 * q + 1], K.dirs[3 * q + 2]], J = [A.J[4 * q], A.J[4 * q + 1], A.J[4 * q + 2], A.J[4 * q + 3]];
+              let e1 = cross3(c.axis, d);
+              if (Math.hypot(e1[0], e1[1], e1[2]) < 1e-9) e1 = cross3(Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0], d);
+              e1 = unit3(e1);
+              const e2 = cross3(d, e1);
+              vRays.push({ d, J, draw: c.G.flat[i] ? 1 : 2, sa: K.w[q] },
+                { d: unit3([d[0] + eps * e1[0], d[1] + eps * e1[1], d[2] + eps * e1[2]]), J, draw: 0 },
+                { d: unit3([d[0] + eps * e2[0], d[1] + eps * e2[1], d[2] + eps * e2[2]]), J, draw: 0 });
+            });
+            // (a launch whose phase against its beam is not known, a beam of several modes, is light of its own: it adds as power)
+            const v = vsrc(el, st.pos, La.nm, La.root, { id: el.id + '~s' + st.cones.length, angle: Math.atan2(c.axis[1], c.axis[0]) / deg, rays: K.keep.length,
+              power: Pc * 1e3, vLp: A.top * 1e3, vLag: La.lag, vKey: La.rot === null ? La.coh + '#sc' : La.coh, vFo: La.fo, vRays,
+              scat: { part: el.id, to: c.el.id, coh: La.rot === null ? null : La.coh, launch: La.L, eps, gpl0: La.gpl0, lag: La.lag, gj0: La.gj0, P: Pc, sr: K.w.reduce((x, y) => x + y, 0) } });
+            st.cones.push(v); out.push(v);
+          });
+        });
+        // a focus's own plane waves, each as a ray along its way from the particle: where it lands, the scattered light meets
+        // the unscattered beam and takes (or gives) that wave's share of the extinction (scatter.js, waveInt). Unit rays,
+        // polarised as the wave is: what reaches a face of each is the share of that power that does
+        for (const La of st.launches) {
+          const Wv = S.far.waves && S.far.waves[La.L];
+          if (!Wv || La.rot === null) continue;
+          const vRays = [];
+          for (let o = 0; o < Wv.n; o++) {
+            const d = unit3([Wv.d[3 * o], Wv.d[3 * o + 1], Wv.d[3 * o + 2]]), [S3, P3] = polFrame(d, 1), e = Wv.e, q = 6 * o;
+            const J = [e[q] * S3[0] + e[q + 2] * S3[1] + e[q + 4] * S3[2], e[q + 1] * S3[0] + e[q + 3] * S3[1] + e[q + 5] * S3[2], e[q] * P3[0] + e[q + 2] * P3[1] + e[q + 4] * P3[2], e[q + 1] * P3[0] + e[q + 3] * P3[1] + e[q + 5] * P3[2]], l = Math.hypot(J[0], J[1], J[2], J[3]) || 1;
+            vRays.push({ d, J: J.map(v => v / l), draw: 0 });
+          }
+          const v = vsrc(el, st.pos, La.nm, La.root, { id: el.id + '~w' + La.L, rays: Wv.n, power: 0, vLp: 0, vKey: La.coh + '#sw', vFo: La.fo, vRays,
+            scat: { part: el.id, wave: true, coh: La.coh, launch: La.L, p: Wv.p } });
+          st.waveSrc.push(v); out.push(v);
+        }
+        // the fan: each ray to what it meets, or as far as the farthest part that catches light, as bright as the pattern is along it
+        const nF = st.nFan, fd = new Float64Array(3 * nF);
+        for (let i = 0; i < nF; i++) for (let m = 0; m < 3; m++) fd[3 * i + m] = st.dirs[i][m];
+        const I = new Float64Array(nF);
+        for (const La of st.launches) { const F = farAt(S.far, La.L, fd); for (let i = 0; i < nF; i++) for (let q = 0; q < 6; q++) I[i] += F[6 * i + q] ** 2; }
+        let top = 0; for (let i = 0; i < nF; i++) top = Math.max(top, I[i]);
+        const reach = Math.max(5, Math.min(60, 1.15 * st.caught.reduce((a, K) => Math.max(a, K.far), 0)));
+        const rays = new Float32Array(5 * nF);
+        for (let i = 0; i < nF; i++) { const m = met0[i]; rays.set([st.dirs[i][0], st.dirs[i][1], st.dirs[i][2], m ? Math.min(m.t, 4 * reach) : reach, top > 0 ? I[i] / top : 0], 5 * i); }
+        st.fan = { part: el.id, bench: el.bench, pos: st.pos, colour: wavelengthColour(st.launches[0].nm), nPlane: SC_PLANE, n: nF, rays, on: el.scatFan !== false };
+      }
+      return out;
+    },
+    report(hits) {
+      const R = { parts: {}, fans: [], hits };
+      for (const st of states) {
+        const S = st.S, Psca = S && S.Psca > 0 ? S.Psca : 0;
+        // a row a part: its cone, with any patch of it
+        const rows = [];
+        for (const K of st.caught) {
+          const r0 = rows.find(r => r.id === K.c.el.id);
+          if (r0) { r0.P += K.P; r0.share = Psca > 0 ? r0.P / Psca : 0; r0.rays += K.keep.length; r0.followed = r0.followed && K.followed; if (!K.c.patch) { r0.axis = K.c.axis; r0.halfDeg = K.c.half / deg; } }
+          else rows.push({ id: K.c.el.id, name: K.c.el.name, P: K.P, share: Psca > 0 ? K.P / Psca : 0, followed: K.followed, rays: K.keep.length, axis: K.c.axis, halfDeg: K.c.half / deg });
+        }
+        rows.sort((a, b) => b.P - a.P);
+        const got = rows.reduce((a, r) => a + r.P, 0);
+        R.parts[st.el.id] = { state: st.state, key: st.key, pos: st.pos || null, Psca, rows, caught: got, lost: Math.max(0, Psca - got), lostShare: Psca > 0 ? Math.max(0, 1 - got / Psca) : 0,
+          cones: st.cones.map(v => v.id), probed: (st.dirs ? st.dirs.length : 0) + (st.dirs2 ? st.dirs2.length : 0), launched: st.cones.concat(st.waveSrc).reduce((a, v) => a + v.vRays.length, 0) };
+        if (st.fan) R.fans.push(st.fan);
+      }
+      return R;
+    },
+  };
 }
 /* ---------- An RF lens as an antenna, from the bench's own diffracted field ----------
    The field engine carries the horn's field (its modes, as launched) through the lens: each face
@@ -49774,7 +50675,7 @@ function trapReport(el, T) {
   const out = { I, dx: T.x, dy: T.y, dz: T.z, fx: T.fx, fy: T.fy, fz: T.fz, k: T.k, U: T.U, depthK: -T.U / KB, depthHz: -T.U / HPL,
     trap: T.trap, converged: T.converged, nMed: T.nMed, nBench: T.nBench, beams: T.beams, launches: T.launches, skipped: T.skipped, mass: T.mass, away: T.away };
   if (T.isAtom) {
-    const nm = el.trap && lastTraceNm(el);
+    const nm = el.trap && (T.nm || lastTraceNm(el));
     out.sc = T.alpha[1] * T.E2 / (2 * HBAR);                            // photons/s
     const k = 2 * Math.PI / (nm * 1e-9), Erec = HBAR * HBAR * k * k / (2 * T.mass);
     out.heat = (2 * Erec / KB) * out.sc / 3;
@@ -49788,7 +50689,7 @@ function trapReport(el, T) {
     out.np = S.np; out.kap = S.kap || 0; out.m = S.m; out.ka = S.ka;
     const rEq = particleOf(el).rEq;
     // damping by the medium, and each direction's quality factor
-    const water = Math.abs(T.nMed - refIndex({ glass: 'Water' }, lastTraceNm(el))) < 0.01;
+    const water = Math.abs(T.nMed - refIndex({ glass: 'Water' }, T.nm || lastTraceNm(el))) < 0.01;
     if (el.trapMed === 'air') { const g = gasDamping(rEq, T.mass, el.trapP, el.trapT); out.G = g.G; out.mfp = g.l; out.Kn = g.Kn; out.dampBy = 'air'; }
     else if ((el.trapMed === 'bench' || el.trapMed === 'water') && water) { out.G = waterDamping(rEq, T.mass, el.trapT); out.dampBy = 'water'; }
     else { out.G = 0; out.dampBy = el.trapMed === 'vacuum' ? 'vacuum' : 'none'; }
@@ -49826,7 +50727,7 @@ function partSettings(el) {
 const col = (name, unit, values, type) => ({ name, unit: unit || '', values, ...(type ? { type } : {}) });
 const isRf = () => benchNms().some(nm => nm > 1e5);
 const isAntenna = el => (el.type === 'lens' && (el.mmw || el.grin) && isRf()) || (el.type === 'mirror' && isRf() && (F => !!F && !F.h)(mirrorFocus(el)));
-const readoutParts = () => project.elements.filter(el => el.type === 'screen' || el.type === 'detector' || el.type === 'spectrometer' || isAntenna(el));
+const readoutParts = () => project.elements.filter(el => el.type === 'screen' || el.type === 'detector' || el.type === 'spectrometer' || el.type === 'particle' || isAntenna(el));
 
 /* ---------- Readouts: every screen, detector, spectrometer and antenna on the bench, as one long table ---------- */
 function readoutsData() {
@@ -49879,6 +50780,19 @@ function readoutsData() {
         add(el, 'Scattered light collected', S.collect.frac, '', 'share into NA ' + S.collect.na); add(el, 'Scattered power collected', S.collect.P, 'W');
         if (S.dda) { add(el, 'Dipoles', S.dda.N, ''); add(el, 'Dipole spacing', S.dda.d, 'nm'); add(el, '|m|kd', S.dda.mkd, ''); }
       }
+    } else if (el.type === 'particle') {
+      // a Particle part: its scattering where it has been worked out, and where its scattered light goes on the bench
+      const S = scatterCached(el), R = lastTrace.scat && lastTrace.scat.parts[el.id];
+      if (S && !S.error) {
+        add(el, 'Scattering model', ({ mie: 'Lorenz–Mie', dda: 'dipole array', rayleigh: 'Rayleigh' })[S.model]);
+        add(el, 'Scattering cross-section', S.Csca, 'm²'); add(el, 'Extinction cross-section', S.Cext, 'm²'); add(el, 'Absorption cross-section', S.Cabs, 'm²');
+        add(el, 'Power scattered', S.Psca, 'W'); add(el, 'Power absorbed', S.Pabs, 'W'); add(el, 'Irradiance at the particle', S.I0, 'W/m²');
+        add(el, 'Scattered forward', S.fwd, '', 'share of the scattered power'); add(el, 'Scattered back', S.back, '', 'share of the scattered power');
+      }
+      if (R && R.state === 'ok') {
+        for (const r of R.rows) { add(el, 'Scattered light caught by ' + r.name, r.share, '', 'share of the scattered power'); add(el, 'Scattered power caught by ' + r.name, r.P, 'W'); }
+        add(el, 'Scattered light not collected', R.lostShare, '', 'share of the scattered power'); add(el, 'Scattered power not collected', R.lost, 'W');
+      }
     } else if (el.type === 'detector') {
       const r = detectorReading(el);
       if (el.mmw) {
@@ -49892,6 +50806,8 @@ function readoutsData() {
       } else {
         add(el, 'Power', r.mw, 'mW'); add(el, 'Photocurrent', r.mA, 'mA'); add(el, 'Output', r.V, 'V'); add(el, 'Saturated', !!r.sat);
         add(el, 'Noise, rms', r.noiseV, 'V'); add(el, 'Signal to noise', r.snr, 'dB'); add(el, 'From the cavity’s field', !!viaCavity(el));
+        if (el.quad) { add(el, 'Right less left', r.X, 'mW'); add(el, 'Top less bottom', r.Y, 'mW'); }
+        if (r.scat) { add(el, 'Scattered light on it', r.scat.mw - r.scat.cross, 'mW', 'a particle’s'); add(el, 'Its interference with the beam', r.scat.cross, 'mW'); }
       }
     } else if (el.type === 'spectrometer') {
       const r = specReading(el);
@@ -53528,6 +54444,7 @@ const PART_USES = {
   gain: USE_AMP + ' laser medium crystal rod pump cavity lasing',
   cell: 'atoms vapour vapor absorption spectroscopy rubidium caesium cesium potassium resonance saturated',
   nlc: 'frequency doubling second harmonic shg nonlinear convert colour green ppln ppktp',
+  particle: 'scatter scattering sphere nanoparticle rod bead dust levitate tweezers mie rayleigh dipole collect position',
   fibre: 'fibre fiber coupling launch end face tip connect free space',
   collimator: 'fibre fiber collimate launch couple out to free space connect',
   detector: USE_DETECT,
@@ -57095,6 +58012,8 @@ const NEWS = [
     '<b>Export figure</b>: a name you placed by hand keeps its place unless it stands where another part’s name has to go; then it is set with the rest, if that leaves fewer names led out on lines.',
     '<b>Export figure</b>: ports are small dots; a fibre part’s value (1550 nm, 25 dB, 1 GHz) is given with its name, not as a small tag that the figure’s scale could put under something; <b>Light</b> can be <b>Left out</b>; a beam that leaves the bench with nothing to meet is drawn a short way and stops; a name that has to be led out goes where its line is shortest and crosses least.',
     'A fibre tip’s own fibre is drawn as far as its port: zoomed out, and on an exported figure, there was a gap between the tip and the fibre joined to it.',
+    '<b>Particle</b>, a new part (Add, Active and atomic): one small sphere, rod or spheroid placed anywhere on the bench, in whatever light reaches it. The light passes it untouched, and what it scatters goes on to the parts that can see it. Each such part is sent a cone of rays carrying the scattered field: its power in that solid angle, its polarisation and its phase, as light of the laser that drives the particle. A collection lens collimates it, a photodetector reads it and adds it to the unscattered beam as a field, a fibre tip takes its overlap with its mode. The particle’s <b>Scattering</b> tab lists the share of the scattered power each part catches and what none does; its <b>Trap</b> tab reads the trap the light makes for it. A faint fan shows the pattern in every direction, in 2D and over the whole sphere in 3D, and the Particle tab switches it off. A photodetector can be <b>Split in four</b>, to read right less left and top less bottom: behind a collection lens that is the position signal of a particle in a focus. A screen can still hold a particle, as before. The example <i>Light scattered by a 300 nm sphere</i> now has the particle, two collection lenses and two detectors. In scripts, <code>scattered(name)</code> gives the shares.',
+    '<b>A part\u2019s own colours</b>: every part\u2019s panel has a <b>Colours</b> section with a <b>Line colour</b> and a <b>Fill colour</b> (and Default, to go back). The part is drawn in them on the bench and in every export; its glass stays as see-through as it was. Several parts selected together take a colour at once. <b>Export figure</b>, Journal and Technical drawing, has <b>Parts</b>: In their colours, or <b>Black and white</b> (black lines, white fills, the light still in its colour unless Light is Black too).',
     '<b>Export figure</b>, Journal and Technical drawing: the names are all one size (a name scaled on the bench no longer carries its scale into the figure), each is set clear of the parts and of the other names, with a thin line to its part when it has to go further out, a name at the edge is no longer cut, and the ports’ names are left out unless <b>Port names</b> is set to Shown. A bench too crowded for names is numbered, with a key under the figure (<b>Names</b>).',
     'Faster on benches with a multimode fibre and a broad spectrum (an amplifier’s spontaneous emission, a modulator’s sidebands): the light coupled back into a multimode tip is worked out once for each beam that has not moved, and many times faster when it has; in 3D, beams that run the same path at the same size are drawn as one envelope. A fibre EOM no longer puts sidebands on an amplifier’s spontaneous emission (a slice of it is far wider than the drive frequency, so they changed nothing but the number of beams to follow). A bench that took 13 s to open and 8 to 12 s to answer a moved part now takes under 2 s and about a third of a second, with the same readings.',
     '<b>Scattering by a particle</b>: a screen’s new <b>Scattering</b> tab gives the light one small particle scatters. A sphere is worked out exactly (Lorenz–Mie); a rod with flat or round ends or a spheroid, at any orientation, as an array of dipoles (the discrete dipole approximation, run in the background with a Stop); and a single dipole (Rayleigh) is kept beside them to compare. The light is what the bench puts on the particle: a tight focus as its full vector field, every sample of its pupil a plane wave onto the particle, so the particle may sit off the focus; a gentler beam as a plane wave; beams of one laser added as fields. It reads the scattering, extinction and absorption cross-sections, efficiencies and asymmetry, the power scattered, the forward and back shares and the share a lens of a given NA would collect, with polar plots in the bench plane and out of it and a map over every direction. The particle is the Trap tab’s, now with a shape, gold, silver and aluminium among its materials, and water as a medium. In 3D the particle is drawn in its shape and orientation, enlarged so it shows. In a script, <code>JEKray.scatter(name)</code> and <code>JEKray.mie(x, mr, mi, angles)</code>. A new example, <b>Light scattered by a 300 nm sphere</b>, and two cases on the validation page.',
@@ -57421,7 +58340,7 @@ const EXAMPLES = [
     ['optical-lattice', 'Two-dimensional optical lattice', 'Four beams make a grid of traps.'],
     ['optical-tweezers', 'Optical tweezers in water', 'A bead held by an NA 1.2 objective: stiffness and forces.'],
     ['levitated-nanoparticle', 'Levitated nanoparticle in air', 'A 150 nm silica sphere held in vacuum by a tight focus.'],
-    ['scattering-sphere', 'Light scattered by a 300 nm sphere', 'A silica sphere in a tight 1550 nm focus: its cross-sections, and where the light it scatters goes.']]],
+    ['scattering-sphere', 'Light scattered by a 300 nm sphere', 'A silica sphere in a tight 1550 nm focus: the light it scatters collected ahead and at 90°, and a split detector that reads its place.']]],
   ['Pulses', false, [
     ['pulse-compressor', 'Grating pulse compressor', 'A grating pair takes a chirped pulse back to its transform limit.'],
     ['fibre-solitons', 'Self-phase modulation and a soliton', 'The same pulse broadens in one fibre and holds its shape in another.']]],
@@ -58089,7 +59008,7 @@ function scriptCalls() {
     // a receiving horn against frequency, and its link budget (RF)
     rfSweep(name) { return rfSweep(this.byName(name)); },
     linkBudget(name) { return linkBudget(this.byName(name)); },
-    detector(name) { const el = this.byName(name), r = detectorReading(el); return { mw: r.mw, field: r.field, pending: r.pending, via: viaCavity(el), V: r.V, snr: r.snr, ifMw: r.ifMw, mds: r.mds, rf: r.rf ? { eff: r.rf.eff, inMw: r.rf.inMw, mw: r.rf.mw, lines: r.rf.lines } : null }; },
+    detector(name) { const el = this.byName(name), r = detectorReading(el); return { mw: r.mw, X: r.X, Y: r.Y, scattered: r.scat ? { mw: r.scat.mw, interference: r.scat.cross } : null, field: r.field, pending: r.pending, via: viaCavity(el), V: r.V, snr: r.snr, ifMw: r.ifMw, mds: r.mds, rf: r.rf ? { eff: r.rf.eff, inMw: r.rf.inMw, mw: r.rf.mw, lines: r.rf.lines } : null }; },
     // an RF lens as an antenna, from the bench's field: worked out now and kept for its panel
     lensAntenna(name) {
       traceScene(); const A = antennaNow(this.byName(name), 'ant');
@@ -58110,7 +59029,18 @@ function scriptCalls() {
     /* Lorenz-Mie for a sphere of size parameter x = k a and relative index mr + i mi: Qext, Qsca, Qabs, Qback, g, and S
        (each [S1 re, S1 im, S2 re, S2 im]) at the angles given (degrees), as Bohren and Huffman write them */
     mie(x, mr, mi, angles) { const C = mieCoeffs(+x, +mr, +mi || 0); return Object.assign(mieQ(C), { terms: C.n, S: (angles || []).map(a => mieS(C, Math.cos(a * Math.PI / 180))) }); },
-    scatter(name, opts) { traceScene(); const el = this.byName(name); if (!el) throw new Error('No part called ' + name); const S = scatterNow(el, opts); return S ? scatterPlain(S) : null; },
+    scatter(name, opts) { traceScene(); const el = this.byName(name); if (!el) throw new Error('No part called ' + name); const S = (!opts && scatterCached(el)) || scatterNow(el, opts); return S ? scatterPlain(S) : null; },
+    /* where a Particle part's scattered light goes on the bench: its scattered power (W), a row for each part that catches some
+       ({ name, share of the scattered power, P in W, followed: traced on as rays }), and what no part catches (lost, lostShare).
+       state: "ok", or "dark" (no light reaches the particle); null for a part that is not a Particle or has its light off */
+    scattered(name) {
+      const el = this.byName(name); if (!el) throw new Error('No part called ' + name);
+      if (el.type !== 'particle' || el.scatLight === false) return null;
+      traceScene();
+      if (!scatterCached(el) && scatterPrep(el)) { scatterNow(el); traceScene(); }           // (the page's own trace does not wait for a run: here it is done)
+      const R = lastTrace.scat && lastTrace.scat.parts[el.id];
+      return R ? { state: R.state, Psca: R.Psca, rows: R.rows.map(r => ({ name: r.name, share: r.share, P: r.P, followed: r.followed, halfDeg: r.halfDeg })), lost: R.lost, lostShare: R.lostShare } : null;
+    },
     asmPrescription(name) { const a = assemblies().find(x => x.name === name); return a ? JSON.parse(JSON.stringify(asmPrescription(a))) : null; },
     // (the lens engine's first order: it follows folds and mirrored faces, which the bench's paraxial helper does not)
     asmEfl(name) { const a = assemblies().find(x => x.name === name); if (!a) return null; const P = asmPrescription(a), nm = a.cond.waves[a.cond.primary].nm; return P.folded ? lensSystem(P, nm, {}).par.efl : asmParaxial(P, nm, paraxial).efl; },
@@ -58134,7 +59064,7 @@ function scriptCalls() {
 const KEY = 'jek-raytracer-scripts', LANG_KEY = 'jek-raytracer-scripts-lang';
 const SCRIPT_LANGS = [['js', 'JavaScript'], ['py', 'Python']];
 // the calls a script may make, from the page's own (ui/boot.js): the stable set the documentation lists
-const CALLS = ['load', 'serialize', 'trace', 'select', 'stats', 'detector', 'scatter', 'mie', 'lensAntenna', 'rfSweep', 'linkBudget', 'arrivals', 'asmPrescription', 'asmEfl',
+const CALLS = ['load', 'serialize', 'trace', 'select', 'stats', 'detector', 'scatter', 'scattered', 'mie', 'lensAntenna', 'rfSweep', 'linkBudget', 'arrivals', 'asmPrescription', 'asmEfl',
   'exportZmx', 'sweepPlay', 'sweepPause', 'typeLabel', 'benches', 'showTab', 'paraxial', 'metric', 'diffraction', 'getParam', 'setParam',
   'setFibre', 'rays', 'distance', 'hitsOn', 'bendDbPerTurn', 'setView', 'kiosk', 'renderPNG'];
 
@@ -60157,6 +61087,7 @@ function scriptWorkerMain() {
     const saves = [];
     try {
       if (m.mods) modAbsorb(m.mods);                       // the mods' results the page has (their code never runs here)
+      setScatMode('sync');                                  // a script's readings hold a particle's scattered light: worked out here as it is needed
       loadProject(JSON.parse(m.proj)); setLastTraceKey(null); traceScene();
       const key0 = snapshot(), tab0 = project.tab, ops = [], st = { loaded: false, pageOnly: '' };
       const P = Object.assign(scriptCalls(), workerCalls(ops, st));
@@ -60212,8 +61143,9 @@ function workerMain() {
         if (!J) out = { key: null, S: null };
         else {
           const g = scatterGen(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }));
-          let r = g.next(), t = 0;
-          while (!r.done) { const now = Date.now(); if (now - t > 100) { t = now; self.postMessage({ id, prog: r.value }); } r = g.next(); }
+          // (its progress ten times a second, and each new stage as it starts, however short the one before it was)
+          let r = g.next(), t = 0, stage = '';
+          while (!r.done) { const now = Date.now(); if (now - t > 100 || r.value.stage !== stage) { t = now; stage = r.value.stage; self.postMessage({ id, prog: r.value }); } r = g.next(); }
           out = { key: J.key, S: r.value };
         }
       } else if (kind === 'detector') {
@@ -60703,7 +61635,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireFilmCoats(); wireMods(); wireView3d(); wireMate3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline, vecLightLayer: () => lightLayer }); wireCommands(); wireRecent();
+wireRender(); wireScatter(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireFilmCoats(); wireMods(); wireView3d(); wireMate3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline, vecLightLayer: () => lightLayer }); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 

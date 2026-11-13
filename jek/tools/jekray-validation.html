@@ -2492,7 +2492,8 @@ const ALL_CASES = [
       for (const [name, label] of [['tight', 'tight focus (NA 0.8)'], ['gentle', 'gentle focus']]) {
         const C = R.cases[name];
         for (const pol of name === 'tight' ? ['s', 'p'] : ['s']) {
-          const Rf = C[pol], I = [], Ps = [], Pe = [], dF = [], dB = [], full = pol === 's';
+          // (polarised out of the plane: the reference with the particle driven also by its own returned light, as JEKray takes it)
+          const Rf = pol === 's' ? C.s_ret : C[pol], I = [], Ps = [], Pe = [], dF = [], dB = [], full = pol === 's';
           for (let i = 0; i < 9; i++) {
             const data = open(C, { pol, step: i, light: full }), S = J.scatter('Particle');
             if (i === 0 && pol === 's') {

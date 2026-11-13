@@ -137,6 +137,7 @@ const FLAG_TEXT = {
   varies: 'The beam changes across the particle but is taken as one plane wave (it is too gently focused for the vector focus model, above NA 0.3): rough for this size.',
   skipped: 'A beam through here was left out: no field could be taken for it.',
   notrap: 'No stable trap was found, so the particle is where the beam meets the screen.',
+  cavity: 'Scattering inside a cavity is not modelled: the light here comes back to the particle more than once, and these readings take its scattered light back to it once only.',
 };
 /* the readout's rows for an answer */
 function scatterRows(el, S) {

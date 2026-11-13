@@ -236,63 +236,158 @@ export function arrivalField(A, u, v0) {
 }
 /* ---------- A particle's scattered light on a face ----------
    The cones the trace launched from a Particle part (engines/scatter-light.js) arrive as rays, kept apart from the
-   rays a face records (lastTrace.scat.hits). Each ray of a cone landed with two companions a hair to either side of
-   it at launch; the three give the area dA the ray's tube has on the face, so the ray's power p is a field of
-   amplitude sqrt(p / dA) there, with the ray's own polarisation and the phase of its optical path. An integral
-   over the face of that field against anything smooth is then a sum over the rays, f(u_i, v_i) sqrt(p_i dA_i):
-   so it adds to the Gaussian beams of its own coherence family as a field, on a photodiode (and each half of
-   one) and in a fibre's mode. Geometric: right where the cone is wide on the face against a wavelength, as it is
-   after a collimating lens or straight from the particle, and not at a focus (a fibre's mode is taken a little
-   way back from the tip for that: scatModeAmp). Two cones on one face add as powers with each other.
-   Gives the cones on a face: [{ src, coh, lmw (mW a ray of unit power carries), nm, gpl0, lag, rays: [{ u, v (on the
-   face, mm), pw, dA (0 when a companion missed), E (the field's vector on the bench's axes, 6 numbers, in the
-   faces' convention, |E|^2 = pw), opl, d (its way), h (the three hits) }] }] */
+   rays a face records (lastTrace.scat.hits). A cone's rays are a grid, rings by spokes about its axis, and each ray
+   knows its place in it. How the landing points change from ring to ring and from spoke to spoke gives the area dA
+   a ray's tube has on the face (coneDeriv), so the ray's power p is a field of amplitude sqrt(p / dA) there, with the
+   ray's own polarisation and the phase of its optical path. An integral over the face of that field against
+   anything smooth is then a sum over the rays, f(u_i, v_i) sqrt(p_i dA_i): so it adds to the Gaussian beams of its
+   own coherence family as a field, on a photodiode (and each half of one) and in a fibre's mode. Between its rays
+   the field is the nearest ray's, with the phase carried on to second order from the ray's own direction and how
+   the directions change across the face (bundleAt): so two cones of one family that land on one face add as fields
+   too. Geometric: right where the cone is wide on the face against a wavelength, as it is after a collimating lens
+   or straight from the particle, and not at a focus (a fibre's mode is taken a little way back from the tip for
+   that: scatModeAmp).
+   Gives the bundles on a face, one for each cone and each way it came by: [{ src, coh, lmw (mW a ray of unit power
+   carries), nm, gpl0, lag, rays: [{ u, v (on the face, mm), gu, gv (the ray's direction along the face: the slope of
+   its optical path there), pw, dA (0 where its neighbours did not land), E (the field's vector on the bench's
+   axes, 6 numbers, in the faces' convention, |E|^2 = pw), opl, d (its way), h (its hit, in a list), ri, sj (its ring and spoke) }] }] */
 const facePoint = (el, f, x, y, z) => {
   let [lx, u] = toLocal(f, x, y), v = z - zOf(el);
   if (el.tip || el.roll) { const F = { tip: (el.tip || 0) * deg, roll: (el.roll || 0) * deg }, [, qz0] = tipFrame(F, lx, v); [u, v] = rollFrame(F, u, qz0); }
   return [u, v];
 };
+// a direction's parts along the face (u, v)
+const faceDir = (el, f, d) => {
+  let [lx, u] = toLocalDir(f, d[0], d[1]), v = d[2];
+  if (el.tip || el.roll) { const F = { tip: (el.tip || 0) * deg, roll: (el.roll || 0) * deg }, [, qz0] = tipFrame(F, lx, v); [u, v] = rollFrame(F, u, qz0); }
+  return [u, v];
+};
+// the weights that give a derivative at xs[i] from values at the points xs (Lagrange's polynomial through them all)
+function lagrangeD(xs, i) {
+  const n = xs.length, w = new Float64Array(n);
+  for (let k = 0; k < n; k++) {
+    if (k === i) { for (let m = 0; m < n; m++) if (m !== i) w[i] += 1 / (xs[i] - xs[m]); continue; }
+    let num = 1, den = 1;
+    for (let m = 0; m < n; m++) { if (m !== i && m !== k) num *= xs[i] - xs[m]; if (m !== k) den *= xs[k] - xs[m]; }
+    w[k] = num / den;
+  }
+  return w;
+}
+// the weights of a periodic function's derivative from its n even samples (its Fourier series differentiated): by offset
+const FOURIER_D = new Map();
+function fourierD(n) {
+  let w = FOURIER_D.get(n);
+  if (!w) { w = new Float64Array(n); for (let q = 0; q < n; q++) for (let m = 1; m < n / 2; m++) w[q] -= 2 * m / n * Math.sin(2 * Math.PI * m * q / n); FOURIER_D.set(n, w); }
+  return w;
+}
+/* How a quantity of two numbers a ray (get(ray): where it lands, say) changes over a cone's grid: for each ray
+   [d/dtheta of both, d/dphi of both], or null where too few neighbours landed. Along a spoke, the polynomial through
+   every ray of it that landed (the rings are Gauss-Legendre nodes: with all eight it is as good as the map is
+   smooth). Round a ring, its Fourier series when the whole ring landed, else the polynomial through the neighbours
+   within two spokes. */
+export function coneDeriv(B, get) {
+  const G = B.grid, nT = G.th.length, nP = G.nP, at = new Array(nT * nP).fill(null), out = new Map();
+  for (const r of B.rays) at[r.ri * nP + r.sj] = r;
+  const val = new Map();
+  for (const r of B.rays) val.set(r, get(r));
+  const dT = new Map(), dP = new Map();
+  for (let j = 0; j < nP; j++) {
+    const idx = []; for (let i = 0; i < nT; i++) if (at[i * nP + j]) idx.push(i);
+    if (idx.length < 2) continue;
+    const xs = idx.map(i => G.th[i]);
+    idx.forEach((i, q) => {
+      const w = lagrangeD(xs, q); let a = 0, b = 0;
+      idx.forEach((i2, k) => { const v = val.get(at[i2 * nP + j]); a += w[k] * v[0]; b += w[k] * v[1]; });
+      dT.set(at[i * nP + j], [a, b]);
+    });
+  }
+  for (let i = 0; i < nT; i++) {
+    const row = []; let all = true;
+    for (let j = 0; j < nP; j++) { const r = at[i * nP + j]; row.push(r); if (!r) all = false; }
+    if (all) {
+      // the ring's Fourier series, term by term (the Nyquist term has no derivative): as one sum over the ring a ray,
+      // d v / d phi at spoke j = sum over spokes q of FD[(q - j) mod nP] v_q
+      const FD = fourierD(nP);
+      for (let j = 0; j < nP; j++) {
+        let a = 0, b = 0;
+        for (let q = 0; q < nP; q++) { const w = FD[((q - j) % nP + nP) % nP], v = val.get(row[q]); a += w * v[0]; b += w * v[1]; }
+        dP.set(row[j], [a, b]);
+      }
+    } else for (let j = 0; j < nP; j++) {
+      if (!row[j]) continue;
+      const ks = []; for (let q = -2; q <= 2; q++) if (row[((j + q) % nP + nP) % nP]) ks.push(q);
+      if (ks.length < 2) continue;
+      const xs = ks.map(q => 2 * Math.PI * q / nP), w = lagrangeD(xs, ks.indexOf(0)); let a = 0, b = 0;
+      ks.forEach((q, k) => { const v = val.get(row[((j + q) % nP + nP) % nP]); a += w[k] * v[0]; b += w[k] * v[1]; });
+      dP.set(row[j], [a, b]);
+    }
+  }
+  for (const r of B.rays) { const t = dT.get(r), p = dP.get(r); out.set(r, t && p ? [t[0], t[1], p[0], p[1]] : null); }
+  return out;
+}
+/* each ray's tube area where get(ray) puts it: |d(x)/d(theta) x d(x)/d(phi)| / sin(theta) for each steradian it stands for */
+function tubeAreas(B, get) {
+  const D = coneDeriv(B, get), out = new Map();
+  for (const r of B.rays) { const d = D.get(r), s = Math.sin(B.grid.th[r.ri]); out.set(r, d && s > 0 ? Math.abs(d[0] * d[3] - d[1] * d[2]) / s * r.sa : 0); }
+  return out;
+}
 export function scatFace(el) {
   const SC = lastTrace.scat, H = SC && SC.hits && SC.hits[el.id];
   if (!H || !H.length) return [];
   return deviceMemo(el, () => {
-    const f = frame(el), bySrc = new Map();
-    for (const h of H) {
-      let M = bySrc.get(h.sid); if (!M) bySrc.set(h.sid, M = new Map());
-      const k = Math.floor(h.k / 3) + '|' + h.path;
-      let T = M.get(k); if (!T) M.set(k, T = [null, null, null]);
-      T[h.k % 3] = h;
-    }
+    const f = frame(el), by = new Map();
+    for (const h of H) { const k = h.sid + '|' + h.path; let L = by.get(k); if (!L) by.set(k, L = []); L.push(h); }
     const out = [];
-    for (const [sid, M] of bySrc) {
-      const src = getEl(sid), sc = src && src.scat;
+    for (const L of by.values()) {
+      const src = getEl(L[0].sid), sc = src && src.scat;
       if (!sc) continue;
       if (sc.wave) {
         // a focus's own waves: each ray's place on the face and the share of its power that reached it
-        const rays = [];
-        for (const T of M.values()) for (const h of T) if (h) { const [u, v] = facePoint(el, f, h.x, h.y, h.z), J = h.J; rays.push({ u, v, k: h.k, T: J[0] * J[0] + J[1] * J[1] + J[2] * J[2] + J[3] * J[3] }); }
+        const rays = L.map(h => { const [u, v] = facePoint(el, f, h.x, h.y, h.z), J = h.J; return { u, v, k: h.k, T: J[0] * J[0] + J[1] * J[1] + J[2] * J[2] + J[3] * J[3] }; });
         out.push({ src, wave: true, coh: sc.coh, part: sc.part, launch: sc.launch, p: sc.p, nm: src.wavelength, rays });
         continue;
       }
       const k0 = 2 * Math.PI / (src.wavelength * 1e-6), rays = [];
-      for (const T of M.values()) {
-        const h = T[0];
-        if (!h) continue;
-        const [u, v] = facePoint(el, f, h.x, h.y, h.z), J = h.J, pw = J[0] * J[0] + J[1] * J[1] + J[2] * J[2] + J[3] * J[3];
-        let dA = 0;
-        if (T[1] && T[2]) {
-          const [u1, v1] = facePoint(el, f, T[1].x, T[1].y, T[1].z), [u2, v2] = facePoint(el, f, T[2].x, T[2].y, T[2].z);
-          dA = Math.abs((u1 - u) * (v2 - v) - (v1 - v) * (u2 - u)) / (sc.eps * sc.eps) * src.vRays[3 * Math.floor(h.k / 3)].sa;
-        }
+      for (const h of L) {
+        const V = src.vRays[h.k], [u, v] = facePoint(el, f, h.x, h.y, h.z), [gu, gv] = faceDir(el, f, h.d), J = h.J, pw = J[0] * J[0] + J[1] * J[1] + J[2] * J[2] + J[3] * J[3];
         // conj(J e^{i k opl}) on the ray's own s and p, as a vector
         const ph = k0 * h.opl, c = Math.cos(ph), sn = Math.sin(ph), [S, P] = polFrame(h.d, h.par ? -1 : 1);
         const sR = J[0] * c - J[1] * sn, sI = -(J[0] * sn + J[1] * c), pR = J[2] * c - J[3] * sn, pI = -(J[2] * sn + J[3] * c);
-        rays.push({ u, v, pw, dA, opl: h.opl, d: h.d, h: T, E: [sR * S[0] + pR * P[0], sI * S[0] + pI * P[0], sR * S[1] + pR * P[1], sI * S[1] + pI * P[1], sR * S[2] + pR * P[2], sI * S[2] + pI * P[2]] });
+        rays.push({ u, v, gu, gv, pw, dA: 0, opl: h.opl, d: h.d, h: [h], ri: V.ri, sj: V.sj, sa: V.sa, E: [sR * S[0] + pR * P[0], sI * S[0] + pI * P[0], sR * S[1] + pR * P[1], sI * S[1] + pI * P[1], sR * S[2] + pR * P[2], sI * S[2] + pI * P[2]] });
       }
-      if (rays.length) out.push({ src, coh: sc.coh, lmw: src.vLp, nm: src.wavelength, gpl0: sc.gpl0, lag: sc.lag, gj0: sc.gj0, part: sc.part, launch: sc.launch, rays });
+      if (!rays.length) continue;
+      const B = { src, coh: sc.coh, lmw: src.vLp, nm: src.wavelength, k0, gpl0: sc.gpl0, lag: sc.lag, gj0: sc.gj0, part: sc.part, launch: sc.launch, grid: sc.grid, rays };
+      const A = tubeAreas(B, r => [r.u, r.v]);
+      for (const r of rays) r.dA = A.get(r);
+      out.push(B);
     }
     return out;
   }, 'scat');
+}
+/* A bundle's field at a point of the face (6 numbers, as a ray's E, per root of area), or null where the bundle does
+   not reach. The nearest ray's field, with its phase carried to the point: the ray's direction along the face is the
+   slope of its optical path there, and how that direction changes from ray to ray (H, from the grid) its curvature. */
+function bundleAt(B, u, v) {
+  if (!B.near) {
+    // each ray's H = d(gu, gv)/d(u, v), once
+    const Dg = coneDeriv(B, r => [r.gu, r.gv]), Dx = coneDeriv(B, r => [r.u, r.v]);
+    for (const r of B.rays) {
+      const g = Dg.get(r), x = Dx.get(r); r.H = null;
+      if (!g || !x) continue;
+      const det = x[0] * x[3] - x[1] * x[2];
+      if (!(Math.abs(det) > 0)) continue;
+      // [g_theta g_phi] [x_theta x_phi]^-1
+      r.H = [(g[0] * x[3] - g[2] * x[1]) / det, (g[2] * x[0] - g[0] * x[2]) / det, (g[1] * x[3] - g[3] * x[1]) / det, (g[3] * x[0] - g[1] * x[2]) / det];
+    }
+    B.near = B.rays.filter(r => r.dA > 0);
+  }
+  let best = null, bd = Infinity;
+  for (const r of B.near) { const d = (r.u - u) * (r.u - u) + (r.v - v) * (r.v - v); if (d < bd) { bd = d; best = r; } }
+  if (!best || bd > 4 * best.dA) return null;                     // beyond its neighbours' reach: outside the cone's footprint
+  const du = u - best.u, dv = v - best.v, H = best.H;
+  const ph = -B.k0 * (best.gu * du + best.gv * dv + (H ? 0.5 * (H[0] * du * du + (H[1] + H[2]) * du * dv + H[3] * dv * dv) : 0));
+  const c = Math.cos(ph), s = Math.sin(ph), a = 1 / Math.sqrt(best.dA), E = best.E;
+  return [a * (E[0] * c - E[1] * s), a * (E[0] * s + E[1] * c), a * (E[2] * c - E[3] * s), a * (E[2] * s + E[3] * c), a * (E[4] * c - E[5] * s), a * (E[4] * s + E[5] * c), best.opl];
 }
 /* a Gaussian arrival's field at a point of the face as a vector on the bench's axes (6 numbers, the faces' convention) */
 export function arrivalVec(A, u, v) {
@@ -313,11 +408,12 @@ function frontFix(A, u, v0) {
   // one sphere when the beam is round, else each way on its own
   return k * (Math.abs(cx - cy) <= 1e-6 * Math.max(Math.abs(cx), Math.abs(cy)) ? sag(cx, xb * xb + v * v) : sag(cx, xb * xb) + sag(cy, v * v));
 }
-/* Scattered light on a round face of radius a: its own power, and what it adds by interfering with the Gaussian
-   beams of its family that land there, each also as right less left (X, along the face in the bench plane) and
-   top less bottom (Y). In mW: { mw, cross, X, Y, byNm: [[nm, mW]], cones }. */
+/* Scattered light on a round face of radius a: its own power, what it adds by interfering with the Gaussian beams of
+   its family that land there, and what two bundles of one family add by interfering with each other; each also as
+   right less left (X, along the face in the bench plane) and top less bottom (Y). In mW:
+   { mw, cross (with the beams), mutual (between bundles), X, Y, byNm: [[nm, mW]], cones }. */
 export function scatOnDisc(el, a) {
-  const cones = scatFace(el), out = { mw: 0, cross: 0, X: 0, Y: 0, byNm: [], cones: cones.filter(C => !C.wave).length };
+  const cones = scatFace(el), out = { mw: 0, cross: 0, mutual: 0, X: 0, Y: 0, byNm: [], cones: cones.filter(C => !C.wave).length };
   if (!cones.length) return out;
   const arr = faceArrivals(el);
   // a launch whose light at the particle is a focus's plane waves: its interference with the unscattered beam is those waves'
@@ -330,11 +426,24 @@ export function scatOnDisc(el, a) {
     for (const r of C.rays) { if (r.u * r.u + r.v * r.v > a * a) continue; const t = C.p[r.k] * r.T * 1e3; cross += t; X += Math.sign(r.u) * t; Y += Math.sign(r.v) * t; }
     out.mw += cross; out.cross += cross; out.X += X; out.Y += Y; out.byNm.push([C.nm, cross]);
   }
-  for (const C of cones) {
-    if (C.wave) continue;
-    const inD = C.rays.filter(r => r.u * r.u + r.v * r.v <= a * a);
+  const bundles = cones.filter(C => !C.wave);
+  for (const C of bundles) {
+    const inD = C.inD = C.rays.filter(r => r.u * r.u + r.v * r.v <= a * a);
     let p = 0, x = 0, y = 0;
-    for (const r of inD) { p += r.pw; x += Math.sign(r.u) * r.pw; y += Math.sign(r.v) * r.pw; }
+    // (whole: every ray the cone was sent with landed on the face)
+    const whole = inD.length === C.src.vRays.reduce((n, r) => n + (r.off ? 0 : 1), 0);
+    if (whole || !C.rays.some(r => r.dA > 0)) for (const r of inD) { p += r.pw; x += Math.sign(r.u) * r.pw; y += Math.sign(r.v) * r.pw; }
+    else {
+      // a bundle wider than the face: counting the rays that land on it would cut the face along the bundle's rings, so its
+      // power per area (the nearest ray's, p / dA) is added up over the face itself
+      const nr = 20, np = 48;
+      for (let i = 0; i < nr; i++) for (let j = 0; j < np; j++) {
+        const rr = a * Math.sqrt((i + 0.5) / nr), ph = 2 * Math.PI * (j + 0.5) / np, u = rr * Math.cos(ph), v = rr * Math.sin(ph), E = bundleAt(C, u, v);
+        if (!E) continue;
+        const w = (E[0] * E[0] + E[1] * E[1] + E[2] * E[2] + E[3] * E[3] + E[4] * E[4] + E[5] * E[5]) * Math.PI * a * a / (nr * np);
+        p += w; x += Math.sign(u) * w; y += Math.sign(v) * w;
+      }
+    }
     const mw = p * C.lmw;
     let X = x * C.lmw, Y = y * C.lmw, cross = 0;
     if (C.coh && !byWave.has(C.part + '|' + C.launch)) for (const A of arr) {
@@ -355,6 +464,27 @@ export function scatOnDisc(el, a) {
     }
     out.mw += mw + cross; out.cross += cross; out.X += X; out.Y += Y; out.byNm.push([C.nm, mw + cross]);
   }
+  // Two bundles of one family (a cone that came two ways, two cones of one particle, cones of two particles in one laser's
+  // light): 2 Re Int conj(E_Q) . E_P over the face, as the sum over P's rays of Q's field at each. P is the one with more rays
+  // on the face: its tubes tile the face best
+  for (let i = 0; i < bundles.length; i++) for (let j = i + 1; j < bundles.length; j++) {
+    if (!bundles[i].coh || bundles[i].coh !== bundles[j].coh) continue;
+    const n = B => B.inD.reduce((a, r) => a + (r.dA > 0 ? 1 : 0), 0);
+    const [P, Q] = n(bundles[i]) >= n(bundles[j]) ? [bundles[i], bundles[j]] : [bundles[j], bundles[i]];
+    const g = cohGamma(splitRoot(P.src)), sc = Math.sqrt(P.lmw * Q.lmw);
+    // (each cone's phase is held against the beam's at its own particle: the beam's Gouy phase between two particles, as it builds up)
+    const dg = 0.5 * ((P.gj0 || 0) - (Q.gj0 || 0)), cg = Math.cos(dg), sg = Math.sin(dg);
+    let m = 0, X = 0, Y = 0;
+    for (const r of P.inD) {
+      if (!(r.dA > 0)) continue;
+      const Eq = bundleAt(Q, r.u, r.v);
+      if (!Eq) continue;
+      let re = 0, im = 0; for (let q = 0; q < 6; q += 2) { re += Eq[q] * r.E[q] + Eq[q + 1] * r.E[q + 1]; im += Eq[q] * r.E[q + 1] - Eq[q + 1] * r.E[q]; }
+      const t = 2 * (re * cg - im * sg) * Math.sqrt(r.dA) * (g ? g(Q.gpl0 + Eq[6] + Q.lag - P.gpl0 - r.opl - P.lag) : 1) * sc;
+      m += t; X += Math.sign(r.u) * t; Y += Math.sign(r.v) * t;
+    }
+    out.mw += m; out.mutual += m; out.X += X; out.Y += Y; out.byNm.push([P.nm, m]);
+  }
   return out;
 }
 /* A cone's overlap with a single-mode fibre's mode (1/e^2 radius wf at the tip), as amplitudes on s (up) and p
@@ -362,21 +492,20 @@ export function scatOnDisc(el, a) {
    the cone comes to a focus on the tip its rays' tubes have no area there, so the overlap is taken on a plane 30
    Rayleigh ranges of the mode back from the tip, where the mode is a wide converging beam and the rays are apart
    (free space is assumed that far back; a tip tipped out of the plane is taken level). */
-export function scatModeAmp(el, C, wf) {
+function scatModeAmp(el, C, wf) {
   const f = frame(el), lam0 = C.nm * 1e-6, k = 2 * Math.PI / lam0, zR = Math.PI * wf * wf / lam0, n = C.rays.length;
   let ru = 0; for (const r of C.rays) ru += r.u * r.u + r.v * r.v;
   const back = Math.sqrt(ru / Math.max(1, n)) < 3 * wf ? 30 * zR : 0;
   const A = { lam0, qx: [-back, zR], qy: [-back, zR], u0: 0, v0: 0, vs: 0, ldx: 1, ldy: 0, J: [1, 0, 0, 0], opl: -back };
-  const o = [0, 0, 0, 0], at = h => {
-    const [u, v] = facePoint(el, f, h.x, h.y, h.z), [ldx, ldy] = toLocalDir(f, h.d[0], h.d[1]), s = back / Math.max(1e-9, Math.abs(ldx));
+  const o = [0, 0, 0, 0], at = r => {
+    const h = r.h[0], [u, v] = facePoint(el, f, h.x, h.y, h.z), [ldx, ldy] = toLocalDir(f, h.d[0], h.d[1]), s = back / Math.max(1e-9, Math.abs(ldx));
     return [u - ldy * s, v - h.d[2] * s, s];
   };
+  const areas = tubeAreas(C, r => at(r));
   for (const r of C.rays) {
-    const T = r.h;
-    if (!T[1] || !T[2]) continue;
-    const [u, v, s] = at(T[0]), [u1, v1] = at(T[1]), [u2, v2] = at(T[2]);
-    const sa = C.src.vRays[3 * Math.floor(T[0].k / 3)].sa, eps = C.src.scat.eps, dA = Math.abs((u1 - u) * (v2 - v) - (v1 - v) * (u2 - u)) / (eps * eps) * sa;
+    const dA = areas.get(r);
     if (!(dA > 0)) continue;
+    const [u, v, s] = at(r);
     // the mode there, real and positive at the tip itself: arrivalField's Gaussian turned by a quarter wave
     const m = arrivalField(A, u, v), Mr = -m[1], Mi = m[0];
     // the ray's field carried back that far: e^{+iks} on the faces' convention
@@ -676,7 +805,7 @@ export function detectorReading(el) {
     const q = 1.602176634e-19, kT = 1.380649e-23 * 295, B = Math.PI / 2 * el.bandwidth, Ia = I * 1e-3;
     const i2 = 2 * q * (Ia + el.dark * 1e-9) * B + (el.gain > 0 ? 4 * kT * B / el.gain : 0) + (el.ampNoise * 1e-12) ** 2 * B;
     const noiseI = Math.sqrt(i2), V = Ia * el.gain;
-    return { mw: P, mA: I, V: Math.min(V, el.vmax), sat: V > el.vmax, noiseV: noiseI * el.gain, noiseI, pending, field: !!F, X, Y, ...(SCA && SCA.cones ? { scat: { mw: SCA.mw, cross: SCA.cross, cones: SCA.cones } } : {}),
+    return { mw: P, mA: I, V: Math.min(V, el.vmax), sat: V > el.vmax, noiseV: noiseI * el.gain, noiseI, pending, field: !!F, X, Y, ...(SCA && SCA.cones ? { scat: { mw: SCA.mw, cross: SCA.cross, mutual: SCA.mutual, cones: SCA.cones } } : {}),
       snr: Ia > 0 ? 20 * Math.log10(Ia / noiseI) : null };
   });
 }

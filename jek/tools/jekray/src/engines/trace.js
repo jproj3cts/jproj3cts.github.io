@@ -1032,8 +1032,9 @@ function traceSceneOnce() {
             if (tm !== null && tm < best) { best = tm; hit = s; hitSeg = false; }
             continue;
           }
-          const [lx, ly] = toLocal(s.f, px, py);
-          const [ldx, ldy] = toLocalDir(s.f, dx, dy);
+          // (toLocal and toLocalDir written out: this is the trace's innermost loop, every surface for every ray at every step)
+          const sf = s.f, rx0 = px - sf.ox, ry0 = py - sf.oy, lx = rx0 * sf.c + ry0 * sf.s, ly = -rx0 * sf.s + ry0 * sf.c;
+          const ldx = dx * sf.c + dy * sf.s, ldy = -dx * sf.s + dy * sf.c;
           if (s.layers && s !== layerIn(s.layers, ldx)) continue;        // layers: the first the way it comes
           const forced = !zb && forceEl && s.el.id === forceEl && splittable(s);
           // a ray off a curved part's centre, or sloping, meets it where it reaches it in 3D
@@ -1106,6 +1107,9 @@ function traceSceneOnce() {
         }
         // a particle's probe ray: what it meets first, and how far off; it goes no further
         if (src.vProbe) { src.vProbe[vK] = hit ? { el: hitSeg ? hit.el : hit.el.id, t: best, rim: hitSeg } : null; break; }
+        // a cone's ray is for the part the cone is aimed at: one that meets another part first (that part's own cone has its
+        // direction) stops here, is not drawn, and is counted for neither
+        if (src.vAim && bounce === 0 && path === '' && !(hit && (hitSeg ? hit.el : hit.el.id) === src.vAim)) { const V = src.vRays[vK]; V.off = true; V.draw = 0; break; }
         if (!hit) {
           if (probe) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
           if (isQ) beams.push(Object.assign({ x0: px, y0: py, qr, qi, n: nCur, nm, colour, src: src.id, lmw, parent: bid, ev: evt, w: w * qShare, fan: !!fan, endEl: null,
@@ -1905,7 +1909,7 @@ function traceSceneOnce() {
       }
       if (bounce >= maxB) limited++;
       if (probe && bounce >= maxB) probes.push({ h: probeH, x: px, y: py, dx, dy, last: probeLast });
-      // (of a particle's scattered light: not its probes, nor the companion rays that only measure a ray tube; sc 1 a ray of the
+      // (of a particle's scattered light: not its probes, nor the rays that only carry a figure, nor a ray stopped short of its part; sc 1 a ray of the
       // cone's cut by the bench plane, drawn in 2D too, sc 2 the rest of the cone, in 3D)
       if (!chief && !src.vProbe && !(src.vRays && !src.vRays[vK].draw)) rays.push({ pts, zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn, rid: id, fam, ev: path, J: [sr, si, pr, pi], ...(src.vRays ? { sc: src.vRays[vK].draw } : {}) });
     }
@@ -1981,14 +1985,18 @@ function traceSceneOnce() {
   // Particles: the light each scatters, sent to the parts that catch it. A fan of probe rays one step out from each
   // particle says what the light meets first; then a cone to each of those parts is traced as rays of the driving laser
   {
-    const SL = scatterLaunch(surfsBy);
+    const t0 = performance.now(), SL = scatterLaunch(surfsBy);
     if (SL) {
-      const probe = list => { for (const v of list) VSRC.set(v.id, v); runSources(list); for (const v of list) VSRC.delete(v.id); };
-      probe(SL.probes); probe(SL.probes2());
-      const cones = SL.cones();
+      // (ms: where the time went, for the tests and the report)
+      const t1 = performance.now(), probe = list => { for (const v of list) VSRC.set(v.id, v); runSources(list); for (const v of list) VSRC.delete(v.id); };
+      probe(SL.probes);
+      const t2 = performance.now(), cones = SL.cones(), t3 = performance.now();
       for (const v of cones) VSRC.set(v.id, v);
-      runSources(cones);
+      runSources(cones.filter(v => !v.scat.wave));
+      const t4 = performance.now();
+      runSources(cones.filter(v => v.scat.wave));
       lastTrace.scat = SL.report(scHits);
+      lastTrace.scat.ms = { prep: t1 - t0, probe: t2 - t1, build: t3 - t2, cones: t4 - t3, waves: performance.now() - t4 };
     }
   }
   afterTrace();

@@ -110,7 +110,7 @@ With **Send its scattered light to the parts** ticked, the far field the models 
 
 ### Which parts catch it
 
-A fan of 132 rays over the whole sphere of directions is traced one step, to the first thing each ray meets. A coarse fan can miss a small part, so each part of the bench is also looked at on its own with 17 rays over the cone it fills as seen from the particle. A part that some ray reaches first has a clear line to the particle. A part hidden behind another is reached through it: a detector behind a lens gets the light the lens passes on.
+A fan of 132 rays over the whole sphere of directions is traced one step, to the first thing each ray meets. A coarse fan can miss a small part, so each part of the bench is also looked at on its own with 17 rays over the cone it fills as seen from the particle. A part that some ray reaches first has a clear line to the particle. The answer is kept while the parts and the particle stay where they are, so a change of power or wavelength does not probe again. A part hidden behind another is reached through it: a detector behind a lens gets the light the lens passes on.
 
 ### The cones
 
@@ -120,7 +120,7 @@ $$
 p = \frac{|\mathbf F(\hat r)|^2}{2Z}\,\Delta\Omega,
 $$
 
-with $$Z$$ the medium's impedance, and its two polarisation amplitudes are the components of $$\mathbf F$$ across the ray, with their phases. A ray that would meet another part first is left out of the cone, so no direction is counted twice. The ten cones that carry most power are traced on through the bench like any other rays.
+with $$Z$$ the medium's impedance, and its two polarisation amplitudes are the components of $$\mathbf F$$ across the ray, with their phases. A ray that meets another part first is stopped there and counted for neither, so no direction is counted twice. The ten cones that carry most power are traced on through the bench like any other rays.
 
 Where the driving beam goes on into a cone and fills only a small part of it, a second cone of 8 × 24 rays three far-field radii of the beam wide covers that part, and the first leaves it out.
 
@@ -128,7 +128,7 @@ The Scattering tab's readout has a **Caught by** row for each part with a clear 
 
 ### What a detector reads
 
-A photodetector adds the power of the scattered rays that land on it. Scattered light is also light of the laser that drives the particle, so it interferes with that laser's beams on the same detector. Each ray is traced with two companions 10⁻⁴ rad to either side. Where the three land gives the area $$\Delta A$$ of the ray's tube on the detector, and the ray is then a field of amplitude $$\sqrt{p/\Delta A}$$ there, with its polarisation and the phase of its optical path. The interference with a Gaussian beam $$\mathbf E_b$$ of the same laser is the sum over the rays
+A photodetector adds the power of the scattered rays that land on it. Scattered light is also light of the laser that drives the particle, so it interferes with that laser's beams on the same detector. A cone's rays are a grid of rings and spokes. How the landing points change from ring to ring and from spoke to spoke gives the area $$\Delta A$$ of each ray's tube on the detector, and the ray is then a field of amplitude $$\sqrt{p/\Delta A}$$ there, with its polarisation and the phase of its optical path. The interference with a Gaussian beam $$\mathbf E_b$$ of the same laser is the sum over the rays
 
 $$
 P_\times = 2\operatorname{Re}\sum_i \mathbf E_b^*(u_i, v_i)\cdot\hat{\mathbf e}_i\,\sqrt{p_i\,\Delta A_i}\;e^{i\phi_i}.
@@ -142,7 +142,15 @@ $$
 P_o = -\frac{4\pi}{k}\,\frac{\operatorname{Im}\left(\mathbf E_o^*\cdot\mathbf F(\hat d_o)\right)}{2Z}.
 $$
 
-This is the optical theorem one wave at a time: the sum of $$P_o$$ over the pupil is $$-P_\text{ext}$$. The waves are gathered into 20 × 20 bins across the pupil, each bin is traced as one ray, and its $$P_o$$ is added where the ray lands. A detector that takes in the whole beam therefore reads the incident power less the extinction, plus the scattered power that lands on it.
+This is the optical theorem one wave at a time: the sum of $$P_o$$ over the pupil is $$-P_\text{ext}$$. The waves are gathered into 12 × 12 bins across the pupil, each bin is traced as one ray, and its $$P_o$$ is added where the ray lands. A detector that takes in the whole beam therefore reads the incident power less the extinction, plus the scattered power that lands on it.
+
+**Two cones on one detector** add as fields with each other when the same laser drives them: a particle seen directly and in a mirror, or two particles in one beam. The field of one cone is evaluated at the other's rays, and the interference is the sum
+
+$$
+P_{12} = 2\operatorname{Re}\sum_{i\in 1} \mathbf E_2^*(u_i, v_i)\cdot\hat{\mathbf e}_i\,\sqrt{p_i\,\Delta A_i}\;e^{i\phi_i}.
+$$
+
+Cones driven by different lasers add as powers.
 
 A [photodetector](/jek/docs/jekray/free-space/detector/) set to **Split in four** also reads right less left and top less bottom. Behind a collection lens these follow a particle moved across the focus, the signal a levitation experiment reads its particle's position from.
 
@@ -169,7 +177,7 @@ Three more cases check the light on the bench against a Mie calculation that has
 - Forces and torques come from the Trap tab's dipole, not from these models.
 - The scattered light is launched as if the particle were in air or vacuum. A particle inside a block of glass or water still gets its cross-sections, but its cones are not refracted out of the block correctly.
 - A ray's field on a detector is geometric. It is right where the cone is many wavelengths wide on the face, as it is after a collimating lens or straight from the particle, and not at a focus.
-- Two scattered cones that reach the same detector add as powers with each other. Each adds as a field with the unscattered beam.
+- Between its rays a cone's field is the nearest ray's, with its phase carried on to second order. A cone that reaches a detector much smaller than its footprint has few rays on it, and its power there is then that of the nearest rays' tubes.
 - With a gentle beam (NA up to 0.3) the interference uses the bench's Gaussian beam. Its phase is good to about the square of the beam's divergence, and the extinction is a small difference of large terms: for a particle off the waist of a focus of NA 0.15 it was 8% out in our tests, and for a collimated beam 0.1%.
 - A screen does not record scattered rays, and the diffracted field does not hold them. Read them with a photodetector.
 - Scattered light coupled into a fibre tip is read at the tip. It does not travel on into a fibre network.

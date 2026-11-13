@@ -277,3 +277,73 @@ test('what is launched is bounded, and stale answers are held to the beam they w
   assert.equal(reading('det').mw, with1);
   assert.equal(TR.lastTrace.scat.fans[0].on, false);
 });
+
+/* ---------- Cones adding as fields with each other ---------- */
+// Int over a disc (radius a, centre c, facing -y: its points c + (u, 0, v)) of f(point) dA, on a polar grid
+const overDisc = (c, a, f) => { let s = 0; const nr = 60, np = 96; for (let i = 0; i < nr; i++) { const r = a * (i + 0.5) / nr; for (let j = 0; j < np; j++) { const p = 2 * Math.PI * (j + 0.5) / np; s += f([c[0] + r * Math.cos(p), c[1], c[2] + r * Math.sin(p)]) * r * (a / nr) * (2 * Math.PI / np); } } return s; };
+test('one particle seen directly and in a mirror: the two cones add as fields on the detector', async () => {
+  // light polarised out of the plane; a detector 0.4 mm across 20 mm to the side; a small flat mirror 15 mm to the other side, facing it
+  const Y = 20, a = 0.2, Lm = 15, lam = NM * 1e-6, bench = d => [laser({ pol: 's' }), particle({ x: 0, y: 0 }), det({ id: 'pd', x: 0, y: Y, angle: 270, length: 2 * a }),
+    { id: 'm', type: 'mirror', name: 'Mirror', x: 0, y: -(Lm + d), angle: 90, length: 0.3, reflect: 100 }];
+  const got = [], want = [];
+  for (const d of [0, lam / 8, lam / 4, 3 * lam / 8, lam / 2]) {
+    await open(bench(d));
+    const r = reading('pd'), S = S_of('p'), Z = Z0_OHM / S.nMed, P = S.pos, k = K0 * 1e-3;                     // k per mm
+    assert.equal(r.scat.cones, 2, 'the direct cone and the mirror’s');
+    // the two waves at a point of the detector, from the exact far field: straight from the particle, and from its image in the
+    // mirror (the mirror turns the field over: the parts along its face change sign), each F e^{ikr} / r
+    const E = X => {
+      const v1 = [X[0] - P[0], X[1] - P[1], X[2] - P[2]], r1 = Math.hypot(...v1), img = [P[0], -2 * (Lm + d) - P[1], P[2]], v2 = [X[0] - img[0], X[1] - img[1], X[2] - img[2]], r2 = Math.hypot(...v2);
+      const F = exactFar(S, Float64Array.of(v1[0] / r1, v1[1] / r1, v1[2] / r1, v2[0] / r2, -v2[1] / r2, v2[2] / r2));
+      const c1 = Math.cos(k * r1), s1 = Math.sin(k * r1), c2 = Math.cos(k * r2), s2 = Math.sin(k * r2), o = [[], []];
+      for (let q = 0; q < 3; q++) {
+        o[0].push((F[2 * q] * c1 - F[2 * q + 1] * s1) / r1, (F[2 * q] * s1 + F[2 * q + 1] * c1) / r1);
+        const sg = q === 1 ? 1 : -1, fr = sg * F[6 + 2 * q], fi = sg * F[7 + 2 * q];
+        o[1].push((fr * c2 - fi * s2) / r2, (fr * s2 + fi * c2) / r2);
+      }
+      return o;
+    };
+    // powers through the face in mW (fields in V/m with r in mm: 1e6 for the areas, 1e3 to mW, 1e-6 mm^2 to m^2)
+    const sc = 1e3 / (2 * Z), dot = (A, B) => A.reduce((x, v, i) => x + v * B[i], 0), c = [P[0], Y, P[2]];
+    const P1 = sc * overDisc(c, a, X => { const e = E(X)[0]; return dot(e, e); }), P2 = sc * overDisc(c, a, X => { const e = E(X)[1]; return dot(e, e); });
+    const cross = sc * overDisc(c, a, X => { const e = E(X); return 2 * dot(e[0], e[1]); });
+    const own = r.scat.mw - r.scat.cross - r.scat.mutual;
+    near(own, P1 + P2, 0.02, 'the two cones’ own powers, mirror moved ' + (d / lam).toFixed(3) + ' waves');
+    assert.ok(Math.abs(r.scat.mutual - cross) <= 0.02 * 2 * Math.sqrt(P1 * P2), 'mirror moved ' + (d / lam).toFixed(3) + ' waves: the cones interfere by ' + r.scat.mutual + ' mW, against ' + cross + ' (2 sqrt(P1 P2) = ' + 2 * Math.sqrt(P1 * P2) + ')');   // F1
+    got.push(r.mw); want.push(P1 + P2 + cross);
+    say('F1 mirror +' + (d / lam).toFixed(3) + ' waves: mutual', r.scat.mutual.toExponential(5), 'against', cross.toExponential(5), '; off by', (Math.abs(r.scat.mutual - cross) / (2 * Math.sqrt(P1 * P2))).toExponential(2), 'of 2 sqrt(P1 P2) =', (2 * Math.sqrt(P1 * P2)).toExponential(4), '; reading', r.mw.toExponential(5), 'against', (P1 + P2 + cross).toExponential(5));
+  }
+  const swing = v => Math.max(...v) - Math.min(...v);
+  near(swing(got), swing(want), 0.02, 'the fringe as the mirror moves half a wave');                                         // F2
+  assert.ok(swing(want) > 0.5 * Math.min(...want), 'a fringe worth the name');
+  say('F2 fringe', swing(got).toExponential(5), 'against', swing(want).toExponential(5));
+});
+test('two particles: in one laser’s light their cones add as fields, in two lasers’ as powers', async () => {
+  // (the second sphere 32 waves on along the beam, less the beam's Gouy phase over that far: lit in step with the first)
+  const Y = 20, a = 0.2, w0 = 0.05, zR = Math.PI * w0 * w0 / (NM * 1e-6), dx = 32 * NM * 1e-6 + Math.atan(32 * NM * 1e-6 / zR) / (K0 * 1e-3);
+  const els = two => [laser({ pol: 's' }), particle({ x: 0, y: 0 }), particle({ id: 'p2', name: 'Particle 2', x: two ? 0 : dx, y: two ? -0.4 : 0 }),
+    ...(two ? [laser({ id: 'laser2', name: 'Laser 2', y: -0.4, z0: 20, pol: 's' })] : []), det({ id: 'pd', x: dx / 2, y: Y, angle: 270, length: 2 * a })];
+  await open(els(false));
+  const r = reading('pd'), S1 = S_of('p'), S2 = S_of('p2'), Z = Z0_OHM / S1.nMed, k = K0 * 1e-3;
+  assert.equal(r.scat.cones, 2);
+  // each sphere's exact far field in the beam's field where it is: the size the answer has, the phase the beam's own (k z less its Gouy phase)
+  const amp = S => Math.hypot(...S.far.refs[0].E), ph = z => k * z - Math.atan(z / zR);
+  const far = (S, z, dirs) => { const C = mieCoeffs(S.x, S.m[0], S.m[1]), e = amp(S); return mieFarExact(C, S.k, S.dir, [0, 0, 0, 0, e * Math.cos(ph(z)), e * Math.sin(ph(z))], dirs); };
+  const E = X => [[S1, S1.pos, 0], [S2, S2.pos, dx]].map(([S, P, z]) => {
+    const v = [X[0] - P[0], X[1] - P[1], X[2] - P[2]], rr = Math.hypot(...v), F = far(S, z, Float64Array.of(v[0] / rr, v[1] / rr, v[2] / rr)), c = Math.cos(k * rr), s = Math.sin(k * rr), o = [];
+    for (let q = 0; q < 3; q++) o.push((F[2 * q] * c - F[2 * q + 1] * s) / rr, (F[2 * q] * s + F[2 * q + 1] * c) / rr);
+    return o;
+  });
+  const sc = 1e3 / (2 * Z), dot = (A, B) => A.reduce((x, v, i) => x + v * B[i], 0), c = [dx / 2, Y, S1.pos[2]];
+  const P1 = sc * overDisc(c, a, X => { const e = E(X)[0]; return dot(e, e); }), P2 = sc * overDisc(c, a, X => { const e = E(X)[1]; return dot(e, e); });
+  const cross = sc * overDisc(c, a, X => { const e = E(X); return 2 * dot(e[0], e[1]); });
+  assert.ok(Math.abs(cross) > 0.2 * 2 * Math.sqrt(P1 * P2), 'the two interfere visibly here: ' + cross);
+  assert.ok(Math.abs(r.scat.mutual - cross) <= 0.02 * 2 * Math.sqrt(P1 * P2), 'the cones interfere by ' + r.scat.mutual + ' mW, against ' + cross + ' (2 sqrt(P1 P2) = ' + 2 * Math.sqrt(P1 * P2) + ')');   // F3
+  say('F3 two particles: mutual', r.scat.mutual.toExponential(5), 'against', cross.toExponential(5), '; off by', (Math.abs(r.scat.mutual - cross) / (2 * Math.sqrt(P1 * P2))).toExponential(2), 'of 2 sqrt(P1 P2)');
+  // the second particle in a second laser's beam: powers only
+  await open(els(true));
+  const r2 = reading('pd');
+  assert.equal(r2.scat.cones, 2);
+  assert.ok(Math.abs(r2.scat.mutual) <= 1e-9 * r2.scat.mw && r2.scat.mw > 0, 'two lasers: ' + r2.scat.mutual);                 // F4
+  say('F4 two lasers: mutual', r2.scat.mutual, 'of', r2.scat.mw);
+});

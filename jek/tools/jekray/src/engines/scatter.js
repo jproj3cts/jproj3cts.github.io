@@ -31,7 +31,7 @@ export const SCAT_MODELS = ['auto', 'rayleigh', 'mie', 'dda'];
 export const SCAT_DIRS = ['fwd', 'back', 'side', 'up', 'angle'];
 export const SCAT_NMAX = 12000;           // dipoles in a run, unless more across are asked for
 export const SCAT_NHARD = 24000;          // and never more than this
-const WAVE_BINS = 20;                    // a focus's waves on the bench: bins across its pupil each way (waveInt)
+const WAVE_BINS = 12;                    // a focus's waves on the bench: bins across its pupil each way (waveInt)
 const SCAT_TINY = 0.1;                    // |m| k (half the longest dimension) under which Auto takes the single dipole
 
 const scatFields = el => [el.trapShape, el.trapLen, particleAz(el), el.trapTilt, el.scatModel, el.scatDip, el.scatAt, el.scatDx, el.scatDy, el.scatDz, el.scatNA, el.scatDir, el.scatAng];

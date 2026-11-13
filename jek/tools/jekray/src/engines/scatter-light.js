@@ -15,27 +15,26 @@ import { beamFieldAt } from './fibre-face.js';
    of directions, a launch each. The trace puts that light on the bench in two steps (see the end of traceSceneOnce).
    The probe: a fan of rays over the whole sphere, and with it a look at each part of the bench (a few rays over the
    cone it fills as seen from the particle), traced one step by the tracer itself, which says what each meets first;
-   then, for the parts that were seen, every ray of their cones the same way. So a part hidden behind another catches
-   nothing directly, and a part too small for the fan to find still has its own cone looked at.
+   it is kept while the parts and the particle stay where they are. So a part hidden behind another catches nothing
+   directly, and a part too small for the fan to find still has its own cone looked at. A part that was seen is sent
+   its whole cone; a ray of it that meets another part first is stopped there by the trace and counted for neither.
    The cones: for each part that some ray met first, the rays of its cone that did are launched as light of the
    driving laser: each ray's amplitudes are the far field's along it (its two polarisations, with their phases),
    scaled so the ray carries the power scattered into the solid angle it stands for, and in the coherence family
    of the beam that drives the particle, with its phase held against that beam's own at the particle (beamFieldAt).
-   Each ray has two companions a hair to either side, which carry nothing and are never drawn or read: where the
-   three land gives the area the ray's tube has there, so a face can turn the ray's power into a field (per root
-   of area) and add it to the Gaussian beams it reads (engines/fibre-face.js). The fan itself is kept as a picture
+   A cone's rays are a grid (rings by spokes), and each keeps its place in it: where a ray's neighbours land on a
+   face gives the area the ray's tube has there, so a face can turn the ray's power into a field (per root of area)
+   and add it to the Gaussian beams it reads and to other cones (engines/fibre-face.js). The fan itself is kept as a picture
    (lastTrace.scat.fans), as bright as the pattern is along each ray, and is never part of a reading.
    Bounded: per particle one probe of SC_FAN directions and a cone of SC_RINGS x SC_SPOKES rays for each part looked
    at; of the cones that catch light the SC_MAX_CONES + 2 that catch most are followed (a part's cone, and its patch
-   where the driving beam runs on into it), each three rays a direction, for each coherent launch that drives the
-   particle. */
+   where the driving beam runs on into it), for each coherent launch that drives the particle. */
 export const SC_MAX_CONES = 8;
 export let SC_RINGS = 8, SC_SPOKES = 24;
 /* (the tests: a finer cone, to tell what a figure owes to the cone's sampling) */
 export function setScGrid(rings, spokes) { SC_RINGS = rings; SC_SPOKES = spokes; }
 const SC_PLANE = 48;                        // the fan's rays in the bench plane, which the 2D view draws
 const SC_UP = [[30, 24], [60, 12], [80, 6]];   // and its rings above and below the plane: elevation (degrees), rays round
-const SC_EPS = 1e-4;                        // rad: how far a companion ray is from its ray
 const SC_LOOK = 17;                         // the rays that look at a part before its whole cone is probed: its axis and two rings of eight
 const SC_PATCH = 3;                         // a patch about a driving beam's way: this many of the beam's far-field radii
 
@@ -85,7 +84,7 @@ export function coneDirs(axis, half) {
     }
     for (const j of [0, SC_SPOKES / 2]) flat[i * SC_SPOKES + j] = 1;
   }
-  return { dirs, w, flat, n };
+  return { dirs, w, flat, n, th: Array.from(g.x, x => 0.5 * half * (x + 1)), nP: SC_SPOKES };
 }
 /* The power (W) of launch L into each ray of a set (dirs, with the solid angle w of each), and the rays'
    amplitudes on the tracer's own s and p (polFrame): the far field along the ray turned by the phase `rot`
@@ -132,6 +131,14 @@ const vsrc = (el, pos, nm, root, extra) => Object.assign({ type: 'source', virtu
   colourAuto: true, colour: wavelengthColour(nm), gauss: false, rays: 1, traceRays: true, width: 0, divergence: 0, pol: 's', polAngle: 0, coh: (root && root.coh) || 0,
   lineshape: (root && root.lineshape) || 'lorentz', power: 0, vLp: 0, tau: 0, vJ: [1, 0, 0, 0], vRoot: root, vLag: 0, vKey: 'scat:q0', vFo: 0, sweeps: {} }, extra);
 
+const PROBES = new Map();                   // particle id -> { key, met }: its last probe, and what it was for
+const SRC_LIGHT = new Set(['power', 'wavelength', 'lines', 'colour', 'colourAuto', 'pol', 'polAngle', 'coh', 'lineshape', 'cmode', 'bw', 'tau', 'pshape', 'rep', 'gdd0', 'splitPhase', 'splitPath', 'rays', 'traceRays', 'pattern', 'popN', 'popModel', 'm2', 'w0', 'z0', 'gauss']);
+function probeCut(k, v) {
+  if (k === 'sweeps' || k === 'name' || k === 'label' || k === 'lineColour' || k === 'fillColour' || k === 'hide3d') return undefined;
+  if (this && this.type === 'source' && SRC_LIGHT.has(k)) return undefined;
+  if (this && this.type === 'particle' && k !== 'id' && k !== 'type') return undefined;       // another particle is no surface
+  return v;
+}
 /* The trace's two steps for every Particle part with its light on: { probes, cones(), report(hits) }, or null when
    there is none. surfsBy: the trace's own surfaces, a bench each. */
 export function scatterLaunch(surfsBy) {
@@ -194,82 +201,67 @@ export function scatterLaunch(surfsBy) {
     }
     st.dirs = dirs;
     st.probe = vsrc(el, st.pos, st.launches[0].nm, st.launches[0].root, { id: el.id + '~probe', vRays: dirs.map(d => ({ d, J: [1, 0, 0, 0] })), vProbe: [] });
+    // what the probe met is kept while nothing it depends on has changed: where the particle is and the bench's parts as they
+    // stand (a source's light left out: its power, wavelength and polarisation move no surface)
+    st.probeKey = JSON.stringify(st.pos) + JSON.stringify(project.elements.filter(e => e.bench === el.bench && e !== el && e.type !== 'elec' && e.type !== 'draw'), probeCut);
+    const kept = PROBES.get(el.id);
+    if (kept && kept.key === st.probeKey && kept.met.length === dirs.length) { st.probe.vProbe = kept.met; st.probeKept = true; }
   }
   const live = states.filter(st => st.probe);
   return {
-    probes: live.map(st => st.probe),
-    /* the second step of the probe: every ray of the cone of each part the first step saw */
-    probes2() {
+    probes: live.filter(st => !st.probeKept).map(st => st.probe),
+    cones() {
       const out = [];
       for (const st of live) {
-        const met = st.probe.vProbe, dirs = [], seen = [];
-        for (const c of st.cands) {
-          let any = false; for (let i = 0; i < SC_LOOK; i++) { const m = met[c.look + i]; if (m && m.el === c.el.id) any = true; }
-          if (!any) continue;
-          c.G = coneDirs(c.axis, c.half); c.at = dirs.length; seen.push(c);
-          for (let i = 0; i < c.G.n; i++) dirs.push([c.G.dirs[3 * i], c.G.dirs[3 * i + 1], c.G.dirs[3 * i + 2]]);
+        const S = st.S, el = st.el, met0 = st.probe.vProbe, nMed = S.nMed || 1;
+        if (st.probeKey) PROBES.set(el.id, { key: st.probeKey, met: met0 });
+        // each part the look saw: its cone, and the power of every launch into it
+        for (const c0 of st.cands) {
+          let far = 0; for (let i = 0; i < SC_LOOK; i++) { const m = met0[c0.look + i]; if (m && m.el === c0.el.id) far = Math.max(far, m.t); }
+          if (!(far > 0)) continue;
+          c0.G = coneDirs(c0.axis, c0.half);
+          const both = [c0];
           // Where a driving beam goes on into this cone and is narrow in it, the cone's rays are too far apart to add to it as a
           // field (the two interfere only over the beam's own footprint): a patch about the beam's way, SC_PATCH of its far-field
           // radii wide, has rays of its own, and the cone leaves that patch out
           for (const La of st.launches) {
-            const d0 = [La.b.dx, La.b.dy, 0], hp = SC_PATCH * La.th0, off = Math.acos(Math.max(-1, Math.min(1, d0[0] * c.axis[0] + d0[1] * c.axis[1] + d0[2] * c.axis[2])));
-            if (!(hp < c.half / 3) || off + hp > c.half || c.cut.some(q => q.axis[0] * d0[0] + q.axis[1] * d0[1] > Math.cos(q.half + hp))) continue;
-            const Gp = coneDirs(d0, hp), patch = { el: c.el, axis: d0, half: hp, G: Gp, at: dirs.length, cut: [], patch: true };
-            c.cut.push(patch); seen.push(patch);
-            for (let i = 0; i < Gp.n; i++) dirs.push([Gp.dirs[3 * i], Gp.dirs[3 * i + 1], Gp.dirs[3 * i + 2]]);
+            const d0 = [La.b.dx, La.b.dy, 0], hp = SC_PATCH * La.th0, off = Math.acos(Math.max(-1, Math.min(1, d0[0] * c0.axis[0] + d0[1] * c0.axis[1] + d0[2] * c0.axis[2])));
+            if (!(hp < c0.half / 3) || off + hp > c0.half || c0.cut.some(q => q.axis[0] * d0[0] + q.axis[1] * d0[1] > Math.cos(q.half + hp))) continue;
+            const patch = { el: c0.el, axis: d0, half: hp, G: coneDirs(d0, hp), cut: [], patch: true };
+            c0.cut.push(patch); both.push(patch);
           }
-        }
-        st.cands = seen; st.dirs2 = dirs;
-        st.probe2 = vsrc(st.el, st.pos, st.launches[0].nm, st.launches[0].root, { id: st.el.id + '~probe2', vRays: dirs.map(d => ({ d, J: [1, 0, 0, 0] })), vProbe: [] });
-        if (dirs.length) out.push(st.probe2);
-      }
-      return out;
-    },
-    cones() {
-      const out = [];
-      for (const st of live) {
-        const S = st.S, el = st.el, met0 = st.probe.vProbe, met = st.probe2.vProbe, nMed = S.nMed || 1;
-        // each part's cone: the rays that met it first, and the power of every launch into them
-        for (const c of st.cands) {
-          const keep = [];
-          for (let i = 0; i < c.G.n; i++) {
-            const m = met[c.at + i];
-            if (!m || m.el !== c.el.id) continue;
-            if (c.cut.some(q => c.G.dirs[3 * i] * q.axis[0] + c.G.dirs[3 * i + 1] * q.axis[1] + c.G.dirs[3 * i + 2] * q.axis[2] > Math.cos(q.half))) continue;   // in a patch: the patch's own rays stand for it
-            keep.push(i);
+          for (const c of both) {
+            const keep = [];
+            for (let i = 0; i < c.G.n; i++) {
+              if (c.cut.some(q => c.G.dirs[3 * i] * q.axis[0] + c.G.dirs[3 * i + 1] * q.axis[1] + c.G.dirs[3 * i + 2] * q.axis[2] > Math.cos(q.half))) continue;   // in a patch: the patch's own rays stand for it
+              keep.push(i);
+            }
+            if (!keep.length) continue;
+            const dirs = new Float64Array(3 * keep.length), w = new Float64Array(keep.length);
+            keep.forEach((i, q) => { for (let m = 0; m < 3; m++) dirs[3 * q + m] = c.G.dirs[3 * i + m]; w[q] = c.G.w[i]; });
+            const amps = st.launches.map(La => coneAmps(S.far, La.L, nMed, dirs, w, La.rot || 0));
+            const P = amps.reduce((a, A) => a + A.P.reduce((x, y) => x + y, 0), 0);
+            st.caught.push({ c, keep, dirs, w, amps, P, far, srcs: [] });
           }
-          if (!keep.length) continue;
-          const dirs = new Float64Array(3 * keep.length), w = new Float64Array(keep.length);
-          let far = 0;
-          keep.forEach((i, q) => { for (let m = 0; m < 3; m++) dirs[3 * q + m] = c.G.dirs[3 * i + m]; w[q] = c.G.w[i]; far = Math.max(far, met[c.at + i].t); });
-          const amps = st.launches.map(La => coneAmps(S.far, La.L, nMed, dirs, w, La.rot || 0));
-          const P = amps.reduce((a, A) => a + A.P.reduce((x, y) => x + y, 0), 0);
-          st.caught.push({ c, keep, dirs, w, amps, P, far });
         }
         st.caught.sort((a, b) => b.P - a.P);
         st.caught.forEach((K, n) => {
+          // (the cones past the SC_MAX_CONES + 2 that hold most power are not traced on: their rays go one step, to see which the part catches)
           K.followed = n < SC_MAX_CONES + 2;
-          if (!K.followed) return;
-          const c = K.c, eps = Math.min(SC_EPS, c.half / 50);
+          const c = K.c;
           st.launches.forEach((La, li) => {
             const A = K.amps[li], Pc = A.P.reduce((x, y) => x + y, 0);
             if (!(Pc > 0)) return;
             const vRays = [];
             K.keep.forEach((i, q) => {
               const d = [K.dirs[3 * q], K.dirs[3 * q + 1], K.dirs[3 * q + 2]], J = [A.J[4 * q], A.J[4 * q + 1], A.J[4 * q + 2], A.J[4 * q + 3]];
-              let e1 = cross3(c.axis, d);
-              if (Math.hypot(e1[0], e1[1], e1[2]) < 1e-9) e1 = cross3(Math.abs(d[2]) < 0.9 ? [0, 0, 1] : [1, 0, 0], d);
-              e1 = unit3(e1);
-              const e2 = cross3(d, e1);
-              vRays.push({ d, J, draw: c.G.flat[i] ? 1 : 2, sa: K.w[q] },
-                { d: unit3([d[0] + eps * e1[0], d[1] + eps * e1[1], d[2] + eps * e1[2]]), J, draw: 0 },
-                { d: unit3([d[0] + eps * e2[0], d[1] + eps * e2[1], d[2] + eps * e2[2]]), J, draw: 0 });
+              vRays.push({ d, J, pw: A.P[q], draw: !K.followed ? 0 : c.G.flat[i] ? 1 : 2, sa: K.w[q], ri: Math.floor(i / c.G.nP), sj: i % c.G.nP });
             });
             // (a launch whose phase against its beam is not known, a beam of several modes, is light of its own: it adds as power)
             const v = vsrc(el, st.pos, La.nm, La.root, { id: el.id + '~s' + st.cones.length, angle: Math.atan2(c.axis[1], c.axis[0]) / deg, rays: K.keep.length,
-              power: Pc * 1e3, vLp: A.top * 1e3, vLag: La.lag, vKey: La.rot === null ? La.coh + '#sc' : La.coh, vFo: La.fo, vRays,
-              scat: { part: el.id, to: c.el.id, coh: La.rot === null ? null : La.coh, launch: La.L, eps, gpl0: La.gpl0, lag: La.lag, gj0: La.gj0, P: Pc, sr: K.w.reduce((x, y) => x + y, 0) } });
-            st.cones.push(v); out.push(v);
+              power: Pc * 1e3, vLp: A.top * 1e3, vLag: La.lag, vKey: La.rot === null ? La.coh + '#sc' : La.coh, vFo: La.fo, vRays, vAim: c.el.id, ...(K.followed ? {} : { vProbe: [] }),
+              scat: { part: el.id, to: c.el.id, coh: La.rot === null ? null : La.coh, launch: La.L, grid: { th: c.G.th, nP: c.G.nP }, gpl0: La.gpl0, lag: La.lag, gj0: La.gj0, P: Pc, sr: K.w.reduce((x, y) => x + y, 0) } });
+            st.cones.push(v); K.srcs.push(v); out.push(v);
           });
         });
         // a focus's own plane waves, each as a ray along its way from the particle: where it lands, the scattered light meets
@@ -308,14 +300,19 @@ export function scatterLaunch(surfsBy) {
         // a row a part: its cone, with any patch of it
         const rows = [];
         for (const K of st.caught) {
+          // (a ray that met another part first was stopped there, by the trace: that part's own cone has its direction)
+          K.P = 0; K.n = 0;
+          for (const v of K.srcs) v.vRays.forEach((r, i) => { const off = v.vProbe ? !(v.vProbe[i] && v.vProbe[i].el === v.vAim) : r.off; if (!off) { K.P += r.pw; K.n++; } });
+          if (!K.n) continue;
           const r0 = rows.find(r => r.id === K.c.el.id);
-          if (r0) { r0.P += K.P; r0.share = Psca > 0 ? r0.P / Psca : 0; r0.rays += K.keep.length; r0.followed = r0.followed && K.followed; if (!K.c.patch) { r0.axis = K.c.axis; r0.halfDeg = K.c.half / deg; } }
-          else rows.push({ id: K.c.el.id, name: K.c.el.name, P: K.P, share: Psca > 0 ? K.P / Psca : 0, followed: K.followed, rays: K.keep.length, axis: K.c.axis, halfDeg: K.c.half / deg });
+          if (r0) { r0.P += K.P; r0.share = Psca > 0 ? r0.P / Psca : 0; r0.rays += K.n; r0.followed = r0.followed && K.followed; if (!K.c.patch) { r0.axis = K.c.axis; r0.halfDeg = K.c.half / deg; } }
+          else rows.push({ id: K.c.el.id, name: K.c.el.name, P: K.P, share: Psca > 0 ? K.P / Psca : 0, followed: K.followed, rays: K.n, axis: K.c.axis, halfDeg: K.c.half / deg });
         }
         rows.sort((a, b) => b.P - a.P);
         const got = rows.reduce((a, r) => a + r.P, 0);
         R.parts[st.el.id] = { state: st.state, key: st.key, pos: st.pos || null, Psca, rows, caught: got, lost: Math.max(0, Psca - got), lostShare: Psca > 0 ? Math.max(0, 1 - got / Psca) : 0,
-          cones: st.cones.map(v => v.id), probed: (st.dirs ? st.dirs.length : 0) + (st.dirs2 ? st.dirs2.length : 0), launched: st.cones.concat(st.waveSrc).reduce((a, v) => a + v.vRays.length, 0) };
+          cones: st.cones.map(v => v.id), probed: st.probeKept ? 0 : st.dirs ? st.dirs.length : 0, launched: st.cones.concat(st.waveSrc).reduce((a, v) => a + v.vRays.length, 0) };
+        for (const v of st.cones) v.scat.P = v.vRays.reduce((a, r) => a + (r.off ? 0 : r.pw), 0);
         if (st.fan) R.fans.push(st.fan);
       }
       return R;

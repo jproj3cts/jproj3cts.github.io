@@ -1,0 +1,81 @@
+/* Drink Gen inside the μRPG pages. urpg.css draws the masthead, title and
+   footer; everything of the app's own is scoped under .dg so the two don't meet. */
+.dg {
+  --bg: #241b14;
+  --panel: #2f241b;
+  --ink: #f1e5c6;
+  --muted: #bba98a;
+  --accent: #d79b4a;
+  --accent-ink: #2a1c0e;
+  --line: #4a3a2b;
+  --serif: "IM Fell English", "Iowan Old Style", Georgia, serif;
+  width: 100%;
+  max-width: 1280px;
+  color: var(--ink);
+  text-align: left;
+}
+.dg *, .dg *::before, .dg *::after { box-sizing: border-box; }
+.dg p { max-width: none; line-height: 1.45; }
+
+.dg .grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 900px) {
+  .dg .grid { grid-template-columns: minmax(300px, 400px) 1fr; align-items: start; }
+  .dg .panel.source { position: sticky; top: 16px; }
+}
+
+.dg .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+
+.dg .private { color: var(--urpg-ink-soft); font-size: 0.85rem; text-align: center; margin: 14px 0 0; }
+
+.dg .pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dg .or { color: var(--muted); font-size: 0.9rem; }
+
+.dg .btn {
+  appearance: none; border: 1px solid var(--line); background: #3a2d21; color: var(--ink);
+  padding: 9px 14px; border-radius: 999px; font: inherit; font-size: 0.95rem; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; min-height: 40px;
+  -webkit-tap-highlight-color: transparent;
+}
+.dg .btn:hover:not(:disabled) { border-color: var(--accent); }
+.dg .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.dg .btn:disabled { opacity: 0.45; cursor: default; }
+
+.dg .crop-wrap { margin-top: 12px; }
+.dg #crop {
+  display: block; width: 100%; height: auto; max-height: 52vh; object-fit: contain;
+  background: #1a130e; border-radius: 8px; touch-action: none; cursor: grab;
+}
+.dg #crop:active { cursor: grabbing; }
+.dg .hint { color: var(--muted); font-size: 0.82rem; margin: 6px 2px 0; }
+.dg .hint-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 6px; }
+.dg .hint-row .hint { margin: 0 2px; }
+.dg .btn.small { padding: 5px 12px; min-height: 32px; font-size: 0.85rem; flex: none; }
+
+.dg .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 12px; }
+.dg .controls label { display: flex; flex-direction: column; font-size: 0.85rem; color: var(--muted); gap: 4px; }
+.dg .controls label.row { justify-content: flex-end; }
+.dg .controls label.check { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); }
+.dg .controls input[type="range"] { width: 100%; accent-color: var(--accent); }
+.dg .controls select {
+  background: #3a2d21; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 6px; font: inherit;
+}
+.dg .controls input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+
+.dg .map-wrap { position: relative; aspect-ratio: 1 / 1; width: 100%; background: #1a130e; border-radius: 8px; overflow: hidden; }
+.dg #map { display: block; width: 100%; height: 100%; }
+.dg .empty, .dg .busy {
+  position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px;
+  font-family: var(--serif); font-size: 1.3rem; color: var(--muted);
+}
+.dg .busy {
+  inset: auto 12px 12px auto; padding: 6px 12px; border-radius: 999px; font-size: 1rem;
+  background: rgba(36, 27, 20, 0.85); color: var(--ink);
+}
+[hidden] { display: none !important; }
+
+.dg .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; justify-content: flex-end; }
+.dg .stats { color: var(--muted); font-size: 0.8rem; margin: 8px 2px 0; text-align: right; min-height: 1em; }

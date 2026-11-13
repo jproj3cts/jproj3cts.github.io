@@ -420,7 +420,10 @@ const retro = (C, o = {}) => {
   return [laser({ x: -30, w0: 1.5, pol: o.pol || 's' }), { id: 'plate', type: 'mirror', name: 'plate', x: -10, y: 0, angle: 135, length: 24, reflect: 50, transmit: 50 },
     ideal('obj', 0, 0, 0, f, dia), particle({ x: f, y: o.y || 0, scatLight: o.light !== false }), ideal('col', 2 * f, 0, 0, f, dia),
     { id: 'M', type: 'mirror', name: 'M', x: f + C.focus_to_mirror_mm + (o.step || 0) * 1.55e-3 / 16, y: 0, angle: 180, length: dia + 2, reflect: 50, transmit: 50 },
-    det({ id: 'dF', x: f + C.focus_to_mirror_mm + 7, length: dia + 3 }), det({ id: 'dB', x: -10, y: -15, angle: 90, length: dia + 3 })];
+    det({ id: 'dF', x: f + C.focus_to_mirror_mm + 7, length: dia + 3 }), det({ id: 'dB', x: -10, y: -15, angle: 90, length: dia + 3 }),
+    // (the gentle objective leaves the backward detector a clear line to the particle past its rim; the reference reads only the
+    // light through the lens: a stop the lens's size)
+    ...(f > 5 ? [{ id: 'st', type: 'stop', name: 'Stop', x: -0.3, y: 0, angle: 0, aperture: dia, outer: 60 }] : [])];
 };
 for (const [name, steps] of [['tight', [0, 3]], ['gentle', [0, 4]]]) {
   test('a retro-reflected ' + name + ' focus: the standing wave, the light it scatters and both detectors, against two foci summed as plane waves', async () => {
@@ -445,20 +448,8 @@ for (const [name, steps] of [['tight', [0, 3]], ['gentle', [0, 4]]]) {
       await open(retro(C, { step: st, y: -1e-5 })); const b = [reading('dF'), reading('dB')];
       const sl = q => Math.abs(a[q].X / a[q].mw - b[q].X / b[q].mw) / 0.02;
       within(sl(0), Rf.slope_F_per_um[j], most(Rf.slope_F_per_um), 0.05, 'forward slope, step ' + st);
-      // (the gentle focus's backward slope at step 0 is held apart: see the todo test after this one)
-      if (!(name === 'gentle' && st === 0)) within(sl(1), Rf.slope_B_per_um[j], most(Rf.slope_B_per_um), 0.05, 'backward slope, step ' + st);
+      within(sl(1), Rf.slope_B_per_um[j], most(Rf.slope_B_per_um), 0.05, 'backward slope, step ' + st);
       say('R retro', name, 'slopes at step', st, sl(0).toExponential(4), sl(1).toExponential(4), 'against', Rf.slope_F_per_um[j].toExponential(4), Rf.slope_B_per_um[j].toExponential(4));
     }
   });
 }
-/* Left failing: the backward split detector's slope in the gentle retro-reflected focus at step 0. The light scattered back through the
-   objective does not all land on this detector (the rays just outside the lens's rim, aimed at it, land beyond), so the reading
-   adds its power up over the face, taking each ray's field a little past the footprint's rim; the slope there is a small
-   difference of two terms ten times its size (the light scattered back, and the light scattered ahead that the mirror brings back),
-   and moves by 7%. On a detector that catches every ray it agrees to 0.04%. */
-test('a retro-reflected gentle focus: the backward split detector\u2019s slope at step 0', { todo: 'the face integral past a bundle\u2019s rim moves a small difference: 6.7% out, 5% allowed' }, async () => {
-  const C = RETRO.cases.gentle, Rf = C.s;
-  await open(retro(C, { y: 1e-5 })); const a = reading('dB'); await open(retro(C, { y: -1e-5 })); const b = reading('dB');
-  const sl = Math.abs(a.X / a.mw - b.X / b.mw) / 0.02, big = Math.max(...Rf.slope_B_per_um);
-  assert.ok(Math.abs(sl - Rf.slope_B_per_um[0]) <= 0.05 * big, sl + ' against ' + Rf.slope_B_per_um[0]);
-});

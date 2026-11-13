@@ -2482,7 +2482,10 @@ const ALL_CASES = [
           lens('Objective', 0), { type: 'particle', name: 'Particle', x: f, y: o.y || 0, angle: 90, trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum', scatLight: o.light !== false },
           lens('Second lens', 2 * f), { type: 'mirror', name: 'Mirror', x: f + C.focus_to_mirror_mm + (o.step || 0) * LAMmm / 16, y: 0, angle: 180, length: dia + 2, reflect: 50, transmit: 50 },
           { type: 'detector', name: 'Forward', x: f + C.focus_to_mirror_mm + 7, y: 0, angle: 180, length: dia + 3, quad: true, material: 'ingaas' },
-          { type: 'detector', name: 'Backward', x: -10, y: -15, angle: 90, length: dia + 3, quad: true, material: 'ingaas' }];
+          { type: 'detector', name: 'Backward', x: -10, y: -15, angle: 90, length: dia + 3, quad: true, material: 'ingaas' },
+          // the gentle objective (12 mm across, 15 mm from the particle) leaves the backward detector a clear line to the particle
+          // past its rim; the reference reads only the light through the lens, so a stop the lens's size takes the rest away
+          ...(f > 5 ? [{ type: 'stop', name: 'Stop', x: -0.3, y: 0, angle: 0, aperture: dia, outer: 60 }] : [])];
       };
       const open = (C, o) => { const d = bench('A sphere in a retro-reflected focus', els(C, o), { minPower: 1e-4 }); J.load(d); return d; };
       const most = a => Math.max(...a.map(Math.abs));

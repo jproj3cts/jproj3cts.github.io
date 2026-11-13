@@ -1138,12 +1138,12 @@
     {
      "k": "scatDx",
      "def": "0",
-     "meaning": "µm: moved from there across the strongest beam, in the bench plane."
+     "meaning": "µm: moved from there across the strongest beam, in the bench plane (across it level, for a beam that rises or descends)."
     },
     {
      "k": "scatDy",
      "def": "0",
-     "meaning": "µm: moved up out of the plane."
+     "meaning": "µm: moved up out of the plane (up from the beam, square to it, for a beam that rises or descends)."
     },
     {
      "k": "scatDz",

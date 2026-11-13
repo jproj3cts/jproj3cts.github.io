@@ -11031,7 +11031,7 @@ const PARTICLE = {
       trapMed: '"bench" (the index where the light is), "vacuum", "air" (with trapP) or "water".', trapShape: '"sphere", "cylinder" (a rod with flat ends), "capsule" (a rod with round ends) or "spheroid".', trapLen: 'nm: a rod’s or spheroid’s whole length along its axis.', trapTilt: 'degrees: its axis tilted up out of the bench plane (90: straight up).',
       trapP: 'mbar: the air’s pressure, for trapMed "air".', trapT: 'K: the temperature the trap’s depth is compared with.',
       scatModel: '"auto" (Mie for a sphere, a dipole array for other shapes, Rayleigh when tiny), "rayleigh", "mie" or "dda".', scatDip: 'dipoles across the smallest dimension of a dipole array (0 chooses).',
-      scatAt: '"part": the particle is where the part is; "trap": where the optical trap nearest the part holds it.', scatDx: 'µm: moved from there across the strongest beam, in the bench plane.', scatDy: 'µm: moved up out of the plane.', scatDz: 'µm: moved along the beam.',
+      scatAt: '"part": the particle is where the part is; "trap": where the optical trap nearest the part holds it.', scatDx: 'µm: moved from there across the strongest beam, in the bench plane (across it level, for a beam that rises or descends).', scatDy: 'µm: moved up out of the plane (up from the beam, square to it, for a beam that rises or descends).', scatDz: 'µm: moved along the beam.',
       scatNA: 'the numerical aperture of the cone the Scattering tab’s Collected figure is for.', scatDir: 'that cone’s direction: "fwd", "back", "side", "up" or "angle" (with scatAng).', scatAng: 'degrees: the cone’s direction on the bench, for scatDir "angle".',
       scatScale: '"log" or "lin": the pattern plots’ scale.', scatView: '"in" (the bench plane), "out" (the plane out of it through the beam) or "map" (every direction).',
       scatLight: 'true puts the scattered light on the bench: a cone to each part with a clear line to the particle, with the far field’s amplitude, phase and polarisation, coherent with the driving laser. false leaves the bench as it is without it.',
@@ -30992,9 +30992,10 @@ function trapSection(el) {
       else if (!T.trap && T.away) rows.push(['', 'No trap near ' + (isPart ? 'the part' : 'the screen') + ': the light pulls the particle away along the beam (' + off(T.dz, T.dz >= 0 ? (isPart ? 'past the part' : 'past the screen') : 'before it') + '), as a collimated beam on its own does. A focus, or a second beam against it for a standing wave, would hold it here.']);
       else if (!T.trap) rows.push(['', 'No stable trap: ' + (sph ? 'radiation pressure outweighs the pull of the focus along the beam (a higher numerical aperture, a smaller particle, or a second beam against it would hold it)' : 'the force does not settle to zero here') + '.']);
       else {
-        rows.push(['Where', 'along the beam ' + off(T.dz, T.dz >= 0 ? (isPart ? 'past the part' : 'past the screen') : 'before it') + (Math.abs(T.dx) > 1e-7 || Math.abs(T.dy) > 1e-7 ? '; across ' + fmtLen(T.dx) + ' in the plane, ' + fmtLen(T.dy) + ' out of it' : '')]);
+        rows.push(['Where', 'along the beam ' + off(T.dz, T.dz >= 0 ? (isPart ? 'past the part' : 'past the screen') : 'before it') + (Math.abs(T.dx) > 1e-7 || Math.abs(T.dy) > 1e-7 ? '; across ' + fmtLen(T.dx) + (T.tilted ? ' (level), ' + fmtLen(T.dy) + ' up from the beam (square to it)' : ' in the plane, ' + fmtLen(T.dy) + ' out of it') : '')]);
         rows.push(['Depth', tK(T.depthK) + (sph ? ' (' + (+T.kT.toPrecision(4)) + ' kT at ' + el.trapT + ' K)' : ' (' + fmtHz(T.depthHz) + ')')]);
-        rows.push(['Frequencies', 'across ' + fq(T.fx) + ' in the plane, ' + fq(T.fy) + ' out of it; along the beam ' + fq(T.fz)]);
+        // (a beam that rises: its own axes, across it level and up from it square to it)
+        rows.push(['Frequencies', 'across ' + fq(T.fx) + (T.tilted ? ' level, ' + fq(T.fy) + ' up from the beam' : ' in the plane, ' + fq(T.fy) + ' out of it') + '; along the beam ' + fq(T.fz)]);
       }
       const pw = v => v >= 1e-3 ? (+(v * 1e3).toPrecision(3)) + ' mW' : v >= 1e-6 ? (+(v * 1e6).toPrecision(3)) + ' \u00b5W' : v >= 1e-9 ? (+(v * 1e9).toPrecision(3)) + ' nW' : (+(v * 1e12).toPrecision(3)) + ' pW';
       if (sph && T.trap) {
@@ -38063,9 +38064,11 @@ function drawPolar(cv, el, S, which) {
   c.textAlign = 'left'; c.textBaseline = 'top';
   c.fillText(which === 'out' ? '0°: the beam’s way, 90°: up' : 'angles as on the bench', 2, 1);
   c.textBaseline = 'bottom';
-  c.fillText('dashed: polarised ' + (which === 'out' ? 'in the bench plane' : 'out of the plane'), 2, side - 1);
-  const an = which === 'out' ? 'angle from the beam towards up' : 'bench angle';
-  plotCsv(cv, el.name + ' scattering ' + (which === 'out' ? 'out of the plane' : 'in the bench plane'), [an + ' (deg)', 'intensity (W/sr)', 'polarised ' + (which === 'out' ? 'across the beam in the plane' : 'out of the plane') + ' (W/sr)'],
+  // (a beam that rises: its own frame, the level line across it and the line up from it, square to it)
+  const tl = !!(S && S.dir && Math.abs(S.dir[2]) > 1e-9), pIn = tl ? 'across the beam, level' : 'in the bench plane', pOut = tl ? 'up from the beam' : 'out of the plane';
+  c.fillText('dashed: polarised ' + (which === 'out' ? pIn : pOut), 2, side - 1);
+  const an = which === 'out' ? 'angle from the beam towards up' : tl ? 'angle round the level line across the beam' : 'bench angle';
+  plotCsv(cv, el.name + ' scattering ' + (which === 'out' ? pOut : pIn), [an + ' (deg)', 'intensity (W/sr)', 'polarised ' + (which === 'out' ? 'across the beam in the plane' : 'out of the plane') + ' (W/sr)'],
     () => Array.from({ length: n }, (_, i) => [i * 360 / (n - 1), cut.I[i], cut.Is[i]]));
 }
 /* the pattern over every direction: the angle from the beam across, the angle round it up */
@@ -38076,7 +38079,7 @@ function drawScatMap(cv, el, S) {
   cv._csv = null;
   if (!S || !S.map) return;
   const M = S.map, log = el.scatScale !== 'lin';
-  const sxA = { kind: 'plain', title: 'angle from the beam (°)' }, syA = { kind: 'plain', title: 'round the beam (°): 0 across in the plane, 90 up' };
+  const sxA = { kind: 'plain', title: 'angle from the beam (°)' }, syA = { kind: 'plain', title: S.dir && Math.abs(S.dir[2]) > 1e-9 ? 'round the beam (°): 0 across it level, 90 up from it' : 'round the beam (°): 0 across in the plane, 90 up' };
   const A = plotArea(c, w, hgt, [0, 360], syA);
   let mx = 0; for (const v of M.I) if (v > mx) mx = v;
   if (!(mx > 0)) return;
@@ -43922,7 +43925,7 @@ function trapSolve(el, R, dom, len) {
   let r = [0, 0, zb];
   best = -1;
   for (let k = -16; k <= 16; k++) { const z = zb + k * lamM / 32, v = intensity(0, 0, z); if (v > best) { best = v; r = [0, 0, z]; } }
-  const out = { nMed, nBench, alpha, mass, sphere: sph, launches: launches.length, beams: parts.length, skipped: skipped.length, isAtom };
+  const out = { nMed, nBench, alpha, mass, sphere: sph, launches: launches.length, beams: parts.length, skipped: skipped.length, isAtom, tilted: !F0.level };
   if (!(alpha[0] > 0)) {
     // repelled from the light: no trap at the focus, a barrier
     const I2 = intensity(...r);
@@ -50953,7 +50956,7 @@ function trapReport(el, T) {
   if (!T || T.error) return T || null;
   const I = 0.5 * T.nMed * EPS0 * C_SI * T.E2;                            // W/m^2
   const out = { I, dx: T.x, dy: T.y, dz: T.z, fx: T.fx, fy: T.fy, fz: T.fz, k: T.k, U: T.U, depthK: -T.U / KB, depthHz: -T.U / HPL,
-    trap: T.trap, converged: T.converged, nMed: T.nMed, nBench: T.nBench, beams: T.beams, launches: T.launches, skipped: T.skipped, mass: T.mass, away: T.away };
+    trap: T.trap, tilted: !!T.tilted, converged: T.converged, nMed: T.nMed, nBench: T.nBench, beams: T.beams, launches: T.launches, skipped: T.skipped, mass: T.mass, away: T.away };
   if (T.isAtom) {
     const nm = el.trap && (T.nm || lastTraceNm(el));
     out.sc = T.alpha[1] * T.E2 / (2 * HBAR);                            // photons/s

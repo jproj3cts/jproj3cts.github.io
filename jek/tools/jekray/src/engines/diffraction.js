@@ -377,7 +377,7 @@ export function trapSolve(el, R, dom, len) {
   let r = [0, 0, zb];
   best = -1;
   for (let k = -16; k <= 16; k++) { const z = zb + k * lamM / 32, v = intensity(0, 0, z); if (v > best) { best = v; r = [0, 0, z]; } }
-  const out = { nMed, nBench, alpha, mass, sphere: sph, launches: launches.length, beams: parts.length, skipped: skipped.length, isAtom };
+  const out = { nMed, nBench, alpha, mass, sphere: sph, launches: launches.length, beams: parts.length, skipped: skipped.length, isAtom, tilted: !F0.level };
   if (!(alpha[0] > 0)) {
     // repelled from the light: no trap at the focus, a barrier
     const I2 = intensity(...r);

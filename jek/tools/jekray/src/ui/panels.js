@@ -171,9 +171,10 @@ function trapSection(el) {
       else if (!T.trap && T.away) rows.push(['', 'No trap near ' + (isPart ? 'the part' : 'the screen') + ': the light pulls the particle away along the beam (' + off(T.dz, T.dz >= 0 ? (isPart ? 'past the part' : 'past the screen') : 'before it') + '), as a collimated beam on its own does. A focus, or a second beam against it for a standing wave, would hold it here.']);
       else if (!T.trap) rows.push(['', 'No stable trap: ' + (sph ? 'radiation pressure outweighs the pull of the focus along the beam (a higher numerical aperture, a smaller particle, or a second beam against it would hold it)' : 'the force does not settle to zero here') + '.']);
       else {
-        rows.push(['Where', 'along the beam ' + off(T.dz, T.dz >= 0 ? (isPart ? 'past the part' : 'past the screen') : 'before it') + (Math.abs(T.dx) > 1e-7 || Math.abs(T.dy) > 1e-7 ? '; across ' + fmtLen(T.dx) + ' in the plane, ' + fmtLen(T.dy) + ' out of it' : '')]);
+        rows.push(['Where', 'along the beam ' + off(T.dz, T.dz >= 0 ? (isPart ? 'past the part' : 'past the screen') : 'before it') + (Math.abs(T.dx) > 1e-7 || Math.abs(T.dy) > 1e-7 ? '; across ' + fmtLen(T.dx) + (T.tilted ? ' (level), ' + fmtLen(T.dy) + ' up from the beam (square to it)' : ' in the plane, ' + fmtLen(T.dy) + ' out of it') : '')]);
         rows.push(['Depth', tK(T.depthK) + (sph ? ' (' + (+T.kT.toPrecision(4)) + ' kT at ' + el.trapT + ' K)' : ' (' + fmtHz(T.depthHz) + ')')]);
-        rows.push(['Frequencies', 'across ' + fq(T.fx) + ' in the plane, ' + fq(T.fy) + ' out of it; along the beam ' + fq(T.fz)]);
+        // (a beam that rises: its own axes, across it level and up from it square to it)
+        rows.push(['Frequencies', 'across ' + fq(T.fx) + (T.tilted ? ' level, ' + fq(T.fy) + ' up from the beam' : ' in the plane, ' + fq(T.fy) + ' out of it') + '; along the beam ' + fq(T.fz)]);
       }
       const pw = v => v >= 1e-3 ? (+(v * 1e3).toPrecision(3)) + ' mW' : v >= 1e-6 ? (+(v * 1e6).toPrecision(3)) + ' \u00b5W' : v >= 1e-9 ? (+(v * 1e9).toPrecision(3)) + ' nW' : (+(v * 1e12).toPrecision(3)) + ' pW';
       if (sph && T.trap) {

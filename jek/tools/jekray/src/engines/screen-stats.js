@@ -234,7 +234,7 @@ export function trapReport(el, T) {
   if (!T || T.error) return T || null;
   const I = 0.5 * T.nMed * EPS0 * C_SI * T.E2;                            // W/m^2
   const out = { I, dx: T.x, dy: T.y, dz: T.z, fx: T.fx, fy: T.fy, fz: T.fz, k: T.k, U: T.U, depthK: -T.U / KB, depthHz: -T.U / HPL,
-    trap: T.trap, converged: T.converged, nMed: T.nMed, nBench: T.nBench, beams: T.beams, launches: T.launches, skipped: T.skipped, mass: T.mass, away: T.away };
+    trap: T.trap, tilted: !!T.tilted, converged: T.converged, nMed: T.nMed, nBench: T.nBench, beams: T.beams, launches: T.launches, skipped: T.skipped, mass: T.mass, away: T.away };
   if (T.isAtom) {
     const nm = el.trap && (T.nm || lastTraceNm(el));
     out.sc = T.alpha[1] * T.E2 / (2 * HBAR);                            // photons/s

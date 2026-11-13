@@ -537,8 +537,8 @@ One small particle at a point of the bench: a sphere, a rod or a spheroid, in wh
 | scatModel | `"auto"` | "auto" (Mie for a sphere, a dipole array for other shapes, Rayleigh when tiny), "rayleigh", "mie" or "dda". |
 | scatDip | `0` | dipoles across the smallest dimension of a dipole array (0 chooses). |
 | scatAt | `"part"` | "part": the particle is where the part is; "trap": where the optical trap nearest the part holds it. |
-| scatDx | `0` | µm: moved from there across the strongest beam, in the bench plane. |
-| scatDy | `0` | µm: moved up out of the plane. |
+| scatDx | `0` | µm: moved from there across the strongest beam, in the bench plane (across it level, for a beam that rises or descends). |
+| scatDy | `0` | µm: moved up out of the plane (up from the beam, square to it, for a beam that rises or descends). |
 | scatDz | `0` | µm: moved along the beam. |
 | scatNA | `0.5` | the numerical aperture of the cone the Scattering tab’s Collected figure is for. |
 | scatDir | `"fwd"` | that cone’s direction: "fwd", "back", "side", "up" or "angle" (with scatAng). |

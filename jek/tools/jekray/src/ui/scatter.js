@@ -253,9 +253,11 @@ function drawPolar(cv, el, S, which) {
   c.textAlign = 'left'; c.textBaseline = 'top';
   c.fillText(which === 'out' ? '0°: the beam’s way, 90°: up' : 'angles as on the bench', 2, 1);
   c.textBaseline = 'bottom';
-  c.fillText('dashed: polarised ' + (which === 'out' ? 'in the bench plane' : 'out of the plane'), 2, side - 1);
-  const an = which === 'out' ? 'angle from the beam towards up' : 'bench angle';
-  plotCsv(cv, el.name + ' scattering ' + (which === 'out' ? 'out of the plane' : 'in the bench plane'), [an + ' (deg)', 'intensity (W/sr)', 'polarised ' + (which === 'out' ? 'across the beam in the plane' : 'out of the plane') + ' (W/sr)'],
+  // (a beam that rises: its own frame, the level line across it and the line up from it, square to it)
+  const tl = !!(S && S.dir && Math.abs(S.dir[2]) > 1e-9), pIn = tl ? 'across the beam, level' : 'in the bench plane', pOut = tl ? 'up from the beam' : 'out of the plane';
+  c.fillText('dashed: polarised ' + (which === 'out' ? pIn : pOut), 2, side - 1);
+  const an = which === 'out' ? 'angle from the beam towards up' : tl ? 'angle round the level line across the beam' : 'bench angle';
+  plotCsv(cv, el.name + ' scattering ' + (which === 'out' ? pOut : pIn), [an + ' (deg)', 'intensity (W/sr)', 'polarised ' + (which === 'out' ? 'across the beam in the plane' : 'out of the plane') + ' (W/sr)'],
     () => Array.from({ length: n }, (_, i) => [i * 360 / (n - 1), cut.I[i], cut.Is[i]]));
 }
 /* the pattern over every direction: the angle from the beam across, the angle round it up */
@@ -266,7 +268,7 @@ function drawScatMap(cv, el, S) {
   cv._csv = null;
   if (!S || !S.map) return;
   const M = S.map, log = el.scatScale !== 'lin';
-  const sxA = { kind: 'plain', title: 'angle from the beam (°)' }, syA = { kind: 'plain', title: 'round the beam (°): 0 across in the plane, 90 up' };
+  const sxA = { kind: 'plain', title: 'angle from the beam (°)' }, syA = { kind: 'plain', title: S.dir && Math.abs(S.dir[2]) > 1e-9 ? 'round the beam (°): 0 across it level, 90 up from it' : 'round the beam (°): 0 across in the plane, 90 up' };
   const A = plotArea(c, w, hgt, [0, 360], syA);
   let mx = 0; for (const v of M.I) if (v > mx) mx = v;
   if (!(mx > 0)) return;

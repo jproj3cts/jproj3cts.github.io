@@ -2467,6 +2467,79 @@ const ALL_CASES = [
           'The lens is free of aberration by design: the reference’s traced optical paths differ by ' + fmt(C.opl_spread_waves, 2) + ' waves across the aperture.' };
     },
   },
+  {
+    id: 'scatter-retro', area: 'Scattering', title: 'A particle in a retro-reflected focus: the standing wave and both detectors',
+    kind: 'Independent code', ref: 'scatter-retro.json', script: 'scatter_retro.py',
+    cite: 'B. Richards and E. Wolf, Proceedings of the Royal Society A 253, 358\u2013379 (1959), for a focus as plane waves; Bohren and Huffman (1983), chapter 4, for Mie theory. The light that comes back is the forward focus turned through its centre, with the Gouy phase of the two half passes (ray matrix of the second lens and the flat mirror: x \u2192 \u2212x).',
+    what: 'One 1550 nm laser (100 mW, 1.5 mm in radius) through a 50/50 plate onto an ideal lens that focuses it onto the 300 nm silica sphere. A like lens recollimates it and a flat mirror (50% reflected, 50% passed) sends it back to refocus on the sphere, so the sphere sits in a standing wave whose phase the mirror\u2019s place sets. A split photodetector behind the mirror, and one on the plate\u2019s return port. Two foci: tight (f = 2 mm, NA 0.8, the plane waves of each lens\u2019s pupil) and gentle (f = 15 mm, the Gaussian beam). The mirror is moved in nine steps of \u03bb/16. The reference shares no code with JEKray: the two foci summed as plane waves with the phase the mirror\u2019s path gives them, Mie theory through both, and each detector\u2019s interference over the directions it catches (behind: the return beam with the light scattered back, and with the light scattered ahead that the mirror brought back through the focus).',
+    tolerance: 'Irradiance at the particle, scattered power and extinction at each step within 3% of the reference\u2019s largest; the standing wave\u2019s depth within 0.02; each detector\u2019s change at each step within 3% of the reference\u2019s largest change on it; each split detector\u2019s slope at two of the steps within 5% of the larger of the two.',
+    async run(J, R) {
+      const checks = [], plots = [], benches = [], LAMmm = 1.55e-3;
+      const els = (C, o) => {
+        const f = C.f_mm, dia = C.lens_diameter_mm, lens = (name, x) => ({ type: 'mask', name, x, y: 0, angle: 0, length: dia, amp: '1', delay: '-(sqrt(r^2+' + f * f + ')-' + f + ')/lambda' });
+        return [{ type: 'source', name: 'Laser', x: -30, y: 0, angle: 0, wavelength: 1550, gauss: true, w0: 1.5, z0: 0, rays: 0, traceRays: false, power: 100, pol: o.pol || 's' },
+          { type: 'mirror', name: 'Plate', x: -10, y: 0, angle: 135, length: 24, reflect: 50, transmit: 50 },
+          lens('Objective', 0), { type: 'particle', name: 'Particle', x: f, y: o.y || 0, angle: 90, trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum', scatLight: o.light !== false },
+          lens('Second lens', 2 * f), { type: 'mirror', name: 'Mirror', x: f + C.focus_to_mirror_mm + (o.step || 0) * LAMmm / 16, y: 0, angle: 180, length: dia + 2, reflect: 50, transmit: 50 },
+          { type: 'detector', name: 'Forward', x: f + C.focus_to_mirror_mm + 7, y: 0, angle: 180, length: dia + 3, quad: true, material: 'ingaas' },
+          { type: 'detector', name: 'Backward', x: -10, y: -15, angle: 90, length: dia + 3, quad: true, material: 'ingaas' }];
+      };
+      const open = (C, o) => { const d = bench('A sphere in a retro-reflected focus', els(C, o), { minPower: 1e-4 }); J.load(d); return d; };
+      const most = a => Math.max(...a.map(Math.abs));
+      for (const [name, label] of [['tight', 'tight focus (NA 0.8)'], ['gentle', 'gentle focus']]) {
+        const C = R.cases[name];
+        for (const pol of name === 'tight' ? ['s', 'p'] : ['s']) {
+          const Rf = C[pol], I = [], Ps = [], Pe = [], dF = [], dB = [], full = pol === 's';
+          for (let i = 0; i < 9; i++) {
+            const data = open(C, { pol, step: i, light: full }), S = J.scatter('Particle');
+            if (i === 0 && pol === 's') {
+              checks.push(check(label + ': beams on the particle, in one launch (2 and 1)', 21, 10 * S.beams + S.launches, { abs: 0 }));
+              checks.push(check(label + ': each beam taken ' + (name === 'tight' ? 'as its own lens\u2019s pupil, traced (2)' : 'as a Gaussian beam (2)'), 2, S.routes.filter(r => r === (name === 'tight' ? 'traced' : 'beam')).length, { abs: 0 }));
+              benches.push(['The ' + label, data]);
+            }
+            I.push(S.I0); Ps.push(S.Psca); Pe.push(S.Pext);
+            if (full) {
+              const on = [J.detector('Forward').mw, J.detector('Backward').mw];
+              open(C, { pol, step: i, light: false });
+              dF.push(on[0] - J.detector('Forward').mw); dB.push(on[1] - J.detector('Backward').mw);
+            }
+            await idle();
+          }
+          const tag = label + ', polarised ' + (pol === 's' ? 'out of the plane' : 'in it') + ': ';
+          for (let i = 0; i < 9; i++) checks.push(check(tag + 'irradiance at step ' + i, Rf.I0[i] / 1e9, I[i] / 1e9, { abs: 0.03 * most(Rf.I0) / 1e9 }, ' \u00d710\u2079 W/m\u00b2'));
+          const depth = (Math.max(...I) - Math.min(...I)) / (Math.max(...I) + Math.min(...I));
+          checks.push(check(tag + 'depth of the standing wave', Rf.depth, depth, { abs: 0.02 }));
+          for (let i = 0; i < 9; i++) checks.push(check(tag + 'scattered power at step ' + i, Rf.Psca[i] * 1e6, Ps[i] * 1e6, { abs: 0.03 * most(Rf.Psca) * 1e6 }, ' \u00b5W'));
+          for (let i = 0; i < 9; i++) checks.push(check(tag + 'extinction at step ' + i, Rf.Pext[i] * 1e6, Pe[i] * 1e6, { abs: 0.03 * most(Rf.Pext) * 1e6 }, ' \u00b5W'));
+          if (full) {
+            for (let i = 0; i < 9; i++) checks.push(check(tag + 'forward detector\u2019s change at step ' + i, Rf.dF_mW[i] * 1e3, dF[i] * 1e3, { abs: 0.03 * most(Rf.dF_mW) * 1e3 }, ' \u00b5W'));
+            for (let i = 0; i < 9; i++) checks.push(check(tag + 'backward detector\u2019s change at step ' + i, Rf.dB_mW[i] * 1e3, dB[i] * 1e3, { abs: 0.03 * most(Rf.dB_mW) * 1e3 }, ' \u00b5W'));
+            const sF = [], sB = [];
+            for (const st of Rf.slope_steps) {
+              open(C, { pol, step: st, y: 1e-5 }); const a = [J.detector('Forward'), J.detector('Backward')];
+              open(C, { pol, step: st, y: -1e-5 }); const b = [J.detector('Forward'), J.detector('Backward')];
+              sF.push(Math.abs(a[0].X / a[0].mw - b[0].X / b[0].mw) / 0.02); sB.push(Math.abs(a[1].X / a[1].mw - b[1].X / b[1].mw) / 0.02);
+              await idle();
+            }
+            Rf.slope_steps.forEach((st, j) => {
+              checks.push(check(tag + 'forward split detector\u2019s slope at step ' + st, Rf.slope_F_per_um[j], sF[j], { abs: 0.05 * most(Rf.slope_F_per_um) }, ' /\u00b5m'));
+              checks.push(check(tag + 'backward split detector\u2019s slope at step ' + st, Rf.slope_B_per_um[j], sB[j], { abs: 0.05 * most(Rf.slope_B_per_um) }, ' /\u00b5m'));
+            });
+            const x = Rf.steps_nm;
+            plots.push(plot({ title: 'The ' + label + ': irradiance at the particle as the mirror moves', xlabel: 'mirror moved (nm)', ylabel: 'irradiance (\u00d710\u2079 W/m\u00b2)',
+              series: [{ name: 'Reference', x, y: Rf.I0.map(v => v / 1e9), colour: REF_C, width: 2.4 }, { name: 'JEKray', x, y: I.map(v => v / 1e9), colour: GOT_C, dots: true }] }));
+            plots.push(plot({ title: 'The ' + label + ': change in each detector\u2019s reading', xlabel: 'mirror moved (nm)', ylabel: 'change (\u00b5W)',
+              series: [{ name: 'Reference, forward', x, y: Rf.dF_mW.map(v => v * 1e3), colour: REF_C, width: 2.4 }, { name: 'JEKray, forward', x, y: dF.map(v => v * 1e3), colour: GOT_C, dots: true },
+                { name: 'Reference, backward', x, y: Rf.dB_mW.map(v => v * 1e3), colour: REF_C, width: 1.2 }, { name: 'JEKray, backward', x, y: dB.map(v => v * 1e3), colour: GOT_C, dots: true }] }));
+          }
+        }
+      }
+      const T = R.cases.tight.s, G = R.cases.gentle.s, worst = r => Math.max(...r.all_exits_W.map((v, i) => Math.abs(v - r.budget_W[i]) / r.Pext[i]));
+      return { checks, plots, benches,
+        notes: 'The reference\u2019s own energy does not close, and that is left as it is: adding up every exit (both detectors, the light going back to the laser through the plate, and what leaves outside both lenses) gives \u2212P_ext + P_sca only to within ' + fmt(100 * worst(T), 2) + '% of P_ext at the tight focus and ' + fmt(100 * worst(G), 2) + '% at the gentle one. The difference is the interference between the light the sphere scatters back and the light it scatters ahead that the mirror brings back. That light reaches the sphere again, and neither model lets the sphere scatter it a second time, which is where the energy would balance. JEKray adds the two the same way, so each detector agrees with the reference. ' +
+          'With a 50/50 plate of 8 mm the gentle case read 5.6% low at the focus: the plate, at 45\u00b0, is an aperture 5.7 mm across to the 1.5 mm beam, and its hard edge lowers the far field\u2019s peak by (1 \u2212 exp(\u2212a\u00b2/w\u00b2))\u00b2. The reference has no such edge, so the plate here is 24 mm long.' };
+    },
+  },
 ];
 
 /* ---------- Running and reporting ---------- */

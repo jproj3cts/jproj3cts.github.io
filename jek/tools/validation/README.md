@@ -62,6 +62,7 @@ scripts that made them. The page itself runs JEKray live against these files.
 | `ref/scatter-bench.json` | `scripts/scatter_bench.py` | A particle's scattered light on the bench, from Lorenz-Mie theory alone (Bohren & Huffman 1983, ch. 3 and 4; needs `mie_reference.py` beside it): the change in a detector's reading when a silica or a gold sphere is put in a wide beam (extinction less the scattered light that lands on the detector); the slope of a split detector's signal as a small sphere crosses a Gaussian focus, integrated from the two far fields, with Gittes & Schmidt's closed form (Opt. Lett. 23, 7 (1998)) beside it; the share of the scattered power inside a cone of NA 0.5 ahead and at 90 degrees |
 | `ref/scatter-position-focus.json` | `scripts/scatter_position_focus.py` | A sphere's place in a steep focus from a split detector, from first principles (needs `mie_reference.py` and `scatter_bench.py` beside it): the focus as a sum of plane waves (Richards & Wolf 1959) for three ideal lenses (a thin mask, the bench's; an energy-keeping thin lens; an aplanatic lens), each wave scattered by Mie theory, the scattered light interfered with the unscattered beam over each half of the collected cone. Checked in the script at a low aperture against Gittes & Schmidt's closed form (Opt. Lett. 23, 7 (1998)) |
 | `ref/scatter-real-lens.json` | `scripts/scatter_position_focus.py` | A sphere at the focus of a real asphere (a plano-hyperbolic lens in N-BK7, k = -n^2, stigmatic by Fermat's principle): the script traces the prescription itself, exactly (heights to angles, optical path, Fresnel transmission of each polarisation at bare faces), builds the focus as plane waves with the energy kept along each ray, and gives the focus's widths, peak and axial field, the sphere's scattered power by Mie theory, the share inside the collection lens's cone and the split detector's slope; with faces that reflect nothing and with bare faces |
+| `ref/scatter-retro.json` | `scripts/scatter_retro.py` | A sphere in a retro-reflected focus (a lens, a like lens recollimating and a flat 50% mirror sending the light back through the focus), tight (NA 0.8) and gentle: the two foci summed as plane waves with the phase the mirror's path gives them (the return is the forward focus turned through its centre, with the Gouy phase of the two half passes), Mie theory through both, and each detector's change and split signal (behind the mirror, and on a 50/50 plate's return port) as the mirror moves over half a wavelength |
 
 ## Making them again
 
@@ -127,6 +128,7 @@ numpy instead.
     python scripts/dda_rod.py                        # about ten minutes; needs mie_reference.py beside it
     python scripts/scatter_bench.py                  # needs mie_reference.py beside it
     python scripts/scatter_position_focus.py         # about two minutes; needs mie_reference.py and scatter_bench.py beside it, and ref/scatter-bench.json; writes ref/scatter-real-lens.json too (--lens-only for that alone)
+    python scripts/scatter_retro.py                 # a few minutes; needs scatter_position_focus.py beside it
     python scripts/fbg_erdogan.py
 
 ## Rules

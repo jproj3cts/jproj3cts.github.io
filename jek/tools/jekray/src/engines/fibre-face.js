@@ -325,11 +325,61 @@ export function coneDeriv(B, get) {
   for (const r of B.rays) { const t = dT.get(r), p = dP.get(r); out.set(r, t && p ? [t[0], t[1], p[0], p[1]] : null); }
   return out;
 }
-/* each ray's tube area where get(ray) puts it: |d(x)/d(theta) x d(x)/d(phi)| / sin(theta) for each steradian it stands for */
-function tubeAreas(B, get) {
-  const D = coneDeriv(B, get), out = new Map();
-  for (const r of B.rays) { const d = D.get(r), s = Math.sin(B.grid.th[r.ri]); out.set(r, d && s > 0 ? Math.abs(d[0] * d[3] - d[1] * d[2]) / s * r.sa : 0); }
+/* each ray's tube area where get(ray) puts it: |d(x)/d(theta) x d(x)/d(phi)| / sin(theta) for each steradian it stands for;
+   with edges, each ray's tube as the parallelogram of its two sides there (r.e1 across its ring, r.e2 round it) */
+function tubeAreas(B, get, edges) {
+  const D = coneDeriv(B, get), out = new Map(), dPh = 2 * Math.PI / B.grid.nP;
+  for (const r of B.rays) {
+    const d = D.get(r), s = Math.sin(B.grid.th[r.ri]);
+    out.set(r, d && s > 0 ? Math.abs(d[0] * d[3] - d[1] * d[2]) / s * r.sa : 0);
+    if (edges) { const wT = d && s > 0 ? r.sa / (s * dPh) : 0; r.e1 = d ? [d[0] * wT, d[1] * wT] : null; r.e2 = d ? [d[2] * dPh, d[3] * dPh] : null; }
+  }
   return out;
+}
+// sin(x) / x
+const tubeSinc = x => (Math.abs(x) < 1e-6 ? 1 - x * x / 6 : Math.sin(x) / x);
+/* The foci a bundle passed on its way, and their phase. A ray's own path has no Gouy phase: a bundle that goes through a
+   line focus lags a quarter wave more than its path says, and through a point focus (two line foci at once) half a
+   wave. That is nothing to the bundle's own power, and nothing against light that went through the same focus (the beam
+   it was scattered from, after a retro-reflector), but it is the sign of its interference with light that did not
+   (the same particle's light seen directly, or a beam that was never focused there). How the bundle's spread across its
+   rays, on the face and taken in each ray's own s and p (which a mirror turns over as it turns the light), compares with
+   its spread as it left the particle says it: each way the spread has turned over is a focus passed. (From the two ends
+   alone: two foci one after the other along the same way look like none, which holds for a round bundle, two point
+   foci being a whole wave, and not for two line foci of the same way, which are half a wave.) */
+function causticTurns(B, el, f) {
+  const V = B.src.vRays, Dx = coneDeriv(B, r => [r.u, r.v]);
+  const Da = coneDeriv(B, r => { const d = V[r.h[0].k].d; return [d[0], d[1]]; }), Db = coneDeriv(B, r => [V[r.h[0].k].d[2], 0]);
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const count = new Map(), tally = [0, 0, 0];
+  for (const r of B.rays) {
+    const x = Dx.get(r), a = Da.get(r), b = Db.get(r);
+    if (!x || !a || !b) continue;
+    // as it left: the spread of its way over the grid, on its s and p there
+    const [S0, P0] = polFrame(V[r.h[0].k].d, 1), dT = [a[0], a[1], b[0]], dP = [a[2], a[3], b[2]];
+    const X0 = [dot(S0, dT), dot(S0, dP), dot(P0, dT), dot(P0, dP)], det0 = X0[0] * X0[3] - X0[1] * X0[2];
+    if (!(Math.abs(det0) > 0)) continue;
+    // on the face: its spread there on its own s and p
+    const [S, P] = polFrame(r.d, r.h[0].par ? -1 : 1), su = faceDir(el, f, S), pu = faceDir(el, f, P);
+    const X = [su[0] * x[0] + su[1] * x[1], su[0] * x[2] + su[1] * x[3], pu[0] * x[0] + pu[1] * x[1], pu[0] * x[2] + pu[1] * x[3]];
+    // M = X X0^-1: each of its eigenvalues below zero is a way the spread has turned over
+    const M = [(X[0] * X0[3] - X[1] * X0[2]) / det0, (X[1] * X0[0] - X[0] * X0[1]) / det0, (X[2] * X0[3] - X[3] * X0[2]) / det0, (X[3] * X0[0] - X[2] * X0[1]) / det0];
+    const tr = M[0] + M[3], dt = M[0] * M[3] - M[1] * M[2], disc = tr * tr / 4 - dt;
+    let n;
+    if (disc < 0) n = tr < 0 ? 2 : 0;
+    else { const s = Math.sqrt(disc); n = (tr / 2 + s < 0 ? 1 : 0) + (tr / 2 - s < 0 ? 1 : 0); }
+    count.set(r, n); tally[n]++;
+  }
+  // a ray whose neighbours did not all land takes the bundle's own count
+  const most = tally.indexOf(Math.max(...tally));
+  for (const r of B.rays) {
+    const n = count.has(r) ? count.get(r) : most;
+    if (!n) continue;
+    // the lag of n quarter waves, in the faces' convention (conjugated): E times exp(+i n pi / 2)
+    const c = Math.cos(n * Math.PI / 2), s = Math.sin(n * Math.PI / 2), E = r.E;
+    for (let q = 0; q < 6; q += 2) { const re = E[q], im = E[q + 1]; E[q] = re * c - im * s; E[q + 1] = re * s + im * c; }
+    r.foci = n;
+  }
 }
 export function scatFace(el) {
   const SC = lastTrace.scat, H = SC && SC.hits && SC.hits[el.id];
@@ -357,8 +407,9 @@ export function scatFace(el) {
       }
       if (!rays.length) continue;
       const B = { src, coh: sc.coh, lmw: src.vLp, nm: src.wavelength, k0, gpl0: sc.gpl0, lag: sc.lag, gj0: sc.gj0, part: sc.part, launch: sc.launch, grid: sc.grid, rays };
-      const A = tubeAreas(B, r => [r.u, r.v]);
+      const A = tubeAreas(B, r => [r.u, r.v], true);
       for (const r of rays) r.dA = A.get(r);
+      causticTurns(B, el, f);
       out.push(B);
     }
     return out;
@@ -415,7 +466,7 @@ function frontFix(A, u, v0) {
 export function scatOnDisc(el, a) {
   const cones = scatFace(el), out = { mw: 0, cross: 0, mutual: 0, X: 0, Y: 0, byNm: [], cones: cones.filter(C => !C.wave).length };
   if (!cones.length) return out;
-  const arr = faceArrivals(el);
+  const arr = faceArrivals(el), fr = frame(el);
   // a launch whose light at the particle is a focus's plane waves: its interference with the unscattered beam is those waves'
   // (each where its ray landed), and is not taken from the Gaussian beam again
   const byWave = new Set();
@@ -449,6 +500,12 @@ export function scatOnDisc(el, a) {
     if (C.coh && !byWave.has(C.part + '|' + C.launch)) for (const A of arr) {
       if (A.b.coh !== C.coh || A.coh.indexOf('#m') >= 0) continue;
       const g = cohGamma(splitRoot(A.src)), sc = Math.sqrt(Math.max(0, A.b.lmw) * C.lmw);
+      // the beam's way along the face, and how it turns across it (its wavefront's curvature): a ray's tube meets the beam's
+      // fringes against it, and the sum over a tube is its area times sinc of the phase each side runs through. Where
+      // the two come in together that is 1; where they meet at an angle the fringes are far finer than the rays, and
+      // the sum over them is nothing (a sum of the rays' values alone would be a few of those fringes picked at random)
+      const ga = faceDir(el, fr, A.b.d3 ? A.b.d3 : [A.b.dx, A.b.dy, A.b.uz || 0]), la = Math.hypot(...(A.b.d3 || [A.b.dx, A.b.dy, A.b.uz || 0]));
+      const cRx = A.Q || A.comps ? 0 : A.qx[0] / (A.qx[0] * A.qx[0] + A.qx[1] * A.qx[1]), cRy = A.Q || A.comps ? 0 : A.qy[0] / (A.qy[0] * A.qy[0] + A.qy[1] * A.qy[1]);
       // (the beam's Gouy phase from the particle to here, as it builds up, not as arg(q) writes it: see gj)
       const dg = 0.5 * ((C.gj0 || 0) - (A.gj || 0));
       for (const r of inD) {
@@ -458,7 +515,12 @@ export function scatOnDisc(el, a) {
         let re = 0, im = 0; for (let q = 0; q < 6; q += 2) { re += Eg[q] * r.E[q] + Eg[q + 1] * r.E[q + 1]; im += Eg[q] * r.E[q + 1] - Eg[q + 1] * r.E[q]; }
         // (the beam's wavefront as the sphere it is, where the field above writes its parabola: the rays' own paths are exact)
         const fx = frontFix(A, r.u, r.v), cf = Math.cos(dg + fx), sf = Math.sin(dg + fx);
-        const t = 2 * (re * cf - im * sf) * Math.sqrt(r.dA) * (g ? g(A.gpl + A.lag - (C.gpl0 + r.opl + C.lag)) : 1) * sc;
+        let tube = 1;
+        if (r.e1 && r.e2) {
+          const ku = C.k0 * (r.gu - ga[0] / la - (r.u - A.u0) * cRx), kv = C.k0 * (r.gv - ga[1] / la - (r.v - (A.v0 || 0)) * cRy);
+          tube = tubeSinc(0.5 * (ku * r.e1[0] + kv * r.e1[1])) * tubeSinc(0.5 * (ku * r.e2[0] + kv * r.e2[1]));
+        }
+        const t = 2 * (re * cf - im * sf) * Math.sqrt(r.dA) * tube * (g ? g(A.gpl + A.lag - (C.gpl0 + r.opl + C.lag)) : 1) * sc;
         cross += t; X += Math.sign(r.u) * t; Y += Math.sign(r.v) * t;
       }
     }

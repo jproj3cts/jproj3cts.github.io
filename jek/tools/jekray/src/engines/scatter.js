@@ -146,8 +146,9 @@ export function scatterWaves(parts, C, nMed, size) {
         }
       }
     }
-    if (!byL.has(q.coh)) byL.set(q.coh, { d: [], E: [] });
+    if (!byL.has(q.coh)) byL.set(q.coh, { d: [], E: [], pupils: 0 });
     const L = byL.get(q.coh);
+    if (q.P) L.pupils++;
     // this beam's own field at the centre: the launch's strongest is what the scattered light's phase is held against
     { const e0 = [0, 0, 0, 0, 0, 0]; for (let o = 0; o < E.length; o++) e0[o % 6] += E[o];
       const I0 = e0.reduce((a, v) => a + v * v, 0), r0 = refs.get(q.coh);
@@ -164,7 +165,7 @@ export function scatterWaves(parts, C, nMed, size) {
     const keep = []; for (let o = 0; o < n0; o++) if (I[o] > 1e-9 * mx) keep.push(o);
     const d = new Float64Array(3 * keep.length), E = new Float64Array(6 * keep.length);
     keep.forEach((o, i) => { for (let m = 0; m < 3; m++) d[3 * i + m] = L.d[3 * o + m]; for (let m = 0; m < 6; m++) E[6 * i + m] = L.E[6 * o + m]; });
-    launches.push({ n: keep.length, d, E });
+    launches.push({ n: keep.length, d, E, pupils: L.pupils });
   }
   [...byL.keys()].forEach((c, i) => { launches[i].ref = refs.get(c); });
   return { launches, notes };
@@ -329,9 +330,10 @@ export function* scatterGen(el, R, opts) {
   // d_o meets it, and the two interfere there by -(4 pi / k) Im(conj(E_o) . F(d_o)) / 2Z watts (the optical theorem, one wave at
   // a time: their sum is -P_ext). Kept for a focus (more than one wave), so the bench can put each wave's share where its ray
   // lands (engines/scatter-light.js): a detector that takes in the beam reads the extinction, and one split in two the
-  // particle's place
+  // particle's place. Only for a focus's waves: a gentle beam is one wave standing for the whole beam (two of them when it
+  // comes back on itself), and its interference is read against the beam itself where it lands
   const waveInt = launches.map((L, i) => {
-    if (L.n < 2) return null;
+    if (L.n < 2 || !L.pupils) return null;
     const F = fars[i](L.d), p = new Float64Array(L.n), e2 = new Float64Array(L.n);
     let ext = 0;
     for (let o = 0; o < L.n; o++) {

@@ -70,7 +70,8 @@ test('B3: a gentle Gaussian tipped up 30 deg scatters and traps as the level one
   for (const q of ['Csca', 'Cext']) { got[q] = rel(R.S[q], A.S[q]); lim[q] = 1e-9; }
   for (const q of ['Psca', 'Pext', 'I0']) { got[q] = rel(R.S[q], A.S[q]); lim[q] = 1e-4; }
   got.collect = rel(R.S.collect.frac, A.S.collect.frac); lim.collect = 1e-4;
-  const TA = SS.trapReport(A.el, A.S.trapRaw), TR2 = SS.trapReport(R.el, R.S.trapRaw);
+  // (the solver's own stiffnesses: there is no trap in this gentle beam, so the report gives none)
+  const TA = A.S.trapRaw, TR2 = R.S.trapRaw;
   say('B3 traps', TA.trap, TR2.trap, JSON.stringify(TA.k), JSON.stringify(TR2.k));
   TA.k.forEach((v, i) => { got['k' + i] = rel(TR2.k[i], v); lim['k' + i] = 1e-4; });
   // the far field in each one's own frame (far.axes: across, up, along), at the same grid point

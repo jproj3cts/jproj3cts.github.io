@@ -37,23 +37,16 @@ for (const [k, d] of Object.entries(CASES)) {
     assert.ok(Math.abs(S.Cabs - O.Cabs) <= 1e-6 * O.Cext, 'Cabs ' + S.Cabs + ' against ' + O.Cabs);
     assert.ok(Math.hypot(...S.pos.map((v, i) => v - O.pos[i])) <= 1e-6, 'where: ' + S.pos + ' against ' + O.pos);  // S2 (S4: 1e-6 mm is 1 nm)
     assert.equal(S.model, O.model);
-    // S3: the Trap tab's figures (C1, a plane wave, has no trap: see the todo test below)
-    if (k !== 'C1') {
-      assert.equal(T.trap, O.trap.trap);
+    // S3: the Trap tab's figures where there is a trap; where there is none (C1 a plane wave, C3 the rod) the search stopped at
+    // the edge of the region it looked in, which differs between the two, and no figures are given (the tab never showed them)
+    assert.equal(T.trap, O.trap.trap);
+    if (O.trap.trap) {
       for (const q of ['fx', 'fy', 'fz', 'U']) assert.ok(O.trap[q] === null ? T[q] === null : rel(T[q], O.trap[q]) <= 1e-4, q + ': ' + T[q] + ' against ' + O.trap[q]);
       T.k.forEach((v, i) => assert.ok(rel(v, O.trap.k[i]) <= 1e-4, 'k' + i + ': ' + v + ' against ' + O.trap.k[i]));
-    }
+    } else assert.deepEqual([T.fx, T.fy, T.fz, T.k, T.U, T.depthK], [null, null, null, null, null, null], 'no trap: no figures');
     say(k, 'moved', Math.hypot(...S.pos.map((v, i) => v - O.pos[i])), 'I0', rel(S.I0, O.I0), 'Psca', rel(S.Psca, O.Psca), 'trap fx', T && T.fx, O.trap && O.trap.fx);
   });
 }
-/* Left failing: a plane wave makes no trap, and the figures the Trap tab gives beside "no trap" are taken where the search
-   stopped, which is the edge of the region it looked in: the old screen's (half its length) and the Particle's (three beam
-   radii) are not the same, so those figures differ by 3e-4 where 1e-4 was allowed. Every figure of a real trap agrees exactly. */
-test('a plane wave on a screen\u2019s particle: the Trap tab\u2019s figures beside "no trap"', { todo: 'taken at the edge of the search region, which differs: 2.8e-4 out, 1e-4 allowed' }, async () => {
-  const B = await openBench(CASES.C1); B.trace();
-  const el = ST.project.elements.find(e => e.type === 'particle'), S = SC.scatterNow(el), T = SS.trapReport(el, S.trapRaw), O = BEFORE.C1.trap;
-  for (const q of ['fx', 'fy', 'fz', 'U']) assert.ok(rel(T[q], O[q]) <= 1e-4, q + ': ' + T[q] + ' against ' + O[q]);
-});
 test('opening a file with a screen\u2019s particle says so once', () => {
   for (const d of Object.values(CASES)) {
     OPEN.openProjectData(JSON.parse(JSON.stringify(d)), 'test');

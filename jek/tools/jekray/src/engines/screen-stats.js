@@ -256,6 +256,10 @@ export function trapReport(el, T) {
     else { out.G = 0; out.dampBy = el.trapMed === 'vacuum' ? 'vacuum' : 'none'; }
     out.Q = [T.fx, T.fy, T.fz].map(f => f && out.G > 0 ? 2 * Math.PI * f / out.G : null);
   }
+  // no trap where the light pulls (radiation pressure wins, or the force does not settle): the search stopped where it gave
+  // up, at the edge of the region it looked in, and a depth, stiffnesses and frequencies there would describe that edge, not
+  // the particle. None are given (the Trap tab never showed them); a barrier (the particle repelled) keeps its height
+  if (!T.trap && !(out.depthK < 0)) { out.fx = out.fy = out.fz = out.k = out.U = out.depthK = out.depthHz = null; if ('kT' in out) out.kT = null; if (out.Q) out.Q = [null, null, null]; }
   return out;
 }
 

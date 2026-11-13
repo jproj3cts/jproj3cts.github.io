@@ -83,16 +83,7 @@ test('B3: a gentle Gaussian tipped up 30 deg scatters and traps as the level one
   for (const i of [0, Math.floor(n / 3), Math.floor(2 * n / 3)]) { const a = own(A.S, i), b = own(R.S, i); for (let m = 0; m < 3; m++) for (let r = 0; r < 2; r++) worst = Math.max(worst, Math.abs(a[m][r] - b[m][r]) / top); }
   got.turned = worst; lim.turned = 1e-4;
   say('B3', JSON.stringify(Object.fromEntries(Object.entries(got).map(([k, v]) => [k, +v.toExponential(2)]))));
-  // (the stiffness up from the beam is held apart: the todo test below)
-  for (const k of Object.keys(lim)) if (k !== 'k1') assert.ok(got[k] <= lim[k], k + ': ' + got[k] + ' (allowed ' + lim[k] + ')');
-});
-/* Left failing: B3's stiffness up from the beam. The particle is not held (radiation pressure wins in this gentle beam: no trap,
-   the search runs away along the beam), and in the rising frame the search ends 2.7 nm off the axis upward where the level one
-   ends on it; the stiffness up from there differs by 1.2e-4 where 1e-4 was allowed. Every other figure agrees to 3e-7 or better. */
-test('B3: the stiffness up from a rising gentle beam', { todo: 'no trap; the search ends 2.7 nm off axis: 1.2e-4 out, 1e-4 allowed' }, async () => {
-  const A = await runP(tipped(0)), R = await runP(tipped(30));
-  const k = (X) => SS.trapReport(X.el, X.S.trapRaw).k[1];
-  assert.ok(Math.abs(k(R) / k(A) - 1) <= 1e-4, k(R) + ' against ' + k(A));
+  for (const k of Object.keys(lim)) assert.ok(got[k] <= lim[k], k + ': ' + got[k] + ' (allowed ' + lim[k] + ')');
 });
 
 /* B6: a detector after the particle, at the rotated place: its reading and the particle's part in it */

@@ -43800,9 +43800,16 @@ function trapSolve(el, R, dom, len) {
   // the trap frame: x across the strongest beam (in the bench plane when it is level), y up from it, z along it, from P0
   const world = (x, y, z) => [0, 1, 2].map(i => P0[i] + x * F0.ex[i] + y * F0.ey[i] + z * F0.d[i]);
   for (const q of parts) q.F = beamFrame(q.b);
+  // the strongest beam itself, when it rises: its own frame is the trap's, so a point's place in it is (x, y, len + z) as it
+  // stands. Through world points 80 mm from the origin the rounding (1e-14 mm) is enough, against a gentle beam's radiation
+  // pressure, to push the search a few nm off the axis where there is no trap
+  const selfL = q => q.b === b0 && !F0.level;
   const fieldL = (L, x, y, z) => {
     const W = world(x, y, z), E = [0, 0, 0, 0, 0, 0];                  // world X, Y (bench), Z (up)
     for (const q of L) {
+      if (selfL(q)) { const e = q.P ? vfAt(q.P, x, y, len + z) : trapLegAt(q.leg, x, y, len + z), s = Math.sqrt(2 * q.Pw * 1e6 / (nMed * EPS0 * C_SI)), F = q.F;
+        for (let m = 0; m < 3; m++) { E[2 * m] += s * (e[0] * F.ex[m] + e[2] * F.ey[m] + e[4] * F.d[m]); E[2 * m + 1] -= s * (e[1] * F.ex[m] + e[3] * F.ey[m] + e[5] * F.d[m]); }
+        continue; }
       const F = q.F, r = [W[0] - F.P0[0], W[1] - F.P0[1], W[2] - F.P0[2]];
       // where the point is in this beam's own frame: across, up, along (a level beam's are its run, the height, its x)
       const px = r[0] * F.ex[0] + r[1] * F.ex[1] + r[2] * F.ex[2], py = F.level && F0.level ? y + (P0[2] - F.P0[2]) : r[0] * F.ey[0] + r[1] * F.ey[1] + r[2] * F.ey[2], pz = r[0] * F.d[0] + r[1] * F.d[1] + r[2] * F.d[2];

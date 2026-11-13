@@ -1,0 +1,115 @@
+/* Drink Gen inside the μRPG pages. urpg.css draws the masthead, title and
+   footer; everything of the app's own is scoped under .dg so the two don't meet.
+   It follows urpg.css: the dark ground, white ink, structure from hairlines
+   rather than fills, amber for what's active, the red action button.
+   Only the map itself keeps its parchment look. */
+.dg {
+  width: 100%;
+  max-width: 1280px;
+  color: var(--urpg-ink);
+  text-align: left;
+}
+.dg *, .dg *::before, .dg *::after { box-sizing: border-box; }
+.dg p { max-width: none; line-height: 1.5; }
+
+.dg .grid {
+  display: grid;
+  gap: 1.25rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 900px) {
+  .dg .grid { grid-template-columns: minmax(300px, 400px) 1fr; align-items: start; }
+  .dg .panel.source { position: sticky; top: 1rem; }
+}
+
+.dg .panel {
+  background: transparent;
+  border: 1px solid var(--urpg-line-2);
+  border-radius: var(--urpg-radius);
+  padding: 1rem;
+  min-width: 0;
+}
+
+.dg .private { color: var(--urpg-ink-soft); font-size: 0.85rem; text-align: center; margin: 1rem 0 0; }
+
+/* Buttons: secondary as urpg.css's .arrow-button, primary as its .action-button */
+.dg .pick { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.dg .or { color: var(--urpg-ink-soft); font-size: 0.9rem; }
+
+.dg .btn {
+  appearance: none;
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 40px;
+  padding: 0.45rem 0.8rem;
+  font-family: inherit; font-size: 0.9rem; font-weight: 600; letter-spacing: 0.02em;
+  color: #fff;
+  background: var(--urpg-bg);
+  border: 1px solid var(--urpg-line-2);
+  border-radius: 6px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.06s ease;
+}
+.dg .btn:hover:not(:disabled) { background: #fff; color: #0a0a0a; border-color: #fff; }
+.dg .btn.primary { font-weight: 700; letter-spacing: 0.03em; background: var(--urpg-red); border: 2px solid var(--urpg-red); color: #fff; }
+.dg .btn.primary:hover:not(:disabled) { background: var(--urpg-orange); border-color: var(--urpg-orange); color: #fff; }
+.dg .btn:active:not(:disabled) { transform: translateY(1px); }
+.dg .btn:focus-visible { outline: none; box-shadow: var(--urpg-focus); }
+.dg .btn:disabled { opacity: 0.4; cursor: default; }
+
+.dg .crop-wrap { margin-top: 0.75rem; }
+.dg #crop {
+  display: block; width: 100%; height: auto; max-height: 52vh; object-fit: contain;
+  background: #000; border: 1px solid var(--urpg-line); border-radius: 6px; touch-action: none; cursor: grab;
+}
+.dg #crop:active { cursor: grabbing; }
+.dg .hint { color: var(--urpg-ink-soft); font-size: 0.82rem; margin: 0 2px; }
+.dg .hint-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 0.5rem; }
+.dg .btn.small { padding: 0.3rem 0.8rem; min-height: 32px; font-size: 0.85rem; flex: none; }
+
+/* Controls, set off from the photo by a hairline */
+.dg .controls {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1rem;
+  margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--urpg-line);
+}
+.dg .controls label {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--urpg-ink-soft);
+}
+.dg .controls label.row { justify-content: flex-end; }
+.dg .controls label.check {
+  flex-direction: row; align-items: center; gap: 8px;
+  font-size: 0.875rem; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--urpg-ink);
+}
+.dg .controls input[type="range"] { width: 100%; accent-color: var(--urpg-accent); }
+.dg .controls select {
+  font: inherit; font-size: 0.875rem; font-weight: 400; letter-spacing: 0; text-transform: none;
+  color: #fff; background: var(--urpg-bg);
+  border: 1px solid var(--urpg-line-2); border-radius: 6px; padding: 0.4rem;
+}
+.dg .controls input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--urpg-accent); }
+.dg .controls input:focus-visible, .dg .controls select:focus-visible { outline: none; box-shadow: var(--urpg-focus); border-radius: 6px; }
+
+/* The map keeps its own parchment; the frame around it is the site's */
+.dg .map-wrap {
+  position: relative; aspect-ratio: 1 / 1; width: 100%;
+  background: #000; border: 1px solid var(--urpg-line); border-radius: 6px; overflow: hidden;
+}
+.dg #map { display: block; width: 100%; height: 100%; }
+.dg .empty, .dg .busy {
+  position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px;
+  font-size: 1rem; color: var(--urpg-ink-soft);
+}
+.dg .busy {
+  inset: auto 12px 12px auto; padding: 0.35rem 0.9rem; border-radius: 6px;
+  font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  background: rgba(10, 10, 10, 0.85); border: 1px solid var(--urpg-accent); color: var(--urpg-accent);
+}
+[hidden] { display: none !important; }
+
+.dg .actions { display: flex; gap: 0.75rem; margin-top: 1rem; flex-wrap: wrap; justify-content: flex-end; }
+.dg .stats {
+  color: var(--urpg-ink-soft); font-family: var(--urpg-mono); font-size: 0.75rem;
+  margin: 0.6rem 2px 0; text-align: right; min-height: 1em;
+}

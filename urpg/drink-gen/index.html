@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>μRPG - Drink Gen</title>
+<meta name="description" content="Photograph the foam on your coffee or beer and turn it into a fantasy map with mountains, rivers, towns and roads. Runs entirely in your browser.">
+<meta property="og:title" content="Drink Gen | μRPG">
+<meta property="og:description" content="Fantasy maps charted from the foam in your cup. Runs entirely in your browser.">
+<meta property="og:url" content="https://jeksys.net/urpg/drink-gen/">
+<meta property="og:image" content="https://jeksys.net/urpg/assets/img/drink-gen.jpg">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/urpg/assets/css/urpg.css?v=9">
+<link rel="stylesheet" href="/urpg/drink-gen/css/style.css">
+</head>
+<body>
+
+  <!-- Top -->
+  <div class="top-container">
+    <div class="bar bar1"></div>
+    <div class="bar bar2"></div>
+    <div class="bar bar3"></div>
+    <div class="bar bar4"></div>
+    <div class="bar bar5"></div>
+    <div class="bar bar6">
+      <a href="/urpg/core.html">Core</a> |
+      <a href="/urpg/anomalies.html">Anomalies</a> |
+      <a href="/urpg/makers.html">For Makers</a> |
+      <a href="/urpg/">About</a> |
+      <a href="/urpg/donate.html">Donations</a>
+    </div>
+    <div class="text-overlay">μRPG</div>
+  </div>
+
+  <!-- Main -->
+  <main class="main-content">
+    <h1 class="page-title">Drink Gen</h1>
+    <p class="page-lede">Photograph the foam on a coffee or beer and it becomes a map of a world, with coastlines, mountains, rivers, towns and roads.</p>
+
+    <div class="dg">
+      <div class="grid">
+        <section class="panel source">
+          <div class="pick">
+            <label class="btn primary">
+              <input type="file" id="file" accept="image/*" hidden>
+              Photo of a drink
+            </label>
+            <span class="or">or try</span>
+            <button class="btn" data-sample="coffee">Coffee</button>
+            <button class="btn" data-sample="beer">Beer</button>
+          </div>
+
+          <div class="crop-wrap">
+            <canvas id="crop" aria-label="Photo with a circle marking the drink's surface"></canvas>
+            <div class="hint-row">
+              <p class="hint">The rim is found automatically. Drag, pinch or scroll to adjust.</p>
+              <button class="btn small" id="find-rim" disabled>Find rim</button>
+            </div>
+          </div>
+
+          <div class="controls">
+            <label>Circle size <input type="range" id="radius" min="0.08" max="0.8" step="0.005" value="0.45"></label>
+            <label>Land <input type="range" id="land" min="-1.5" max="1.5" step="0.05" value="0"></label>
+            <label>Smoothness <input type="range" id="smooth" min="0" max="6" step="0.5" value="2"></label>
+            <label>Mountains <input type="range" id="rough" min="0" max="1" step="0.05" value="0.6"></label>
+            <label>Rugged coast <input type="range" id="coast" min="0" max="1" step="0.05" value="0.7"></label>
+            <label class="row">
+              Drink
+              <select id="drink">
+                <option value="auto">Auto-detect</option>
+                <option value="coffee">Coffee</option>
+                <option value="beer">Beer</option>
+                <option value="tea">Tea</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <label class="check"><input type="checkbox" id="invert"> Dark is land</label>
+            <label class="check"><input type="checkbox" id="mask"> Show detected land</label>
+          </div>
+        </section>
+
+        <section class="panel map">
+          <div class="map-wrap">
+            <canvas id="map" aria-label="Generated fantasy map"></canvas>
+            <div class="empty" id="empty">Choose a photo (or a sample) to chart a world.</div>
+            <div class="busy" id="busy" hidden>Charting…</div>
+          </div>
+          <div class="actions">
+            <button class="btn" id="reroll" disabled>Reroll world</button>
+            <button class="btn primary" id="download" disabled>Download PNG</button>
+          </div>
+          <p class="stats" id="stats"></p>
+        </section>
+      </div>
+      <p class="private">Your photo never leaves your device. Everything runs in your browser.</p>
+    </div>
+  </main>
+
+<footer>
+  <a href="/urpg/">
+    <img
+      src="/urpg/assets/img/urpg-logo.png"
+      alt="μRPG logo"
+      class="bottom-image"
+    />
+  </a>
+</footer>
+
+  <script type="module" src="/urpg/drink-gen/js/main.js"></script>
+</body>
+</html>

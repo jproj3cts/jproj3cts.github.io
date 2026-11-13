@@ -179,7 +179,7 @@ function drawCrop() {
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(state.maskCanvas, X - R, Y - R, 2 * R, 2 * R);
     const k = (2 * R) / N, P = (g) => (g + 0.5) * k;
-    const lw = Math.max(1.5, c.width / 450);
+    const lw = Math.max(3.5, c.width / 180);
     const stroke = (segs, style, w) => {
       ctx.strokeStyle = style; ctx.lineWidth = w; ctx.lineCap = 'round';
       ctx.beginPath();
@@ -189,7 +189,7 @@ function drawCrop() {
       }
       ctx.stroke();
     };
-    stroke(state.outline.coast, 'rgba(0, 0, 0, 0.55)', lw * 2.6);
+    stroke(state.outline.coast, 'rgba(0, 0, 0, 0.55)', lw * 1.9);
     stroke(state.outline.coast, '#ffb347', lw);
     stroke(state.outline.lakes, '#73b9ca', lw * 0.8);
     ctx.restore();

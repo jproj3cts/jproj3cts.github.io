@@ -10,6 +10,7 @@ import { allSources, beamOn, getEl } from '../state/elements.js';
 import { lastTrace, zOf } from './trace.js';
 import { popKeyOf, popRun } from './beam-tree.js';
 import { trapBeams, trapLegAt, trapMedium, trapSolve } from './diffraction.js';
+import { beamFrame } from './phase-screen.js';
 
 /* ---------- The light a particle scatters ----------
    A Particle part (of any of the shapes), in the light the bench
@@ -38,14 +39,16 @@ const scatFields = el => [el.trapShape, el.trapLen, particleAz(el), el.trapTilt,
 /* A Particle part is a point of the bench, in whatever light reaches it: the beams of a trace that pass it, each
    with where along it the particle is nearest (t), how far the particle is off its axis in the bench plane (x, to
    the beam's left) and above it (dz), and the beam's irradiance there against the others'. A beam counts when the
-   particle is within three of its radii of its axis there (20 um at least). Level beams only: one that rises
-   out of the plane is left out. */
+   particle is within three of its radii of its axis there (20 um at least). A beam that rises or descends out of the
+   plane counts as a level one does, in its own frame (beamFrame): t along it in 3D, x across it, dz up from it. */
 export function particleBeams(el, B = lastTrace.beams || []) {
   const out = [], z = zOf(el);
   B.forEach((b, i) => {
-    if (b.fan || b.bench !== el.bench || b.uz || b.d3) return;
-    const rx = el.x - b.x0, ry = el.y - b.y0, t = rx * b.dx + ry * b.dy, x = -rx * b.dy + ry * b.dx, dz = z - (b.z0 !== undefined ? b.z0 : BEAM_Z);
-    if (t < 0 || t > b.len) return;
+    if (b.fan || b.bench !== el.bench) return;
+    const F = beamFrame(b), r = [el.x - F.P0[0], el.y - F.P0[1], z - F.P0[2]];
+    const t = r[0] * F.d[0] + r[1] * F.d[1] + r[2] * F.d[2], x = r[0] * F.ex[0] + r[1] * F.ex[1] + r[2] * F.ex[2];
+    const dz = F.level ? r[2] : r[0] * F.ey[0] + r[1] * F.ey[1] + r[2] * F.ey[2];
+    if (t < 0 || t > F.L) return;
     const bw = beamAt(b.qr + t, b.qi, b.n, b.nm, 1), w = bw ? bw.w : 0, r2 = x * x + dz * dz, reach = Math.max(0.02, 3 * w);
     if (!(w > 0) || r2 > reach * reach) return;
     out.push({ i, t, x, dz, w, I: Math.max(0, b.w === undefined ? 1 : b.w) * Math.max(0, b.lmw || 0) * Math.exp(-2 * r2 / (w * w)) / (w * w) });
@@ -101,19 +104,23 @@ function fromFrame(fr, v, step, out) {
   }
   return o;
 }
-/* The plane waves on a particle at world point C (bench mm; C[2] out of the plane), one set a
+/* The plane waves on a particle at world point C (bench mm; C[2] its height above zRef, the strongest beam's), one set a
    launch: { n, d, E } with d each wave's direction and E its field at C (V/m, exp(-i w t)),
    and what was made of each beam. nMed scales the fields as the trap does. */
-export function scatterWaves(parts, C, nMed, size) {
+export function scatterWaves(parts, C, nMed, size, zRef = BEAM_Z) {
   const byL = new Map(), notes = { varies: false, pupils: 0, plane: 0 }, refs = new Map();
   for (const q of parts) {
-    const b = q.b, rx = C[0] - b.x0, ry = C[1] - b.y0, pz = rx * b.dx + ry * b.dy, px = -rx * b.dy + ry * b.dx, py = C[2];
-    const s = Math.sqrt(2 * q.Pw * 1e6 / (nMed * EPS0 * C_SI)), ax = [-b.dy, b.dx];
+    // where C is in this beam's own frame (beamFrame): across, up, along; a level beam's as it always was
+    const b = q.b, F = beamFrame(b), r = [C[0] - F.P0[0], C[1] - F.P0[1], C[2] + (zRef - F.P0[2])];
+    const pz = r[0] * F.d[0] + r[1] * F.d[1] + r[2] * F.d[2], px = r[0] * F.ex[0] + r[1] * F.ex[1] + r[2] * F.ex[2];
+    const py = F.level ? r[2] : r[0] * F.ey[0] + r[1] * F.ey[1] + r[2] * F.ey[2];
+    const s = Math.sqrt(2 * q.Pw * 1e6 / (nMed * EPS0 * C_SI)), ex = F.ex, ey = F.ey, dd = F.d;
     const d = [], E = [];
-    // beam frame (x across in the plane, y out of it, z along) to the world, the field conjugated
+    // beam frame (x across, y up, z along) to the world, the field conjugated
     const push = (dv, e) => {
-      d.push(dv[0] * ax[0] + dv[2] * b.dx, dv[0] * ax[1] + dv[2] * b.dy, dv[1]);
-      E.push(s * (e[0] * ax[0] + e[4] * b.dx), -s * (e[1] * ax[0] + e[5] * b.dx), s * (e[0] * ax[1] + e[4] * b.dy), -s * (e[1] * ax[1] + e[5] * b.dy), s * e[2], -s * e[3]);
+      d.push(dv[0] * ex[0] + dv[1] * ey[0] + dv[2] * dd[0], dv[0] * ex[1] + dv[1] * ey[1] + dv[2] * dd[1], dv[0] * ex[2] + dv[1] * ey[2] + dv[2] * dd[2]);
+      E.push(s * (e[0] * ex[0] + e[2] * ey[0] + e[4] * dd[0]), -s * (e[1] * ex[0] + e[3] * ey[0] + e[5] * dd[0]), s * (e[0] * ex[1] + e[2] * ey[1] + e[4] * dd[1]), -s * (e[1] * ex[1] + e[3] * ey[1] + e[5] * dd[1]),
+        s * (e[0] * ex[2] + e[2] * ey[2] + e[4] * dd[2]), -s * (e[1] * ex[2] + e[3] * ey[2] + e[5] * dd[2]));
     };
     if (q.P) {
       const { X, Y, RHO, U, W, n, k, lamM, Rf } = q.P;
@@ -206,7 +213,8 @@ export function* scatterGen(el, R, opts) {
   // the beams, and where the particle is: the trap frame's x across the strongest beam in the plane, y out of it, z along it
   const TB = trapBeams(el, R, dom, len, { reach: 3.2, M: 64 });
   if (!TB.parts.length) return { error: 'no focused beam' };
-  const d0 = [b0.dx, b0.dy, 0], a0 = [-b0.dy, b0.dx, 0], up = [0, 0, 1];
+  // the strongest beam's own frame: along it, across it (in the bench plane when it is level), up from it
+  const F0 = beamFrame(b0), d0 = F0.d, a0 = F0.ex, up = F0.ey, zRef = F0.P0[2];
   // (a Particle part sits where it is put: off the beam's axis by what it is)
   let at = [sd.x, sd.dz, 0], atTrap = false, trapMiss = false, trapRaw = null;
   {
@@ -216,16 +224,17 @@ export function* scatterGen(el, R, opts) {
     if (el.scatAt === 'trap') { if (T && T.trap) { at = [T.x, T.y, T.z]; atTrap = true; } else trapMiss = true; }
   }
   at = [at[0] + (el.scatDx || 0) * 1e-3, at[1] + (el.scatDy || 0) * 1e-3, at[2] + (el.scatDz || 0) * 1e-3];
-  const C = [TB.P0[0] + at[0] * a0[0] + at[2] * d0[0], TB.P0[1] + at[0] * a0[1] + at[2] * d0[1], at[1]];
-  const W = scatterWaves(TB.parts, C, nMed, 0.5e3 * Math.max(P.D, P.L));
+  // the particle's centre: x and y the world's, its height above zRef
+  const C = [0, 1, 2].map(i => (i < 2 ? TB.P0[i] : TB.P0[2] - zRef) + at[0] * a0[i] + at[1] * up[i] + at[2] * d0[i]);
+  const W = scatterWaves(TB.parts, C, nMed, 0.5e3 * Math.max(P.D, P.L), zRef);
   const launches = W.launches.filter(L => L.n > 0);
   if (!launches.length) return { error: 'no light' };
   // the light at the centre, and the strongest launch's polarisation there (square to the beam)
   const E0s = launches.map(wavesAt0), E2 = E0s.reduce((a, e) => a + abs2(e), 0), I0 = 0.5 * E2 / Z;
   let iDom = 0; E0s.forEach((e, i) => { if (abs2(e) > abs2(E0s[iDom])) iDom = i; });
   let pol = E0s[iDom].slice();
-  { const lr = pol[0] * d0[0] + pol[2] * d0[1], li = pol[1] * d0[0] + pol[3] * d0[1]; for (let m = 0; m < 3; m++) { pol[2 * m] -= lr * d0[m]; pol[2 * m + 1] -= li * d0[m]; } }
-  { const l = Math.sqrt(abs2(pol)); pol = l > 0 ? pol.map(v => v / l) : [a0[0], 0, a0[1], 0, 0, 0]; }
+  { const lr = pol[0] * d0[0] + pol[2] * d0[1] + pol[4] * d0[2], li = pol[1] * d0[0] + pol[3] * d0[1] + pol[5] * d0[2]; for (let m = 0; m < 3; m++) { pol[2 * m] -= lr * d0[m]; pol[2 * m + 1] -= li * d0[m]; } }
+  { const l = Math.sqrt(abs2(pol)); pol = l > 0 ? pol.map(v => v / l) : [a0[0], 0, a0[1], 0, a0[2], 0]; }
   const single = launches.length === 1 && launches[0].n === 1;
   // the particle's axis and its frame
   const az = (particleAz(el) || 0) * deg, tl = (el.trapTilt || 0) * deg, axis = [Math.cos(tl) * Math.cos(az), Math.cos(tl) * Math.sin(az), Math.sin(tl)];
@@ -239,7 +248,7 @@ export function* scatterGen(el, R, opts) {
     x: k * aEq, kL: k * Math.max(P.D, P.L) / 2, area, I0, E2, at: { x: at[0], y: at[1], z: at[2], trap: atTrap }, beams: TB.parts.length, launches: launches.length,
     waves: launches.reduce((a, L) => a + L.n, 0), pupils: W.notes.pupils, plane: W.notes.plane, routes: TB.parts.map(q => (q.P ? q.P.route : 'beam')), single, dir: d0, pol, axis, flags,
     // where the particle is on the bench (mm; z its height above the breadboard), and the trap there (a Particle part's Trap tab)
-    pos: [C[0], C[1], (b0.z0 !== undefined ? b0.z0 : BEAM_Z) + C[2]], elPos: [el.x, el.y, zOf(el)], ...(trapRaw ? { trapRaw } : {}) };
+    pos: [C[0], C[1], zRef + C[2]], elPos: [el.x, el.y, zOf(el)], ...(trapRaw ? { trapRaw } : {}) };
   // Rayleigh's answer beside whichever model runs, and Mie's for the sphere of the same volume
   const aSm = smallAlpha(P.V, P.shape === 'sphere' ? 1 : P.L / P.D, mr, mi, k);
   const smallP = e => {            // p = alpha E, alpha a tensor about the axis: [6]
@@ -261,7 +270,7 @@ export function* scatterGen(el, R, opts) {
   const refGrid = sphereGrid(24, 48, a0, up, d0);
   const refFrom = (far, ext, abs, e2) => {
     const T = sphereTotals(refGrid, farPower([far(refGrid.dirs)], refGrid.dirs.length / 3));
-    const Fb = far(Float64Array.of(-d0[0], -d0[1], 0));
+    const Fb = far(Float64Array.of(-d0[0], -d0[1], F0.level ? 0 : -d0[2]));
     return { Csca: T.total / e2, Cext: ext, Cabs: abs, g: T.g, Qback: 4 * Math.PI * abs2(Array.from(Fb)) / e2 / area };
   };
   if (model === 'mie') {
@@ -337,14 +346,14 @@ export function* scatterGen(el, R, opts) {
       let sm = 0;
       for (let q = 0; q < 6; q += 2) { sm += L.E[6 * o + q] * F[6 * o + q + 1] - L.E[6 * o + q + 1] * F[6 * o + q]; e2[o] += L.E[6 * o + q] ** 2 + L.E[6 * o + q + 1] ** 2; }
       p[o] = -4 * Math.PI / k * sm / (2 * Z);
-      ext = Math.max(ext, Math.abs(L.d[3 * o] * a0[0] + L.d[3 * o + 1] * a0[1]), Math.abs(L.d[3 * o + 2]));
+      ext = Math.max(ext, Math.abs(L.d[3 * o] * a0[0] + L.d[3 * o + 1] * a0[1] + L.d[3 * o + 2] * a0[2]), Math.abs(F0.level ? L.d[3 * o + 2] : L.d[3 * o] * up[0] + L.d[3 * o + 1] * up[1] + L.d[3 * o + 2] * up[2]));
     }
     // The waves are a pupil's samples, a thousand or more: gathered WAVE_BINS across the pupil each way (about the beam's
     // axis, so no bin lies across it), each bin one ray along its waves' mean way (weighted by their power), polarised as
     // its strongest wave is, with the sum of their shares
     const dl = ext > 0 ? 2 * ext / WAVE_BINS : 1, bins = new Map();
     for (let o = 0; o < L.n; o++) {
-      const a = L.d[3 * o] * a0[0] + L.d[3 * o + 1] * a0[1], c = L.d[3 * o + 2], fw = L.d[3 * o] * d0[0] + L.d[3 * o + 1] * d0[1] >= 0;
+      const a = L.d[3 * o] * a0[0] + L.d[3 * o + 1] * a0[1] + L.d[3 * o + 2] * a0[2], c = F0.level ? L.d[3 * o + 2] : L.d[3 * o] * up[0] + L.d[3 * o + 1] * up[1] + L.d[3 * o + 2] * up[2], fw = L.d[3 * o] * d0[0] + L.d[3 * o + 1] * d0[1] + L.d[3 * o + 2] * d0[2] >= 0;
       const key = (Math.floor(a / dl) + 64) * 256 + (Math.floor(c / dl) + 64) + (fw ? 0 : 65536);
       let B = bins.get(key); if (!B) bins.set(key, B = { p: 0, w: 0, d: [0, 0, 0], top: -1, o: 0 });
       B.p += p[o]; B.w += e2[o]; for (let q = 0; q < 3; q++) B.d[q] += e2[o] * L.d[3 * o + q];

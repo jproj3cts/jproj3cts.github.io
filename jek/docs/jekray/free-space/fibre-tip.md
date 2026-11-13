@@ -51,16 +51,6 @@ $$
 
 $$w$$ the fibre's mode: about 0.6 mm at 1550 nm for $$f$$ = 11 mm and a 4.4 µm, NA 0.12 core. It takes light in by that same beam's mode, so a collimated beam of the right size couples fully, and a smaller or larger one, or one off centre or tilted, costs the overlap. Its face is then the lens's **clear aperture**. Add one from either palette as **Collimator**; it is a fibre tip with its lens already set.
 
-### Multimode fibre
-
-A multimode tip (cores of 50 or 62.5 µm, NA 0.22 or 0.275 are usual) takes in whatever lands on its core inside its acceptance cone. That is the share of each beam's power on the core, times the share of its angular spectrum inside $$\pm\mathrm{NA}$$ in each plane. It sends light out filling its core and NA, a beam of
-
-$$
-M^2 = \frac{\pi a\,\mathrm{NA}}{\lambda},
-$$
-
-capped at 30. Its polarisation and phase are scrambled, and the speckle a real one makes is averaged out.
-
 ## Settings
 
 {% include jekray_params.html group="free" key="fibre" %}

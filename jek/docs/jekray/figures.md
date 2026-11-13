@@ -15,7 +15,7 @@ On a crowded bench the names do not all fit beside their parts at a size that ca
 
 The light is drawn as on the bench: by default as bright as the power it carries, so a weak ghost or a stray reflection is faint and light below a ten-thousandth of the brightest source is left out. For a figure of the paths alone, untick **Draw light by its power** under **Light** in the Bench panel first, and every beam is drawn at full strength.
 
-It comes down as **PDF** or **SVG**, vector (the lines stay lines at any zoom; a diffracted field, a picture on the bench, stays a picture in it), or as a **PNG at 600 dpi**. A name that sits badly can be moved on the bench first (drag it with the select tool), and the figure keeps it there when that place is clear at the figure's size.
+It comes down as **PDF** or **SVG**, vector (the lines stay lines at any zoom; a diffracted field, a picture on the bench, stays a picture in it), or as a **PNG at 600 dpi**. A name that sits badly can be moved on the bench first (drag it with the select tool), and the figure keeps it there when that place is clear at the figure's size. A name placed by hand gives its place up only when it stands beside another part whose name would otherwise have to be led out on a line.
 
 ## Technical drawing
 

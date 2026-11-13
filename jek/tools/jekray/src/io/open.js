@@ -84,6 +84,8 @@ function checkImport(raw, p, notes) {
       if (k === 'z' && V3D.free(n) && isFinite(v) && +v === BEAM_Z) continue;       // the beam height, which is no height of its own
       if ((k === 'tip' || k === 'roll') && tippable(n) && isFinite(v) && +v === 0) continue;   // upright, which is no tip at all
       if (k === 'faceMap' && n.type === 'screen' && v === false) continue;                    // not shown, as by default
+      // a fibre tip once had a multimode choice: tips are single-mode now. Said when the file had it set; nothing to say when it had not
+      if (k === 'mm' && n.type === 'fibre') { if (v === true) notes.push(who + ': was marked multimode. Fibre tips are single-mode now: it opens as a single-mode tip (core ' + n.core + ' \u00b5m, NA ' + n.na + '), and takes in less light than it read before.'); continue; }
       if (!(k in n)) { notes.push(who + ': field ' + fmtV(k) + ' is not used by a ' + (n.type === 'fcomp' ? FC[n.kind].label.toLowerCase() : typeLabel(n).toLowerCase()) + ': ignored.'); continue; }
       const w = n[k];
       if (typeof w === 'number') {

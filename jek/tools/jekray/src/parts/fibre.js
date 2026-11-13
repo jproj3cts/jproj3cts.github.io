@@ -12,12 +12,13 @@ export const FIBRE = {
   norm(e, base) {
     return Object.assign(base, {
       length: Math.max(0.1, num(e.length, 2.5)),       // the ferrule's face
-      core: Math.max(0.5, num(e.core, 4.4)),           // core diameter, µm
-      na: clamp(num(e.na, 0.12), 0.01, 0.9),
+      // (a tip is single-mode, as the fibres and parts it joins are. A file from when a tip could be marked multimode
+      // loads as the single-mode fibre of that wavelength range, in place of a 50 µm core treated as one mode)
+      core: e.mm === true && num(e.core, 4.4) >= 20 ? 4.4 : Math.max(0.5, num(e.core, 4.4)),           // core diameter, µm
+      na: e.mm === true && num(e.core, 4.4) >= 20 ? 0.12 : clamp(num(e.na, 0.12), 0.01, 0.9),
       emitRays: Math.round(clamp(num(e.emitRays, 5), 0, 51)),
       // what the light it sends out is drawn and worked out as, as a source's ticks: the ray fan, the Gaussian beam (its field)
       ...(RAY_PATTERNS.some(([k]) => k === e.emitPattern) && e.emitPattern !== 'line' ? { emitPattern: e.emitPattern } : {}),   // its rays across the beam, as a source's
-      mm: e.mm === true,                               // multimode: takes light in by its core and NA, sends out a multimode beam
       coll: Math.max(0, num(e.coll, 0)),               // a collimator's focal length, mm; 0 for a bare tip
       // how the field of the beam it sends out is worked out, as a source's
       popN: [128, 256, 512, 1024].includes(+e.popN) ? +e.popN : 256,
@@ -31,7 +32,6 @@ export const FIBRE = {
     fields: { length: 'mm: the ferrule face width.', core: 'µm core diameter (mode field set from core and NA).', na: 'numerical aperture.',
     emitRays: 'rays in the fan it sends out, 0 to 51.', emitPattern: '"line" (the default, in the bench plane), "cross", "grid" or "hex": its rays across the beam, up and down it too, as a source\'s pattern.',
     popN: 'grid points for the field of the beam it sends out: 128, 256, 512 or 1024.', popModel: '"auto" (round when it can be) or "2d" (always 2D, with polarisation).',
-    coll: 'mm: the focal length of a collimating lens on the tip (0, the default, for a bare tip). With one, a single-mode tip sends out a collimated beam of 1/e² radius λf/(π w), w the fibre mode, and takes in by that beam\'s mode.',
-    mm: 'true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA.' },
+    coll: 'mm: the focal length of a collimating lens on the tip (0, the default, for a bare tip). With one, a single-mode tip sends out a collimated beam of 1/e² radius λf/(π w), w the fibre mode, and takes in by that beam\'s mode.' },
   },
 };

@@ -37,13 +37,8 @@ function drawFibre(el, sel) {
 function fibrePanel(el) {
   panel.append(h('h3', null, 'Fibre'));
   panel.append(h('div', { class: 'rt-rows' },
-    selectField('Type', [['sm', 'Single mode'], ['mm', 'Multimode']], () => el.mm ? 'mm' : 'sm', v => {
-      el.mm = v === 'mm';
-      // the usual fibres of each kind, where the core still has the other kind's size
-      if (el.mm && el.core < 20) { el.core = 50; el.na = 0.22; } else if (!el.mm && el.core >= 20) { el.core = 4.4; el.na = 0.12; }
-    }, { wide: true }),
     param('Core (µm)', el, 'core'), param('NA', el, 'na'),
-    ...(el.mm ? [] : [param('Collimating lens f (mm)', el, 'coll', { wide: true })]),
+    param('Collimating lens f (mm)', el, 'coll', { wide: true }),
     param('Diameter (mm)', el, 'length', { wide: true })));
   if (el.coll > 0 && !el.mm) {
     // the beam it sends out, as the focal length is edited: lambda f / (pi w) at 1550 nm
@@ -62,8 +57,7 @@ function fibrePanel(el) {
     selectField('Grid points', [128, 256, 512, 1024].map(v => [String(v), String(v)]), () => String(el.popN || 256), v => { el.popN = +v; })));
   panel.append(readoutBox('fibre'));
   if (anyPulse()) pulseSection(el); else pulseSectionEmpty();
-  if (el.mm) panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A multimode fibre (50 or 62.5 \u00b5m core, NA 0.22 or 0.275 are usual): it takes in whatever lands on its core inside its acceptance cone, so it is forgiving to align, and sends light out filling its core and NA, a beam of M\u00b2 = \u03c0 a NA / \u03bb (capped at 30). Joined to the network, what it carries keeps its power; its polarisation and phase are scrambled (set the fibre joined to it to Multimode), and the speckle a real one makes is not modelled: think of its output as speckle averaged.'));
-  else panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Takes in the overlap of the light arriving on its face with its own mode, for each polarisation, with the beams of one launch added as fields first. The mode size comes from the core and NA (Marcuse’s formula for the fundamental mode), so offset, tilt, a mismatched waist and a wrong focus all cost what they should. It needs a Gaussian source; a ray fan has no field to overlap.'));
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Takes in the overlap of the light arriving on its face with its own mode, for each polarisation, with the beams of one launch added as fields first. The mode size comes from the core and NA (Marcuse’s formula for the fundamental mode), so offset, tilt, a mismatched waist and a wrong focus all cost what they should. It needs a Gaussian source; a ray fan has no field to overlap.'));
 }
 
 function hitFibre(el, lx, ly, tol) {

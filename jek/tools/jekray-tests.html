@@ -6364,10 +6364,16 @@ const TESTS = [
     run: J => { J.load(ampBench(0, false)); J.trace(); return J.fibrePd('D'); },
   },
   {
-    name: 'A multimode tip takes in a beam that fits its core and NA',
-    why: 'a 1550 nm beam focused to a 10 µm waist on a 50 µm, NA 0.22 fibre: nearly all of it, where a single-mode fibre takes much less',
-    want: 1, tol: 0.01, unit: '',
-    run: J => { J.load(mmBench(true)); J.trace(); const mm = J.metric('T', 'couple') / 100; J.load(mmBench(false)); J.trace(); const sm = J.metric('T', 'couple') / 100; return sm < 0.5 ? mm : NaN; },
+    name: 'Fibre tips are single-mode: one marked multimode in an old file loads as a single-mode tip',
+    why: 'a tip saved with mm: true, a 62.5 µm core and NA 0.275 (from when a tip could be multimode) loads as the 4.4 µm, NA 0.12 single-mode fibre, not as a 62.5 µm core treated as one mode; it then takes in a beam by overlap with its mode, about 55% of a 20 µm waist where the multimode reading was nearly all of it; a single-mode tip’s own core and NA are kept; the tip’s panel has no Type choice (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(mmBench(true)); J.trace(); const T = J.byName('T'), was = !T.mm && T.core === 4.4 && T.na === 0.12, took = J.metric('T', 'couple') / 100;
+      J.select('T'); const typed = [...rigDoc().querySelectorAll('#panel label, .rt-panel label')].some(l => /^Type$/.test(l.textContent.trim()));
+      J.load(mmBench(false)); const U = J.byName('T'), kept = !U.mm && U.core === 9 && U.na === 0.14;
+      if (!(was && took > 0.4 && took < 0.7 && kept && !typed)) console.log('single-mode tip', JSON.stringify({ was, took, kept, typed, T: [T.mm, T.core, T.na], U: [U.mm, U.core, U.na] }));
+      return was && took > 0.4 && took < 0.7 && kept && !typed ? 1 : 0;
+    },
   },
   {
     name: 'A mirror reads the light arriving at its face, as a screen does',

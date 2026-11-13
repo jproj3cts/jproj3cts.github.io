@@ -911,11 +911,14 @@ function drawLabels() {
     const list = project.elements.filter(e => onTab(e) && e.type !== 'draw' && !(e.type === 'elec' && e.kind === 'node')).map(el => { const b = worldBox(el); return { el, w: ctx.measureText(nameOf(el)).width, bx: { x: sx(b.x0), y: sy(b.y1), w: sx(b.x1) - sx(b.x0), h: sy(b.y0) - sy(b.y1) } }; });
     // every name first tried beside its own part (where it was put on the bench, if that is clear at this size), so one
     // name's detour never takes the place beside another part; then those left over, further out
-    const rest = [];
+    /* one setting of every name. released: names put somewhere by hand on the bench that are set as the rest are */
+    const layout = released => {
+    placed.length = 0; leads.length = 0; far = 0; clash = 0; spots.clear();
+    const rest = [], hand = new Map();
     for (const it of list) {
-      const el = it.el, c0 = (el.label && !figure.numbers ? [[sx(el.x + el.label.dx), sy(el.y + el.label.dy)]] : []).concat(ring(it, 0));
+      const el = it.el, byHand = el.label && !figure.numbers && !released.has(el.id), c0 = (byHand ? [[sx(el.x + el.label.dx), sy(el.y + el.label.dy)]] : []).concat(ring(it, 0));
       const c = c0.find(q => cost(it, q[0], q[1]) === 0);
-      if (c) fix(it, c); else rest.push(it);
+      if (c) { fix(it, c); if (byHand && c === c0[0]) hand.set(el.id, placed[placed.length - 1]); } else rest.push(it);
     }
     for (const it of rest) {
       // of the clear places out to six lines away, the one whose line to the part is shortest and crosses least
@@ -932,6 +935,23 @@ function drawLabels() {
       }
       if (bc > 0) clash++;
       fix(it, best);
+    }
+    return { far, clash, hand };
+    };
+    /* A name placed by hand on the bench keeps its place on the figure while that costs nothing. Where it stands in the
+       places beside another part, whose name then has to be led out on a line, it is set as the others are instead,
+       if that leaves fewer names led out and none more lying on something. */
+    let rel = new Set(), res = layout(rel);
+    for (let k = 0; k < 6 && res.far > 0 && res.hand.size; k++) {
+      const more = new Set(rel);
+      for (const it of list) {
+        const sp = spots.get(it.el.id);
+        if (!sp || !sp.lead) continue;
+        for (const q of ring(it, 0)) { const b = { x: q[0] - it.w / 2 - gap, y: q[1] - 10 * u, w: it.w + 2 * gap, h: lh }; for (const [id, hb] of res.hand) if (over(b, hb) > 0) more.add(id); }
+      }
+      if (more.size === rel.size) break;
+      const was = res, got = layout(more);
+      if (got.far < was.far && got.clash <= was.clash) { rel = more; res = got; } else { res = layout(rel); break; }
     }
     figure.placed = { n: list.length, far, clash };              // how it went: a crowded figure is given numbers and a key (io/figure.js)
   }

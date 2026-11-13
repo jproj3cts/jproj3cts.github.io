@@ -120,7 +120,7 @@ $$
 w = a\left(0.65 + \frac{1.619}{V^{3/2}} + \frac{2.879}{V^6}\right), \qquad V = \frac{2\pi a\,\mathrm{NA}}{\lambda},
 $$
 
-so offset, tilt, a mismatched waist and a wrong focus all cost what they should. A multimode fibre takes in the share of each beam on its core inside its acceptance cone, $$\pm\mathrm{NA}$$.
+so offset, tilt, a mismatched waist and a wrong focus all cost what they should.
 
 ### Out of a fibre
 
@@ -129,7 +129,7 @@ Light the network sends to a tip leaves it into free space as a source *split fr
 ## Limits
 
 <div class="dx-warn" markdown="1">
-- Fibres are single-mode, except where a fibre is marked multimode. Modes of a few-mode fibre are not followed one by one.
+- Fibres and fibre tips are single-mode. Modes of a few-mode or multimode fibre are not followed.
 - Nonlinearity is self-phase modulation of pulses only. Four-wave mixing between channels, Brillouin and Raman scattering are not modelled.
 - Loops are followed until what is left is negligible, so a ring of extremely high finesse takes many passes. Photonic chips are solved directly instead (see [Photonic chips](/jek/docs/jekray/chips/)).
 </div>

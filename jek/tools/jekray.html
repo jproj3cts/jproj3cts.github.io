@@ -10618,12 +10618,13 @@ const FIBRE = {
   norm(e, base) {
     return Object.assign(base, {
       length: Math.max(0.1, num(e.length, 2.5)),       // the ferrule's face
-      core: Math.max(0.5, num(e.core, 4.4)),           // core diameter, µm
-      na: clamp(num(e.na, 0.12), 0.01, 0.9),
+      // (a tip is single-mode, as the fibres and parts it joins are. A file from when a tip could be marked multimode
+      // loads as the single-mode fibre of that wavelength range, in place of a 50 µm core treated as one mode)
+      core: e.mm === true && num(e.core, 4.4) >= 20 ? 4.4 : Math.max(0.5, num(e.core, 4.4)),           // core diameter, µm
+      na: e.mm === true && num(e.core, 4.4) >= 20 ? 0.12 : clamp(num(e.na, 0.12), 0.01, 0.9),
       emitRays: Math.round(clamp(num(e.emitRays, 5), 0, 51)),
       // what the light it sends out is drawn and worked out as, as a source's ticks: the ray fan, the Gaussian beam (its field)
       ...(RAY_PATTERNS.some(([k]) => k === e.emitPattern) && e.emitPattern !== 'line' ? { emitPattern: e.emitPattern } : {}),   // its rays across the beam, as a source's
-      mm: e.mm === true,                               // multimode: takes light in by its core and NA, sends out a multimode beam
       coll: Math.max(0, num(e.coll, 0)),               // a collimator's focal length, mm; 0 for a bare tip
       // how the field of the beam it sends out is worked out, as a source's
       popN: [128, 256, 512, 1024].includes(+e.popN) ? +e.popN : 256,
@@ -10637,8 +10638,7 @@ const FIBRE = {
     fields: { length: 'mm: the ferrule face width.', core: 'µm core diameter (mode field set from core and NA).', na: 'numerical aperture.',
     emitRays: 'rays in the fan it sends out, 0 to 51.', emitPattern: '"line" (the default, in the bench plane), "cross", "grid" or "hex": its rays across the beam, up and down it too, as a source\'s pattern.',
     popN: 'grid points for the field of the beam it sends out: 128, 256, 512 or 1024.', popModel: '"auto" (round when it can be) or "2d" (always 2D, with polarisation).',
-    coll: 'mm: the focal length of a collimating lens on the tip (0, the default, for a bare tip). With one, a single-mode tip sends out a collimated beam of 1/e² radius λf/(π w), w the fibre mode, and takes in by that beam\'s mode.',
-    mm: 'true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA.' },
+    coll: 'mm: the focal length of a collimating lens on the tip (0, the default, for a bare tip). With one, a single-mode tip sends out a collimated beam of 1/e² radius λf/(π w), w the fibre mode, and takes in by that beam\'s mode.' },
   },
 };
 /* Photodetector: A free-space photodiode with an amplifier: DC, beat notes, RF spectrum, oscilloscope trace and a mixer output. */
@@ -16943,11 +16943,14 @@ function drawLabels() {
     const list = project.elements.filter(e => onTab(e) && e.type !== 'draw' && !(e.type === 'elec' && e.kind === 'node')).map(el => { const b = worldBox(el); return { el, w: ctx.measureText(nameOf(el)).width, bx: { x: sx(b.x0), y: sy(b.y1), w: sx(b.x1) - sx(b.x0), h: sy(b.y0) - sy(b.y1) } }; });
     // every name first tried beside its own part (where it was put on the bench, if that is clear at this size), so one
     // name's detour never takes the place beside another part; then those left over, further out
-    const rest = [];
+    /* one setting of every name. released: names put somewhere by hand on the bench that are set as the rest are */
+    const layout = released => {
+    placed.length = 0; leads.length = 0; far = 0; clash = 0; spots.clear();
+    const rest = [], hand = new Map();
     for (const it of list) {
-      const el = it.el, c0 = (el.label && !figure.numbers ? [[sx(el.x + el.label.dx), sy(el.y + el.label.dy)]] : []).concat(ring(it, 0));
+      const el = it.el, byHand = el.label && !figure.numbers && !released.has(el.id), c0 = (byHand ? [[sx(el.x + el.label.dx), sy(el.y + el.label.dy)]] : []).concat(ring(it, 0));
       const c = c0.find(q => cost(it, q[0], q[1]) === 0);
-      if (c) fix(it, c); else rest.push(it);
+      if (c) { fix(it, c); if (byHand && c === c0[0]) hand.set(el.id, placed[placed.length - 1]); } else rest.push(it);
     }
     for (const it of rest) {
       // of the clear places out to six lines away, the one whose line to the part is shortest and crosses least
@@ -16964,6 +16967,23 @@ function drawLabels() {
       }
       if (bc > 0) clash++;
       fix(it, best);
+    }
+    return { far, clash, hand };
+    };
+    /* A name placed by hand on the bench keeps its place on the figure while that costs nothing. Where it stands in the
+       places beside another part, whose name then has to be led out on a line, it is set as the others are instead,
+       if that leaves fewer names led out and none more lying on something. */
+    let rel = new Set(), res = layout(rel);
+    for (let k = 0; k < 6 && res.far > 0 && res.hand.size; k++) {
+      const more = new Set(rel);
+      for (const it of list) {
+        const sp = spots.get(it.el.id);
+        if (!sp || !sp.lead) continue;
+        for (const q of ring(it, 0)) { const b = { x: q[0] - it.w / 2 - gap, y: q[1] - 10 * u, w: it.w + 2 * gap, h: lh }; for (const [id, hb] of res.hand) if (over(b, hb) > 0) more.add(id); }
+      }
+      if (more.size === rel.size) break;
+      const was = res, got = layout(more);
+      if (got.far < was.far && got.clash <= was.clash) { rel = more; res = got; } else { res = layout(rel); break; }
     }
     figure.placed = { n: list.length, far, clash };              // how it went: a crowded figure is given numbers and a key (io/figure.js)
   }
@@ -27797,13 +27817,8 @@ function drawFibre(el, sel) {
 function fibrePanel(el) {
   panel.append(h('h3', null, 'Fibre'));
   panel.append(h('div', { class: 'rt-rows' },
-    selectField('Type', [['sm', 'Single mode'], ['mm', 'Multimode']], () => el.mm ? 'mm' : 'sm', v => {
-      el.mm = v === 'mm';
-      // the usual fibres of each kind, where the core still has the other kind's size
-      if (el.mm && el.core < 20) { el.core = 50; el.na = 0.22; } else if (!el.mm && el.core >= 20) { el.core = 4.4; el.na = 0.12; }
-    }, { wide: true }),
     param('Core (µm)', el, 'core'), param('NA', el, 'na'),
-    ...(el.mm ? [] : [param('Collimating lens f (mm)', el, 'coll', { wide: true })]),
+    param('Collimating lens f (mm)', el, 'coll', { wide: true }),
     param('Diameter (mm)', el, 'length', { wide: true })));
   if (el.coll > 0 && !el.mm) {
     // the beam it sends out, as the focal length is edited: lambda f / (pi w) at 1550 nm
@@ -27822,8 +27837,7 @@ function fibrePanel(el) {
     selectField('Grid points', [128, 256, 512, 1024].map(v => [String(v), String(v)]), () => String(el.popN || 256), v => { el.popN = +v; })));
   panel.append(readoutBox('fibre'));
   if (anyPulse()) pulseSection(el); else pulseSectionEmpty();
-  if (el.mm) panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A multimode fibre (50 or 62.5 \u00b5m core, NA 0.22 or 0.275 are usual): it takes in whatever lands on its core inside its acceptance cone, so it is forgiving to align, and sends light out filling its core and NA, a beam of M\u00b2 = \u03c0 a NA / \u03bb (capped at 30). Joined to the network, what it carries keeps its power; its polarisation and phase are scrambled (set the fibre joined to it to Multimode), and the speckle a real one makes is not modelled: think of its output as speckle averaged.'));
-  else panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Takes in the overlap of the light arriving on its face with its own mode, for each polarisation, with the beams of one launch added as fields first. The mode size comes from the core and NA (Marcuse’s formula for the fundamental mode), so offset, tilt, a mismatched waist and a wrong focus all cost what they should. It needs a Gaussian source; a ray fan has no field to overlap.'));
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Takes in the overlap of the light arriving on its face with its own mode, for each polarisation, with the beams of one launch added as fields first. The mode size comes from the core and NA (Marcuse’s formula for the fundamental mode), so offset, tilt, a mismatched waist and a wrong focus all cost what they should. It needs a Gaussian source; a ray fan has no field to overlap.'));
 }
 
 function hitFibre(el, lx, ly, tol) {
@@ -52308,6 +52322,8 @@ function checkImport(raw, p, notes) {
       if (k === 'z' && V3D.free(n) && isFinite(v) && +v === BEAM_Z) continue;       // the beam height, which is no height of its own
       if ((k === 'tip' || k === 'roll') && tippable(n) && isFinite(v) && +v === 0) continue;   // upright, which is no tip at all
       if (k === 'faceMap' && n.type === 'screen' && v === false) continue;                    // not shown, as by default
+      // a fibre tip once had a multimode choice: tips are single-mode now. Said when the file had it set; nothing to say when it had not
+      if (k === 'mm' && n.type === 'fibre') { if (v === true) notes.push(who + ': was marked multimode. Fibre tips are single-mode now: it opens as a single-mode tip (core ' + n.core + ' \u00b5m, NA ' + n.na + '), and takes in less light than it read before.'); continue; }
       if (!(k in n)) { notes.push(who + ': field ' + fmtV(k) + ' is not used by a ' + (n.type === 'fcomp' ? FC[n.kind].label.toLowerCase() : typeLabel(n).toLowerCase()) + ': ignored.'); continue; }
       const w = n[k];
       if (typeof w === 'number') {
@@ -57075,6 +57091,8 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     '<b>A part\u2019s own colours</b>: every part\u2019s panel has a <b>Colours</b> section with a <b>Line colour</b> and a <b>Fill colour</b> (and Default, to go back). The part is drawn in them on the bench and in every export; its glass stays as see-through as it was. Several parts selected together take a colour at once. <b>Export figure</b>, Journal and Technical drawing, has <b>Parts</b>: In their colours, or <b>Black and white</b> (black lines, white fills, the light still in its colour unless Light is Black too, the light inside a fibre with it). A fibre or a wire has a <b>Line colour</b> of its own too: click it, and it is in its panel.',
+    '<b>Fibre tips and collimators are single-mode</b>, as the fibres and fibre parts they join are: the Multimode choice is gone from a tip’s panel. A tip saved as multimode opens as the standard single-mode fibre (4.4 µm core, NA 0.12), so the light it takes in is now its mode’s overlap, and less than it read before.',
+    '<b>Export figure</b>: a name you placed by hand keeps its place unless it stands where another part’s name has to go; then it is set with the rest, if that leaves fewer names led out on lines.',
     '<b>Export figure</b>: ports are small dots; a fibre part’s value (1550 nm, 25 dB, 1 GHz) is given with its name, not as a small tag that the figure’s scale could put under something; <b>Light</b> can be <b>Left out</b>; a beam that leaves the bench with nothing to meet is drawn a short way and stops; a name that has to be led out goes where its line is shortest and crosses least.',
     'A fibre tip’s own fibre is drawn as far as its port: zoomed out, and on an exported figure, there was a gap between the tip and the fibre joined to it.',
     '<b>Export figure</b>, Journal and Technical drawing: the names are all one size (a name scaled on the bench no longer carries its scale into the figure), each is set clear of the parts and of the other names, with a thin line to its part when it has to go further out, a name at the edge is no longer cut, and the ports’ names are left out unless <b>Port names</b> is set to Shown. A bench too crowded for names is numbered, with a key under the figure (<b>Names</b>).',

@@ -418,7 +418,7 @@ const RETRO = JSON.parse(readFileSync(new URL('../../../validation/ref/scatter-r
 const retro = (C, o = {}) => {
   const f = C.f_mm, dia = C.lens_diameter_mm;
   return [laser({ x: -30, w0: 1.5, pol: o.pol || 's' }), { id: 'plate', type: 'mirror', name: 'plate', x: -10, y: 0, angle: 135, length: 24, reflect: 50, transmit: 50 },
-    ideal('obj', 0, 0, 0, f, dia), particle({ x: f, y: o.y || 0, scatLight: o.light !== false }), ideal('col', 2 * f, 0, 0, f, dia),
+    ideal('obj', 0, 0, 0, f, dia), particle(Object.assign({ x: f, y: o.y || 0, scatLight: o.light !== false }, o.part || {})), ideal('col', 2 * f, 0, 0, f, dia),
     { id: 'M', type: 'mirror', name: 'M', x: f + C.focus_to_mirror_mm + (o.step || 0) * 1.55e-3 / 16, y: 0, angle: 180, length: dia + 2, reflect: 50, transmit: 50 },
     det({ id: 'dF', x: f + C.focus_to_mirror_mm + 7, length: dia + 3 }), det({ id: 'dB', x: -10, y: -15, angle: 90, length: dia + 3 }),
     // (the gentle objective leaves the backward detector a clear line to the particle past its rim; the reference reads only the
@@ -465,3 +465,54 @@ test('a particle inside a cavity is flagged, its returned light taken once', asy
   assert.ok(S.flags.includes('cavity') && S.ret && S.ret.cavity && S.ret.passes === 1, JSON.stringify([S.flags, S.ret]));
   assert.ok(S.beams > 2, 'beams on the particle: ' + S.beams);
 });
+
+/* U1, U6: second scattering in the dipole array and the single dipole. The 300 nm sphere as a dipole array in the tight retro trap
+   against the same sphere by Mie (both with their returned light scattered again), 2 % as the array meets without it; the single
+   dipole takes its return too */
+test('second scattering: a dipole-array sphere in the retro trap against Mie, and the single dipole', async () => {
+  const C = RETRO.cases.tight, rel = (a, b) => Math.abs(a / b - 1);
+  for (const st of [0, 3, 7]) {
+    await open(retro(C, { step: st })); const M = S_of('p');
+    await open(retro(C, { step: st, part: { scatModel: 'dda' } })); const D = S_of('p');
+    assert.ok(M.ret && D.ret && D.ret.passes < 12 && D.ret.change < 1e-7, 'both returned: ' + JSON.stringify([M.ret, D.ret]));          // U5
+    assert.ok(rel(D.Psca, M.Psca) <= 0.02 && rel(D.Pext, M.Pext) <= 0.02, 'step ' + st + ': ' + [D.Psca, M.Psca, D.Pext, M.Pext]);   // U1
+    say('U1 step', st, 'Psca', rel(D.Psca, M.Psca).toExponential(2), 'Pext', rel(D.Pext, M.Pext).toExponential(2), 'passes', D.ret.passes, 'BiCGStab iterations', JSON.stringify(D.ret.iters));
+  }
+  await open(retro(C, { part: { scatModel: 'rayleigh' } })); const Ry = S_of('p');
+  assert.ok(Ry.ret && Ry.ret.passes >= 1 && Ry.ret.change < 1e-7, 'the single dipole returned: ' + JSON.stringify(Ry.ret));          // U6
+});
+test('a rod inside a cavity is flagged too', async () => {
+  await open([laser({ x: -30, w0: 0.05, z0: 30, pol: 's' }), { id: 'm1', type: 'mirror', name: 'M1', x: -5, y: 0, angle: 0, length: 5, reflect: 90, transmit: 10 },
+    particle({ x: 0, trapShape: 'cylinder', trapR: 100, trapLen: 1000, angle: 90 }), { id: 'm2', type: 'mirror', name: 'M2', x: 5, y: 0, angle: 180, length: 5, reflect: 90, transmit: 10 }]);
+  const S = S_of('p');
+  assert.ok(S.model === 'dda' && S.flags.includes('cavity') && S.ret && S.ret.passes === 1, JSON.stringify([S.model, S.flags, S.ret]));   // U7
+});
+
+/* U2-U4: the silica rod (200 nm by 1 um, its axis across the beam in the plane) in the retro trap, as a dipole array with second
+   scattering, against the script's own dipole array (ref/scatter-retro-rod.json) */
+const RETROROD = JSON.parse(readFileSync(new URL('../../../validation/ref/scatter-retro-rod.json', import.meta.url), 'utf8'));
+const ROD = { trapShape: 'cylinder', trapR: 100, trapLen: 1000, angle: 90 };
+for (const [name, steps] of [['tight', [0, 3]], ['gentle', [0, 4]]]) {
+  test('a rod in a retro-reflected ' + name + ' focus, second scattering by the dipole array, against an independent dipole array', async () => {
+    const C = RETRO.cases[name], Rf = RETROROD.cases[name].s_ret, most = a => Math.max(...a.map(Math.abs));
+    const within = (got, ref, big, tol, msg) => assert.ok(Math.abs(got - ref) <= tol * big, msg + ': ' + got + ' against ' + ref + ' (' + (Math.abs(got - ref) / big).toExponential(2) + ' of the largest, allowed ' + tol + ')');
+    for (const i of steps) {
+      await open(retro(C, { step: i, part: ROD })); const S = S_of('p'), on = [reading('dF').mw, reading('dB').mw];
+      assert.equal(S.model, 'dda'); assert.ok(S.ret && S.ret.passes < 12 && S.ret.change < 1e-7, JSON.stringify(S.ret));            // U5
+      await open(retro(C, { step: i, light: false, part: ROD })); const off = [reading('dF').mw, reading('dB').mw];
+      within(S.Psca, Rf.Psca[i], most(Rf.Psca), 0.03, 'scattered power, step ' + i);                                               // U2
+      within(S.Pext, Rf.Pext[i], most(Rf.Pext), 0.03, 'extinction, step ' + i);
+      within(on[0] - off[0], Rf.dF_mW[i], most(Rf.dF_mW), 0.03, 'forward detector, step ' + i);                                    // U3
+      within(on[1] - off[1], Rf.dB_mW[i], most(Rf.dB_mW), 0.03, 'backward detector, step ' + i);
+      say('U rod', name, 'step', i, 'Psca', ((S.Psca - Rf.Psca[i]) / most(Rf.Psca)).toExponential(2), 'Pext', ((S.Pext - Rf.Pext[i]) / most(Rf.Pext)).toExponential(2), 'passes', S.ret.passes, 'iterations', JSON.stringify(S.ret.iters));
+    }
+    for (const [j, st] of Rf.slope_steps.entries()) {                                                                              // U4
+      await open(retro(C, { step: st, y: 1e-5, part: ROD })); const a = [reading('dF'), reading('dB')];
+      await open(retro(C, { step: st, y: -1e-5, part: ROD })); const b = [reading('dF'), reading('dB')];
+      const sl = q => Math.abs(a[q].X / a[q].mw - b[q].X / b[q].mw) / 0.02;
+      within(sl(0), Rf.slope_F_per_um[j], most(Rf.slope_F_per_um), 0.05, 'forward slope, step ' + st);
+      within(sl(1), Rf.slope_B_per_um[j], most(Rf.slope_B_per_um), 0.05, 'backward slope, step ' + st);
+      say('U rod', name, 'slopes at step', st, sl(0).toExponential(4), sl(1).toExponential(4), 'against', Rf.slope_F_per_um[j].toExponential(4), Rf.slope_B_per_um[j].toExponential(4));
+    }
+  });
+}

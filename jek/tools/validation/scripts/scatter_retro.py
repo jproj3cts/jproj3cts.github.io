@@ -40,18 +40,20 @@ P_IN = 0.1                            # W from the laser; the plate passes half 
 
 
 def far_of(sph, d, E, out):
+    if hasattr(sph, 'far_waves'):
+        return sph.far_waves(d, E, out)
     F = np.zeros((len(out), 3), dtype=complex)
     for o in range(len(d)):
         F += sph.far(d[o], E[o], out)
     return F
 
 
-def case(f, w, theta_max, L0, e_in, a, m, nt, nphi, steps, h=10e-9, ret=False, sgrid=(48, 96)):
+def case(f, w, theta_max, L0, e_in, a, m, nt, nphi, steps, h=10e-9, ret=False, sgrid=(48, 96), scat=None):
     th, ph, W, df = directions(theta_max, nt, nphi)
     Af = spectrum('mask', th, ph, df, f, w, e_in, P_IN * (1 - RP))
     db = -df                                           # the return's directions, index by index the forward ones turned back
     Ab1 = Af.copy()                                    # the return's waves for c = 1
-    sph = Sphere(a, m)
+    sph = scat or Sphere(a, m)
     tS, pS, WS, dS = directions(np.pi, *sgrid)
     ins = (tS <= theta_max) | (tS >= np.pi - theta_max)
     out = np.concatenate([df, db, dS])
@@ -169,6 +171,90 @@ def main():
         json.dump(out, fh, indent=1)
 
 
+class RodDDA:
+    """A rod as an array of dipoles, written here from the published method and sharing no code with JEKray: a cubic lattice of
+    spacing d filling a cylinder (its axis along `axis`), each dipole's polarisability by the lattice dispersion relation
+    (Draine and Goodman, ApJ 405, 685, 1993: b1 = -1.891531, b2 = 0.1648469, b3 = -1.7700004, S for the given way and
+    polarisation), the full interaction matrix solved once by LU, so each new field is a back-substitution. Gaussian units with
+    the polarisability as a volume: p = alpha E, the far field F(r) = k^2 sum_j exp(-ik r.x_j) (p_j - r (r.p_j)), so that
+    E = F exp(ikr)/r as the Mie sphere's here."""
+
+    def __init__(self, m, radius, length, d, axis, k_dir, e_pol):
+        import scipy.linalg as sla
+        nr, nl = int(round(2 * radius / d)), int(round(length / d))
+        g = (np.arange(nr) + 0.5 - nr / 2) * d
+        u, v = np.meshgrid(g, g, indexing='ij')
+        keep = u ** 2 + v ** 2 <= radius ** 2
+        u, v = u[keep], v[keep]
+        t = (np.arange(nl) + 0.5 - nl / 2) * d
+        ax = np.asarray(axis, float); ax /= np.linalg.norm(ax)
+        a1 = np.cross(ax, [0, 0, 1.0]) if abs(ax[2]) < 0.9 else np.cross(ax, [1.0, 0, 0]); a1 /= np.linalg.norm(a1)
+        a2 = np.cross(ax, a1)
+        X = (t[:, None, None] * ax[None, None, :] + u[None, :, None] * a1[None, None, :] + v[None, :, None] * a2[None, None, :]).reshape(-1, 3)
+        # the spacing that gives the dipoles the rod's own volume, N d^3 = V (Draine and Flatau's convention), the lattice scaled to it
+        d1 = (np.pi * radius ** 2 * length / len(X)) ** (1 / 3)
+        X *= d1 / d
+        d = d1
+        self.x, self.N, self.d = X, len(X), d
+        eps = m * m
+        acm = 3 * d ** 3 / (4 * np.pi) * (eps - 1) / (eps + 2)
+        kd = K * d
+        S = float(np.sum((np.asarray(k_dir) * np.asarray(e_pol)) ** 2))
+        b1, b2, b3 = -1.891531, 0.1648469, -1.7700004
+        self.alpha = acm / (1 + (acm / d ** 3) * ((b1 + eps * b2 + eps * b3 * S) * kd ** 2 - 2j / 3 * kd ** 3))
+        N = self.N
+        A = np.zeros((3 * N, 3 * N), dtype=complex)
+        I3 = np.eye(3)
+        for i0 in range(0, N, 400):
+            i1 = min(N, i0 + 400)
+            r = X[i0:i1, None, :] - X[None, :, :]
+            R = np.linalg.norm(r, axis=2)
+            same = R == 0
+            R[same] = 1
+            rh = r / R[..., None]
+            ph = np.exp(1j * K * R) / R
+            rr = rh[..., :, None] * rh[..., None, :]
+            G = ph[..., None, None] * (K * K * (I3 - rr) + ((1j * K * R - 1) / R ** 2)[..., None, None] * (I3 - 3 * rr))
+            G[same] = 0
+            A[3 * i0:3 * i1, :] = -G.transpose(0, 2, 1, 3).reshape(3 * (i1 - i0), 3 * N)
+        A[np.arange(3 * N), np.arange(3 * N)] += 1 / self.alpha
+        self.lu = sla.lu_factor(A, overwrite_a=True, check_finite=False)
+        self.sla = sla
+
+    def far_waves(self, d, E, out):
+        """the far field toward `out` of the rod in the plane waves (d, E): E each wave's field at the centre"""
+        Ein = np.zeros((self.N, 3), dtype=complex)
+        for i0 in range(0, len(d), 256):
+            ph = np.exp(1j * K * (self.x @ d[i0:i0 + 256].T))
+            Ein += ph @ E[i0:i0 + 256]
+        p = self.sla.lu_solve(self.lu, Ein.reshape(-1), check_finite=False).reshape(self.N, 3)
+        F = np.zeros((len(out), 3), dtype=complex)
+        for i0 in range(0, len(out), 512):
+            o = out[i0:i0 + 512]
+            P = np.exp(-1j * K * (o @ self.x.T)) @ p
+            F[i0:i0 + 512] = K * K * (P - o * np.sum(o * P, 1)[:, None])
+        return F
+
+
+def main_rod():
+    """the silica rod (200 nm across, 1 um long, its axis across the beam in the plane) in the retro trap, tight and gentle, with
+    second scattering; ../ref/scatter-retro-rod.json"""
+    n = float(silica_index(1.55))
+    steps = [i * LAM / 16 for i in range(9)]
+    ez = np.array([0.0, 0.0, 1.0])
+    rod = RodDDA(complex(n, 0), 100e-9, 1000e-9, 20e-9, [0, 1.0, 0], [1.0, 0, 0], ez)
+    out = dict(wavelength_nm=1550, silica_index=n, rod={'diameter_nm': 200, 'length_nm': 1000, 'axis': 'across the beam in the plane', 'dipoles': rod.N, 'spacing_nm': 20}, cases={})
+    for name, f, w, D, half_dia, nt, nphi in [('tight', 2e-3, 1.5e-3, 3e-3, 5.333e-3 / 2, 28, 72), ('gentle', 15e-3, 1.5e-3, 3e-3, 6e-3, 40, 48)]:
+        tmax = float(np.arctan(half_dia / f))
+        c = dict(f_mm=f * 1e3, lens_diameter_mm=2 * half_dia * 1e3, focus_to_mirror_mm=(f + D) * 1e3)
+        c['s_ret'] = case(f, w, tmax, f + D, ez, None, None, nt, nphi, steps, ret=True, scat=rod)
+        print(name, json.dumps({k: c['s_ret'][k] for k in ['Psca', 'passes', 'slope_F_per_um', 'slope_B_per_um']}))
+        out['cases'][name] = c
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ref', 'scatter-retro-rod.json')
+    with open(path, 'w') as fh:
+        json.dump(out, fh, indent=1)
+
+
 def r8_grid():
     """the energy with the return on a finer sphere grid (the own power outside both cones), tight, three steps"""
     n = float(silica_index(1.55))
@@ -180,5 +266,7 @@ def r8_grid():
 if __name__ == '__main__':
     if '--r8' in sys.argv:
         r8_grid()
+    elif '--rod' in sys.argv:
+        main_rod()
     else:
         main()

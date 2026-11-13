@@ -2544,6 +2544,80 @@ const ALL_CASES = [
           'With a 50/50 plate of 8 mm the gentle case read 5.6% low at the focus: the plate, at 45\u00b0, is an aperture 5.7 mm across to the 1.5 mm beam, and its hard edge lowers the far field\u2019s peak by (1 \u2212 exp(\u2212a\u00b2/w\u00b2))\u00b2. The reference has no such edge, so the plate here is 24 mm long.' };
     },
   },
+  {
+    id: 'scatter-retro-rod', area: 'Scattering', title: 'A rod in a retro-reflected focus: second scattering by the dipole array',
+    kind: 'Independent code', ref: 'scatter-retro-rod.json', script: 'scatter_retro.py',
+    cite: 'B. Richards and E. Wolf, Proceedings of the Royal Society A 253, 358\u2013379 (1959), for a focus as plane waves; Bohren and Huffman (1983), chapter 4, for Mie theory. The light that comes back is the forward focus turned through its centre, with the Gouy phase of the two half passes (ray matrix of the second lens and the flat mirror: x \u2192 \u2212x).',
+    what: 'The retro-reflected trap of the case above, with a silica rod in place of the sphere: 200 nm across, 1 \u00b5m long, its axis across the beam in the bench plane, so JEKray takes it as an array of dipoles. Its own light the mirror brings back drives it again, and the array is solved again until that light settles. The reference is a dipole array of its own (scatter_retro.py: its own lattice of 4000 dipoles with the rod\u2019s volume, the lattice dispersion relation of Draine and Goodman, the full interaction matrix solved by LU), sharing no code with JEKray, iterated the same way.',
+    tolerance: 'Irradiance, scattered power and extinction at each step within 3% of the reference\u2019s largest; the standing wave\u2019s depth within 0.02; each detector\u2019s change within 3% of the reference\u2019s largest change on it; each split detector\u2019s slope at two of the steps within 5% of the larger of the two.',
+    async run(J, R) {
+      const checks = [], plots = [], benches = [], LAMmm = 1.55e-3;
+      const els = (C, o) => {
+        const f = C.f_mm, dia = C.lens_diameter_mm, lens = (name, x) => ({ type: 'mask', name, x, y: 0, angle: 0, length: dia, amp: '1', delay: '-(sqrt(r^2+' + f * f + ')-' + f + ')/lambda' });
+        return [{ type: 'source', name: 'Laser', x: -30, y: 0, angle: 0, wavelength: 1550, gauss: true, w0: 1.5, z0: 0, rays: 0, traceRays: false, power: 100, pol: o.pol || 's' },
+          { type: 'mirror', name: 'Plate', x: -10, y: 0, angle: 135, length: 24, reflect: 50, transmit: 50 },
+          lens('Objective', 0), { type: 'particle', name: 'Particle', x: f, y: o.y || 0, angle: 90, trapMat: 'Fused silica', trapShape: 'cylinder', trapR: 100, trapLen: 1000, trapMed: 'vacuum', scatLight: o.light !== false },
+          lens('Second lens', 2 * f), { type: 'mirror', name: 'Mirror', x: f + C.focus_to_mirror_mm + (o.step || 0) * LAMmm / 16, y: 0, angle: 180, length: dia + 2, reflect: 50, transmit: 50 },
+          { type: 'detector', name: 'Forward', x: f + C.focus_to_mirror_mm + 7, y: 0, angle: 180, length: dia + 3, quad: true, material: 'ingaas' },
+          { type: 'detector', name: 'Backward', x: -10, y: -15, angle: 90, length: dia + 3, quad: true, material: 'ingaas' },
+          // the gentle objective (12 mm across, 15 mm from the particle) leaves the backward detector a clear line to the particle
+          // past its rim; the reference reads only the light through the lens, so a stop the lens's size takes the rest away
+          ...(f > 5 ? [{ type: 'stop', name: 'Stop', x: -0.3, y: 0, angle: 0, aperture: dia, outer: 60 }] : [])];
+      };
+      const open = (C, o) => { const d = bench('A sphere in a retro-reflected focus', els(C, o), { minPower: 1e-4 }); J.load(d); return d; };
+      const most = a => Math.max(...a.map(Math.abs));
+      for (const [name, label] of [['tight', 'tight focus (NA 0.8)'], ['gentle', 'gentle focus']]) {
+        const C = R.cases[name];
+        for (const pol of ['s']) {
+          // (polarised out of the plane: the reference with the particle driven also by its own returned light, as JEKray takes it)
+          const Rf = pol === 's' ? C.s_ret : C[pol], I = [], Ps = [], Pe = [], dF = [], dB = [], full = pol === 's';
+          for (let i = 0; i < 9; i++) {
+            const data = open(C, { pol, step: i, light: full }), S = J.scatter('Particle');
+            if (i === 0 && pol === 's') {
+              checks.push(check(label + ': beams on the particle, in one launch (2 and 1)', 21, 10 * S.beams + S.launches, { abs: 0 }));
+              checks.push(check(label + ': each beam taken ' + (name === 'tight' ? 'as its own lens\u2019s pupil, traced (2)' : 'as a Gaussian beam (2)'), 2, S.routes.filter(r => r === (name === 'tight' ? 'traced' : 'beam')).length, { abs: 0 }));
+              benches.push(['The ' + label, data]);
+            }
+            I.push(S.I0); Ps.push(S.Psca); Pe.push(S.Pext);
+            if (full) {
+              const on = [J.detector('Forward').mw, J.detector('Backward').mw];
+              open(C, { pol, step: i, light: false });
+              dF.push(on[0] - J.detector('Forward').mw); dB.push(on[1] - J.detector('Backward').mw);
+            }
+            await idle();
+          }
+          const tag = label + ', polarised ' + (pol === 's' ? 'out of the plane' : 'in it') + ': ';
+          for (let i = 0; i < 9; i++) checks.push(check(tag + 'irradiance at step ' + i, Rf.I0[i] / 1e9, I[i] / 1e9, { abs: 0.03 * most(Rf.I0) / 1e9 }, ' \u00d710\u2079 W/m\u00b2'));
+          const depth = (Math.max(...I) - Math.min(...I)) / (Math.max(...I) + Math.min(...I));
+          checks.push(check(tag + 'depth of the standing wave', Rf.depth, depth, { abs: 0.02 }));
+          for (let i = 0; i < 9; i++) checks.push(check(tag + 'scattered power at step ' + i, Rf.Psca[i] * 1e6, Ps[i] * 1e6, { abs: 0.03 * most(Rf.Psca) * 1e6 }, ' \u00b5W'));
+          for (let i = 0; i < 9; i++) checks.push(check(tag + 'extinction at step ' + i, Rf.Pext[i] * 1e6, Pe[i] * 1e6, { abs: 0.03 * most(Rf.Pext) * 1e6 }, ' \u00b5W'));
+          if (full) {
+            for (let i = 0; i < 9; i++) checks.push(check(tag + 'forward detector\u2019s change at step ' + i, Rf.dF_mW[i] * 1e3, dF[i] * 1e3, { abs: 0.03 * most(Rf.dF_mW) * 1e3 }, ' \u00b5W'));
+            for (let i = 0; i < 9; i++) checks.push(check(tag + 'backward detector\u2019s change at step ' + i, Rf.dB_mW[i] * 1e3, dB[i] * 1e3, { abs: 0.03 * most(Rf.dB_mW) * 1e3 }, ' \u00b5W'));
+            const sF = [], sB = [];
+            for (const st of Rf.slope_steps) {
+              open(C, { pol, step: st, y: 1e-5 }); const a = [J.detector('Forward'), J.detector('Backward')];
+              open(C, { pol, step: st, y: -1e-5 }); const b = [J.detector('Forward'), J.detector('Backward')];
+              sF.push(Math.abs(a[0].X / a[0].mw - b[0].X / b[0].mw) / 0.02); sB.push(Math.abs(a[1].X / a[1].mw - b[1].X / b[1].mw) / 0.02);
+              await idle();
+            }
+            Rf.slope_steps.forEach((st, j) => {
+              checks.push(check(tag + 'forward split detector\u2019s slope at step ' + st, Rf.slope_F_per_um[j], sF[j], { abs: 0.05 * most(Rf.slope_F_per_um) }, ' /\u00b5m'));
+              checks.push(check(tag + 'backward split detector\u2019s slope at step ' + st, Rf.slope_B_per_um[j], sB[j], { abs: 0.05 * most(Rf.slope_B_per_um) }, ' /\u00b5m'));
+            });
+            const x = Rf.steps_nm;
+            plots.push(plot({ title: 'The ' + label + ': irradiance at the particle as the mirror moves', xlabel: 'mirror moved (nm)', ylabel: 'irradiance (\u00d710\u2079 W/m\u00b2)',
+              series: [{ name: 'Reference', x, y: Rf.I0.map(v => v / 1e9), colour: REF_C, width: 2.4 }, { name: 'JEKray', x, y: I.map(v => v / 1e9), colour: GOT_C, dots: true }] }));
+            plots.push(plot({ title: 'The ' + label + ': change in each detector\u2019s reading', xlabel: 'mirror moved (nm)', ylabel: 'change (\u00b5W)',
+              series: [{ name: 'Reference, forward', x, y: Rf.dF_mW.map(v => v * 1e3), colour: REF_C, width: 2.4 }, { name: 'JEKray, forward', x, y: dF.map(v => v * 1e3), colour: GOT_C, dots: true },
+                { name: 'Reference, backward', x, y: Rf.dB_mW.map(v => v * 1e3), colour: REF_C, width: 1.2 }, { name: 'JEKray, backward', x, y: dB.map(v => v * 1e3), colour: GOT_C, dots: true }] }));
+          }
+        }
+      }
+      return { checks, plots, benches, notes: 'The dipole array settles in three passes, each a solve started from the last answer (3, 1 and 0 BiCGStab iterations).' };
+    },
+  },
 ];
 
 /* ---------- Running and reporting ---------- */

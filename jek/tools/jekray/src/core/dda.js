@@ -154,8 +154,10 @@ export function ddaSolver(lat, k, alpha) {
   function* solveGen(E, opts) {
     const tol = (opts && opts.tol) || 1e-5, maxIter = (opts && opts.maxIter) || 400, M = 6 * N;
     const x = new Float64Array(M), r = Float64Array.from(E), bn = nrm(E) || 1;
-    // start from each dipole alone in the field: p = alpha E
-    for (let q = 0; q < M; q += 2) { x[q] = alpha[0] * E[q] - alpha[1] * E[q + 1]; x[q + 1] = alpha[0] * E[q + 1] + alpha[1] * E[q]; }
+    // start from a given answer (opts.x0: the last one, when the field has changed a little), or from each dipole alone in the
+    // field: p = alpha E
+    if (opts && opts.x0 && opts.x0.length === M) x.set(opts.x0);
+    else for (let q = 0; q < M; q += 2) { x[q] = alpha[0] * E[q] - alpha[1] * E[q + 1]; x[q + 1] = alpha[0] * E[q + 1] + alpha[1] * E[q]; }
     const t = new Float64Array(M);
     apply(x, t);
     for (let q = 0; q < M; q++) r[q] = E[q] - t[q];

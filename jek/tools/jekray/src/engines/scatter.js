@@ -210,8 +210,8 @@ export function scatterModel(el, P, k, mAbs) {
    back again and again) one pass only, and flagged: scattering inside a cavity is not modelled. Mie only. */
 const RETURN_TOL = 1e-7, RETURN_PASSES = 12;
 export const CAVITY_WARNING = 'Scattering inside a cavity is not modelled: the light comes back to the particle more than once, and the readings take its scattered light back to it once only.';
-function particleReturn(L, g) {
-  const { TB, nMed, zRef, F0, C, d0, k, tab, flags, out } = g;
+function returnPlan(L, g) {
+  const { TB, nMed, zRef, C, d0, k, flags } = g;
   const coh = L.ref && L.ref.coh;
   if (!coh) return;
   const mine = TB.parts.filter(q => q.coh === coh), dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -257,19 +257,30 @@ function particleReturn(L, g) {
     }
     return { n: m, d: nd, E };
   };
-  const Finc = mieFarWaves(tab, k, L, dirs);
+  return { dirs, m, waves, cavity, cap: cavity ? 1 : RETURN_PASSES, info: { c: [cr, ci], halfDeg: half / deg, waves: m, cavity } };
+}
+// how much a far field changed between passes (RMS, relative)
+const farChange = (Fn, Fc) => { let num = 0, dn = 0; for (let i = 0; i < Fn.length; i++) { num += (Fn[i] - Fc[i]) ** 2; dn += Fn[i] ** 2; } return dn > 0 ? Math.sqrt(num / dn) : 0; };
+// the returned waves, from the far field the particle settled on, joined to the launch
+function returnJoin(L, R, Fc, out, extra) {
+  const W = R.waves(Fc), n0 = L.n, m = R.m, d = new Float64Array(3 * (n0 + m)), E = new Float64Array(6 * (n0 + m));
+  d.set(L.d); d.set(W.d, 3 * n0); E.set(L.E); E.set(W.E, 6 * n0);
+  L.n0 = n0; L.d = d; L.E = E; L.n = n0 + m;
+  out.ret = Object.assign({}, R.info, extra);
+}
+/* the Mie sphere: its far field is linear in the waves, so each pass adds the returned waves' own */
+function particleReturn(L, g) {
+  const { k, tab, out } = g, R = returnPlan(L, g);
+  if (!R) return;
+  const Finc = mieFarWaves(tab, k, L, R.dirs);
   let Fc = Finc, passes = 0, change = 0;
-  for (; passes < (cavity ? 1 : RETURN_PASSES); passes++) {
-    const Fr = mieFarWaves(tab, k, waves(Fc), dirs), Fn = new Float64Array(Finc.length);
-    let num = 0, dn = 0;
-    for (let i = 0; i < Fn.length; i++) { Fn[i] = Finc[i] + Fr[i]; num += (Fn[i] - Fc[i]) ** 2; dn += Fn[i] ** 2; }
-    Fc = Fn; change = dn > 0 ? Math.sqrt(num / dn) : 0;
+  for (; passes < R.cap; passes++) {
+    const Fr = mieFarWaves(tab, k, R.waves(Fc), R.dirs), Fn = new Float64Array(Finc.length);
+    for (let i = 0; i < Fn.length; i++) Fn[i] = Finc[i] + Fr[i];
+    change = farChange(Fn, Fc); Fc = Fn;
     if (change < RETURN_TOL) { passes++; break; }
   }
-  const R = waves(Fc), n0 = L.n, d = new Float64Array(3 * (n0 + m)), E = new Float64Array(6 * (n0 + m));
-  d.set(L.d); d.set(R.d, 3 * n0); E.set(L.E); E.set(R.E, 6 * n0);
-  L.n0 = n0; L.d = d; L.E = E; L.n = n0 + m;
-  out.ret = { passes, change, c: [cr, ci], halfDeg: half / deg, waves: m, cavity };
+  returnJoin(L, R, Fc, out, { passes, change });
 }
 /* The run, as a generator: it yields { stage, ... } as it goes (so a worker can report and be
    stopped) and returns the answer, or { error }. R is the field run of scatterPrep's beams. */
@@ -365,8 +376,19 @@ export function* scatterGen(el, R, opts) {
     out.mie = { terms: CM.n };
   } else if (model === 'rayleigh') {
     if (mAbs * out.kL > 0.5) flags.push('rayleighBig');
-    E0s.forEach(e => {
-      const p = smallP(e);
+    E0s.forEach((e0, i) => {
+      // its own light a retro-reflector brings back: the field of the returned waves at its centre added, iterated
+      let e = e0, p = smallP(e);
+      const R = returnPlan(launches[i], { TB, nMed, zRef, C, d0, k, flags });
+      if (R) {
+        let Fc = dipoleFar(k, p, R.dirs), passes = 0, change = 0;
+        for (; passes < R.cap; passes++) {
+          const er = wavesAt0(R.waves(Fc)); e = e0.map((v, q) => v + er[q]); p = smallP(e);
+          const Fn = dipoleFar(k, p, R.dirs); change = farChange(Fn, Fc); Fc = Fn;
+          if (change < RETURN_TOL) { passes++; break; }
+        }
+        returnJoin(launches[i], R, Fc, out, { passes, change });
+      }
       fars.push(dirs => dipoleFar(k, p, dirs));
       let s = 0; for (let q = 0; q < 3; q++) s += e[2 * q] * p[2 * q + 1] - e[2 * q + 1] * p[2 * q];
       Pext.push(4 * Math.PI * k * s / (2 * Z)); Pabs.push(null);
@@ -384,8 +406,8 @@ export function* scatterGen(el, R, opts) {
     if (lat.coarse) flags.push('coarse');
     if (lat.capped) flags.push('capped');
     if (mAbs > 2.5) flags.push('highIndex');
-    const runSolve = function* (E, what) {
-      const g = S.solve(E, { tol: o.tol || 1e-5, maxIter: o.maxIter || 300 });
+    const runSolve = function* (E, what, x0) {
+      const g = S.solve(E, { tol: o.tol || 1e-5, maxIter: o.maxIter || 300, x0 });
       let r = g.next();
       while (!r.done) { yield { stage: 'dipoles', what, iter: r.value.iter, resid: r.value.resid, N: lat.N }; r = g.next(); }
       D.iters += r.value.iters; D.resid = Math.max(D.resid, r.value.resid); D.runs++;
@@ -396,7 +418,24 @@ export function* scatterGen(el, R, opts) {
     yield { stage: 'dipoles', what: 'wave', iter: 0, resid: 1, N: lat.N };
     let n = 0;
     for (const L of launches) {
-      const E = wavesOnLattice(L, lat, k, body), p = yield* runSolve(E, launches.length > 1 ? 'light ' + (++n) : 'light');
+      let E = wavesOnLattice(L, lat, k, body), p = yield* runSolve(E, launches.length > 1 ? 'light ' + (++n) : 'light');
+      // its own light a retro-reflector brings back: the returned field at every dipole added to the beams', and the array solved
+      // again, each pass from the last answer
+      const R = returnPlan(L, { TB, nMed, zRef, C, d0, k, flags });
+      if (R) {
+        const E1 = E, its = [];
+        let Fc = farOf(p)(R.dirs), passes = 0, change = 0;
+        for (; passes < R.cap; passes++) {
+          const Er = wavesOnLattice(R.waves(Fc), lat, k, body);
+          E = new Float64Array(E1.length); for (let q = 0; q < E.length; q++) E[q] = E1[q] + Er[q];
+          const i0 = D.iters;
+          p = yield* runSolve(E, 'returned light, pass ' + (passes + 1), p);
+          its.push(D.iters - i0);
+          const Fn = farOf(p)(R.dirs); change = farChange(Fn, Fc); Fc = Fn;
+          if (change < RETURN_TOL) { passes++; break; }
+        }
+        returnJoin(L, R, Fc, out, { passes, change, iters: its });
+      }
       const X = ddaExtAbs(k, alpha, E, p);
       fars.push(farOf(p)); Pext.push(X.ext / (2 * Z)); Pabs.push(X.abs / (2 * Z));
       if (single) ref = refFrom(farOf(p), X.ext / E2, X.abs / E2, E2);

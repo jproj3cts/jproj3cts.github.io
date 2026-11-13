@@ -1,3 +1,4 @@
+import { BEAM_Z } from '../core/constants.js';
 import { linesPerMm } from '../core/modulators.js';
 import { rawDsag, rawSag, zoneHit } from '../core/geometry.js';
 import { dpBend, dpPhase, dpSlopeOverR } from '../core/diffractive.js';
@@ -19,6 +20,18 @@ export function beamAxes(d) {
   const l = Math.hypot(w[0], w[1], w[2]), ey = [w[0] / l, w[1] / l, w[2] / l];
   return [[ey[1] * d[2] - ey[2] * d[1], ey[2] * d[0] - ey[0] * d[2], ey[0] * d[1] - ey[1] * d[0]], ey];
 }
+/* A beam leg's frame in the world, level or rising: where it starts (P0, mm, its height above the breadboard), its unit
+   direction d, its own axes ex (across, in the bench plane when it can be) and ey (as near up as it can be: beamAxes), and its
+   length along d (L, mm; a rising leg's len3). For a level leg these are (x0, y0, z0), (dx, dy, 0), (-dy, dx, 0), (0, 0, 1)
+   and len: the frame every reading of a level beam has always used. */
+export function beamFrame(b) {
+  const d0 = b.d3 ? b.d3 : [b.dx, b.dy, 0], l = Math.hypot(d0[0], d0[1], d0[2]) || 1, d = [d0[0] / l, d0[1] / l, d0[2] / l];
+  const lev = !b.d3 || !d[2];
+  const [ex, ey] = lev ? [[-d[1], d[0], 0], [0, 0, 1]] : beamAxes(d);
+  return { P0: [b.x0, b.y0, b.z0 !== undefined ? b.z0 : BEAM_Z], d, ex, ey, L: b.len3 > 0 ? b.len3 : b.len, level: lev };
+}
+/* a field leg as its own length runs (mm along the beam in 3D): the leg itself, where a rising beam's is read through legAlong */
+export const legRaw = (sg) => (sg.b.len3 > 0 && sg.b.len3 !== sg.b.len && Object.getPrototypeOf(sg.leg) && Object.getPrototypeOf(sg.leg).at ? Object.getPrototypeOf(sg.leg) : sg.leg);
 /* A surface's own frame, for a point (or, with point false, a direction) in the world: x along
    its axis from its vertex, y across, z up; through its part's tip and roll and its face's frame */
 function surfLocal(s, X, Y, Z, point) {

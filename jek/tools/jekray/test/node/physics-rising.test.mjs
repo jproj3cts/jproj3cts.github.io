@@ -3,6 +3,7 @@
    (scratchpad tolerances.md, "Beams that rise or descend onto a Particle"). SHOW=1 prints the margins. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { openBench, engine } from '../../headless.mjs';
 
 await engine();
@@ -116,5 +117,31 @@ test('B4: a steep focus tipped up 30 deg with its laser scatters and traps as th
   const TA = SS.trapReport(A.el, A.S.trapRaw), TB = SS.trapReport(R.el, R.S.trapRaw);
   for (const q of ['fx', 'fy', 'fz']) got[q] = rel(TB[q], TA[q]);
   say('B4 routes', JSON.stringify(R.S.routes), 'pupils', R.S.pupils, JSON.stringify(Object.fromEntries(Object.entries(got).map(([k, v]) => [k, +v.toExponential(2)]))));
+  for (const k of Object.keys(got)) assert.ok(got[k] <= 1e-3, k + ': ' + got[k]);
+});
+
+/* B5: a vertical trap. A level beam folded straight up by a mirror tipped 45 deg (a periscope's first mirror), focused upward by
+   the real asphere of the real-lens check turned to face up (the traced route) onto the particle above it; against the same
+   lens level, the same distances along the beam */
+const LENS5 = JSON.parse(fs.readFileSync(new URL('../../../validation/ref/scatter-real-lens.json', import.meta.url), 'utf8')).prescription;
+const vertical = up => {
+  const Tk = LENS5.thickness_mm, semi = LENS5.semi_aperture_mm, F0 = Tk / 2 + LENS5.vertex_to_focus_mm, coat = { mode: 'custom', R: 0 };
+  const lens = Object.assign({ id: 'obj', type: 'lens', name: 'obj', y: 0, angle: 0, diameter: +(2 * semi + 0.2).toFixed(4), surfaces: [{ R: null, coat, semi }, { R: LENS5.R_mm, k: LENS5.k, coat, semi }], gaps: [Tk], materials: [{ glass: 'N-BK7' }] },
+    up ? { x: -10, z: 95, tip: 90 } : { x: 10 });
+  return [laser({ x: -30, pol: 's', w0: 1.7, z0: 0 }), ...(up ? [{ id: 'm', type: 'mirror', name: 'M', x: -10, y: 0, angle: 180, tip: 45, length: 12 }] : []), lens,
+    // (a 100 nm sphere: the 300 nm one is not held at this NA in vacuum, radiation pressure winning, level or vertical)
+    Object.assign({ id: 'p', type: 'particle', name: 'P', y: 0, angle: 90, trapMat: 'Fused silica', trapR: 50, trapMed: 'vacuum', scatLight: false }, up ? { x: -10, z: 95 + F0 } : { x: 10 + F0 })];
+};
+test('B5: a vertical trap through a 45 deg fold and a real asphere facing up is the level one', async () => {
+  const A = await runP(vertical(false)), R = await runP(vertical(true)), rel = (a, b) => Math.abs(a / b - 1), got = {};
+  assert.ok(R.S && !R.S.error, 'the vertical focus reaches the particle: ' + (R.S && R.S.error));
+  assert.deepEqual([R.S.routes, R.S.pupils], [A.S.routes, A.S.pupils]);
+  for (const q of ['I0', 'Psca']) got[q] = rel(R.S[q], A.S[q]);
+  const TA = SS.trapReport(A.el, A.S.trapRaw), TB = SS.trapReport(R.el, R.S.trapRaw);
+  assert.ok(TA.trap && TB.trap, 'a trap both ways');
+  // (across the beam the two axes may swap with the fold: compared as a pair)
+  const [a1, a2] = [TA.fx, TA.fy].sort((x, y) => x - y), [b1, b2] = [TB.fx, TB.fy].sort((x, y) => x - y);
+  got.f1 = rel(b1, a1); got.f2 = rel(b2, a2); got.fz = rel(TB.fz, TA.fz);
+  say('B5 routes', JSON.stringify(R.S.routes), JSON.stringify(Object.fromEntries(Object.entries(got).map(([k, v]) => [k, +v.toExponential(2)]))));
   for (const k of Object.keys(got)) assert.ok(got[k] <= 1e-3, k + ': ' + got[k]);
 });

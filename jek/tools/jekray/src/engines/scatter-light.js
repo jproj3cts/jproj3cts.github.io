@@ -8,6 +8,7 @@ import { deg, project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { PARTS } from '../parts/registry.js';
 import { lastTrace, polFrame, zOf } from './trace.js';
+import { beamFrame } from './phase-screen.js';
 import { scatCache, scatModeNow, scatterNow, scatterPrep } from './scatter.js';
 import { beamFieldAt } from './fibre-face.js';
 
@@ -192,13 +193,14 @@ export function scatterLaunch(surfsBy) {
       let rot = null, gj0 = 0;
       if (BF) {
         gj0 = BF.A.gj || 0;
-        const [S3, P3] = polFrame([b.dx, b.dy, 0], b.par ? -1 : 1), E = BF.E;
+        const [S3, P3] = polFrame(beamFrame(b).d, b.par ? -1 : 1), E = BF.E;
         let re = 0, im = 0;
         // the trace's field there as the physicists write it (the faces' convention conjugated), against the answer's: sum conj(E_ref) . E_trace
         for (let q = 0; q < 3; q++) { const vr = E[0] * S3[q] + E[2] * P3[q], vi = -(E[1] * S3[q] + E[3] * P3[q]); re += ref.E[2 * q] * vr + ref.E[2 * q + 1] * vi; im += ref.E[2 * q] * vi - ref.E[2 * q + 1] * vr; }
         if (re * re + im * im > 0) rot = Math.atan2(im, re);
       }
-      const t = (st.pos[0] - b.x0) * b.dx + (st.pos[1] - b.y0) * b.dy;
+      // (how far along the beam the particle is, in 3D for a beam that rises)
+      const Fb = beamFrame(b), t = (st.pos[0] - Fb.P0[0]) * Fb.d[0] + (st.pos[1] - Fb.P0[1]) * Fb.d[1] + (Fb.level ? 0 : (st.pos[2] - Fb.P0[2]) * Fb.d[2]);
       // the beam's own far-field half-angle (1/e^2), which its light fills about its way on from the particle
       const lamM = b.nm * 1e-6 / b.n, th0 = lamM / (Math.PI * Math.sqrt(lamM * b.qi / Math.PI));
       return { L, b, root, rot, gj0, th0, nm: b.nm, fo: b.fo || 0, coh: b.coh, gpl0: (b.gpl || 0) + (b.ng || b.n) * t, lag: lagOf(src0) };
@@ -248,7 +250,7 @@ export function scatterLaunch(surfsBy) {
           // field (the two interfere only over the beam's own footprint): a patch about the beam's way, SC_PATCH of its far-field
           // radii wide, has rays of its own, and the cone leaves that patch out
           for (const La of st.launches) {
-            const d0 = [La.b.dx, La.b.dy, 0], hp = SC_PATCH * La.th0, off = Math.acos(Math.max(-1, Math.min(1, d0[0] * c0.axis[0] + d0[1] * c0.axis[1] + d0[2] * c0.axis[2])));
+            const d0 = beamFrame(La.b).d, hp = SC_PATCH * La.th0, off = Math.acos(Math.max(-1, Math.min(1, d0[0] * c0.axis[0] + d0[1] * c0.axis[1] + d0[2] * c0.axis[2])));
             if (!(hp < c0.half / 3) || off + hp > c0.half || c0.cut.some(q => q.axis[0] * d0[0] + q.axis[1] * d0[1] > Math.cos(q.half + hp))) continue;
             const patch = { el: c0.el, axis: d0, half: hp, G: coneDirs(d0, hp), cut: [], patch: true };
             c0.cut.push(patch); both.push(patch);

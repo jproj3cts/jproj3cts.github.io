@@ -1,7 +1,7 @@
 import { clamp } from '../core/constants.js';
 import { popInside, popRadii, popStats, qdht } from './field.js';
 import { polCoeff, polMatrix } from './polarisation.js';
-import { popScreen } from './phase-screen.js';
+import { beamAxes, popScreen } from './phase-screen.js';
 import { cdft, interp2, popStats2 } from './field2d.js';
 import { popJ, segW } from './beam-tree.js';
 
@@ -66,7 +66,12 @@ export function vfPupil(sg, R, opts) {
     const refR = twoIn ? 0 : (Fin.sphere ? -k1 / (2 * Fin.z) : 0);
     const coef = polCoeff(ev, lam0 * 1e6);
     const dI = ev.dIn, dO = ev.dOut || ev.dIn;
-    const eIn = { sg: gi, v: [-dI[1] * gi, dI[0] * gi, 0] }, eOut = { sg: g, v: [-dO[1] * g, dO[0] * g, 0] };
+    let eIn = { sg: gi, v: [-dI[1] * gi, dI[0] * gi, 0] }, eOut = { sg: g, v: [-dO[1] * g, dO[0] * g, 0] };
+    // out of the plane: the beam's own axes either side (beamAxes), as the diffracted field takes them (field2d.js)
+    const ax3 = (d, sg) => { const l = Math.hypot(d[0], d[1], d[2]), u = [d[0] / l, d[1] / l, d[2] / l], [x, y] = beamAxes(u); return { sg, v: x.map(c => c * sg), u: y, d: u }; };
+    if (ev.din3 && ev.din3[2]) eIn = ax3(ev.din3, gi);
+    if (ev.dout3 && ev.dout3[2]) eOut = ax3(ev.dout3, g);
+    const dIn3 = ev.din3 && ev.din3[2] ? eIn.d : [dI[0], dI[1], 0];
     const exo = [-dO[1], dO[0]];                        // the exit frame's across direction, unsigned
     for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) {
       const x = -hx + (i + 0.5) * 2 * hx / M, y = -hy + (j + 0.5) * 2 * hy / M;
@@ -98,7 +103,7 @@ export function vfPupil(sg, R, opts) {
       const c = Math.cos(ph), sn = Math.sin(ph), amp = r[5] / Math.sqrt(jac);
       const rot = v => [(v[0] * c - v[1] * sn) * amp, (v[0] * sn + v[1] * c) * amp];
       const S0 = rot(s), P0 = rot(p);
-      const PM = polMatrix(coef, [r[8], r[9], r[10]], [r[11], r[12], r[13]], [r[14], r[15], r[16]], eIn, eOut, [dI[0], dI[1], 0]);
+      const PM = polMatrix(coef, [r[8], r[9], r[10]], [r[11], r[12], r[13]], [r[14], r[15], r[16]], eIn, eOut, dIn3);
       const cm = (m, v) => [m[0] * v[0] - m[1] * v[1], m[0] * v[1] + m[1] * v[0]];
       const Ss = cm(PM[0], S0), Sp = cm(PM[1], P0), Ps = cm(PM[2], S0), Pp = cm(PM[3], P0);
       const S = [Ss[0] + Sp[0], Ss[1] + Sp[1]], Pv = [g * (Ps[0] + Pp[0]), g * (Ps[1] + Pp[1])];

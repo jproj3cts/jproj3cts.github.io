@@ -20342,10 +20342,11 @@ function beamArrivals(el, B, i, b, out) {
    it adds to the same beam on a detector as a field (engines/scatter-light.js). */
 function beamFieldAt(i, X, Y, Z) {
   const B = lastTrace.beams || [], b = B[i];
-  if (!b || b.fan || b.d3 || b.uz) return null;
-  const t = (X - b.x0) * b.dx + (Y - b.y0) * b.dy, out = [];
-  const el = { id: '~point', type: 'detector', x: X, y: Y, z: Z, angle: Math.atan2(-b.dy, -b.dx) / deg, length: 1 };
-  beamArrivals(el, B, i, Object.assign({}, b, { len: t }), out);
+  if (!b || b.fan) return null;
+  // a face square to the beam where the point is: level, or tipped to meet a beam that rises (t along it in 3D)
+  const F = beamFrame(b), rise = !F.level, t = rise ? (X - F.P0[0]) * F.d[0] + (Y - F.P0[1]) * F.d[1] + (Z - F.P0[2]) * F.d[2] : (X - b.x0) * b.dx + (Y - b.y0) * b.dy, out = [];
+  const el = Object.assign({ id: '~point', type: 'detector', x: X, y: Y, z: Z, angle: Math.atan2(-b.dy, -b.dx) / deg, length: 1 }, rise ? { tip: -Math.asin(F.d[2]) / deg } : {});
+  beamArrivals(el, B, i, Object.assign({}, b, rise ? { len: t * b.len / F.L, len3: t } : { len: t }), out);
   if (out.length !== 1) return null;
   return { A: out[0], E: arrivalField(out[0], 0, 0) };
 }
@@ -40371,7 +40372,12 @@ function vfPupil(sg, R, opts) {
     const refR = twoIn ? 0 : (Fin.sphere ? -k1 / (2 * Fin.z) : 0);
     const coef = polCoeff(ev, lam0 * 1e6);
     const dI = ev.dIn, dO = ev.dOut || ev.dIn;
-    const eIn = { sg: gi, v: [-dI[1] * gi, dI[0] * gi, 0] }, eOut = { sg: g, v: [-dO[1] * g, dO[0] * g, 0] };
+    let eIn = { sg: gi, v: [-dI[1] * gi, dI[0] * gi, 0] }, eOut = { sg: g, v: [-dO[1] * g, dO[0] * g, 0] };
+    // out of the plane: the beam's own axes either side (beamAxes), as the diffracted field takes them (field2d.js)
+    const ax3 = (d, sg) => { const l = Math.hypot(d[0], d[1], d[2]), u = [d[0] / l, d[1] / l, d[2] / l], [x, y] = beamAxes(u); return { sg, v: x.map(c => c * sg), u: y, d: u }; };
+    if (ev.din3 && ev.din3[2]) eIn = ax3(ev.din3, gi);
+    if (ev.dout3 && ev.dout3[2]) eOut = ax3(ev.dout3, g);
+    const dIn3 = ev.din3 && ev.din3[2] ? eIn.d : [dI[0], dI[1], 0];
     const exo = [-dO[1], dO[0]];                        // the exit frame's across direction, unsigned
     for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) {
       const x = -hx + (i + 0.5) * 2 * hx / M, y = -hy + (j + 0.5) * 2 * hy / M;
@@ -40403,7 +40409,7 @@ function vfPupil(sg, R, opts) {
       const c = Math.cos(ph), sn = Math.sin(ph), amp = r[5] / Math.sqrt(jac);
       const rot = v => [(v[0] * c - v[1] * sn) * amp, (v[0] * sn + v[1] * c) * amp];
       const S0 = rot(s), P0 = rot(p);
-      const PM = polMatrix(coef, [r[8], r[9], r[10]], [r[11], r[12], r[13]], [r[14], r[15], r[16]], eIn, eOut, [dI[0], dI[1], 0]);
+      const PM = polMatrix(coef, [r[8], r[9], r[10]], [r[11], r[12], r[13]], [r[14], r[15], r[16]], eIn, eOut, dIn3);
       const cm = (m, v) => [m[0] * v[0] - m[1] * v[1], m[0] * v[1] + m[1] * v[0]];
       const Ss = cm(PM[0], S0), Sp = cm(PM[1], P0), Ps = cm(PM[2], S0), Pp = cm(PM[3], P0);
       const S = [Ss[0] + Sp[0], Ss[1] + Sp[1]], Pv = [g * (Ps[0] + Pp[0]), g * (Ps[1] + Pp[1])];
@@ -44962,13 +44968,14 @@ function scatterLaunch(surfsBy) {
       let rot = null, gj0 = 0;
       if (BF) {
         gj0 = BF.A.gj || 0;
-        const [S3, P3] = polFrame([b.dx, b.dy, 0], b.par ? -1 : 1), E = BF.E;
+        const [S3, P3] = polFrame(beamFrame(b).d, b.par ? -1 : 1), E = BF.E;
         let re = 0, im = 0;
         // the trace's field there as the physicists write it (the faces' convention conjugated), against the answer's: sum conj(E_ref) . E_trace
         for (let q = 0; q < 3; q++) { const vr = E[0] * S3[q] + E[2] * P3[q], vi = -(E[1] * S3[q] + E[3] * P3[q]); re += ref.E[2 * q] * vr + ref.E[2 * q + 1] * vi; im += ref.E[2 * q] * vi - ref.E[2 * q + 1] * vr; }
         if (re * re + im * im > 0) rot = Math.atan2(im, re);
       }
-      const t = (st.pos[0] - b.x0) * b.dx + (st.pos[1] - b.y0) * b.dy;
+      // (how far along the beam the particle is, in 3D for a beam that rises)
+      const Fb = beamFrame(b), t = (st.pos[0] - Fb.P0[0]) * Fb.d[0] + (st.pos[1] - Fb.P0[1]) * Fb.d[1] + (Fb.level ? 0 : (st.pos[2] - Fb.P0[2]) * Fb.d[2]);
       // the beam's own far-field half-angle (1/e^2), which its light fills about its way on from the particle
       const lamM = b.nm * 1e-6 / b.n, th0 = lamM / (Math.PI * Math.sqrt(lamM * b.qi / Math.PI));
       return { L, b, root, rot, gj0, th0, nm: b.nm, fo: b.fo || 0, coh: b.coh, gpl0: (b.gpl || 0) + (b.ng || b.n) * t, lag: lagOf(src0) };
@@ -45018,7 +45025,7 @@ function scatterLaunch(surfsBy) {
           // field (the two interfere only over the beam's own footprint): a patch about the beam's way, SC_PATCH of its far-field
           // radii wide, has rays of its own, and the cone leaves that patch out
           for (const La of st.launches) {
-            const d0 = [La.b.dx, La.b.dy, 0], hp = SC_PATCH * La.th0, off = Math.acos(Math.max(-1, Math.min(1, d0[0] * c0.axis[0] + d0[1] * c0.axis[1] + d0[2] * c0.axis[2])));
+            const d0 = beamFrame(La.b).d, hp = SC_PATCH * La.th0, off = Math.acos(Math.max(-1, Math.min(1, d0[0] * c0.axis[0] + d0[1] * c0.axis[1] + d0[2] * c0.axis[2])));
             if (!(hp < c0.half / 3) || off + hp > c0.half || c0.cut.some(q => q.axis[0] * d0[0] + q.axis[1] * d0[1] > Math.cos(q.half + hp))) continue;
             const patch = { el: c0.el, axis: d0, half: hp, G: coneDirs(d0, hp), cut: [], patch: true };
             c0.cut.push(patch); both.push(patch);
@@ -58243,6 +58250,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'A <b>Particle</b> is lit by beams that rise or descend out of the bench plane (after a tipped laser, a tipped mirror or a periscope), each taken in its own frame; its scattered light reaches the parts beyond as it does from a level beam. A screen\u2019s atom trap in a rising beam is now where the beam meets the screen (it was looked for further along).',
     '<b>A particle is a Particle part</b>: a screen\u2019s Trap tab is for atoms, and screens no longer have a Scattering tab. A bench saved with a particle on a screen opens with it moved onto a Particle part of its own, with every setting it had, where the screen\u2019s beam met it, and its Trap and Scattering figures are as they were. As a Particle it also sends its scattered light onto the bench.',
     'A <b>Particle</b>\u2019s scattered light: two cones that reach one detector now add as fields when the same laser drives them (a particle seen directly and in a mirror, two particles in one beam), as each already did with the unscattered beam; cones driven by different lasers add as powers. A bench with a Particle retraces about twice as fast: a ray\u2019s tube area on a detector comes from its neighbours in the cone, in place of two extra rays each, and the parts with a clear line to the particle are only looked for again when a part or the particle moves. The validation page has a new case, a split detector\u2019s signal for a sphere in an NA 0.8 focus against an independent calculation, and others: a sphere at the focus of a real glass asphere against an independent trace of the same lens, and a sphere in a retro-reflected focus, its standing wave and both detectors, tight and gentle. Scattered light that has passed through a focus on its way now takes that focus\u2019s Gouy phase, so the light a mirror brings back through the particle\u2019s focus adds to the light scattered straight back as it should; a gentle beam that comes back on itself is read against the beams where they land, and a cone meeting a beam at a steep angle on a detector no longer adds fringes the rays cannot see.',
     '<b>A part\u2019s own colours</b>: every part\u2019s panel has a <b>Colours</b> section with a <b>Line colour</b> and a <b>Fill colour</b> (and Default, to go back). The part is drawn in them on the bench and in every export; its glass stays as see-through as it was. Several parts selected together take a colour at once. <b>Export figure</b>, Journal and Technical drawing, has <b>Parts</b>: In their colours, or <b>Black and white</b> (black lines, white fills, the light still in its colour unless Light is Black too, the light inside a fibre with it). A fibre or a wire has a <b>Line colour</b> of its own too: click it, and it is in its panel.',

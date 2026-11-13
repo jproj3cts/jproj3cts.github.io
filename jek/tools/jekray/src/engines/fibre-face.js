@@ -8,6 +8,7 @@ import { deg } from '../state/project.js';
 import { beamOn, benchNms, getEl } from '../state/elements.js';
 import { frame, toLocal, toLocalDir } from '../core/mask.js';
 import { lastTrace, polFrame, raysLaunched, rollFrame, sourceLines, tipFrame, zOf } from './trace.js';
+import { beamFrame } from './phase-screen.js';
 import { QEig, QRot, beamQ, beamQM, cavEventABCD, ccInv, mfree, qThrough } from './cavity.js';
 import { detectorFieldResult, viaCavity } from './pd-cavity.js';
 
@@ -148,10 +149,11 @@ function beamArrivals(el, B, i, b, out) {
    it adds to the same beam on a detector as a field (engines/scatter-light.js). */
 export function beamFieldAt(i, X, Y, Z) {
   const B = lastTrace.beams || [], b = B[i];
-  if (!b || b.fan || b.d3 || b.uz) return null;
-  const t = (X - b.x0) * b.dx + (Y - b.y0) * b.dy, out = [];
-  const el = { id: '~point', type: 'detector', x: X, y: Y, z: Z, angle: Math.atan2(-b.dy, -b.dx) / deg, length: 1 };
-  beamArrivals(el, B, i, Object.assign({}, b, { len: t }), out);
+  if (!b || b.fan) return null;
+  // a face square to the beam where the point is: level, or tipped to meet a beam that rises (t along it in 3D)
+  const F = beamFrame(b), rise = !F.level, t = rise ? (X - F.P0[0]) * F.d[0] + (Y - F.P0[1]) * F.d[1] + (Z - F.P0[2]) * F.d[2] : (X - b.x0) * b.dx + (Y - b.y0) * b.dy, out = [];
+  const el = Object.assign({ id: '~point', type: 'detector', x: X, y: Y, z: Z, angle: Math.atan2(-b.dy, -b.dx) / deg, length: 1 }, rise ? { tip: -Math.asin(F.d[2]) / deg } : {});
+  beamArrivals(el, B, i, Object.assign({}, b, rise ? { len: t * b.len / F.L, len3: t } : { len: t }), out);
   if (out.length !== 1) return null;
   return { A: out[0], E: arrivalField(out[0], 0, 0) };
 }

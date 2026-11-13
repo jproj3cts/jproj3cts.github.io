@@ -173,12 +173,12 @@ function drawCrop() {
   }
   // dim outside
   ctx.save();
-  ctx.fillStyle = 'rgba(15, 10, 6, 0.55)';
+  ctx.fillStyle = 'rgba(10, 10, 10, 0.6)';
   ctx.beginPath();
   ctx.rect(0, 0, c.width, c.height);
   ctx.arc(X, Y, R, 0, Math.PI * 2, true);
   ctx.fill('evenodd');
-  ctx.strokeStyle = '#f1c27d';
+  ctx.strokeStyle = '#ffb347';
   ctx.lineWidth = Math.max(2, c.width / 300);
   ctx.setLineDash([10, 7]);
   ctx.beginPath(); ctx.arc(X, Y, R, 0, Math.PI * 2); ctx.stroke();

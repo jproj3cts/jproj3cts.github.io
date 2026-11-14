@@ -1,4 +1,4 @@
-import { renderMap, SERIF } from './render.js';
+import { renderMap, marchingSquares, SERIF } from './render.js';
 
 const N = 384; // analysis grid resolution — the main speed/detail knob
 const VIEW_SIZE = 1200; // on-screen map canvas resolution
@@ -23,6 +23,9 @@ const state = {
   seedOffset: 0,
   data: null,
   maskCanvas: null,
+  outline: null, // the map's coastline and lake shores in grid units, for the photo
+  dataCircle: null, // the circle the current map was charted from
+  sentCircle: null,
   reqId: 0,
 };
 
@@ -37,6 +40,7 @@ worker.onmessage = ({ data }) => {
     return;
   }
   state.data = data.result;
+  state.dataCircle = state.sentCircle;
   buildMaskCanvas();
   drawCrop();
   drawMap();
@@ -164,11 +168,30 @@ function drawCrop() {
   const { cx, cy, r } = circlePx();
   const X = cx * s, Y = cy * s, R = r * s;
 
-  if (els.mask.checked && state.maskCanvas) {
+  // The foam that becomes land: a light tint and the map's own coastline, so it is
+  // clear which part of the photo turned into which island. Hidden while the circle
+  // has moved since the map was charted, until the new map arrives.
+  const dc = state.dataCircle, cc = state.circle;
+  const current = dc && dc.x === cc.x && dc.y === cc.y && dc.r === cc.r;
+  if (els.mask.checked && state.maskCanvas && state.outline && current) {
     ctx.save();
     ctx.beginPath(); ctx.arc(X, Y, R, 0, Math.PI * 2); ctx.clip();
-    ctx.imageSmoothingEnabled = false;
+    ctx.imageSmoothingEnabled = true;
     ctx.drawImage(state.maskCanvas, X - R, Y - R, 2 * R, 2 * R);
+    const k = (2 * R) / N, P = (g) => (g + 0.5) * k;
+    const lw = Math.max(3.5, c.width / 180);
+    const stroke = (segs, style, w) => {
+      ctx.strokeStyle = style; ctx.lineWidth = w; ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (let j = 0; j < segs.length; j += 4) {
+        ctx.moveTo(X - R + P(segs[j]), Y - R + P(segs[j + 1]));
+        ctx.lineTo(X - R + P(segs[j + 2]), Y - R + P(segs[j + 3]));
+      }
+      ctx.stroke();
+    };
+    stroke(state.outline.coast, 'rgba(0, 0, 0, 0.55)', lw * 1.9);
+    stroke(state.outline.coast, '#ffb347', lw);
+    stroke(state.outline.lakes, '#73b9ca', lw * 0.8);
     ctx.restore();
   }
   // dim outside
@@ -192,13 +215,17 @@ function buildMaskCanvas() {
   c.width = d.N; c.height = d.N;
   const ctx = c.getContext('2d');
   const img = ctx.createImageData(d.N, d.N);
+  const lake = new Float32Array(d.N * d.N);
   for (let i = 0; i < d.N * d.N; i++) {
     const o = i * 4;
-    if (d.land[i]) { img.data[o] = 120; img.data[o + 1] = 220; img.data[o + 2] = 90; img.data[o + 3] = 150; }
-    else if (d.lake[i]) { img.data[o] = 60; img.data[o + 1] = 150; img.data[o + 2] = 230; img.data[o + 3] = 120; }
+    // land: a strong amber shade; lakes blue; the sea darkened so the land stands out
+    if (d.land[i]) { img.data[o] = 255; img.data[o + 1] = 166; img.data[o + 2] = 50; img.data[o + 3] = 135; }
+    else if (d.lake[i]) { lake[i] = 1; img.data[o] = 115; img.data[o + 1] = 185; img.data[o + 2] = 202; img.data[o + 3] = 120; }
+    else { img.data[o + 3] = 95; }
   }
   ctx.putImageData(img, 0, 0);
   state.maskCanvas = c;
+  state.outline = { coast: marchingSquares(d.H, d.N, 0), lakes: marchingSquares(lake, d.N, 0.5) };
 }
 
 // Pointer interaction: drag to move, pinch / wheel to resize.
@@ -300,6 +327,7 @@ function generate(delay = 150) {
   timer = setTimeout(() => {
     const rgba = sampleGrid();
     const id = ++state.reqId;
+    state.sentCircle = { ...state.circle };
     els.busy.textContent = 'Charting…';
     els.busy.hidden = false;
     worker.postMessage({

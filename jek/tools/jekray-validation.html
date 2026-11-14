@@ -2634,7 +2634,8 @@ const ALL_CASES = [
         { id: 'through', type: 'detector', name: 'Through', x: 20, y: 0, angle: 180, length: 8 },
         { id: 'back', type: 'detector', name: 'Back', x: -15, y: -15, angle: 90, length: 8 },
         ...(o.model ? [{ id: 'p', type: 'particle', name: 'Particle', x: o.x || 0, y: o.y || 0, angle: 90, trapMat: 'Fused silica', trapR: o.model === 'rayleigh' ? 50 : 150, trapMed: 'vacuum', scatModel: o.model }] : [])];
-      const open = (o, lock) => { const d = bench('A particle inside a cavity', els(o), { maxBounces: 60, minPower: 1e-6, cavityLock: lock || {} }); J.load(d); J.trace(); return d; };
+      // (built: the cavity as built, no lock; set on the bench's own cavity once it is loaded)
+      const open = (o, built) => { const d = bench('A particle inside a cavity', els(o), { maxBounces: 60, minPower: 1e-6 }); J.load(d); if (built) J.setCavityLock('built'); J.trace(); return d; };
       // V0, V1: the reference against the classical formulas (worked out in the script)
       const Cl = R.classical;
       checks.push(check('Reference against Bethe–Schwinger at an antinode: the shift (×10⁻⁵ m⁻¹)', Cl.antinode.shift_classical * 1e5, Cl.antinode.shift_ref * 1e5, { rel: 0.01 }));
@@ -2667,9 +2668,9 @@ const ALL_CASES = [
           }
         }
         // V4: the cavity as built, the laser's wavelength moved; the reference's detuning d (linewidths) is k - k_res
-        open({}); J.detector('Through');
-        const cs = J.cavitySolve()[0], cv = J.cavities()[0], lwK = 2 * Math.PI / (cv.Lopt * cv.finesse), built = { [cs.id]: 'built' };
-        const nmAt = d => 1550 - LAM * LAM * (-cs.delta / cv.Lopt + d * lwK) / (2 * Math.PI) * 1e6;
+        // (the lock's detuning from this cavity's own solve, with the particle in it: the bench's other cases leave theirs behind)
+        open({}); const cv = J.cavities()[0], lwK = 2 * Math.PI / (cv.Lopt * cv.finesse), built = true;
+        const nmAt = d => 1550 - LAM * LAM * (-S0.cav.dLock / cv.Lopt + d * lwK) / (2 * Math.PI) * 1e6;
         const Rm = R.cases.mie.places, x = Rm.antinode.detune_linewidths, peak = Math.max(...Rm.antinode.T_mW);
         const eT = [], eR = [];
         for (const d of x) { open({ nm: nmAt(d) }, built); eT.push(2 * J.detector('Through').mw); eR.push(4 * J.detector('Back').mw); }

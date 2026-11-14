@@ -347,6 +347,8 @@ export function* scatterGen(el, R, opts) {
     cavL = launches.findIndex(L => L.ref && L.ref.coh === plan.legF.q.coh);
     if (cavK.why || cavL < 0) { plan.why = cavK.why || 'launch'; cavK = null; cavL = -1; }
   }
+  // (one the solve does not take keeps the warning, whether or not its light is seen to come back by returnPlan)
+  if (plan && plan.why && !flags.includes('cavity')) flags.push('cavity');
   if (plan) out.cav = { canon: plan.c.id, name: plan.c.name, solved: !plan.why, why: plan.why || null, degen: plan.degen || null, finesse: plan.c.finesse, gouy: plan.c.gouy };
   const cavDirs = cavK ? Float64Array.of(...plan.dir, ...plan.dir.map(v => -v)) : null;
   const unitWave = i => ({ n: 1, d: Float64Array.from(i < 2 ? plan.dir : plan.dir.map(v => -v)), E: Float64Array.from((i % 2 ? plan.ey : plan.ex).flatMap(v => [v, 0])) });

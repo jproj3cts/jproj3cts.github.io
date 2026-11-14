@@ -2618,6 +2618,93 @@ const ALL_CASES = [
       return { checks, plots, benches, notes: 'The dipole array settles in three passes, each a solve started from the last answer (3, 1 and 0 BiCGStab iterations).' };
     },
   },
+  {
+    id: 'scatter-cavity', area: 'Scattering', title: 'A particle inside a Fabry–Perot cavity, solved in the cavity’s modes',
+    kind: 'Independent code', ref: 'scatter-cavity.json', script: 'scatter_cavity.py',
+    cite: 'H. Kogelnik and T. Li, Applied Optics 5, 1550–1567 (1966), for the cavity’s Hermite–Gauss modes and their Gouy phases; the reciprocity theorem for a dipole radiating into a guided mode; Bohren and Huffman (1983), chapter 4, for Mie theory. The reference is checked against the textbook perturbation of a resonator: Bethe and Schwinger’s shift, δω/ω = −Re(α)|E|² / 2∫ε₀|E|²dV, and the widening by the scattered power over the stored energy.',
+    what: 'Two concave mirrors (R = 25 mm, 10 mm apart, 90% reflected and 10% passed: finesse 29.8, round-trip Gouy phase 1.855 rad), a 1550 nm laser of 1 mW with its 80 µm waist in the middle, through a 50/50 plate (a detector on its return port) and a detector behind the far mirror. A silica sphere inside: at an antinode on the axis, at a node, a quarter of the way between, and off the axis by 0.3 of the mode’s radius at an antinode. 50 nm in radius as a single dipole; 150 nm by Mie and as a dipole array. JEKray solves the particle in the cavity’s modes (the Hermite–Gauss modes of its own q, their round trips from the field engine’s steady state, the particle’s coupling by reciprocity from its far field ahead and behind, every round trip at once) and the detectors read the loaded cavity. The reference is a Fabry–Perot written in Python that shares no code with JEKray: the cavity’s Hermite–Gauss modes to order 12, the input beam’s overlap with each, the sphere’s coupling to each mode both ways, and the closed linear system of the forward and backward waves solved at each wavenumber; the resonance’s shift and widening are its pole in complex k. The scan is the laser’s wavelength moved across the cavity as built (no lock), 41 points over three linewidths.',
+    tolerance: 'The reference against the classical formulas at an antinode within 1% (shift and widening), and both below 10⁻³ of the antinode’s at a node. JEKray’s shift and widening at each place within 5% of the antinode’s, each model; the scattered power within 3% of the antinode’s; both detectors over the scan within 2% of the peak transmitted power, each place; the modes kept reported. The degeneracy test (a round-trip Gouy phase within three linewidths of 2πp/q, q up to 6) keeps the warning on a confocal cavity, and not on this one.',
+    async run(J, R) {
+      const checks = [], plots = [], benches = [], LAM = 1.55e-3, K = 2 * Math.PI / LAM, W0 = R.w0_um * 1e-3;
+      const els = o => [
+        { id: 'laser', type: 'source', name: 'Laser', x: -30, y: 0, angle: 0, wavelength: o.nm || 1550, gauss: true, w0: 0.08, z0: 30, rays: 0, traceRays: false, power: 1, pol: 's' },
+        { id: 'plate', type: 'mirror', name: 'Plate', x: -15, y: 0, angle: 135, length: 8, reflect: 50, transmit: 50 },
+        { id: 'm1', type: 'mirror', name: 'M1', x: -5, y: 0, angle: 0, length: 5, reflect: 90, transmit: 10, ...(o.R === 0 ? {} : { R: o.R || 25 }) },
+        { id: 'm2', type: 'mirror', name: 'M2', x: 5, y: 0, angle: 180, length: 5, reflect: 90, transmit: 10, ...(o.R === 0 ? {} : { R: o.R || 25 }) },
+        { id: 'through', type: 'detector', name: 'Through', x: 20, y: 0, angle: 180, length: 8 },
+        { id: 'back', type: 'detector', name: 'Back', x: -15, y: -15, angle: 90, length: 8 },
+        ...(o.model ? [{ id: 'p', type: 'particle', name: 'Particle', x: o.x || 0, y: o.y || 0, angle: 90, trapMat: 'Fused silica', trapR: o.model === 'rayleigh' ? 50 : 150, trapMed: 'vacuum', scatModel: o.model }] : [])];
+      const open = (o, lock) => { const d = bench('A particle inside a cavity', els(o), { maxBounces: 60, minPower: 1e-6, cavityLock: lock || {} }); J.load(d); J.trace(); return d; };
+      // V0, V1: the reference against the classical formulas (worked out in the script)
+      const Cl = R.classical;
+      checks.push(check('Reference against Bethe–Schwinger at an antinode: the shift (×10⁻⁵ m⁻¹)', Cl.antinode.shift_classical * 1e5, Cl.antinode.shift_ref * 1e5, { rel: 0.01 }));
+      checks.push(check('Reference against the scattered power over the stored energy: the widening (×10⁻⁸ m⁻¹)', Cl.antinode.widen_classical * 1e8, Cl.antinode.widen_ref * 1e8, { rel: 0.01 }));
+      checks.push(check('Reference at a node: the shift against the antinode’s', 0, Cl.V1_shift, { abs: 1e-3 }));
+      checks.push(check('Reference at a node: the widening against the antinode’s', 0, Cl.V1_widen, { abs: 1e-3 }));
+      // V7: the degeneracy test
+      open({ R: 10, model: 'mie' }); const Sc = J.scatter('Particle');
+      checks.push(check('A confocal cavity keeps the warning (1)', 1, Sc.cav && !Sc.cav.solved && Sc.cav.why === 'degenerate' && Sc.flags.includes('cavity') ? 1 : 0, { abs: 0 }));
+      open({ model: 'mie' }); const St = J.scatter('Particle');
+      checks.push(check('This cavity is solved, not warned of (1)', 1, St.cav && St.cav.solved ? 1 : 0, { abs: 0 }));
+      const degen = St.cav && St.cav.degen;
+      // the rest with the degeneracy test off, to set the solve against the reference on this cavity
+      J.cavDegenCheck(false);
+      try {
+        // JEKray's lock is a hair's change of the far mirror's place: the antinode is where the empty cavity's two waves meet in phase
+        const lockData = open({ model: 'rayleigh' }); const S0 = J.scatter('Particle'), xa = Math.atan2(S0.cav.rho200[1], S0.cav.rho200[0]) / (2 * K);
+        benches.push(['The cavity with the particle at its antinode', lockData]);
+        const at = { antinode: [0, 0], node: [LAM / 4, 0], quarter: [LAM / 8, 0], 'off-axis': [0, 0.3 * W0] };
+        const kept = [];
+        for (const [model, refName, label] of [['rayleigh', 'dipole', 'the single dipole (50 nm)'], ['mie', 'mie', 'Mie (150 nm)'], ['dda', 'mie', 'the dipole array (150 nm)']]) {
+          const Rc = R.cases[refName].places, A = Rc.antinode;
+          for (const name of Object.keys(at)) {
+            open({ model, x: xa + at[name][0], y: at[name][1] }); const S = J.scatter('Particle'), C = S.cav || {}, Rf = Rc[name];
+            checks.push(check(label + ', ' + name + ': the shift (×10⁻⁵ m⁻¹)', Rf.shift_k * 1e5, C.shiftK * 1e5, { abs: 0.05 * Math.abs(A.shift_k) * 1e5 }));
+            checks.push(check(label + ', ' + name + ': the widening (×10⁻⁸ m⁻¹)', Rf.widen_k * 1e8, C.widenK * 1e8, { abs: 0.05 * Math.abs(A.widen_k) * 1e8 }));
+            checks.push(check(label + ', ' + name + ': the scattered power (pW, the plate passing half the laser to the cavity: twice what JEKray gives)', Rf.lock.Psca_mW * 1e9, 2 * S.Psca * 1e12, { abs: 0.03 * A.lock.Psca_mW * 1e9 }));
+            kept.push(label + ' ' + name + ': ' + C.modes + ' (the reference ' + Rf.modes_kept + ')');
+            await idle();
+          }
+        }
+        // V4: the cavity as built, the laser's wavelength moved; the reference's detuning d (linewidths) is k - k_res
+        open({}); J.detector('Through');
+        const cs = J.cavitySolve()[0], cv = J.cavities()[0], lwK = 2 * Math.PI / (cv.Lopt * cv.finesse), built = { [cs.id]: 'built' };
+        const nmAt = d => 1550 - LAM * LAM * (-cs.delta / cv.Lopt + d * lwK) / (2 * Math.PI) * 1e6;
+        const Rm = R.cases.mie.places, x = Rm.antinode.detune_linewidths, peak = Math.max(...Rm.antinode.T_mW);
+        const eT = [], eR = [];
+        for (const d of x) { open({ nm: nmAt(d) }, built); eT.push(2 * J.detector('Through').mw); eR.push(4 * J.detector('Back').mw); }
+        x.forEach((d, i) => {
+          checks.push(check('Empty cavity, detuned ' + d.toFixed(3) + ': through (mW)', Rm.antinode.empty_T_mW[i], eT[i], { abs: 0.02 * peak }));
+          checks.push(check('Empty cavity, detuned ' + d.toFixed(3) + ': back (mW)', Rm.antinode.empty_R_mW[i], eR[i], { abs: 0.02 * peak }));
+        });
+        for (const name of Object.keys(at)) {
+          const T = [], Rb = [], Rf = Rm[name];
+          for (const d of x) {
+            // (as built the antinode is the cavity's middle)
+            open({ nm: nmAt(d), model: 'mie', x: at[name][0], y: at[name][1] }, built); J.scatter('Particle'); J.trace();
+            T.push(2 * J.detector('Through').mw); Rb.push(4 * J.detector('Back').mw);
+            await idle();
+          }
+          x.forEach((d, i) => {
+            checks.push(check('Mie, ' + name + ', detuned ' + d.toFixed(3) + ': through (mW)', Rf.T_mW[i], T[i], { abs: 0.02 * peak }));
+            checks.push(check('Mie, ' + name + ', detuned ' + d.toFixed(3) + ': back (mW)', Rf.R_mW[i], Rb[i], { abs: 0.02 * peak }));
+          });
+          if (name === 'antinode') {
+            plots.push(plot({ title: 'The cavity’s transmission and reflection across its resonance', xlabel: 'detuning (linewidths)', ylabel: 'power (mW)',
+              series: [{ name: 'Reference, through', x, y: Rf.T_mW, colour: REF_C, width: 2.4 }, { name: 'JEKray, through', x, y: T, colour: GOT_C, dots: true },
+                { name: 'Reference, back', x, y: Rf.R_mW, colour: REF_C, width: 1.2 }, { name: 'JEKray, back', x, y: Rb, colour: GOT_C, dots: true }] }));
+            plots.push(plot({ title: 'What the particle at the antinode changes in each reading', xlabel: 'detuning (linewidths)', ylabel: 'change (nW)',
+              series: [{ name: 'Reference, through', x, y: Rf.T_mW.map((v, i) => (v - Rf.empty_T_mW[i]) * 1e6), colour: REF_C, width: 2.4 }, { name: 'JEKray, through', x, y: T.map((v, i) => (v - eT[i]) * 1e6), colour: GOT_C, dots: true },
+                { name: 'Reference, back', x, y: Rf.R_mW.map((v, i) => (v - Rf.empty_R_mW[i]) * 1e6), colour: REF_C, width: 1.2 }, { name: 'JEKray, back', x, y: Rb.map((v, i) => (v - eR[i]) * 1e6), colour: GOT_C, dots: true }] }));
+          }
+        }
+        return { checks, plots, benches,
+          notes: 'The degeneracy test as it was set before the first run flags this cavity: its round-trip Gouy phase, ' + fmt(St.cav && St.cav.gouy ? Math.abs(St.cav.gouy.x) : NaN, 4) + ' rad, is ' + fmt(degen ? degen.off : NaN, 3) + ' rad from 2π/' + (degen ? degen.q : '?') + ', within three linewidths (' + fmt(degen ? degen.tol : NaN, 3) + ' rad). So on the bench this particle keeps the warning, and the check that it should not fails; the rest of the case is run with the test off. ' +
+            'Modes kept (by the threshold set beforehand: |HG(r)|² |1/(1 − λ)|² at least 10⁻⁶ of TEM00’s, up to order 12): ' + kept.join('; ') + '. ' +
+            'The detectors take the loaded cavity to first order, each wave’s change projected on the empty wave. At the resonance the back port reads almost nothing (the prompt reflection and the leak nearly cancel), and there its tiny change is about a third of the reference’s; the change through agrees to about 1% across the scan.' };
+      } finally { J.cavDegenCheck(true); }
+    },
+  },
 ];
 
 /* ---------- Running and reporting ---------- */

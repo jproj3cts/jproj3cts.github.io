@@ -162,6 +162,24 @@ A [fibre tip](/jek/docs/jekray/free-space/fibre-tip/) takes in the overlap of th
 
 The cones are drawn as rays. With **Draw light by its power** on they are drawn at the faintest step that shows, because by power they would not show beside the beam at all. The 2D bench draws the two spokes of each cone nearest the bench plane, and the 3D view draws every ray.
 
+## Inside a cavity
+
+A particle between two concave mirrors scatters some of its light along the cavity's axis. The cavity takes that light up, sends it round and brings it back, built up by its finesse, and the particle scatters it again. JEKray solves this directly in the cavity's own modes.
+
+The modes are the Hermite–Gauss modes HG<sub>mn</sub> of the cavity's own beam parameter, which the Cavity card shows. Each has its round-trip factor, $$\lambda_{mn} = \lambda_{00}\, e^{-i(m G_x + n G_y)}$$, with $$G$$ the round-trip Gouy phase. $$\lambda_{00}$$ comes from the cavity's steady state, so the lock and its detuning are in it. The particle emits into each mode by reciprocity:
+
+$$\delta a_{mn} = \frac{i\omega}{4}\, \overline{u_{mn}(\mathbf r_p)} \cdot \mathbf p$$
+
+where $$u_{mn}$$ is the mode's field per root watt at the particle and $$\mathbf p$$ the dipole that gives the particle's far field straight ahead (for the forward wave) or straight back. Carried round, every mode brings its share back to the particle as a wave along the axis each way. The particle's far field ahead and behind is linear in the light on it, so the light that comes back is one small linear solve that holds every round trip at once. Mie, the dipole array and the single dipole all take it. The dipole array needs four extra solves, one for a unit wave along the axis each way in each polarisation.
+
+A mode is kept while its field at the particle squared, times its build-up $$|1/(1-\lambda_{mn})|^2$$, is at least 10⁻⁶ of TEM₀₀'s, up to m + n = 12. On the axis at a finesse of 30 that is 28 modes; 0.3 of the mode's radius off it, 48; at a finesse of 3000, 7. Light outside the kept modes leaves after one pass.
+
+The Scattering tab gives how far the particle moves the cavity's resonance and how much it widens it, in linewidths and in kHz. The particle's far field, its scattered power and its extinction include the light that came back. The detectors behind either mirror read the cavity with the particle in it. The particle's light along the axis is the cavity's own, so it is cut from the cones the particle sends out.
+
+The cavity's steady state is solved without the particle, then the particle in that light. Its light changes the cavity's light by a few parts in a million here, so the first order is enough.
+
+A cavity is taken as degenerate when its round-trip Gouy phase, either way, is within three linewidths ($$3 \times 2\pi/F$$) of $$2\pi p/q$$ for some q up to 6. Confocal, concentric and flat cavities are degenerate, and so is any cavity of low finesse near those. A degenerate cavity keeps the warning, because its transverse modes share resonances and are not taken one by one. The test is strict at low finesse: the validation case's own cavity (finesse 30, Gouy phase 1.855 rad) is within it of 2π/3, so on the bench it keeps the warning. At a finesse of a few hundred most stable cavities pass it.
+
 ## Validation
 
 The [validation page](/jek/tools/jekray-validation.html) runs the Mie sphere against an independent calculation, and the dipole array's rod against an independent dipole calculation on a finer lattice. A dipole-array sphere agrees with Mie to about 1% at the default lattice for silica at 1550 nm.
@@ -174,12 +192,15 @@ A fifth case puts the sphere at the focus of a real lens, a plano-convex asphere
 
 A sixth case is a retro-reflected focus. A lens focuses the beam onto the sphere, a like lens recollimates it and a flat mirror that reflects half sends it back to refocus on the sphere. Moving the mirror over half a wavelength moves the standing wave across the sphere. The reference sums the two foci as plane waves and scatters both by Mie theory. At NA 0.8 the irradiance, the scattered power and the extinction agree with it to 0.3% of their largest value at every step, the change on a detector behind the mirror and on one on a 50/50 plate's return port to 0.6%, and both split detectors' slopes to 3%. At a gentle focus the Gaussian beam agrees to 2%, and the slopes to 3.5%.
 
+A seventh case puts the sphere inside a Fabry–Perot cavity of two 25 mm mirrors 10 mm apart, at an antinode, a node, a quarter of the way between and off the axis. The reference is a Fabry–Perot written in Python in the cavity's Hermite–Gauss modes, checked against the textbook shift and widening of a resonator to 0.08%. With the degeneracy test off, the resonance's shift and widening agree with it to 0.01% for a Mie sphere and the single dipole, and to 1.3% for the dipole array. The scattered power agrees to 0.03%. The light through the far mirror agrees to 0.03% of its peak over a scan of three linewidths, and the particle's change in it to about 1%.
+
 ## Assumptions
 
 <div class="dx-warn" markdown="1">
 - The particle and every part are in each other's far field. A part within a few wavelengths of the particle is not treated correctly.
 - When the beam comes back on itself (a retro-reflector: a lens and a mirror behind the particle), the particle's own scattered light comes back the same way and is scattered again. The optics that return the beam return the scattered light: each direction of it comes back along the opposite direction, its field multiplied by the ratio of the returning beam's field to the going beam's at the focus, and it arrives at the image of the particle in the focus. The particle is driven by the beams and by that light, and this is repeated until the returned light changes by less than 1 part in 10⁷ (3 or 4 passes in the validation case). The far field, the scattered power, the extinction and the light on the bench all include it. A sphere by Mie theory takes the returned light's own far field each pass; a dipole array is solved again with the returned field added at every dipole, each solve started from the last answer (3, 2, 1 and 0 BiCGStab iterations for the rod of the validation case); a single dipole is driven by the returned field at its centre.
-- Scattering inside a cavity is not modelled. When the light comes back to the particle more than once (between two mirrors facing each other, or when returned light goes on past the particle again), the Scattering tab says so, and the readings take the scattered light back once only. Two arms of one laser sent in from either side are not a return.
+- A particle inside a two-mirror cavity is solved in the cavity's modes (see [Inside a cavity](#inside-a-cavity)) when the cavity is stable, unclipped, aligned and not degenerate. Anywhere else the light comes back to the particle more than once (a degenerate, ring, folded, clipped or misaligned cavity, or returned light that goes on past the particle again), the Scattering tab says it is not modelled, and the readings take the scattered light back once only. Two arms of one laser sent in from either side are not a return.
+- In a solved cavity the detectors take the loaded cavity to first order: each wave's change is projected on the empty cavity's wave and applied as a factor on it. Where a reading nearly cancels (the reflected port of a well-matched cavity at its resonance) its tiny change can be a few times off. A field worked out in a worker for a picture of the bench does not show the particle's change.
 - Two particles do not light each other: each scatters the bench's beams alone.
 - The beam that drives the particle is not made weaker by what was scattered. A detector that takes in the beam reads the loss through the interference above.
 - Forces and torques come from the Trap tab's dipole, not from these models.

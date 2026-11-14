@@ -254,6 +254,10 @@ $$
 
 where $$S$$ is the power entering it summed over its passes, and $$w$$ the cavity mode's radius there. The power settles where the round trip is one, and leaves each partly transmitting mirror as a beam.
 
+### A particle inside
+
+A [Particle](/jek/docs/jekray/free-space/scattering/#inside-a-cavity) between the two mirrors of a stable, non-degenerate cavity is solved in the cavity's Hermite–Gauss modes, with each mode's round trip taken from the steady state above. Its light that goes round and comes back drives it again. The cavity's own light is then taken by what the particle does to it: the forward and backward waves are each multiplied by the factor the solve gives, so a detector behind either mirror reads the loaded cavity. The Scattering tab gives how far the particle moves the resonance and how much it widens it.
+
 ## Short pulses
 
 A source given a pulse duration $$\tau$$ is a spectrum with a spectral phase. Reference rays are traced at 33 wavelengths across that spectrum. Their optical paths through glass, prisms, gratings, chirped mirrors and fibre form the pulse's spectral phase $$\varphi(\omega)$$, which a polynomial fit expands about the carrier:

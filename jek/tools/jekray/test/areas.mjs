@@ -34,7 +34,7 @@ export const AREAS = {
   cavity: {
     what: 'cavities: finding them, their modes, the field they build, lasers that settle',
     src: ['src/engines/cavity.js', 'src/engines/pd-cavity.js', 'src/ui/panel-cavity.js', 'src/parts/gain.js', 'src/ui/parts/gain.js'],
-    node: ['ghost-cavity.test.mjs', 'demos.test.mjs'],
+    node: ['ghost-cavity.test.mjs', 'demos.test.mjs', 'physics-particle-cavity.test.mjs'],
     browser: ['Cavities: finding them and their Gaussian mode', 'Cavities: the field they build up', 'Cavities: their own modes (Fox and Li)', 'Lasers that settle', 'Optical path and interference'],
   },
   fibre: {
@@ -87,8 +87,8 @@ export const AREAS = {
   },
   scatter: {
     what: 'light scattered by one particle: Lorenz–Mie, the dipole array, a focus as plane waves, the Scattering tab and its worker; the Particle part and its scattered light on the bench',
-    src: ['src/core/mie.js', 'src/core/dda.js', 'src/core/scatter.js', 'src/engines/scatter.js', 'src/engines/scatter-light.js', 'src/parts/particle.js', 'src/ui/parts/particle.js', 'src/ui/scatter.js'],
-    node: ['physics-scatter.test.mjs', 'physics-particle.test.mjs', 'particle-from-screen.test.mjs', 'physics-rising.test.mjs', 'demos.test.mjs', 'parts.test.mjs', 'pro-gate.test.mjs', 'data-export.test.mjs'],
+    src: ['src/core/mie.js', 'src/core/dda.js', 'src/core/scatter.js', 'src/engines/scatter.js', 'src/engines/scatter-cavity.js', 'src/engines/scatter-light.js', 'src/parts/particle.js', 'src/ui/parts/particle.js', 'src/ui/scatter.js'],
+    node: ['physics-scatter.test.mjs', 'physics-particle.test.mjs', 'physics-particle-cavity.test.mjs', 'particle-from-screen.test.mjs', 'physics-rising.test.mjs', 'demos.test.mjs', 'parts.test.mjs', 'pro-gate.test.mjs', 'data-export.test.mjs'],
     browser: ['Scattering by a particle', 'Dipole traps'],
   },
   site: {

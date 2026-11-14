@@ -45083,6 +45083,8 @@ function* scatterGen(el, R, opts) {
     cavL = launches.findIndex(L => L.ref && L.ref.coh === plan.legF.q.coh);
     if (cavK.why || cavL < 0) { plan.why = cavK.why || 'launch'; cavK = null; cavL = -1; }
   }
+  // (one the solve does not take keeps the warning, whether or not its light is seen to come back by returnPlan)
+  if (plan && plan.why && !flags.includes('cavity')) flags.push('cavity');
   if (plan) out.cav = { canon: plan.c.id, name: plan.c.name, solved: !plan.why, why: plan.why || null, degen: plan.degen || null, finesse: plan.c.finesse, gouy: plan.c.gouy };
   const cavDirs = cavK ? Float64Array.of(...plan.dir, ...plan.dir.map(v => -v)) : null;
   const unitWave = i => ({ n: 1, d: Float64Array.from(i < 2 ? plan.dir : plan.dir.map(v => -v)), E: Float64Array.from((i % 2 ? plan.ey : plan.ex).flatMap(v => [v, 0])) });
@@ -58807,6 +58809,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'A <b>Particle</b> inside a two-mirror cavity is solved in the cavity\u2019s own Hermite-Gauss modes: its light that goes round and comes back drives it again, every round trip at once, by Mie, the dipole array or the single dipole. The Scattering tab gives how far it moves the cavity\u2019s resonance and how much it widens it, and the detectors behind either mirror read the cavity with the particle in it. A cavity that is degenerate or near it (confocal, concentric, flat, or of low finesse near those), a ring, or one clipped or out of line keeps the warning.',
     'A <b>Particle</b> in a retro-reflected beam is driven by its own scattered light coming back as well, scattered again until it settles (second scattering), whether it is a sphere, a rod or spheroid (the dipole array is solved again each pass) or a single dipole: the scattered power moves by up to 2.5% in the validation case, and its energy balances. Inside a cavity, where the light would come back again and again, the Scattering tab says it is not modelled.',
     'A <b>Gaussian beam</b> through a curved face now passes what its whole footprint passes, each part at its own angle, in place of what its axis ray passes: behind a steep bare lens it reads lower (2.4% in the optical tweezers example). A steep focus takes a round beam\u2019s field by its series (8e-4 on an NA 0.8 focus). The Trap tab gives no depth or frequencies where nothing is held.',
     'A <b>Particle</b> is lit by beams that rise or descend out of the bench plane (after a tipped laser, a tipped mirror or a periscope), each taken in its own frame; its scattered light reaches the parts beyond as it does from a level beam. A screen\u2019s atom trap in a rising beam is now where the beam meets the screen (it was looked for further along).',
@@ -62882,6 +62885,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     },
     cavityModes(count) { const [k, v] = [...cavSolved.entries()].pop() || []; if (!v || !v.res) return null; const c = findCavities().find(c2 => c2.id === k);
       return cavModes(v.res, c ? c.fsr : 1, count).map(md => ({ abs: md.abs, loss: md.loss, offset: md.offset, share: md.share })); },
+    // (the validation page and the tests: a particle's cavity solved in its modes even where the degeneracy test would keep the
+    // warning, to set the solve against a reference on a cavity of low finesse; engines/scatter-cavity.js)
+    cavDegenCheck(on) { setCavDegenCheck(on); },
     setCavityLock(mode) { const c = findCavities()[0]; if (!c) return; project.cavityLock = Object.assign({}, project.cavityLock, { [c.id]: mode }); cavSolved.delete(c.id); cavRunCache.delete(lastTrace); },
     cavityPeaks(tol) {
       // the lines in the latest scan: position (as a share of the free spectral range from the

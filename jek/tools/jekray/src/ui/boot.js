@@ -100,6 +100,7 @@ import { endTour, nameInput, openDemo, startNewBench, startTour, tour, TOURS, to
 import { modAsk, modLoad, modPrepare, modReset, wireMods } from '../io/mods.js';
 import { FW, TW, WORKERS_OK, fieldWorker, fwMismatch, fwProject, fwRequest, newAppWorker } from '../page/workers.js';
 import { scatterPlain, scatterPrep } from '../engines/scatter.js';
+import { setCavDegenCheck } from '../engines/scatter-cavity.js';
 import { wireScatter } from './scatter.js';
 import { drawingSvgText, drawingsPdfBlob, lensDrawings } from './lens-drawing.js';
 import { partFiles } from './lens-make.js';
@@ -579,6 +580,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     },
     cavityModes(count) { const [k, v] = [...cavSolved.entries()].pop() || []; if (!v || !v.res) return null; const c = findCavities().find(c2 => c2.id === k);
       return cavModes(v.res, c ? c.fsr : 1, count).map(md => ({ abs: md.abs, loss: md.loss, offset: md.offset, share: md.share })); },
+    // (the validation page and the tests: a particle's cavity solved in its modes even where the degeneracy test would keep the
+    // warning, to set the solve against a reference on a cavity of low finesse; engines/scatter-cavity.js)
+    cavDegenCheck(on) { setCavDegenCheck(on); },
     setCavityLock(mode) { const c = findCavities()[0]; if (!c) return; project.cavityLock = Object.assign({}, project.cavityLock, { [c.id]: mode }); cavSolved.delete(c.id); cavRunCache.delete(lastTrace); },
     cavityPeaks(tol) {
       // the lines in the latest scan: position (as a share of the free spectral range from the

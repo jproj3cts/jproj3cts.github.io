@@ -31,7 +31,7 @@ for (const [name, C] of Object.entries(CASES)) {
   (await openBench(doc([LASER, ...mirrors(C.kind, C.d || 0), { id: 'p', type: 'particle', name: 'P', x: C.x, y: C.y, angle: 90, trapMat: 'Fused silica', trapR: 50, trapMed: 'vacuum', scatModel: 'rayleigh' }]))).trace();
   const S = SC.scatterNow(getEl('p')), K = S.cav;
   if (!K || K.method !== 'pupil') throw new Error(name + ': not solved in the pupil: ' + JSON.stringify(K));
-  out.cases[name] = { kind: C.kind, delta_m: (C.d || 0) * 1e-3, rp_m: [0, C.y * 1e-3, C.x * 1e-3], h2: K.h2, lam: K.lam00, f: K.f0, b: K.b0, mie: !!C.mie };
+  out.cases[name] = { kind: C.kind, delta_m: (C.d || 0) * 1e-3, rp_m: [0, C.y * 1e-3, C.x * 1e-3], h2: K.h2, lam: K.lam00, lam_how: K.lamHow, ritz: K.ritz, f: K.f0, b: K.b0, mie: !!C.mie };
   console.log(name, JSON.stringify(out.cases[name]));
 }
 writeFileSync(new URL('../ref/scatter-cavity-degen-bench.json', import.meta.url), JSON.stringify(out, null, 1));

@@ -116,21 +116,48 @@ def trace_returns(mirrors, rp, u, pattern, trips):
             yield d.copy(), phi.copy(), amp.copy(), Mx.copy(), alive.copy()
 
 
-def cap_grid(theta, n):
+def cap_grid(theta, n, cav=None, sub=5):
     """a square grid of direction cosines over a cap of half-angle theta about +z (and its mirror about -z): directions,
-    solid angles"""
+    solid angles. With the cavity: the cells the rims cut are taken for what of them comes back (sub x sub directions
+    across each traced round), their weight that share and their direction the mean of those that return"""
     s = np.sin(theta) * 1.02
     x = np.linspace(-s, s, n)
+    h = x[1] - x[0]
     X, Y = np.meshgrid(x, x, indexing='ij')
     r2 = X ** 2 + Y ** 2
     keep = r2 < min(s * s, 0.999)
     ux, uy = X[keep], Y[keep]
-    uz = np.sqrt(1 - ux ** 2 - uy ** 2)
-    h = x[1] - x[0]
-    w = h * h / uz
-    up = np.stack([ux, uy, uz], -1)
-    dn = np.stack([ux, uy, -uz], -1)
-    return np.concatenate([up, dn]), np.concatenate([w, w])
+    w = h * h / np.sqrt(1 - ux ** 2 - uy ** 2)
+    if cav is None:
+        uz = np.sqrt(1 - ux ** 2 - uy ** 2)
+        return np.concatenate([np.stack([ux, uy, uz], -1), np.stack([ux, uy, -uz], -1)]), np.concatenate([w, w])
+    outU, outW = [], []
+    off = ((np.arange(sub) + 0.5) / sub - 0.5) * h
+    OA, OB = np.meshgrid(off, off, indexing='ij')
+    for sg in (1, -1):
+        r = np.sqrt(ux ** 2 + uy ** 2)
+        edge = np.abs(r - np.sin(theta)) <= 1.5 * h
+        U = np.stack([ux, uy, sg * np.sqrt(1 - ux ** 2 - uy ** 2)], -1)
+        # whole cells: their middle traced
+        alive = next(trace_returns(cav.m, cav.rp, U, cav.pattern, 1))[4]
+        keep_ = alive & ~edge
+        outU.append(U[keep_]); outW.append(w[keep_])
+        for a0, b0 in zip(ux[edge], uy[edge]):
+            A = (a0 + OA).ravel(); Bv = (b0 + OB).ravel()
+            ok = A ** 2 + Bv ** 2 < 0.999
+            A, Bv = A[ok], Bv[ok]
+            if not len(A):
+                continue
+            Uz = np.sqrt(1 - A ** 2 - Bv ** 2)
+            Us = np.stack([A, Bv, sg * Uz], -1)
+            al = next(trace_returns(cav.m, cav.rp, Us, cav.pattern, 1))[4]
+            if not al.any():
+                continue
+            ww = 1 / Uz[al]
+            ac, bc = np.sum(A[al] * ww) / np.sum(ww), np.sum(Bv[al] * ww) / np.sum(ww)
+            outU.append(np.array([[ac, bc, sg * np.sqrt(1 - ac * ac - bc * bc)]]))
+            outW.append(np.array([np.sum(ww) * h * h / sub ** 2]))
+    return np.concatenate(outU), np.concatenate(outW)
 
 
 class Sphere:
@@ -218,11 +245,12 @@ class Cavity:
             self.m[1].psi = float(np.angle(h2 / a2))
             a2 *= np.exp(1j * self.m[1].psi)
         self.m[0].psi = float(np.angle(lam / (arnd * np.exp(1j * self.m[1].psi))))
+        self.lam = lam
         return a2, arnd
 
     def beta(self, n=301, trips=400):
         """the field the returns bring back to the sphere per unit dipole, a 3 x 3 tensor, summed ray by ray"""
-        U, W = cap_grid(self.theta, n)
+        U, W = cap_grid(self.theta, n, self)
         B = np.zeros((3, 3), dtype=complex)
         Fm = K * K / (4 * np.pi * EPS0) * (np.eye(3)[None] - U[:, :, None] * U[:, None, :])     # F per unit p, (n, 3, 3)
         for n, (d, phi, amp, Mx, alive) in enumerate(trace_returns(self.m, self.rp, U, self.pattern, trips)):
@@ -246,18 +274,64 @@ def closed_form_beta(cav, h1, h2):
 W0_LASER = 20e-6          # the laser's waist, at the cavity's middle
 
 
-def beam_spectrum(U, rp):
-    """the forward beam's plane waves (unit field at the sphere): a Gaussian of waist W0_LASER at the origin along +z, its
-    spectrum referred to the sphere at rp; zero off the forward cap"""
+def beam_spectrum(U, rp, cav=None):
+    """the empty cavity's forward wave at the sphere, as plane waves (shape only): the laser's Gaussian (waist W0_LASER at
+    the origin) and every round trip of it, each carried by the paraxial round trip matrix from the sphere's plane (a
+    concentric cavity's is a shear: each trip comes back with its wavefront curved by 4/R more), summed at the lock (the
+    phase that makes the light through the cavity most); referred to the sphere at rp; zero off the forward cap"""
     th2 = np.maximum(0, 1 - U[:, 2] ** 2)
-    g = np.exp(-(K * W0_LASER) ** 2 * th2 / 4) * np.exp(1j * K * ((U - np.array([0, 0, 1.0])) @ rp))
-    return np.where(U[:, 2] > 0, g, 0)
+    zR = K * W0_LASER ** 2 / 2
+    shift = np.exp(1j * K * ((U - np.array([0, 0, 1.0])) @ np.array([rp[0], rp[1], 0.0])))
+    fw = U[:, 2] > 0
+    if cav is None:
+        q = rp[2] - 1j * zR
+        return np.where(fw, q * np.exp(-1j * K * q * th2 / 2) * shift, 0)
+    P = lambda d: np.array([[1, d], [0, 1.0]])
+    Mi = lambda m: np.array([[1, 0], [-2 * m.c, 1.0]])
+    zp = rp[2]
+    d2, d1 = cav.m[1].z0 - zp, zp - cav.m[0].z0
+    RT = P(d1) @ Mi(cav.m[0]) @ P(d1) @ P(d2) @ Mi(cav.m[1]) @ P(d2)      # out to mirror 2 and back, then mirror 1
+    rho = np.sqrt(cav.m[0].Rp * cav.m[1].Rp)
+    terms = beam_terms(U, cav, zp, zR, RT, rho)
+    T = np.array(terms)                               # (n, directions)
+    n = np.arange(len(terms))
+    if getattr(cav, 'lock_phase', None) is None:
+        # each round trip of the beam takes the cavity's own axial round trip, lam (the lock, the bench's): its phase is
+        # the beam's per trip (a concentric round trip moves the beam's amplitude on the axis by nothing, A + B/q = 1).
+        # Beside it, for the record, the phase that would make the forward wave's power most (the lock by power)
+        cav.lock_phase = float(np.angle(cav.lam)) if getattr(cav, 'lam', None) is not None else 0.0
+        Uf, Wf = cap_grid(0.3, 241)
+        Uf, Wf = Uf[Uf[:, 2] > 0], Wf[Uf[:, 2] > 0]
+        Tf = np.array([t for t in beam_terms(Uf, cav, zp, zR, RT, rho)])
+        G = (np.conj(Tf) * Wf) @ Tf.T
+        nf = np.arange(len(Tf))
+        cav.power_lock = max(((np.conj(np.exp(1j * ph * nf)) @ G @ np.exp(1j * ph * nf)).real, ph) for ph in np.linspace(-np.pi, np.pi, 2881))[1]
+    g = (np.ones(len(n)) if getattr(cav, 'lam', None) is not None else np.exp(1j * cav.lock_phase * n)) @ T
+    return np.where(fw, g * shift, 0)
 
 
-def through_change(U, W, Xout, f, pol, rp):
+def beam_terms(U, cav, zp, zR, RT, rho):
+    """the forward wave's round trips at the sphere's plane, as plane-wave spectra over U: amp q exp(-i k q theta^2 / 2)"""
+    th2 = np.maximum(0, 1 - U[:, 2] ** 2)
+    q, amp, terms = zp - 1j * zR, 1.0 + 0j, []
+    A_, B_, C_, D_ = RT.ravel()
+    lam = getattr(cav, 'lam', None)
+    a0 = A_ + B_ / q
+    for _ in range(800):
+        terms.append(amp * q * np.exp(-1j * K * q * th2 / 2))
+        # a round trip: the cavity's own axial factor lam (the lock, the bench's; on the axis it moves the beam by
+        # 1 / (A + B/q) of its first term), the beam's own change of that factor as its q moves
+        amp = amp * (lam * a0 / (A_ + B_ / q) if lam is not None else rho / (A_ + B_ / q))
+        q = (A_ * q + B_) / (C_ * q + D_)
+        if abs(amp) < 1e-9:
+            break
+    return terms
+
+
+def through_change(U, W, Xout, f, pol, rp, cav=None):
     """the change of the forward beam leaving the sphere (the light through the far mirror), first order and to all
     orders: ratio = <A, X> / <A, A> with A = f pol g / sum(w g), X the change of the forward waves (A units)"""
-    g = beam_spectrum(U, rp)
+    g = beam_spectrum(U, rp, cav)
     Sg, gg = np.sum(W * g), np.sum(W * abs(g) ** 2)
     num = np.sum(W * np.conj(g) * (Xout @ pol)) * np.conj(f) / abs(f) ** 2
     ratio = num * Sg / gg
@@ -276,6 +350,9 @@ def dipole_case(cav, alpha, f, b, pol):
     near = np.arccos(np.clip(np.abs(U[:, 2]), -1, 1)) < 0.15
     U, Wg = U[near], Wg[near]
     Fp = dipole_far(p, U)
+    gU = beam_spectrum(U, cav.rp, cav)
+    from scipy.spatial import cKDTree
+    tree = cKDTree(U)
     X = (1j / LAM) * Fp * (U[:, 2] > 0)[:, None]
     # returns: emission along u comes back along d; add its plane wave where d is (onto the nearest grid direction)
     for n, (d, phi, amp, Mx, alive) in enumerate(trace_returns(cav.m, cav.rp, U, cav.pattern, 400)):
@@ -283,13 +360,14 @@ def dipole_case(cav, alpha, f, b, pol):
         fw = (d[:, 2] > 0) & alive
         if fw.any():
             # an integral over the emission's own grid: <A_beam, dA> = sum_u w_u conj(A_beam(d(u))) . A(u)
-            g = beam_spectrum(d[fw], cav.rp)
+            # (the beam's spectrum where each return lands: the grid direction nearest it, which for these cavities is
+            # within a small fraction of the grid's step)
+            g = gU[tree.query(d[fw])[1]]
             X_ = None
             Sg_dummy = None
             dipole_case.acc = getattr(dipole_case, 'acc', 0) + np.sum(Wg[fw] * np.conj(g) * (A[fw] @ pol))
         if not alive.any() or np.max(np.abs(amp[alive])) < 1e-9:
             break
-    gU = beam_spectrum(U, cav.rp)
     Sg, gg = np.sum(Wg * gU), np.sum(Wg * abs(gU) ** 2)
     num = (np.sum(Wg * np.conj(gU) * (X @ pol)) + dipole_case.acc) * np.conj(f) / abs(f) ** 2
     dipole_case.acc = 0
@@ -345,7 +423,7 @@ def mie_case(cav, sph, f, b, pol, n=41):
     Fd = sph.far_many(D_all, E_all, D_all)
     # the through beam's change: the forward waves' change x + (i/lambda) F (A units), F the sphere's whole far field
     Fg = Fd[2:]
-    ratio, chg = through_change(U, W, A + (1j / LAM) * Fg, f, pol, cav.rp)
+    ratio, chg = through_change(U, W, A + (1j / LAM) * Fg, f, pol, cav.rp, cav)
     Pext = float(4 * np.pi / K * np.imag(np.sum(np.conj(E_all) * Fd)) / (2 * Z0))
     return dict(E2_ratio=float(np.sum(abs(Etot) ** 2) / np.sum(abs(E0) ** 2)), Psca_W=Psca, Pext_W=Pext, I0=float(np.sum(abs(E0) ** 2) / (2 * Z0)),
                 gmres_info=int(info), nodes=int(N), through_ratio=[ratio.real, ratio.imag], through_change=chg)
@@ -384,6 +462,7 @@ def main():
         f, b = complex(*B0['f']), complex(*B0['b'])
         res = dict(kind=B0['kind'], theta=cav.theta)
         res['dipole'] = dipole_case(cav, alpha, f, b, pol)
+        res['lock'] = dict(lam_phase=float(np.angle(lam)), power_lock_phase=float(getattr(cav, 'power_lock', np.nan)))
         if B0.get('mie'):
             res['mie'] = mie_case(cav, Sphere(150e-9, n_si), f, b, pol)
         print(name, json.dumps(res), flush=True)

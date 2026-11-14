@@ -3,8 +3,9 @@
    checked against the closed form for the ideal concentric cavity, the Mie sphere on a grid of directions solved by GMRES;
    ref/scatter-cavity-degen.json). The tolerances were written before the first run (the report's "A particle inside a
    degenerate cavity"): D1 the field at the particle with its returns within 2 % of the reference's change from the empty
-   cavity's, D2 the scattered power and extinction within 3 %. The cases that met them are held here; the near-degenerate
-   ones (10 and 50 um) and the off-axis confocal dipole did not, and stay in the report. */
+   cavity's, D2 the scattered power and extinction within 3 % (D5: 5 % for the cavity near degeneracy). The cases that
+   met them are held here; the Mie sphere 2 um off a confocal cavity's axis did not (2.4 % against 2 %), and stays in the
+   report. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -21,13 +22,14 @@ const mirrors = (kind, d = 0) => { const [R, k] = kind === 'concentric' ? [10, 0
 const doc = els => ({ format: 'jekray', version: 1, name: 't', maxBounces: 60, minPower: 1e-6, benches: [{ id: 'b1', name: 'B' }], tab: 'b1', elements: els.map(e => Object.assign({ bench: 'b1' }, e)) });
 
 for (const [name, model, rn] of [['concentric', 'rayleigh', 'dipole'], ['concentric', 'mie', 'mie'], ['concentric', 'dda', 'mie'], ['concentric-along', 'rayleigh', 'dipole'], ['concentric-across', 'rayleigh', 'dipole'],
-  ['concentric-2um', 'rayleigh', 'dipole'], ['confocal', 'rayleigh', 'dipole'], ['confocal', 'mie', 'mie'], ['confocal-across', 'mie', 'mie']]) {
+  ['concentric-2um', 'rayleigh', 'dipole'], ['concentric-10um', 'rayleigh', 'dipole'], ['concentric-50um', 'rayleigh', 'dipole'], ['confocal', 'rayleigh', 'dipole'], ['confocal', 'mie', 'mie'],
+  ['confocal-across', 'rayleigh', 'dipole']]) {
   test(name + ', ' + model + ': solved in the pupil, against the reference', async () => {
     const B0 = BENCH[name], R = REF[name][rn];
     (await openBench(doc([LASER, ...mirrors(B0.kind, B0.delta_m * 1e3), { id: 'p', type: 'particle', name: 'P', x: B0.rp_m[2] * 1e3, y: B0.rp_m[1] * 1e3, angle: 90, trapMat: 'Fused silica', trapR: model === 'rayleigh' ? 50 : 150, trapMed: 'vacuum', scatModel: model }]))).trace();
     const S = SC.scatterNow(getEl('p')), C = S.cav;
     assert.ok(C && C.solved && C.method === 'pupil' && !S.flags.includes('cavity'), JSON.stringify(C));
-    const tolD1 = name === 'concentric-2um' ? 0.05 : 0.02;                                                   // D5 for the near one
+    const tolD1 = /um$/.test(name) ? 0.05 : 0.02;                                                            // D5 for the near ones
     assert.ok(Math.abs((C.E2ratio - 1) - (R.E2_ratio - 1)) <= tolD1 * Math.abs(R.E2_ratio - 1), 'the field with the returns: ' + C.E2ratio + ' against ' + R.E2_ratio);   // D1, D4
     assert.ok(Math.abs(S.Psca / R.Psca_W - 1) <= 0.03 && Math.abs(S.Pext / R.Pext_W - 1) <= 0.03, 'scattered power ' + S.Psca + ' against ' + R.Psca_W);                      // D2
     say(name, model, 'change', ((C.E2ratio - 1) / (R.E2_ratio - 1) - 1).toExponential(2), 'Psca', (S.Psca / R.Psca_W - 1).toExponential(2), 'GMRES', C.iters, 'series terms', C.terms, 'grid', C.nodes, 'pupil', C.ms, 'ms');

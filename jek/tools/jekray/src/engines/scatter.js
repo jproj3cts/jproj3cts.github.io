@@ -12,7 +12,7 @@ import { popKeyOf, popRun } from './beam-tree.js';
 import { trapBeams, trapLegAt, trapMedium, trapSolve } from './diffraction.js';
 import { beamFrame } from './phase-screen.js';
 import { cavitySolve, cavityModes, cavityPlan } from './scatter-cavity.js';
-import { PUP_FRESNEL, pupApply, pupGmres, pupGrid, pupLock, pupReturns, pupilPlan } from './scatter-pupil.js';
+import { PUP_FRESNEL, pupApplyChains, pupChains, pupGmres, pupGrid, pupLock, pupReturns, pupilPlan } from './scatter-pupil.js';
 
 /* ---------- The light a particle scatters ----------
    A Particle part (of any of the shapes), in the light the bench
@@ -366,17 +366,51 @@ export function* scatterGen(el, R, opts) {
       const legWaves = (q, sg) => {
         const b0 = q.b, Fb = beamFrame(b0), r = [0, 1, 2].map(i => Cw[i] - Fb.P0[i]), t = r[0] * Fb.d[0] + r[1] * Fb.d[1] + r[2] * Fb.d[2];
         const kmm = 2 * Math.PI * b0.n / (b0.nm * 1e-6), z = b0.qr + t, w0 = Math.sqrt(b0.nm * 1e-6 / b0.n * b0.qi / Math.PI), off = [0, 1, 2].map(i => r[i] - t * Fb.d[i]);
-        return { e: at(q), kmm, z, w0, off, d: Fb.d, sg };
+        return { q, e: at(q), kmm, z, w0, off, d: Fb.d, sg };
       };
       PP.legSpec = [legWaves(PP.legF.q, 1), legWaves(PP.legB.q, -1)];
-      const lock = pupLock(PP);
+      // the round trip, as the empty cavity's own light has it at the particle: the forward wave is the light let in and
+      // the loop's forward leg, and the leg is the round trip of the whole (f = entry + lam f), so lam = leg / f. (The
+      // steady state's Ritz value is no measure here: a concentric cavity's round trip is a shear, with no mode of its own)
+      // In a stable cavity near degeneracy the steady state's TEM00 Ritz value is sound, and the ray's own round trip is it
+      // without TEM00's Gouy phase: lam_ray = lam_00 e^{i (Gx + Gy)/2}, G the round trip's Gouy phases along the legs
+      const fl = pr(at(PP.legF.q)), Rz = pupLock(PP), along = PP.c.mode && PP.c.mode.along;
+      let lam = d > 0 ? [(fl[0] * f[0] + fl[1] * f[1]) / d, (fl[1] * f[0] - fl[0] * f[1]) / d] : null, how = 'field';
+      if (Rz && along && along.length === PP.c.p) {
+        let G2 = 0;
+        for (const A of along) for (const key of ['qx', 'qy']) { const q0 = A[key], z1 = q0[0] + A.len / A.n; G2 += 0.5 * (Math.atan2(z1, q0[1]) - Math.atan2(q0[0], q0[1])); }
+        lam = [Rz.lam[0] * Math.cos(G2) - Rz.lam[1] * Math.sin(G2), Rz.lam[0] * Math.sin(G2) + Rz.lam[1] * Math.cos(G2)]; how = 'mode';
+      }
+      const lock = Rz && lam ? { lam, delta: Rz.delta, ritz: Rz.lam, how } : null;
       pupL = launches.findIndex(L => L.ref && L.ref.coh === PP.legF.q.coh);
       if (!lock) pupWhy = 'steady';
       else if (pupL < 0) pupWhy = 'launch';
       else {
         const G = pupGrid(PP), Rt = pupReturns(PP, G, 2 * Math.PI / (nm * 1e-6), nMed, nm * 1e-9 / nMed, h2, lock.lam);
+        // each leg's own light as plane waves: its field, as the field run has it, over a square across its way at the
+        // particle (the steady state's every round trip, not one Gaussian: a concentric cavity's come back ever more
+        // curved), Fourier summed onto the grid's directions of its own way; along the light's polarisation
+        const kmm = 2 * Math.PI * nMed / (nm * 1e-6), NS = 64;
+        for (const LS of PP.legSpec) {
+          const half = 4 * Math.max(LS.w0, 0.004), h = 2 * half / NS, smp = [];
+          for (let a = 0; a < NS; a++) for (let b = 0; b < NS; b++) {
+            const u = -half + (a + 0.5) * h, v = -half + (b + 0.5) * h, Pt = [0, 1, 2].map(q => C[q] + u * PP.ex[q] + v * PP.ey[q]);
+            const W = scatterWaves([LS.q], Pt, nMed, 0, zRef).launches[0], e = W && W.n ? W.E : null;
+            if (e) smp.push([u, v, ...pr(e)]);
+          }
+          const spec = new Float64Array(2 * G.N);
+          for (let i = 0; i < G.N; i++) {
+            const ux = G.dirs[3 * i] * PP.ex[0] + G.dirs[3 * i + 1] * PP.ex[1] + G.dirs[3 * i + 2] * PP.ex[2], uy = G.dirs[3 * i] * PP.ey[0] + G.dirs[3 * i + 1] * PP.ey[1] + G.dirs[3 * i + 2] * PP.ey[2];
+            const c = G.dirs[3 * i] * LS.d[0] + G.dirs[3 * i + 1] * LS.d[1] + G.dirs[3 * i + 2] * LS.d[2];
+            if (c <= 0) continue;
+            let sr = 0, si = 0;
+            for (const [u, v, er, ei] of smp) { const ph = -kmm * (ux * u + uy * v), cs = Math.cos(ph), sn = Math.sin(ph); sr += er * cs - ei * sn; si += er * sn + ei * cs; }
+            spec[2 * i] = sr; spec[2 * i + 1] = si;
+          }
+          LS.spec = spec;
+        }
         if (!Rt) pupWhy = 'noimage';
-        else pup = { PP, G, Rt, f, b, h2, lock, lamM: nm * 1e-9 / nMed };
+        else pup = { PP, G, Rt, f, b, h2, lock, lamM: nm * 1e-9 / nMed, nm, nMed };
       }
     } else if (PP) pupWhy = PP.why;
     if (pup) plan.why = null;
@@ -388,24 +422,12 @@ export function* scatterGen(el, R, opts) {
   // waves A (6 N, per steradian); the returned waves joined to the launch
   const pupSolve = function* (L, F0, respond) {
     const { G, Rt, lamM } = pup, N = G.N, t0p = Date.now();
-    // x - C x = T(F0 + P x), C x = T(-i lambda x) the empty cavity's own returns: (1 - C)^-1 as its series (sparse, cheap,
-    // as many terms as the round trips take to die away), so that GMRES has only the particle's part left to find
-    const Fo = new Float64Array(6 * N);
-    let terms = 0;
-    const series = v => {
-      const s = Float64Array.from(v);
-      let t = v;
-      for (let it = 0; it < 200000; it++) {
-        for (let q = 0; q < 6 * N; q += 2) { Fo[q] = lamM * t[q + 1]; Fo[q + 1] = -lamM * t[q]; }
-        t = pupApply(G, Rt, Fo);
-        let a2 = 0, s2 = 0; for (let q = 0; q < 6 * N; q++) { s[q] += t[q]; a2 += t[q] * t[q]; s2 += s[q] * s[q]; }
-        terms++;
-        if (!(a2 > 1e-26 * s2)) break;
-      }
-      return s;
-    };
-    const B = function* (x) { return series(pupApply(G, Rt, yield* respond(x))); };
-    const rhs = series(pupApply(G, Rt, F0)), S = yield* pupGmres(B, rhs);
+    // x = S (F0 + P x), S every return of the particle's light by the empty cavity, followed ray by ray (pupChains): GMRES
+    // has only the particle's own part to find
+    const t0s = Date.now(), Sm = pup.S || (pup.S = pupChains(pup.PP, G, Rt, 2 * Math.PI / (pup.nm * 1e-6), pup.nMed, lamM));
+    const tChains = Date.now() - t0s, terms = Sm.returns;
+    const B = function* (x) { return pupApplyChains(G, Sm, yield* respond(x)); };
+    const rhs = pupApplyChains(G, Sm, F0), S = yield* pupGmres(B, rhs);
     const x = S.x, n0 = L.n, d = new Float64Array(3 * (n0 + N)), E = new Float64Array(6 * (n0 + N));
     d.set(L.d); E.set(L.E); d.set(G.dirs, 3 * n0);
     const e0 = wavesAt0(L), er = [0, 0, 0, 0, 0, 0];
@@ -423,9 +445,10 @@ export function* scatterGen(el, R, opts) {
       for (let i = 0; i < N; i++) {
         const u = [G.dirs[3 * i], G.dirs[3 * i + 1], G.dirs[3 * i + 2]], c = u[0] * LS.d[0] + u[1] * LS.d[1] + u[2] * LS.d[2];
         if (c <= 0) continue;
-        const th2 = Math.max(0, 1 - c * c), amp = Math.exp(-((LS.kmm * LS.w0) ** 2) * th2 / 4), ph = -LS.kmm * LS.z * th2 / 2 + LS.kmm * (u[0] * LS.off[0] + u[1] * LS.off[1] + u[2] * LS.off[2]);
-        g[2 * i] = amp * Math.cos(ph); g[2 * i + 1] = amp * Math.sin(ph);
-        gw += G.w[i] * g[2 * i]; gg += G.w[i] * amp * amp;
+        // the leg's own spectrum, as sampled from the field run; it is the field's own, so the e it is scaled to below is
+        // its value at the particle (sum w g), and only its shape enters
+        g[2 * i] = LS.spec[2 * i]; g[2 * i + 1] = LS.spec[2 * i + 1];
+        gw += G.w[i] * g[2 * i]; gg += G.w[i] * (g[2 * i] ** 2 + g[2 * i + 1] ** 2);
       }
       void gw;
       // <A, X> = sum w conj(A) . X, A = e g / sum(w g): the ratio needs only <g e, X> / (|e|^2 sum w |g|^2) times sum(w g)
@@ -460,7 +483,7 @@ export function* scatterGen(el, R, opts) {
     out.cav.load = { start: Tin[0], ends: [cdv(Tout[0], Tin[0]), cdv(Tout[1], Tout[0])] };
     out.cav.s = { fin: tin[0], fout: tout[0], bin: tin[1], bout: tout[1] };
     out.cav.mirrors = pup.PP.M.map(m => m.el.id);
-    Object.assign(out.cav, { method: 'pupil', pattern: pup.PP.pattern, nodes: N, lost: Rt.lost, iters: S.iters, terms, resid: S.resid, fresnel: pup.PP.fresnel, h2: pup.h2, lam00: pup.lock.lam, dLock: pup.lock.delta,
+    Object.assign(out.cav, { method: 'pupil', pattern: pup.PP.pattern, nodes: N, lost: Rt.lost, iters: S.iters, terms, longest: Sm.longest, msChains: tChains, resid: S.resid, fresnel: pup.PP.fresnel, h2: pup.h2, lam00: pup.lock.lam, lamHow: pup.lock.how, ritz: pup.lock.ritz, dLock: pup.lock.delta,
       E2ratio: abs2(et) / abs2(e0), returnedField: er, f0: pup.f, b0: pup.b, dir: pup.PP.dir, ms: Date.now() - t0p });
     if (pup.PP.fresnel < PUP_FRESNEL && !flags.includes('fresnel')) flags.push('fresnel');
     return { x, er };

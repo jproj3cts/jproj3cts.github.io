@@ -155,15 +155,29 @@ export function pupilPlan(TB, Cw, nMed, nm) {
 }
 /* the grid: direction cosines across each cap (forward: towards the far mirror, +dir; backward: -dir); solid angles */
 export function pupGrid(P, n = PUP_N) {
-  const out = [], w = [];
+  // A cell the rims cut (the near one, or the far one the light meets after it) is taken for what of it comes back: 4 x 4
+  // directions across it traced round, its solid angle the share that returns and its direction their mean. Without it
+  // the rim is a staircase of whole cells, an error of the order of a cell, which an off-axis particle's two images
+  // (cancelling nearly) show up at once
+  const out = [], w = [], SUB = 4;
+  const alive = u => !!pupTrace(P.M, P.C, u, P.pattern, 1);
   for (const [sg, th] of [[1, P.theta[1]], [-1, P.theta[0]]]) {
-    const s = Math.min(0.999, Math.sin(th) * 1.03), h = 2 * s / (n - 1);
+    const s = Math.min(0.999, Math.sin(th) * 1.03), h = 2 * s / (n - 1), rim = Math.sin(th);
+    const dirOf = (a, b) => { const uz = Math.sqrt(Math.max(0, 1 - a * a - b * b)); return [0, 1, 2].map(q => sg * uz * P.dir[q] + a * P.ex[q] + b * P.ey[q]); };
     for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-      const a = -s + i * h, b = -s + j * h, r2 = a * a + b * b;
-      if (r2 >= s * s) continue;
-      const uz = Math.sqrt(1 - r2);
-      out.push([0, 1, 2].map(q => sg * uz * P.dir[q] + a * P.ex[q] + b * P.ey[q]));
-      w.push(h * h / uz);
+      const a = -s + i * h, b = -s + j * h, r = Math.hypot(a, b);
+      if (r >= s) continue;
+      const uz = Math.sqrt(1 - r * r);
+      if (Math.abs(r - rim) > 1.5 * h) { out.push(dirOf(a, b)); w.push(h * h / uz); continue; }
+      let k = 0, sa = 0, sb = 0, sw = 0;
+      for (let p = 0; p < SUB; p++) for (let q = 0; q < SUB; q++) {
+        const aa = a + ((p + 0.5) / SUB - 0.5) * h, bb = b + ((q + 0.5) / SUB - 0.5) * h;
+        if (aa * aa + bb * bb >= 0.999 || !alive(dirOf(aa, bb))) continue;
+        const ww = 1 / Math.sqrt(1 - aa * aa - bb * bb);
+        k++; sa += aa * ww; sb += bb * ww; sw += ww;
+      }
+      if (!k) continue;
+      out.push(dirOf(sa / sw, sb / sw)); w.push(sw * h * h / (SUB * SUB));
     }
   }
   const N = out.length, dirs = new Float64Array(3 * N), W = Float64Array.from(w);
@@ -230,7 +244,79 @@ export function pupReturns(P, G, k0mm, nMed, lamM, h2, lam) {
     // (a share that falls off the grid's edge is lost with the rim)
     if (wsum <= 0) lost++;
   }
-  return { tgt, tw, fac, Mx, lost, a2, arnd, psi: [M[0].psi, M[1].psi] };
+  return { tgt, tw, fac, Mx, lost, a2, arnd, psi: [M[0].psi, M[1].psi], index, s1, s0 };
+}
+/* Every return of every grid direction, followed exactly: the ray from the particle along u_i, round and round, each time
+   it comes back to a focus near the particle a plane wave there,
+       A_n(d_n) dOmega = -(i/lambda) (-1)^(n-1) prod(sqrt(R) e^{i psi}) M_n e^{ik phi_n} F(u_i) dOmega_i,
+   (each earlier return a focus it passed), until it has faded or left by a rim. Each wave is put on the grid once, at
+   the four directions round its own d_n, its value at the particle kept; so a return that drifts (a cavity near
+   degeneracy) is carried exactly however far it goes, and is never smeared from one round trip to the next. The sum over
+   the returns is kept as a sparse map from each source direction to the grid points its returns land on, a 3 x 3
+   complex block each: S = sum_n C^n T, the empty cavity's every return of the particle's light at once. */
+export function pupChains(P, G, Rt, k0mm, nMed, lamM, tol = 1e-9) {
+  const { M, C, pattern } = P, N = G.N, n = G.n, { index, s1, s0 } = Rt;
+  const rows = [];
+  let total = 0, longest = 0;
+  for (let i = 0; i < N; i++) {
+    const blocks = new Map();
+    let pnt = C, d = [G.dirs[3 * i], G.dirs[3 * i + 1], G.dirs[3 * i + 2]], ell = 0, amp = 1, psi = 0, at = dotp(d, M[1].n) < 0 ? 1 : 0;
+    let Mx = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    for (let ret = 1; ret < 100000; ret++) {
+      let ok = true;
+      for (let r = 0; r < pattern; r++) {
+        const H = pupHit(M[at], pnt, d);
+        if (!H) { ok = false; break; }
+        ell += nMed * H.t; pnt = H.X;
+        const Nn = H.N, dn = dotp(d, Nn);
+        d = unitp(add3(d, Nn, -2 * dn));
+        const RN = [0, 1, 2].map(a => [0, 1, 2].map(b => (a === b ? -1 : 0) + 2 * Nn[a] * Nn[b]));
+        Mx = RN.map(row => [0, 1, 2].map(b => row[0] * Mx[0][b] + row[1] * Mx[1][b] + row[2] * Mx[2][b]));
+        amp *= Math.sqrt(M[at].Rp); psi += M[at].psi;
+        at = 1 - at;
+      }
+      if (!ok || amp < tol) break;
+      const w = add3(pnt, C, -1), phi = ell - nMed * dotp(d, w), ph = k0mm * phi + psi, sgn = ret % 2 ? 1 : -1;
+      // -(i/lambda) (-1)^(ret-1) amp e^{i ph}
+      const fr = sgn * amp / lamM * Math.sin(ph), fi = -sgn * amp / lamM * Math.cos(ph);
+      const sg = dotp(d, P.dir) > 0 ? 1 : 0, sc = sg ? s1 : s0, h = 2 * sc / (n - 1);
+      const fa = (dotp(d, P.ex) + sc) / h, fb = (dotp(d, P.ey) + sc) / h, ia = Math.floor(fa), ib = Math.floor(fb), ta = fa - ia, tb = fb - ib;
+      for (const [pa, pb, wt] of [[ia, ib, (1 - ta) * (1 - tb)], [ia + 1, ib, ta * (1 - tb)], [ia, ib + 1, (1 - ta) * tb], [ia + 1, ib + 1, ta * tb]]) {
+        const j = index.get(sg + ':' + pa + ':' + pb);
+        if (j === undefined || !(wt > 0)) continue;
+        // (its value at the particle is what the particle answers to: kept as it is, the four shares summing to it)
+        const a = wt * G.w[i] / G.w[j], cr = a * fr, ci = a * fi;
+        let B = blocks.get(j);
+        if (!B) { B = new Float64Array(18); blocks.set(j, B); }
+        for (let x = 0; x < 3; x++) for (let y = 0; y < 3; y++) { B[2 * (3 * x + y)] += cr * Mx[x][y]; B[2 * (3 * x + y) + 1] += ci * Mx[x][y]; }
+      }
+      total++; longest = Math.max(longest, ret);
+    }
+    const js = Int32Array.from(blocks.keys()), bl = new Float64Array(18 * js.length);
+    js.forEach((j, k) => bl.set(blocks.get(j), 18 * k));
+    rows.push({ js, bl });
+  }
+  return { rows, returns: total, longest };
+}
+/* S on outgoing far fields Fo (6 N): every return of them, as plane waves on the grid (6 N) */
+export function pupApplyChains(G, S, Fo, out) {
+  const N = G.N, A = out || new Float64Array(6 * N);
+  A.fill(0);
+  for (let i = 0; i < N; i++) {
+    const { js, bl } = S.rows[i], f = 6 * i;
+    if (!js.length) continue;
+    const x0 = Fo[f], x1 = Fo[f + 1], y0 = Fo[f + 2], y1 = Fo[f + 3], z0 = Fo[f + 4], z1 = Fo[f + 5];
+    for (let k = 0; k < js.length; k++) {
+      const b = 18 * k, o = 6 * js[k];
+      for (let a = 0; a < 3; a++) {
+        const q = b + 6 * a;
+        const re = bl[q] * x0 - bl[q + 1] * x1 + bl[q + 2] * y0 - bl[q + 3] * y1 + bl[q + 4] * z0 - bl[q + 5] * z1;
+        const im = bl[q] * x1 + bl[q + 1] * x0 + bl[q + 2] * y1 + bl[q + 3] * y0 + bl[q + 4] * z1 + bl[q + 5] * z0;
+        A[o + 2 * a] += re; A[o + 2 * a + 1] += im;
+      }
+    }
+  }
+  return A;
 }
 /* T on outgoing far fields Fo (6 N, world vectors): the returned waves A on the grid (6 N, V/m per steradian) */
 export function pupApply(G, Rt, Fo, out) {

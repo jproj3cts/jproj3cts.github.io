@@ -2038,6 +2038,7 @@ function traceSceneOnce() {
       const t4 = performance.now();
       runSources(cones.filter(v => v.scat.wave));
       lastTrace.scat = SL.report(scHits);
+      if (lastTrace.scat.loads) lastTrace.cavLoad = lastTrace.scat.loads;
       lastTrace.scat.ms = { prep: t1 - t0, probe: t2 - t1, build: t3 - t2, cones: t4 - t3, waves: performance.now() - t4 };
     }
   }

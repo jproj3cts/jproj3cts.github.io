@@ -57,7 +57,7 @@ export function fieldWorker() {
   return FW.w;
 }
 /* the bench as the worker needs it: what is saved, less the view and the time */
-export function fwProject() { const d = serialize(); delete d.mods; d.saved = ''; d.view = null; d.tab = null; d.benches = d.benches.map(b => ({ id: b.id, name: b.name })); return JSON.stringify(d); }
+export function fwProject() { const d = serialize(); delete d.mods; d.saved = ''; d.view = null; d.tab = null; d.benches = d.benches.map(b => ({ id: b.id, name: b.name })); if (lastTrace && lastTrace.cavLoad) d.cavLoad = lastTrace.cavLoad; return JSON.stringify(d); }
 /* Asks the worker for a job; resolves with its answer, or null if it was replaced or
    abandoned, and rejects if the worker failed (the caller then does it on the page) */
 export function fwRequest(kind, slot, args) {

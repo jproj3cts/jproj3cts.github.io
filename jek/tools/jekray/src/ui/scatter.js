@@ -139,6 +139,19 @@ const FLAG_TEXT = {
   notrap: 'No stable trap was found, so the particle is where the beam meets the screen.',
   cavity: 'Scattering inside a cavity is not modelled: the light here comes back to the particle more than once, and these readings take its scattered light back to it once only.',
 };
+/* why a cavity's modes do not take a particle's light (engines/scatter-cavity.js) */
+const CAV_WHY = {
+  degenerate: 'the cavity is degenerate or near it (its round-trip Gouy phase within three linewidths of a simple fraction of a turn, up to sixths): its transverse modes share resonances, so they are not solved one by one.',
+  unstable: 'the cavity is not stable, so it has no Hermite-Gauss modes to solve in.',
+  ring: 'a ring cavity: the light the particle sends back would run round the other way, which the trace does not follow.',
+  legs: 'only a two-mirror cavity with the particle on its axis is solved in its modes.',
+  turned: 'a part of the cavity is turned out of the plane: its modes are not solved here.',
+  misaligned: 'the cavity\u2019s axis is off its pilot (a mirror tilted): its modes are not solved here.',
+  clipped: 'a mirror\u2019s edge cuts the mode (within three of its radii): its modes are not Hermite-Gauss ones.',
+  entry: 'the light let in does not pass the particle on its way into the cavity: not solved here.',
+  steady: 'the cavity\u2019s steady state is not worked out yet.',
+  loss: 'the cavity keeps too little of its light round a trip to resonate.',
+};
 /* the readout's rows for an answer */
 function scatterRows(el, S) {
   const rows = [], D = S.dda;
@@ -169,6 +182,12 @@ function scatterRows(el, S) {
   }
   if (S.model === 'dda' && S.shape === 'sphere') rows.push(['Mie gives', 'scattering ' + scatArea(S.mieEq.Csca) + ': the dipole array is ' + scatSig(100 * (S.Csca / S.mieEq.Csca - 1), 2) + '% from it']);
   if (S.at.trap) rows.push(['Where', 'where the trap holds it: ' + fmtLen(Math.abs(S.at.z)) + (S.at.z >= 0 ? (el.type === 'particle' ? ' past the part' : ' past the screen') : ' before it') + ' along the beam']);
+  // in a cavity: solved in its modes, or why not
+  const K = S.cav;
+  if (K && K.solved) rows.push(['In ' + K.name, 'its light comes back to the particle round the cavity: solved in the cavity\u2019s ' + K.modes + ' Hermite-Gauss modes it couples to. ' +
+    'The resonance moves by ' + scatSig(K.shiftLw, 3) + ' of a linewidth (' + scatSig(K.shiftHz / 1e3, 3) + ' kHz) and widens by ' + scatSig(K.widenLw, 3) + ' (' + scatSig(K.widenHz / 1e3, 3) + ' kHz); ' +
+    'the detectors read the cavity with the particle in it']);
+  else if (K && K.why) rows.push(['In ' + K.name, CAV_WHY[K.why] || 'its light comes back to the particle round the cavity, and that is not solved here']);
   for (const f of S.flags) if (FLAG_TEXT[f]) rows.push(['', FLAG_TEXT[f]]);
   return rows;
 }

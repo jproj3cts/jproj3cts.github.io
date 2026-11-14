@@ -177,6 +177,7 @@
   "ui/heavy.js",
   "ui/closeup.js",
   "engines/diffraction.js",
+  "engines/scatter-cavity.js",
   "engines/scatter.js",
   "engines/scatter-light.js",
   "engines/antenna-field.js",

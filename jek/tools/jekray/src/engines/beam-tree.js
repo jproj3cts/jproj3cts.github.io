@@ -179,6 +179,10 @@ export function* popRunGen(beams, srcs, opts = {}) {
     while (stack.length) { const i = stack.pop(); if (i === undefined || repeats.has(i)) continue; repeats.add(i); for (const c of (L.kids.get(i) || [])) stack.push(c); }
   }
   notes.cavities = [];
+  // a particle solved in a loop (engines/scatter-cavity.js): the loop's light taken by the factors its solve gives, at the loop's
+  // start and at each leg's end, conjugated to the field engine's convention; never in the particle's own run (bare), which
+  // needs the empty cavity's light
+  const loads = !opts.bare && !opts.paraxial && lastTrace && lastTrace.cavLoad, legLoad = new Map();
   while (todo.length) {
     const job = todo.pop();
     if (repeats.has(job.i)) continue;
@@ -262,6 +266,11 @@ export function* popRunGen(beams, srcs, opts = {}) {
       const pw = F => (eng === '2d' ? popStats2(F) : popStats(F)).power;
       job.boost = (job.boost || 1) * Math.max(1, pw(got.X) / Math.max(1e-300, pw(F0)));
       F0 = got.X;
+      const ld = loads && loads[L.canon];
+      if (ld) {
+        F0 = cavLin(F0, [[[ld.start[0], -ld.start[1]], F0]]);
+        ld.ends.forEach((f, j) => { if (f) legLoad.set(L.path[L.s + j], [f[0], -f[1]]); });
+      }
       // The detuning is a hair's change of length, carried by this leg: light crossing it
       // gains delta each round trip, the leak back through the input coupler included, so
       // the prompt reflection and the leak meet with the right phase
@@ -290,6 +299,7 @@ export function* popRunGen(beams, srcs, opts = {}) {
     let Fend = endKey ? stepGet(endKey) : undefined;
     if (!Fend) { Fend = leg.at(b.len); if (endKey) stepSet(endKey, Fend, Fend); }
     if (job.cavPhase) Fend = cavLin(Fend, [[[Math.cos(job.cavPhase), Math.sin(job.cavPhase)], Fend]]);
+    if (legLoad.has(job.i)) Fend = cavLin(Fend, [[legLoad.get(job.i), Fend]]);
     for (const c of ch) {
       const cb = beams[c], ev = cb.ev || { A: 1, C: 0, D: 1, n2: b.n };
       const gain = 1;          // the field keeps unit power; each segment's Jones vector carries its amplitude

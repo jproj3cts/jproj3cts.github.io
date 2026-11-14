@@ -11,6 +11,7 @@ import { lastTrace, polFrame, zOf } from './trace.js';
 import { beamFrame } from './phase-screen.js';
 import { scatCache, scatModeNow, scatterNow, scatterPrep } from './scatter.js';
 import { beamFieldAt } from './fibre-face.js';
+import { cavLoadOf } from './scatter-cavity.js';
 
 /* ---------- A particle's scattered light, put back on the bench ----------
    A Particle part's scattering answer (engines/scatter.js) holds the far field's complex amplitude over the sphere
@@ -246,6 +247,12 @@ export function scatterLaunch(surfsBy) {
           if (!(far > 0)) continue;
           c0.G = coneDirs(c0.axis, c0.half);
           const both = [c0];
+          // A particle solved in a cavity's modes: its light along the cavity's axis is the cavity's, carried by the field run as
+          // the loaded cavity's (engines/scatter-cavity.js): a patch about the axis each way is cut from the cone and not sent
+          if (S.cav && S.cav.solved && S.cav.dir) for (const sg of [1, -1]) {
+            const ax = S.cav.dir.map(v => sg * v), hp = SC_PATCH * S.cav.th0, off = Math.acos(Math.max(-1, Math.min(1, ax[0] * c0.axis[0] + ax[1] * c0.axis[1] + ax[2] * c0.axis[2])));
+            if (off - hp < c0.half) c0.cut.push({ axis: ax, half: hp, cav: true });
+          }
           // Where a driving beam goes on into this cone and is narrow in it, the cone's rays are too far apart to add to it as a
           // field (the two interfere only over the beam's own footprint): a patch about the beam's way, SC_PATCH of its far-field
           // radii wide, has rays of its own, and the cone leaves that patch out
@@ -319,8 +326,11 @@ export function scatterLaunch(surfsBy) {
       return out;
     },
     report(hits) {
-      const R = { parts: {}, fans: [], hits };
+      const R = { parts: {}, fans: [], hits, loads: null };
       for (const st of states) {
+        // what the field run takes a cavity's light by, for a particle solved in it (only an answer for the bench as it is)
+        const ld = st.state === 'ok' ? cavLoadOf(st.S) : null;
+        if (ld) { R.loads = R.loads || {}; R.loads[st.S.cav.canon] = ld; }
         const S = st.S, Psca = S && S.Psca > 0 ? S.Psca : 0;
         // a row a part: its cone, with any patch of it
         const rows = [];

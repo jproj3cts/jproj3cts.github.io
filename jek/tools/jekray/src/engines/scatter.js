@@ -11,6 +11,7 @@ import { lastTrace, zOf } from './trace.js';
 import { popKeyOf, popRun } from './beam-tree.js';
 import { trapBeams, trapLegAt, trapMedium, trapSolve } from './diffraction.js';
 import { beamFrame } from './phase-screen.js';
+import { cavitySolve, cavityModes, cavityPlan } from './scatter-cavity.js';
 
 /* ---------- The light a particle scatters ----------
    A Particle part (of any of the shapes), in the light the bench
@@ -335,6 +336,31 @@ export function* scatterGen(el, R, opts) {
     waves: launches.reduce((a, L) => a + L.n, 0), pupils: W.notes.pupils, plane: W.notes.plane, routes: TB.parts.map(q => (q.P ? q.P.route : 'beam')), single, dir: d0, pol, axis, flags,
     // where the particle is on the bench (mm; z its height above the breadboard), and the trap there (a Particle part's Trap tab)
     pos: [C[0], C[1], zRef + C[2]], elPos: [el.x, el.y, zOf(el)], ...(trapRaw ? { trapRaw } : {}) };
+  // A particle inside a cavity its light goes round: solved in the cavity's modes where it can be (engines/scatter-cavity.js),
+  // the launch the cavity's legs are in taking the light that comes back along the axis. Where it cannot (a degenerate,
+  // ring, clipped, turned or misaligned cavity) the light that comes back is taken once, flagged (returnPlan).
+  const t0c = Date.now(), plan = cavityPlan(TB, [C[0], C[1], C[2] + zRef]);
+  let cavK = null, cavL = -1;
+  if (plan && !plan.why) {
+    const field = (q, Pw) => { const W = scatterWaves([q], [Pw[0], Pw[1], Pw[2] - zRef], nMed, 0, zRef).launches[0]; return W && W.n ? W.E : [0, 0, 0, 0, 0, 0]; };
+    cavK = cavityModes(plan, field, nm, nMed);
+    cavL = launches.findIndex(L => L.ref && L.ref.coh === plan.legF.q.coh);
+    if (cavK.why || cavL < 0) { plan.why = cavK.why || 'launch'; cavK = null; cavL = -1; }
+  }
+  if (plan) out.cav = { canon: plan.c.id, name: plan.c.name, solved: !plan.why, why: plan.why || null, degen: plan.degen || null, finesse: plan.c.finesse, gouy: plan.c.gouy };
+  const cavDirs = cavK ? Float64Array.of(...plan.dir, ...plan.dir.map(v => -v)) : null;
+  const unitWave = i => ({ n: 1, d: Float64Array.from(i < 2 ? plan.dir : plan.dir.map(v => -v)), E: Float64Array.from((i % 2 ? plan.ey : plan.ex).flatMap(v => [v, 0])) });
+  // the solve's answer kept on the answer, and the returned waves joined to the launch
+  const cavDone = (L, sol) => {
+    const n0 = L.n, d = new Float64Array(3 * (n0 + 2)), E = new Float64Array(6 * (n0 + 2));
+    d.set(L.d); E.set(L.E); d.set(plan.dir, 3 * n0); d.set(plan.dir.map(v => -v), 3 * n0 + 3); E.set(sol.Ef, 6 * n0); E.set(sol.Eb, 6 * n0 + 6);
+    L.n0 = n0; L.d = d; L.E = E; L.n = n0 + 2;
+    const lamM = plan.c.lam0 / plan.nLeg, zR = plan.qF[0][1];
+    Object.assign(out.cav, { f00: cavK.modes[0].f0[cavK.sp], b00: cavK.modes[0].b0[cavK.sp], modes: cavK.kept.length, kept: cavK.kept.map(M => [M.m, M.n]), lam00: cavK.lam00, rho200: cavK.rho200, dLock: cavK.dLock,
+      shiftK: sol.shiftK, widenK: sol.widenK, lwK: sol.lwK, shiftLw: sol.shiftLw, widenLw: sol.widenLw, shiftHz: sol.shiftK * C_SI / (2 * Math.PI), widenHz: sol.widenK * C_SI / (2 * Math.PI),
+      returned: { f: sol.x.slice(0, 2), b: sol.x.slice(2) }, s: sol.s, load: sol.load, legs: { f: plan.legF.j, b: plan.legB.j }, p: plan.c.p, dir: plan.dir,
+      th0: lamM / (Math.PI * Math.sqrt(lamM * zR / Math.PI)), Pf: cavK.Pf, Pb: cavK.Pb, ms: Date.now() - t0c });
+  };
   // Rayleigh's answer beside whichever model runs, and Mie's for the sphere of the same volume
   const aSm = smallAlpha(P.V, P.shape === 'sphere' ? 1 : P.L / P.D, mr, mi, k);
   const smallP = e => {            // p = alpha E, alpha a tensor about the axis: [6]
@@ -363,7 +389,10 @@ export function* scatterGen(el, R, opts) {
     if (P.shape !== 'sphere') flags.push('mieNotSphere');
     const tab = mieTable(CM);
     // the particle's own light that a retro-reflector brings back to it, scattered again (see particleReturn)
-    for (const L of launches) particleReturn(L, { TB, nMed, zRef, F0, C, d0, k, tab, flags, out });
+    launches.forEach((L, i) => {
+      if (i !== cavL) { particleReturn(L, { TB, nMed, zRef, F0, C, d0, k, tab, flags, out }); return; }
+      cavDone(L, cavitySolve(plan, cavK, mieFarWaves(tab, k, L, cavDirs), j => mieFarWaves(tab, k, unitWave(j), cavDirs), k, nMed));
+    });
     for (const L of launches) {
       fars.push(dirs => mieFarWaves(tab, k, L, dirs));
       yield { stage: 'sphere' };
@@ -379,7 +408,12 @@ export function* scatterGen(el, R, opts) {
     E0s.forEach((e0, i) => {
       // its own light a retro-reflector brings back: the field of the returned waves at its centre added, iterated
       let e = e0, p = smallP(e);
-      const R = returnPlan(launches[i], { TB, nMed, zRef, C, d0, k, flags });
+      if (i === cavL) {
+        const sol = cavitySolve(plan, cavK, dipoleFar(k, p, cavDirs), j => dipoleFar(k, smallP(Array.from(unitWave(j).E)), cavDirs), k, nMed);
+        e = e0.map((v, q) => v + sol.Ef[q] + sol.Eb[q]); p = smallP(e);
+        cavDone(launches[i], sol);
+      }
+      const R = i === cavL ? null : returnPlan(launches[i], { TB, nMed, zRef, C, d0, k, flags });
       if (R) {
         let Fc = dipoleFar(k, p, R.dirs), passes = 0, change = 0;
         for (; passes < R.cap; passes++) {
@@ -419,9 +453,19 @@ export function* scatterGen(el, R, opts) {
     let n = 0;
     for (const L of launches) {
       let E = wavesOnLattice(L, lat, k, body), p = yield* runSolve(E, launches.length > 1 ? 'light ' + (++n) : 'light');
+      // in a cavity solved in its modes: the array's answer to a unit wave along the axis each way and each polarisation (four
+      // solves), and the answer with the returned waves is the sum, the array being linear
+      if (launches.indexOf(L) === cavL) {
+        const Eu = [0, 1, 2, 3].map(j => wavesOnLattice(unitWave(j), lat, k, body)), pu = [];
+        for (let j = 0; j < 4; j++) pu.push(yield* runSolve(Eu[j], 'the cavity\u2019s axis, wave ' + (j + 1)));
+        const sol = cavitySolve(plan, cavK, farOf(p)(cavDirs), j => farOf(pu[j])(cavDirs), k, nMed);
+        const add = (A, U) => { const o = Float64Array.from(A); for (let j = 0; j < 4; j++) { const [xr, xi] = sol.x[j], u = U[j]; for (let q = 0; q < o.length; q += 2) { o[q] += xr * u[q] - xi * u[q + 1]; o[q + 1] += xr * u[q + 1] + xi * u[q]; } } return o; };
+        E = add(E, Eu); p = add(p, pu);
+        cavDone(L, sol);
+      }
       // its own light a retro-reflector brings back: the returned field at every dipole added to the beams', and the array solved
       // again, each pass from the last answer
-      const R = returnPlan(L, { TB, nMed, zRef, C, d0, k, flags });
+      const R = launches.indexOf(L) === cavL ? null : returnPlan(L, { TB, nMed, zRef, C, d0, k, flags });
       if (R) {
         const E1 = E, its = [];
         let Fc = farOf(p)(R.dirs), passes = 0, change = 0;
@@ -547,7 +591,7 @@ export function scatterRun(el, R, opts) {
 export function scatterNow(el, opts) {
   const job = scatterPrep(el);
   if (!job) return null;
-  const S = scatterRun(el, popRun(lastTrace.beams, job.srcs, { keep: job.keep }), opts);
+  const S = scatterRun(el, popRun(lastTrace.beams, job.srcs, { keep: job.keep, bare: true }), opts);
   scatKeep(el.id, job.key, S);
   return S;
 }

@@ -12,6 +12,7 @@ import { volData, volLightBox } from '../engines/volume.js';
 import { popDiffraction, popScreenPrep } from '../engines/diffraction.js';
 import { scatterGen, scatterPrep } from '../engines/scatter.js';
 import { detectorField } from '../engines/pd-cavity.js';
+import { cavLoadKey } from '../engines/scatter-cavity.js';
 import { antennaJob } from '../engines/antenna-field.js';
 import { optRun } from '../engines/lens-opt.js';
 import { tolRun } from '../engines/lens-tol.js';
@@ -24,13 +25,16 @@ function volOut(R, key, vol, transfer) {
   return { key, tab: vol.tab, bb: volLightBox(vol.bb, lastTrace.beams, popSources()), V };
 }
 export function workerMain() {
-  let bench = { key: null, R: null };
+  let bench = { key: null, R: null }, wLoad = null;
   self.onmessage = e => {
     const { id, kind, proj, args } = e.data;
     try {
+      // the page's particles solved in a cavity: what the field runs take the cavity's light by (engines/scatter-cavity.js)
+      if (proj) wLoad = JSON.parse(proj).cavLoad || null;
       if (e.data.mods) modAbsorb(e.data.mods);                 // the mods' results the page has (their code never comes here)
       if (proj) { loadProject(JSON.parse(proj)); traceScene(); bench = { key: null, R: null }; }
       else if (e.data.mods) { traceScene(); bench = { key: null, R: null }; }   // traced again with them
+      if ((proj || e.data.mods) && wLoad) lastTrace.cavLoad = wLoad;
       const before = kind === 'cavity' ? null : new Map(cavSolved);
       const transfer = [];
       let out = null;
@@ -47,7 +51,7 @@ export function workerMain() {
         const el = getEl(args.id), J = el && scatterPrep(el);
         if (!J) out = { key: null, S: null };
         else {
-          const g = scatterGen(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }));
+          const g = scatterGen(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep, bare: true }));
           // (its progress ten times a second, and each new stage as it starts, however short the one before it was)
           let r = g.next(), t = 0, stage = '';
           while (!r.done) { const now = Date.now(); if (now - t > 100 || r.value.stage !== stage) { t = now; stage = r.value.stage; self.postMessage({ id, prog: r.value }); } r = g.next(); }
@@ -55,7 +59,7 @@ export function workerMain() {
         }
       } else if (kind === 'detector') {
         const el = getEl(args.id), J = el && popScreenPrep(el);
-        out = J ? { key: J.key + '|' + el.length, r: detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })) } : null;
+        out = J ? { key: J.key + '|' + el.length + cavLoadKey(), r: detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })) } : null;
       } else if (kind === 'cavity') {
         popRun(lastTrace.beams, allSources(), {});
       } else if (kind === 'step') {

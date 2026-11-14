@@ -133,8 +133,10 @@ class Input:
         self.dA = (self.xs[1] - self.xs[0]) ** 2
         zm = -cav.L / 2
         r2 = self.X ** 2 + self.Y ** 2
-        qin = zm + 1j * np.pi * win ** 2 / LAM
-        E = np.exp(-1j * K0 * r2 / (2 * qin))
+        # its q at the first mirror, its waist in the middle (q = z - i z_R: exp(ik r^2 / 2q) for exp(ikz - i omega t))
+        self.zRin = np.pi * win ** 2 / LAM
+        qin = zm - 1j * self.zRin
+        E = np.exp(1j * K0 * r2 / (2 * qin))
         self.E = E * np.sqrt(P / np.sum(abs(E) ** 2 * self.dA))
         self.fwd = [cav.hg(m, n, self.X, self.Y, zm) * np.exp(1j * K0 * r2 / 2 * cav.invR(zm)) for m, n in cav.modes]
         self.bwd = [u * np.exp(-1j * K0 * r2 * cav.invR(zm)) for u in self.fwd]      # hg exp(-ik r^2 invR / 2)
@@ -204,7 +206,10 @@ def main():
     print('cavity: waist %.4g um, zR %.5g mm, round-trip Gouy %.5g rad, finesse %.4g, lock %.7g nm' % (cav.w0 * 1e6, cav.zR * 1e3, 2 * dpsi, finesse, 2 * np.pi / kres * 1e9))
     inp = Input(cav, 80e-6, 1e-3)
     s_in = cav.t1 * inp.s_raw
-    print('input: share in TEM00 %.6f, in the modes kept %.6f' % (abs(inp.s_raw[0]) ** 2 / inp.P, np.sum(abs(inp.s_raw) ** 2) / inp.P))
+    # the closed form for two Gaussians with their waists together (Kogelnik): 4 zR1 zR2 / (zR1 + zR2)^2
+    eta = 4 * inp.zRin * cav.zR / (inp.zRin + cav.zR) ** 2
+    print('input: share in TEM00 %.6f (closed form %.6f), in the modes kept %.6f' % (abs(inp.s_raw[0]) ** 2 / inp.P, eta, np.sum(abs(inp.s_raw) ** 2) / inp.P))
+    assert abs(abs(inp.s_raw[0]) ** 2 / inp.P - eta) < 1e-4
     kp0 = pole(cav, (0, 0, 0), s_in, None, kres, 0.01 * lw)
     print('empty pole: %.9g %+.6g i  (Airy: %.9g %+.6g i)' % (kp0.real, kp0.imag, kres, -np.log(1 / (cav.r1 * cav.r2)) / (2 * L)))
     s0 = cav.solve(kres, (0, 0, 0), s_in, 0, 0)

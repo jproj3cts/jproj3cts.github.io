@@ -64,6 +64,7 @@ scripts that made them. The page itself runs JEKray live against these files.
 | `ref/scatter-real-lens.json` | `scripts/scatter_position_focus.py` | A sphere at the focus of a real asphere (a plano-hyperbolic lens in N-BK7, k = -n^2, stigmatic by Fermat's principle): the script traces the prescription itself, exactly (heights to angles, optical path, Fresnel transmission of each polarisation at bare faces), builds the focus as plane waves with the energy kept along each ray, and gives the focus's widths, peak and axial field, the sphere's scattered power by Mie theory, the share inside the collection lens's cone and the split detector's slope; with faces that reflect nothing and with bare faces |
 | `ref/scatter-retro.json` | `scripts/scatter_retro.py` | A sphere in a retro-reflected focus (a lens, a like lens recollimating and a flat 50% mirror sending the light back through the focus), tight (NA 0.8) and gentle: the two foci summed as plane waves with the phase the mirror's path gives them (the return is the forward focus turned through its centre, with the Gouy phase of the two half passes), Mie theory through both, and each detector's change and split signal (behind the mirror, and on a 50/50 plate's return port) as the mirror moves over half a wavelength |
 | `ref/scatter-retro-rod.json` | `scripts/scatter_retro.py --rod` | The retro-reflected trap with a silica rod (200 nm by 1 µm, its axis across the beam) in place of the sphere, with second scattering: a dipole array written in the script (4000 dipoles with the rod's volume, the lattice dispersion relation, LU), sharing no code with JEKray |
+| `ref/scatter-cavity.json` | `scripts/scatter_cavity.py` | A silica sphere inside a two-mirror Fabry-Perot (R = 25 mm, 10 mm apart, 90 %), solved directly: the cavity's Hermite-Gauss modes to order 12 from its own q and Gouy phase, the sphere's coupling to each by reciprocity (a dipole, or Mie's S1 ahead and behind), and the closed linear system of the forward and backward waves at each wavenumber. The resonance's shift and widening (the pole in complex k), the transmitted, reflected and scattered power over a detuning scan, at an antinode, a node, a quarter of the way between and off the axis. Checked in the script against the classical perturbation of a resonator (Bethe-Schwinger's shift, the width from the scattered power over the stored energy) |
 
 ## Making them again
 
@@ -130,6 +131,7 @@ numpy instead.
     python scripts/scatter_bench.py                  # needs mie_reference.py beside it
     python scripts/scatter_position_focus.py         # about two minutes; needs mie_reference.py and scatter_bench.py beside it, and ref/scatter-bench.json; writes ref/scatter-real-lens.json too (--lens-only for that alone)
     python scripts/scatter_retro.py                 # a few minutes; needs scatter_position_focus.py beside it
+    python scripts/scatter_cavity.py                # under a minute; needs scatter_position_focus.py beside it
     python scripts/fbg_erdogan.py
 
 ## Rules

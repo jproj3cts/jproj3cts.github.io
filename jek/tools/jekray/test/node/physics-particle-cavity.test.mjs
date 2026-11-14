@@ -7,10 +7,10 @@
    report's "A particle inside a non-degenerate cavity") and are the numbers below: V2, V3 the resonance's shift and
    widening within 5 % of the antinode's; V4 the detectors over a detuning scan within 2 % of the peak transmitted power;
    V5 the scattered power within 3 % of the antinode's; V6 the modes kept, reported; V7 the degeneracy test.
-   The degeneracy test as it was fixed (the round-trip Gouy phase within three linewidths of 2 pi p / q, q up to 6) flags
-   this very cavity: its Gouy phase, 1.855 rad, is 0.240 rad from 2 pi / 3, under three linewidths' 0.633. The solve is
-   run on it here with the test switched off (setCavDegenCheck), to compare it with the reference; on the bench it keeps
-   the warning, as the test says. */
+   The degeneracy test as it was first fixed (the round-trip Gouy phase within three linewidths of 2 pi p / q, q up to 6)
+   flagged this very cavity: its Gouy phase, 1.855 rad, is 0.240 rad from 2 pi / 3, under three linewidths' 0.633. It
+   was changed, with the owner's agreement, to the modes q orders up within three linewidths of TEM00: here 3 x 0.240 =
+   0.719 rad, outside 0.633, so this cavity is solved on the bench. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -48,11 +48,13 @@ test('the degeneracy test: a confocal and a flat cavity keep the warning; a fine
   await open([laser(), ...cavity(0), particle(0, 0, 'mie')]);
   S = SC.scatterNow(getEl('p'));
   assert.ok(S.cav && !S.cav.solved && S.flags.includes('cavity'), 'flat: ' + JSON.stringify(S.cav));
-  // the test cavity as fixed: flagged by the test as written, by q = 3 (reported in the head of this file)
+  // the test cavity: its third modes 0.719 rad from TEM00, outside three linewidths (0.633): solved
   await open([laser(), ...cavity(25), particle(0, 0, 'mie')]);
   S = SC.scatterNow(getEl('p'));
-  say('V7 the test cavity (finesse 29.8):', JSON.stringify(S.cav.degen));
-  assert.ok(S.cav && S.cav.why === 'degenerate' && S.cav.degen.q === 3, JSON.stringify(S.cav));
+  assert.ok(S.cav && S.cav.solved && !S.flags.includes('cavity'), 'the test cavity: ' + JSON.stringify(S.cav));
+  // a cavity near confocal at that finesse is still flagged: R = 10.5 mm, the third modes' resonance close to TEM00's
+  assert.ok(SCV.cavDegenerate({ finesse: 29.8, gouy: { x: 2 * Math.PI / 3 + 0.05, y: 2 * Math.PI / 3 + 0.05 } }), 'q = 3 within 0.15 rad');
+  assert.equal(SCV.cavDegenerate({ finesse: 29.8, gouy: { x: 1.855, y: 1.855 } }), null);
   // the same mirrors at 99.9 %: three linewidths are 0.0063 rad, and 1.855 rad is clear of every p / q
   await open([laser(), ...cavity(25, 99.9), particle(0, 0, 'mie')]);
   S = SC.scatterNow(getEl('p'));

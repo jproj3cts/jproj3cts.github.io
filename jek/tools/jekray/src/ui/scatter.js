@@ -141,7 +141,7 @@ const FLAG_TEXT = {
 };
 /* why a cavity's modes do not take a particle's light (engines/scatter-cavity.js) */
 const CAV_WHY = {
-  degenerate: 'the cavity is degenerate or near it (its round-trip Gouy phase within three linewidths of a simple fraction of a turn, up to sixths): its transverse modes share resonances, so they are not solved one by one.',
+  degenerate: 'the cavity is degenerate or near it (its transverse modes up to six orders above the lowest resonate within three linewidths of it): they share resonances, so they are not solved one by one.',
   unstable: 'the cavity is not stable, so it has no Hermite-Gauss modes to solve in.',
   ring: 'a ring cavity: the light the particle sends back would run round the other way, which the trace does not follow.',
   legs: 'only a two-mirror cavity with the particle on its axis is solved in its modes.',

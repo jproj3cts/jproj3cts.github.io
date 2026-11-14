@@ -39,9 +39,12 @@ export const CAV_KEEP = 1e-6;            // a mode kept while its coupling and b
 export const CAV_DEGEN_Q = 6, CAV_DEGEN_LW = 3;
 const CAV_GRID = 40, CAV_SPAN = 4;       // the projection: points across, and mode radii each way
 
-/* Degenerate: a round-trip Gouy phase (either axis) within CAV_DEGEN_LW linewidths (2 pi / finesse each) of 2 pi p / q
-   for some q up to CAV_DEGEN_Q (confocal 1/2, concentric and planar 0 or 1, and the like): the cavity's transverse
-   modes then share resonances, and the particle mixes them where they stand together. null if not; else why */
+/* Degenerate: for some q up to CAV_DEGEN_Q, the modes q orders up from TEM00 resonate within CAV_DEGEN_LW linewidths
+   (2 pi / finesse each) of TEM00, that is q times the round-trip Gouy phase (either axis) within that of a whole number
+   of turns (confocal q = 2, concentric and planar q = 1, and the like): the cavity's transverse modes then share
+   resonances, and the particle mixes them where they stand together. (The rule first set, the Gouy phase itself within
+   three linewidths of 2 pi p / q, flagged nearly every stable cavity of low finesse: 1.855 rad at finesse 30 is 0.240
+   rad from 2 pi / 3, but its third modes are 0.719 rad from TEM00, outside 0.633.) null if not; else why */
 let cavDegenOn = true;
 /* (the validation and the tests: the solve run on a cavity the test would flag, to compare it with a reference) */
 export function setCavDegenCheck(on) { cavDegenOn = on !== false; }
@@ -52,8 +55,8 @@ export function cavDegenerate(c) {
   for (const [ax, g] of [['x', c.gouy.x], ['y', c.gouy.y]]) {
     if (g === null || g === undefined || !isFinite(g)) return { why: 'unstable', axis: ax };
     const t = ((g % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-    for (let q = 1; q <= CAV_DEGEN_Q; q++) for (let p = 0; p <= q; p++) {
-      const off = Math.abs(t - 2 * Math.PI * p / q);
+    for (let q = 1; q <= CAV_DEGEN_Q; q++) {
+      const p = Math.round(q * t / (2 * Math.PI)), off = Math.abs(q * t - 2 * Math.PI * p);
       if (off < tol && g0) return { why: 'degenerate', axis: ax, p, q, off, tol };
     }
   }

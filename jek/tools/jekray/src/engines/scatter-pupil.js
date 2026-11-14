@@ -85,23 +85,41 @@ function pupTrace(M, P, u, refl, nMed) {
   }
   return { d, X: p, ell, amp, Mx, psi: 0 };
 }
-/* how many reflections bring the light back to a focus at the particle: the fewest after which a small fan of rays from
-   it passes back within a twentieth of the spread it had at the mirror (up to 6) */
-function pupPattern(M, C, axis, ex, nMed) {
+/* how many reflections bring the light back to a focus near the particle: the fewest after which a small fan of rays from
+   it (each way) meets again, all within a twentieth of the spread it had at the mirror, at a point within a twentieth
+   of the cavity's length of the particle (an off-axis particle's image, across from it, is such a return: the converging
+   wave passes over the particle). Up to 6 */
+function pupPattern(M, C, axis, ex, nMed, L) {
+  const ey = [axis[1] * ex[2] - axis[2] * ex[1], axis[2] * ex[0] - axis[0] * ex[2], axis[0] * ex[1] - axis[1] * ex[0]];
   for (let refl = 1; refl <= 6; refl++) {
-    let worst = 0, ok = true;
-    for (const th of [2e-3, 5e-3]) for (const [a, b] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
-      const ey = [axis[1] * ex[2] - axis[2] * ex[1], axis[2] * ex[0] - axis[0] * ex[2], axis[0] * ex[1] - axis[1] * ex[0]];
-      for (const sg of [1, -1]) {
+    let ok = true;
+    for (const sg of [1, -1]) {
+      const rays = [];
+      for (const th of [2e-3, 5e-3]) for (const [a, b] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
         const u = unitp([0, 1, 2].map(q => sg * axis[q] + th * (a * ex[q] + b * ey[q])));
         const R = pupTrace(M, C, u, refl, nMed);
-        if (!R) { ok = false; continue; }
-        const w = add3(C, R.X, -1), miss = Math.hypot(...add3(w, R.d, -dotp(w, R.d)));
-        const spread = th * Math.hypot(...add3(R.X, C, -1));
-        worst = Math.max(worst, miss / spread);
+        if (!R) { ok = false; break; }
+        rays.push({ R, spread: th * Math.hypot(...add3(R.X, C, -1)) });
       }
+      if (!ok) break;
+      // the point nearest all the rays: sum over rays of (1 - d d^T)(P - X) = 0
+      const A = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], bv = [0, 0, 0];
+      for (const { R } of rays) for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+        const m = (i === j ? 1 : 0) - R.d[i] * R.d[j];
+        A[i][j] += m; bv[i] += m * R.X[j];
+      }
+      const det = (m) => m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+      const D = det(A);
+      if (!(Math.abs(D) > 1e-12)) { ok = false; break; }
+      const P = [0, 1, 2].map(c => det(A.map((row, i) => row.map((v, j) => (j === c ? bv[i] : v)))) / D);
+      for (const { R, spread } of rays) {
+        const w = add3(P, R.X, -1), miss = Math.hypot(...add3(w, R.d, -dotp(w, R.d)));
+        if (!(miss < 0.05 * spread)) ok = false;
+      }
+      if (Math.hypot(...add3(P, C, -1)) > 0.05 * L) ok = false;
+      if (!ok) break;
     }
-    if (ok && worst < 0.05) return refl;
+    if (ok) return refl;
   }
   return 0;
 }
@@ -125,11 +143,11 @@ export function pupilPlan(TB, Cw, nMed, nm) {
     const elOf = j => { const ev = c.segs[j].ev; return ev && getEl(ev.el); }, far = elOf((lf.j + 1) % 2), near = elOf(lf.j);
     if (!far || !near || far.type !== 'mirror' || near.type !== 'mirror' || far.tip || far.roll || near.tip || near.roll) return no('parts');
     const M = [pupMirror(near), pupMirror(far)], F = beamFrame(lf.q.b), dir = F.d, ex = F.ex, ey = F.level ? [0, 0, 1] : F.ey;
-    const pattern = pupPattern(M, Cw, dir, ex, nMed);
+    const L = Math.hypot(...add3(M[1].V, M[0].V, -1)), lamMm = nm * 1e-6 / nMed;
+    const pattern = pupPattern(M, Cw, dir, ex, nMed, L);
     if (!pattern) return no('noimage');
     // the caps: each mirror's rim as the particle sees it
     const capOf = m => { const rim = add3(add3(m.V, m.n, pupSag(m, m.a * m.a)), Cw, -1), along = Math.abs(dotp(rim, m.n)); return Math.atan2(m.a, along); };
-    const L = Math.hypot(...add3(M[1].V, M[0].V, -1)), lamMm = nm * 1e-6 / nMed;
     const fresnel = Math.min(M[0].a, M[1].a) ** 2 / (lamMm * L);
     return { c, M, legF: lf, legB: lb, entry, dir, ex, ey, C: Cw, pattern, theta: [capOf(M[0]), capOf(M[1])], fresnel, L };
   }
@@ -175,7 +193,7 @@ export function pupReturns(P, G, k0mm, nMed, lamM, h2, lam) {
   if (a2 && h2) M[1].psi = arg(cdv(h2, a2));
   M[0].psi = arg(cdv(lam, cm(arnd, [Math.cos(M[1].psi), Math.sin(M[1].psi)])));
   // the grid's returns
-  const N = G.N, tgt = new Int32Array(4 * N).fill(-1), tw = new Float64Array(4 * N), fac = new Float64Array(2 * N), Mx = new Float64Array(9 * N);
+  const N = G.N, tgt = new Int32Array(4 * N).fill(-1), tw = new Float64Array(8 * N), fac = new Float64Array(2 * N), Mx = new Float64Array(9 * N);
   // lookup: a cap's grid index from (a, b)
   const s1 = Math.min(0.999, Math.sin(P.theta[1]) * 1.03), s0 = Math.min(0.999, Math.sin(P.theta[0]) * 1.03), n = G.n;
   const index = new Map();
@@ -200,7 +218,15 @@ export function pupReturns(P, G, k0mm, nMed, lamM, h2, lam) {
     const fa = (dotp(R.d, P.ex) + s) / h, fb = (dotp(R.d, P.ey) + s) / h, ia = Math.floor(fa), ib = Math.floor(fb), ta = fa - ia, tb = fb - ib;
     const near = [[ia, ib, (1 - ta) * (1 - tb)], [ia + 1, ib, ta * (1 - tb)], [ia, ib + 1, (1 - ta) * tb], [ia + 1, ib + 1, ta * tb]];
     let wsum = 0;
-    near.forEach(([p, q, wt], c) => { const j = index.get(sg + ':' + p + ':' + q); if (j !== undefined && wt > 0) { tgt[4 * i + c] = j; tw[4 * i + c] = wt * G.w[i] / G.w[j]; wsum += wt; } });
+    // a wave moved onto a grid direction keeps its focus: where the returned ray passes nearest the particle (the image of
+    // it, across from it or drifted along), so its phase at the particle turns by k (u_j - d).(C - image)
+    const tq = dotp(add3(C, R.X, -1), R.d), img = add3(R.X, R.d, tq), off = add3(C, img, -1);
+    near.forEach(([p, q, wt], c) => {
+      const j = index.get(sg + ':' + p + ':' + q);
+      if (j === undefined || !(wt > 0)) return;
+      const uj = [G.dirs[3 * j], G.dirs[3 * j + 1], G.dirs[3 * j + 2]], dph = k0mm * nMed * dotp(add3(uj, R.d, -1), off), a = wt * G.w[i] / G.w[j];
+      tgt[4 * i + c] = j; tw[8 * i + 2 * c] = a * Math.cos(dph); tw[8 * i + 2 * c + 1] = a * Math.sin(dph); wsum += wt;
+    });
     // (a share that falls off the grid's edge is lost with the rim)
     if (wsum <= 0) lost++;
   }
@@ -221,8 +247,8 @@ export function pupApply(G, Rt, Fo, out) {
     for (let c = 0; c < 4; c++) {
       const j = Rt.tgt[4 * i + c];
       if (j < 0) continue;
-      const wt = Rt.tw[4 * i + c];
-      for (let q = 0; q < 6; q++) A[6 * j + q] += wt * v[q];
+      const wr = Rt.tw[8 * i + 2 * c], wi = Rt.tw[8 * i + 2 * c + 1];
+      for (let q = 0; q < 6; q += 2) { A[6 * j + q] += wr * v[q] - wi * v[q + 1]; A[6 * j + q + 1] += wr * v[q + 1] + wi * v[q]; }
     }
   }
   return A;

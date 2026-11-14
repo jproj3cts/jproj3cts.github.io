@@ -137,6 +137,7 @@ const FLAG_TEXT = {
   varies: 'The beam changes across the particle but is taken as one plane wave (it is too gently focused for the vector focus model, above NA 0.3): rough for this size.',
   skipped: 'A beam through here was left out: no field could be taken for it.',
   notrap: 'No stable trap was found, so the particle is where the beam meets the screen.',
+  fresnel: 'The cavity\u2019s Fresnel number (its mirrors\u2019 radius squared over the wavelength times their spacing) is under 10: the returns are taken as rays with their phase and the rims as hard edges, which diffraction at the rims makes rough here.',
   cavity: 'Scattering inside a cavity is not modelled: the light here comes back to the particle more than once, and these readings take its scattered light back to it once only.',
 };
 /* why a cavity's modes do not take a particle's light (engines/scatter-cavity.js) */
@@ -151,6 +152,8 @@ const CAV_WHY = {
   entry: 'the light let in does not pass the particle on its way into the cavity: not solved here.',
   steady: 'the cavity\u2019s steady state is not worked out yet.',
   loss: 'the cavity keeps too little of its light round a trip to resonate.',
+  noimage: 'the cavity is degenerate, but its mirrors do not bring the particle\u2019s light back to a focus on it within six reflections: not solved here.',
+  parts: 'one of the cavity\u2019s mirrors is not a mirror part, or is tipped or rolled: its returns are not traced here.',
 };
 /* the readout's rows for an answer */
 function scatterRows(el, S) {
@@ -184,7 +187,9 @@ function scatterRows(el, S) {
   if (S.at.trap) rows.push(['Where', 'where the trap holds it: ' + fmtLen(Math.abs(S.at.z)) + (S.at.z >= 0 ? (el.type === 'particle' ? ' past the part' : ' past the screen') : ' before it') + ' along the beam']);
   // in a cavity: solved in its modes, or why not
   const K = S.cav;
-  if (K && K.solved) rows.push(['In ' + K.name, 'its light comes back to the particle round the cavity: solved in the cavity\u2019s ' + K.modes + ' Hermite-Gauss modes it couples to. ' +
+  if (K && K.solved && K.method === 'pupil') rows.push(['In ' + K.name, 'a degenerate cavity: its mirrors bring the particle\u2019s light back to it re-imaged (every ' + (K.pattern === 1 ? 'reflection' : K.pattern + ' reflections') + '). ' +
+    'Solved over ' + K.nodes + ' directions across their caps, every round trip at once; the light at the particle is ' + scatSig(100 * (K.E2ratio - 1), 3) + '% from the empty cavity\u2019s, and the detectors read the cavity with the particle in it']);
+  else if (K && K.solved) rows.push(['In ' + K.name, 'its light comes back to the particle round the cavity: solved in the cavity\u2019s ' + K.modes + ' Hermite-Gauss modes it couples to. ' +
     'The resonance moves by ' + scatSig(K.shiftLw, 3) + ' of a linewidth (' + scatSig(K.shiftHz / 1e3, 3) + ' kHz) and widens by ' + scatSig(K.widenLw, 3) + ' (' + scatSig(K.widenHz / 1e3, 3) + ' kHz); ' +
     'the detectors read the cavity with the particle in it']);
   else if (K && K.why) rows.push(['In ' + K.name, CAV_WHY[K.why] || 'its light comes back to the particle round the cavity, and that is not solved here']);

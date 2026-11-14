@@ -178,6 +178,7 @@ import './ui/heavy.js';
 import './ui/closeup.js';
 import './engines/diffraction.js';
 import './engines/scatter-cavity.js';
+import './engines/scatter-pupil.js';
 import './engines/scatter.js';
 import './engines/scatter-light.js';
 import './engines/antenna-field.js';

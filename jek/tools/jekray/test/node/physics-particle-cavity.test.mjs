@@ -39,11 +39,11 @@ const open = async (els, lock) => { const B = await openBench(doc(els, lock)); B
 const solve = () => { const t0 = Date.now(), S = SC.scatterNow(getEl('p')); TR.traceScene(); return Object.assign(S, { wall: Date.now() - t0 }); };
 const reading = id => FF.detectorReading(getEl(id)).mw;
 
-test('the degeneracy test: a confocal and a flat cavity keep the warning; a finer cavity of the same mirrors is solved', async () => {
-  // confocal (R = L): the round-trip Gouy phase is pi, 2 pi x 1/2                                                         V7
+test('the degeneracy test: a confocal cavity goes to the pupil solve, a flat one keeps the warning; a finer cavity of the same mirrors is solved in its modes', async () => {
+  // confocal (R = L): the round-trip Gouy phase is pi, 2 pi x 1/2: not the mode solve's; solved in the pupil (scatter-pupil.js)  V7
   await open([laser(), ...cavity(10), particle(0, 0, 'mie')]);
   let S = SC.scatterNow(getEl('p'));
-  assert.ok(S.cav && !S.cav.solved && S.cav.why === 'degenerate' && S.flags.includes('cavity'), 'confocal: ' + JSON.stringify(S.cav));
+  assert.ok(S.cav && S.cav.solved && S.cav.method === 'pupil' && S.cav.pattern === 2 && !S.flags.includes('cavity'), 'confocal: ' + JSON.stringify(S.cav));
   // two flat mirrors: no Gouy phase at all (marginal); the old one pass and its warning
   await open([laser(), ...cavity(0), particle(0, 0, 'mie')]);
   S = SC.scatterNow(getEl('p'));

@@ -44752,6 +44752,301 @@ function cavLoadOf(S) {
   return K && K.solved && K.load ? K.load : null;
 }
 const cavLoadKey = () => (lastTrace && lastTrace.cavLoad ? '|load' + JSON.stringify(lastTrace.cavLoad) : '');
+/* ---------- A particle inside a degenerate cavity, solved in the pupil ----------
+   In a concentric or confocal cavity (or one near them) the light a particle sends onto a mirror comes back to it
+   re-imaged: every direction of it, not a mode or two. So the basis is the directions themselves: a square grid of
+   direction cosines over each mirror's cap as the particle sees it (pupGrid). Each direction is traced round the cavity
+   once, on the mirrors' own surfaces (their radius, conic and aspheric terms, their rims, their reflectance, where they
+   stand), to its first return to a focus at the particle: one reflection for a concentric pair, two for a confocal one
+   (pupPattern finds it from a fan of rays). There it is a converging wave, and as plane waves at the particle
+       A(u') dOmega' = -(i/lambda) prod(sqrt(R)) M F(u) e^{ik phi} dOmega,
+   F the far field that left along u, M the mirrors' action on the field vector (E -> -E + 2 (E.N) N each), phi the
+   optical path to the last mirror less the plane wave's own path back from there. Where u' falls between grid
+   directions (a cavity near degeneracy: the return drifts) its share goes to the four round it. A wave that came back
+   passes the particle and goes on, F = -i lambda A, to come back again. The cavity's lock is the empty cavity's own: the
+   axial half trip by the far mirror is the empty cavity's backward wave over its forward one at the particle, the
+   round trip its steady state's (the TEM00 Ritz value with the lock's detuning), and the mirrors' phases are set to them.
+   With the particle's answer to the light, linear (Mie, the dipole array, the single dipole): the returned waves x
+   on the grid satisfy x = T(-i lambda x + F0 + P x), F0 the particle's far field in the empty cavity's light and P its
+   answer to x, solved by GMRES (all round trips at once; the cost does not grow with the finesse). Rays are taken with
+   their phase between the mirrors, the rims as hard edges: good while the Fresnel number a^2 / (lambda L) is large
+   (PUP_FRESNEL); under it the Scattering tab says so. */
+const PUP_N = 64;                 // grid points across each cap
+const PUP_FRESNEL = 10;
+const PUP_TOL = 1e-8, PUP_RESTART = 40, PUP_ITERS = 200;
+
+const add3 = (a, b, s = 1) => [a[0] + s * b[0], a[1] + s * b[1], a[2] + s * b[2]];
+const dotp = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const unitp = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+
+/* a mirror as its part has it: vertex V, facing n (towards the light), vertex curvature c, conic k, aspheric terms A,
+   rim radius a, reflectance Rp */
+function pupMirror(el) {
+  const th = (el.angle || 0) * Math.PI / 180;
+  return { el, V: [el.x, el.y, zOf(el)], n: [Math.cos(th), Math.sin(th), 0], c: el.R ? 1 / el.R : 0, k: el.k || 0, A: el.A || [], a: 0.5 * (el.diameter || el.length || 0),
+    Rp: Math.max(0, Math.min(1, (el.reflect === undefined ? 100 : el.reflect) / 100)), psi: 0 };
+}
+function pupSag(m, r2) {
+  const q = 1 + m.k, c = m.c;
+  let s = c * r2 / (1 + Math.sqrt(Math.max(0, 1 - q * c * c * r2)));
+  for (let i = 0; i < m.A.length; i++) s += Math.sign(c || 1) * (m.A[i] || 0) * Math.pow(r2, i + 2);
+  return s;
+}
+function pupDsag(m, r2) {           // d sag / d r, over r
+  const q = 1 + m.k, c = m.c;
+  let s = c / Math.sqrt(Math.max(1e-30, 1 - q * c * c * r2));
+  for (let i = 0; i < m.A.length; i++) s += Math.sign(c || 1) * (m.A[i] || 0) * 2 * (i + 2) * Math.pow(r2, i + 1);
+  return s;
+}
+/* where a ray P + t u meets the mirror (t > 0, inside its rim): { t, X, N } or null */
+function pupHit(m, P, u) {
+  const un = dotp(u, m.n);
+  if (Math.abs(un) < 1e-12) return null;
+  let t = dotp(add3(m.V, P, -1), m.n) / un;
+  for (let it = 0; it < 50; it++) {
+    const X = add3(P, u, t), D = add3(X, m.V, -1), h = dotp(D, m.n), R = add3(D, m.n, -h), r2 = dotp(R, R);
+    const g = h - pupSag(m, r2), dg = un - pupDsag(m, r2) * dotp(R, u);
+    const dt = g / dg; t -= dt;
+    if (Math.abs(dt) < 1e-13) break;
+  }
+  if (!(t > 1e-9)) return null;
+  const X = add3(P, u, t), D = add3(X, m.V, -1), h = dotp(D, m.n), R = add3(D, m.n, -h), r2 = dotp(R, R);
+  if (r2 > m.a * m.a) return null;
+  const s = pupDsag(m, r2);
+  return { t, X, N: unitp(add3(m.n, R, -s)) };
+}
+/* a ray from P along u through the cavity: after `refl` reflections (alternately on the mirror it meets) its direction,
+   point, optical path (mm), amplitude and field matrix, or null if a rim takes it */
+function pupTrace(M, P, u, refl, nMed) {
+  let p = P, d = u, ell = 0, amp = 1, Mx = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+  let at = dotp(d, M[1].n) < 0 ? 1 : 0;            // the mirror it goes towards: the one facing it
+  for (let r = 0; r < refl; r++) {
+    const H = pupHit(M[at], p, d);
+    if (!H) return null;
+    ell += nMed * H.t; p = H.X;
+    const N = H.N, dn = dotp(d, N);
+    d = unitp(add3(d, N, -2 * dn));
+    const RN = [0, 1, 2].map(i => [0, 1, 2].map(j => (i === j ? -1 : 0) + 2 * N[i] * N[j]));
+    Mx = RN.map(row => [0, 1, 2].map(j => row[0] * Mx[0][j] + row[1] * Mx[1][j] + row[2] * Mx[2][j]));
+    amp *= Math.sqrt(M[at].Rp);
+    at = 1 - at;
+  }
+  return { d, X: p, ell, amp, Mx, psi: 0 };
+}
+/* how many reflections bring the light back to a focus at the particle: the fewest after which a small fan of rays from
+   it passes back within a twentieth of the spread it had at the mirror (up to 6) */
+function pupPattern(M, C, axis, ex, nMed) {
+  for (let refl = 1; refl <= 6; refl++) {
+    let worst = 0, ok = true;
+    for (const th of [2e-3, 5e-3]) for (const [a, b] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
+      const ey = [axis[1] * ex[2] - axis[2] * ex[1], axis[2] * ex[0] - axis[0] * ex[2], axis[0] * ex[1] - axis[1] * ex[0]];
+      for (const sg of [1, -1]) {
+        const u = unitp([0, 1, 2].map(q => sg * axis[q] + th * (a * ex[q] + b * ey[q])));
+        const R = pupTrace(M, C, u, refl, nMed);
+        if (!R) { ok = false; continue; }
+        const w = add3(C, R.X, -1), miss = Math.hypot(...add3(w, R.d, -dotp(w, R.d)));
+        const spread = th * Math.hypot(...add3(R.X, C, -1));
+        worst = Math.max(worst, miss / spread);
+      }
+    }
+    if (ok && worst < 0.05) return refl;
+  }
+  return 0;
+}
+/* The plan for a particle at world point Cw in a degenerate (or near-degenerate) two-mirror cavity: null when it is not in
+   one, { c, why } when this solve does not take it */
+function pupilPlan(TB, Cw, nMed, nm) {
+  let cs;
+  try { cs = findCavities(); } catch (err) { return null; }
+  for (const c of cs) {
+    const legs = [];
+    c.segs.forEach((b, j) => { const q = TB.parts.find(p => p.b === b); if (q) legs.push({ j, q }); });
+    if (!legs.length) continue;
+    const no = why => ({ c, why });
+    if (c.kind !== 'linear' || c.p !== 2 || legs.length !== 2) return no(c.kind !== 'linear' ? 'ring' : 'legs');
+    const d0 = beamFrame(legs[0].q.b).d;
+    if (dotp(beamFrame(legs[1].q.b).d, d0) > -0.999) return no('legs');
+    const loopB = new Set(c.segs), entry = TB.parts.filter(q => !loopB.has(q.b) && q.coh === legs[0].q.coh && Math.abs(dotp(beamFrame(q.b).d, d0)) > 0.999);
+    if (!entry.length) return no('entry');
+    const fd = beamFrame(entry[0].b).d, [lf, lb] = dotp(beamFrame(legs[0].q.b).d, fd) > 0 ? legs : [legs[1], legs[0]];
+    // the two mirrors: the far one (the forward leg's end) and the near one
+    const elOf = j => { const ev = c.segs[j].ev; return ev && getEl(ev.el); }, far = elOf((lf.j + 1) % 2), near = elOf(lf.j);
+    if (!far || !near || far.type !== 'mirror' || near.type !== 'mirror' || far.tip || far.roll || near.tip || near.roll) return no('parts');
+    const M = [pupMirror(near), pupMirror(far)], F = beamFrame(lf.q.b), dir = F.d, ex = F.ex, ey = F.level ? [0, 0, 1] : F.ey;
+    const pattern = pupPattern(M, Cw, dir, ex, nMed);
+    if (!pattern) return no('noimage');
+    // the caps: each mirror's rim as the particle sees it
+    const capOf = m => { const rim = add3(add3(m.V, m.n, pupSag(m, m.a * m.a)), Cw, -1), along = Math.abs(dotp(rim, m.n)); return Math.atan2(m.a, along); };
+    const L = Math.hypot(...add3(M[1].V, M[0].V, -1)), lamMm = nm * 1e-6 / nMed;
+    const fresnel = Math.min(M[0].a, M[1].a) ** 2 / (lamMm * L);
+    return { c, M, legF: lf, legB: lb, entry, dir, ex, ey, C: Cw, pattern, theta: [capOf(M[0]), capOf(M[1])], fresnel, L };
+  }
+  return null;
+}
+/* the grid: direction cosines across each cap (forward: towards the far mirror, +dir; backward: -dir); solid angles */
+function pupGrid(P, n = PUP_N) {
+  const out = [], w = [];
+  for (const [sg, th] of [[1, P.theta[1]], [-1, P.theta[0]]]) {
+    const s = Math.min(0.999, Math.sin(th) * 1.03), h = 2 * s / (n - 1);
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const a = -s + i * h, b = -s + j * h, r2 = a * a + b * b;
+      if (r2 >= s * s) continue;
+      const uz = Math.sqrt(1 - r2);
+      out.push([0, 1, 2].map(q => sg * uz * P.dir[q] + a * P.ex[q] + b * P.ey[q]));
+      w.push(h * h / uz);
+    }
+  }
+  const N = out.length, dirs = new Float64Array(3 * N), W = Float64Array.from(w);
+  out.forEach((u, i) => dirs.set(u, 3 * i));
+  return { N, dirs, w: W, n, P };
+}
+/* each grid direction's return: where its wave lands on the grid (up to four points, with weights), its factor (complex)
+   and its field matrix; and the lock calibrated against the empty cavity's (h2: A to A by the far mirror; lam: the
+   round trip) */
+function pupReturns(P, G, k0mm, nMed, lamM, h2, lam) {
+  const { M, C, pattern } = P;
+  // the axial returns, bare, A to A: -(i/lambda) (-1)^(n-1) prod sqrt(R) M e^{ik phi} (-i lambda) = (-1)^n prod sqrt(R) M e^{ik phi}
+  const axial = (u, n) => {
+    const R = pupTrace(M, C, u, n * pattern, nMed);
+    if (!R) return null;
+    const w = add3(R.X, C, -1), phi = R.ell - nMed * dotp(R.d, w), m = R.Mx;
+    const e = [P.ex, P.ey], ein = e[0], v = [0, 1, 2].map(i => m[i][0] * ein[0] + m[i][1] * ein[1] + m[i][2] * ein[2]);
+    const proj = dotp(v, ein), sgn = n % 2 ? -1 : 1, a = sgn * R.amp * proj;
+    return [a * Math.cos(k0mm * phi), a * Math.sin(k0mm * phi)];
+  };
+  const cm = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+  const cdv = (a, b) => { const d = b[0] * b[0] + b[1] * b[1]; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
+  const arg = z => Math.atan2(z[1], z[0]);
+  M[0].psi = 0; M[1].psi = 0;
+  const ax = P.dir, a2 = pattern === 1 ? axial(ax, 1) : null, arnd = pattern === 1 ? axial(ax, 2) : axial(ax, 1);
+  if (!arnd) return null;
+  if (a2 && h2) M[1].psi = arg(cdv(h2, a2));
+  M[0].psi = arg(cdv(lam, cm(arnd, [Math.cos(M[1].psi), Math.sin(M[1].psi)])));
+  // the grid's returns
+  const N = G.N, tgt = new Int32Array(4 * N).fill(-1), tw = new Float64Array(4 * N), fac = new Float64Array(2 * N), Mx = new Float64Array(9 * N);
+  // lookup: a cap's grid index from (a, b)
+  const s1 = Math.min(0.999, Math.sin(P.theta[1]) * 1.03), s0 = Math.min(0.999, Math.sin(P.theta[0]) * 1.03), n = G.n;
+  const index = new Map();
+  for (let i = 0; i < N; i++) {
+    const u = [G.dirs[3 * i], G.dirs[3 * i + 1], G.dirs[3 * i + 2]], sg = dotp(u, P.dir) > 0 ? 1 : 0, s = sg ? s1 : s0, h = 2 * s / (n - 1);
+    index.set(sg + ':' + Math.round((dotp(u, P.ex) + s) / h) + ':' + Math.round((dotp(u, P.ey) + s) / h), i);
+  }
+  let lost = 0;
+  for (let i = 0; i < N; i++) {
+    const u = [G.dirs[3 * i], G.dirs[3 * i + 1], G.dirs[3 * i + 2]];
+    // which mirrors it meets, in turn: the far one first when it goes forward
+    let psi = 0, at = dotp(u, P.dir) > 0 ? 1 : 0;
+    for (let r = 0; r < pattern; r++) { psi += M[at].psi; at = 1 - at; }
+    const R = pupTrace(M, C, u, pattern, nMed);
+    if (!R) { lost++; continue; }
+    const w = add3(R.X, C, -1), phi = R.ell - nMed * dotp(R.d, w), ph = k0mm * phi + psi;
+    // -(i/lambda) amp e^{i ph}, per unit solid angle the same both ways (the share split below keeps the waves' sum)
+    fac[2 * i] = R.amp / lamM * Math.sin(ph); fac[2 * i + 1] = -R.amp / lamM * Math.cos(ph);
+    for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) Mx[9 * i + 3 * a + b] = R.Mx[a][b];
+    // where it lands: bilinear among the four grid points round (a, b) of its cap
+    const sg = dotp(R.d, P.dir) > 0 ? 1 : 0, s = sg ? s1 : s0, h = 2 * s / (n - 1);
+    const fa = (dotp(R.d, P.ex) + s) / h, fb = (dotp(R.d, P.ey) + s) / h, ia = Math.floor(fa), ib = Math.floor(fb), ta = fa - ia, tb = fb - ib;
+    const near = [[ia, ib, (1 - ta) * (1 - tb)], [ia + 1, ib, ta * (1 - tb)], [ia, ib + 1, (1 - ta) * tb], [ia + 1, ib + 1, ta * tb]];
+    let wsum = 0;
+    near.forEach(([p, q, wt], c) => { const j = index.get(sg + ':' + p + ':' + q); if (j !== undefined && wt > 0) { tgt[4 * i + c] = j; tw[4 * i + c] = wt * G.w[i] / G.w[j]; wsum += wt; } });
+    // (a share that falls off the grid's edge is lost with the rim)
+    if (wsum <= 0) lost++;
+  }
+  return { tgt, tw, fac, Mx, lost, a2, arnd, psi: [M[0].psi, M[1].psi] };
+}
+/* T on outgoing far fields Fo (6 N, world vectors): the returned waves A on the grid (6 N, V/m per steradian) */
+function pupApply(G, Rt, Fo, out) {
+  const N = G.N, A = out || new Float64Array(6 * N);
+  A.fill(0);
+  for (let i = 0; i < N; i++) {
+    const fr = Rt.fac[2 * i], fi = Rt.fac[2 * i + 1];
+    if (fr === 0 && fi === 0) continue;
+    const m = Rt.Mx, o = 9 * i, f = 6 * i, v = [0, 0, 0, 0, 0, 0];
+    for (let a = 0; a < 3; a++) {
+      const re = m[o + 3 * a] * Fo[f] + m[o + 3 * a + 1] * Fo[f + 2] + m[o + 3 * a + 2] * Fo[f + 4], im = m[o + 3 * a] * Fo[f + 1] + m[o + 3 * a + 1] * Fo[f + 3] + m[o + 3 * a + 2] * Fo[f + 5];
+      v[2 * a] = fr * re - fi * im; v[2 * a + 1] = fr * im + fi * re;
+    }
+    for (let c = 0; c < 4; c++) {
+      const j = Rt.tgt[4 * i + c];
+      if (j < 0) continue;
+      const wt = Rt.tw[4 * i + c];
+      for (let q = 0; q < 6; q++) A[6 * j + q] += wt * v[q];
+    }
+  }
+  return A;
+}
+/* complex vectors as interleaved reals: GMRES for x - B(x) = rhs, B linear, given as a generator function (so a dipole
+   array's solves inside it can report and be stopped) */
+const cdotv = (a, b) => { let r = 0, i = 0; for (let q = 0; q < a.length; q += 2) { r += a[q] * b[q] + a[q + 1] * b[q + 1]; i += a[q] * b[q + 1] - a[q + 1] * b[q]; } return [r, i]; };
+const nrm = a => Math.sqrt(cdotv(a, a)[0]);
+function* pupGmres(B, rhs, x0) {
+  const n = rhs.length, x = x0 ? Float64Array.from(x0) : new Float64Array(n), bn = nrm(rhs) || 1;
+  let iters = 0, resid = 1;
+  for (let cyc = 0; cyc < PUP_ITERS / PUP_RESTART; cyc++) {
+    const Bx = yield* B(x), r = new Float64Array(n);
+    for (let q = 0; q < n; q++) r[q] = rhs[q] - (x[q] - Bx[q]);
+    const beta = nrm(r);
+    resid = beta / bn;
+    if (resid < PUP_TOL) break;
+    const V = [r.map(v => v / beta)], H = [], cs = [], sn = [], g = [[beta, 0]];
+    let m = 0;
+    for (; m < PUP_RESTART; m++) {
+      const Bv = yield* B(V[m]), w = new Float64Array(n);
+      for (let q = 0; q < n; q++) w[q] = V[m][q] - Bv[q];
+      iters++;
+      H.push(new Array(m + 2).fill(null).map(() => [0, 0]));
+      for (let i = 0; i <= m; i++) {
+        const h = cdotv(V[i], w);
+        H[m][i] = h;
+        for (let q = 0; q < n; q += 2) { w[q] -= h[0] * V[i][q] - h[1] * V[i][q + 1]; w[q + 1] -= h[0] * V[i][q + 1] + h[1] * V[i][q]; }
+      }
+      const hn = nrm(w);
+      H[m][m + 1] = [hn, 0];
+      // the Givens rotations so far, then a new one for this column
+      for (let i = 0; i < m; i++) {
+        const a = H[m][i], b = H[m][i + 1], c = cs[i], s = sn[i];
+        H[m][i] = [c * a[0] + (s[0] * b[0] - s[1] * b[1]), c * a[1] + (s[0] * b[1] + s[1] * b[0])];
+        H[m][i + 1] = [-(s[0] * a[0] + s[1] * a[1]) + c * b[0], -(s[0] * a[1] - s[1] * a[0]) + c * b[1]];
+      }
+      const a = H[m][m], b = H[m][m + 1], na = Math.hypot(a[0], a[1]), den = Math.hypot(na, b[0], b[1]) || 1;
+      const c = na / den, s = na > 0 ? [(a[0] * b[0] + a[1] * b[1]) / (na * den), (a[0] * b[1] - a[1] * b[0]) / (na * den)] : [1, 0];
+      // s = (a / |a|) conj(b) / den, so that [c s; -conj(s) c] [a; b] = [r; 0]
+      const sc = na > 0 ? [(a[0] * b[0] + a[1] * b[1]) / (na * den), (a[1] * b[0] - a[0] * b[1]) / (na * den)] : [b[0] / den, -b[1] / den];
+      cs.push(c); sn.push(sc);
+      H[m][m] = [c * a[0] + (sc[0] * b[0] - sc[1] * b[1]), c * a[1] + (sc[0] * b[1] + sc[1] * b[0])];
+      H[m][m + 1] = [0, 0];
+      const gm = g[m];
+      g.push([-(sc[0] * gm[0] + sc[1] * gm[1]), -(sc[0] * gm[1] - sc[1] * gm[0])]);
+      g[m] = [c * gm[0], c * gm[1]];
+      void s;
+      resid = Math.hypot(g[m + 1][0], g[m + 1][1]) / bn;
+      if (resid < PUP_TOL || !(hn > 0)) { m++; break; }
+      V.push(w.map(v => v / hn));
+    }
+    // back substitution
+    const y = new Array(m).fill(null).map(() => [0, 0]);
+    for (let i = m - 1; i >= 0; i--) {
+      let t = [g[i][0], g[i][1]];
+      for (let j = i + 1; j < m; j++) { const h = H[j][i]; t = [t[0] - (h[0] * y[j][0] - h[1] * y[j][1]), t[1] - (h[0] * y[j][1] + h[1] * y[j][0])]; }
+      const d = H[i][i], dd = d[0] * d[0] + d[1] * d[1] || 1e-300;
+      y[i] = [(t[0] * d[0] + t[1] * d[1]) / dd, (t[1] * d[0] - t[0] * d[1]) / dd];
+    }
+    for (let i = 0; i < m; i++) for (let q = 0; q < n; q += 2) { x[q] += y[i][0] * V[i][q] - y[i][1] * V[i][q + 1]; x[q + 1] += y[i][0] * V[i][q + 1] + y[i][1] * V[i][q]; }
+    if (resid < PUP_TOL) break;
+  }
+  return { x, iters, resid };
+}
+/* the empty cavity's lock, from its steady state: the round trip (A to A, physicists' convention) */
+function pupLock(P) {
+  const SV = cavSolved.get(P.c.id);
+  if (!SV || !SV.res || SV.trace !== lastTrace) return null;
+  const md = cavModes(SV.res, P.c.fsr, 8);
+  if (!md.length) return null;
+  const m0 = md.reduce((a, v) => (v.share > a.share ? v : a)), c = Math.cos(SV.delta), s = Math.sin(SV.delta);
+  const l = [m0.lam[0] * c - m0.lam[1] * s, m0.lam[0] * s + m0.lam[1] * c];
+  return { lam: [l[0], -l[1]], delta: SV.delta };
+}
+const PUP_EPS0 = EPS0;
 /* ---------- The light a particle scatters ----------
    A Particle part (of any of the shapes), in the light the bench
    puts on it, by one of three models: a sphere exactly (Lorenz-Mie, core/mie.js), any shape as
@@ -45086,9 +45381,124 @@ function* scatterGen(el, R, opts) {
     cavL = launches.findIndex(L => L.ref && L.ref.coh === plan.legF.q.coh);
     if (cavK.why || cavL < 0) { plan.why = cavK.why || 'launch'; cavK = null; cavL = -1; }
   }
+  // A degenerate cavity (or one near it) is solved in the pupil instead (engines/scatter-pupil.js): the particle's light as
+  // directions over the mirrors' caps, each traced round to its return
+  let pup = null, pupL = -1, pupWhy = null;
+  if (plan && (plan.why === 'degenerate' || plan.why === 'unstable')) {
+    const Cw = [C[0], C[1], C[2] + zRef], PP = pupilPlan(TB, Cw, nMed, nm);
+    if (PP && !PP.why) {
+      // the empty cavity's waves at the particle: forward (towards the far mirror: the light let in and the loop's leg) and back
+      const at = q => { const W = scatterWaves([q], C, nMed, 0, zRef).launches[0]; return W && W.n ? Array.from(W.E.subarray(0, 6)) : [0, 0, 0, 0, 0, 0]; };
+      const sum = qs => qs.map(at).reduce((a, e) => a.map((v, i) => v + e[i]), [0, 0, 0, 0, 0, 0]);
+      const ef = sum([PP.legF.q, ...PP.entry]), eb = at(PP.legB.q);
+      // along the light's own polarisation
+      const pr = e => [pol[0] * e[0] + pol[1] * e[1] + pol[2] * e[2] + pol[3] * e[3] + pol[4] * e[4] + pol[5] * e[5], pol[0] * e[1] - pol[1] * e[0] + pol[2] * e[3] - pol[3] * e[2] + pol[4] * e[5] - pol[5] * e[4]];
+      const f = pr(ef), b = pr(eb), d = f[0] * f[0] + f[1] * f[1], h2 = d > 0 ? [(b[0] * f[0] + b[1] * f[1]) / d, (b[1] * f[0] - b[0] * f[1]) / d] : null;
+      // each leg's own light at the particle, as plane waves over the grid: its field there spread by its beam's angular
+      // spectrum (referred to the particle: its waist z before it and its axis r off it)
+      const legWaves = (q, sg) => {
+        const b0 = q.b, Fb = beamFrame(b0), r = [0, 1, 2].map(i => Cw[i] - Fb.P0[i]), t = r[0] * Fb.d[0] + r[1] * Fb.d[1] + r[2] * Fb.d[2];
+        const kmm = 2 * Math.PI * b0.n / (b0.nm * 1e-6), z = b0.qr + t, w0 = Math.sqrt(b0.nm * 1e-6 / b0.n * b0.qi / Math.PI), off = [0, 1, 2].map(i => r[i] - t * Fb.d[i]);
+        return { e: at(q), kmm, z, w0, off, d: Fb.d, sg };
+      };
+      PP.legSpec = [legWaves(PP.legF.q, 1), legWaves(PP.legB.q, -1)];
+      const lock = pupLock(PP);
+      pupL = launches.findIndex(L => L.ref && L.ref.coh === PP.legF.q.coh);
+      if (!lock) pupWhy = 'steady';
+      else if (pupL < 0) pupWhy = 'launch';
+      else {
+        const G = pupGrid(PP), Rt = pupReturns(PP, G, 2 * Math.PI / (nm * 1e-6), nMed, nm * 1e-9 / nMed, h2, lock.lam);
+        if (!Rt) pupWhy = 'noimage';
+        else pup = { PP, G, Rt, f, b, h2, lock, lamM: nm * 1e-9 / nMed };
+      }
+    } else if (PP) pupWhy = PP.why;
+    if (pup) plan.why = null;
+  }
   // (one the solve does not take keeps the warning, whether or not its light is seen to come back by returnPlan)
   if (plan && plan.why && !flags.includes('cavity')) flags.push('cavity');
-  if (plan) out.cav = { canon: plan.c.id, name: plan.c.name, solved: !plan.why, why: plan.why || null, degen: plan.degen || null, finesse: plan.c.finesse, gouy: plan.c.gouy };
+  if (plan) out.cav = { canon: plan.c.id, name: plan.c.name, solved: !plan.why, why: plan.why || null, degen: plan.degen || null, finesse: plan.c.finesse, gouy: plan.c.gouy, ...(pupWhy ? { pupWhy } : {}) };
+  // the pupil solve, for a launch: x = T(-i lambda x + F0 + P x), respond(A) the particle's far field over the grid for the
+  // waves A (6 N, per steradian); the returned waves joined to the launch
+  const pupSolve = function* (L, F0, respond) {
+    const { G, Rt, lamM } = pup, N = G.N, t0p = Date.now();
+    // x - C x = T(F0 + P x), C x = T(-i lambda x) the empty cavity's own returns: (1 - C)^-1 as its series (sparse, cheap,
+    // as many terms as the round trips take to die away), so that GMRES has only the particle's part left to find
+    const Fo = new Float64Array(6 * N);
+    let terms = 0;
+    const series = v => {
+      const s = Float64Array.from(v);
+      let t = v;
+      for (let it = 0; it < 200000; it++) {
+        for (let q = 0; q < 6 * N; q += 2) { Fo[q] = lamM * t[q + 1]; Fo[q + 1] = -lamM * t[q]; }
+        t = pupApply(G, Rt, Fo);
+        let a2 = 0, s2 = 0; for (let q = 0; q < 6 * N; q++) { s[q] += t[q]; a2 += t[q] * t[q]; s2 += s[q] * s[q]; }
+        terms++;
+        if (!(a2 > 1e-26 * s2)) break;
+      }
+      return s;
+    };
+    const B = function* (x) { return series(pupApply(G, Rt, yield* respond(x))); };
+    const rhs = series(pupApply(G, Rt, F0)), S = yield* pupGmres(B, rhs);
+    const x = S.x, n0 = L.n, d = new Float64Array(3 * (n0 + N)), E = new Float64Array(6 * (n0 + N));
+    d.set(L.d); E.set(L.E); d.set(G.dirs, 3 * n0);
+    const e0 = wavesAt0(L), er = [0, 0, 0, 0, 0, 0];
+    for (let i = 0; i < N; i++) for (let q = 0; q < 6; q++) { const v = x[6 * i + q] * G.w[i]; E[6 * (n0 + i) + q] = v; er[q] += v; }
+    L.n0 = n0; L.d = d; L.E = E; L.n = n0 + N;
+    const et = e0.map((v, q) => v + er[q]);
+    // what the cavity's light is taken by in the field run: each leg's wave against its own, coming in and going out
+    // (the forward leg carries the whole forward change; the light let in, none), by projection on its spectrum
+    const Px = yield* respond(x), Fp = new Float64Array(6 * N), Fp0 = F0;
+    for (let q = 0; q < 6 * N; q++) Fp[q] = F0[q] + Px[q];
+    const tw = [], tin = [], tout = [];
+    for (const [li, LS] of pup.PP.legSpec.entries()) {
+      let n0 = [0, 0], nin = [0, 0], nout = [0, 0], gw = 0, gg = 0;
+      const g = new Float64Array(2 * N);
+      for (let i = 0; i < N; i++) {
+        const u = [G.dirs[3 * i], G.dirs[3 * i + 1], G.dirs[3 * i + 2]], c = u[0] * LS.d[0] + u[1] * LS.d[1] + u[2] * LS.d[2];
+        if (c <= 0) continue;
+        const th2 = Math.max(0, 1 - c * c), amp = Math.exp(-((LS.kmm * LS.w0) ** 2) * th2 / 4), ph = -LS.kmm * LS.z * th2 / 2 + LS.kmm * (u[0] * LS.off[0] + u[1] * LS.off[1] + u[2] * LS.off[2]);
+        g[2 * i] = amp * Math.cos(ph); g[2 * i + 1] = amp * Math.sin(ph);
+        gw += G.w[i] * g[2 * i]; gg += G.w[i] * amp * amp;
+      }
+      void gw;
+      // <A, X> = sum w conj(A) . X, A = e g / sum(w g): the ratio needs only <g e, X> / (|e|^2 sum w |g|^2) times sum(w g)
+      let sgr = 0, sgi = 0;
+      for (let i = 0; i < N; i++) { sgr += G.w[i] * g[2 * i]; sgi += G.w[i] * g[2 * i + 1]; }
+      const e = LS.e, ee = abs2(e);
+      for (let i = 0; i < N; i++) {
+        if (g[2 * i] === 0 && g[2 * i + 1] === 0) continue;
+        // conj(g e) . X for X the incoming change x and the outgoing change (x + Fp / (-i lambda))
+        for (let q = 0; q < 3; q++) {
+          const er2 = e[2 * q] * g[2 * i] - e[2 * q + 1] * g[2 * i + 1], ei2 = e[2 * q] * g[2 * i + 1] + e[2 * q + 1] * g[2 * i];
+          const xr = x[6 * i + 2 * q], xi = x[6 * i + 2 * q + 1];
+          // Fp / (-i lambda) = i Fp / lambda
+          const orr = xr - Fp[6 * i + 2 * q + 1] / lamM, oi = xi + Fp[6 * i + 2 * q] / lamM;
+          nin[0] += G.w[i] * (er2 * xr + ei2 * xi); nin[1] += G.w[i] * (er2 * xi - ei2 * xr);
+          nout[0] += G.w[i] * (er2 * orr + ei2 * oi); nout[1] += G.w[i] * (er2 * oi - ei2 * orr);
+        }
+      }
+      void n0; void Fp0;
+      // <A, A> = |e|^2 gg / |sum w g|^2;  <A, X> = conj(sum w g)^-1 ... : ratio = <g e, X> (sum w g)^* ... over (|e|^2 gg)
+      const S2 = sgr * sgr + sgi * sgi, den = ee * gg;
+      const mul = (a) => [(a[0] * sgr - a[1] * sgi) / den, (a[0] * sgi + a[1] * sgr) / den];
+      void S2;
+      const ri = mul(nin), ro = mul(nout);
+      tin[li] = [1 + ri[0], ri[1]]; tout[li] = [1 + ro[0], ro[1]];
+      tw.push({ ri, ro });
+    }
+    const cdv = (a, b) => { const d = b[0] * b[0] + b[1] * b[1]; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
+    // by loop leg: [0] or [1] of the cavity's segments
+    const jf = pup.PP.legF.j, jb = pup.PP.legB.j, Tin = [], Tout = [];
+    Tin[jf] = tin[0]; Tout[jf] = tout[0]; Tin[jb] = tin[1]; Tout[jb] = tout[1];
+    out.cav.load = { start: Tin[0], ends: [cdv(Tout[0], Tin[0]), cdv(Tout[1], Tout[0])] };
+    out.cav.s = { fin: tin[0], fout: tout[0], bin: tin[1], bout: tout[1] };
+    out.cav.mirrors = pup.PP.M.map(m => m.el.id);
+    Object.assign(out.cav, { method: 'pupil', pattern: pup.PP.pattern, nodes: N, lost: Rt.lost, iters: S.iters, terms, resid: S.resid, fresnel: pup.PP.fresnel, h2: pup.h2, lam00: pup.lock.lam, dLock: pup.lock.delta,
+      E2ratio: abs2(et) / abs2(e0), returnedField: er, f0: pup.f, b0: pup.b, dir: pup.PP.dir, ms: Date.now() - t0p });
+    if (pup.PP.fresnel < PUP_FRESNEL && !flags.includes('fresnel')) flags.push('fresnel');
+    return { x, er };
+  };
+  const pupWaves = A => { const N = pup.G.N, E = new Float64Array(6 * N); for (let i = 0; i < N; i++) for (let q = 0; q < 6; q++) E[6 * i + q] = A[6 * i + q] * pup.G.w[i]; return { n: N, d: pup.G.dirs, E }; };
   const cavDirs = cavK ? Float64Array.of(...plan.dir, ...plan.dir.map(v => -v)) : null;
   const unitWave = i => ({ n: 1, d: Float64Array.from(i < 2 ? plan.dir : plan.dir.map(v => -v)), E: Float64Array.from((i % 2 ? plan.ey : plan.ex).flatMap(v => [v, 0])) });
   // the solve's answer kept on the answer, and the returned waves joined to the launch
@@ -45130,10 +45540,12 @@ function* scatterGen(el, R, opts) {
     if (P.shape !== 'sphere') flags.push('mieNotSphere');
     const tab = mieTable(CM);
     // the particle's own light that a retro-reflector brings back to it, scattered again (see particleReturn)
-    launches.forEach((L, i) => {
-      if (i !== cavL) { particleReturn(L, { TB, nMed, zRef, F0, C, d0, k, tab, flags, out }); return; }
+    for (let i = 0; i < launches.length; i++) {
+      const L = launches[i];
+      if (pup && i === pupL) { yield* pupSolve(L, mieFarWaves(tab, k, L, pup.G.dirs), function* (A) { return mieFarWaves(tab, k, pupWaves(A), pup.G.dirs); }); continue; }
+      if (i !== cavL) { particleReturn(L, { TB, nMed, zRef, F0, C, d0, k, tab, flags, out }); continue; }
       cavDone(L, cavitySolve(plan, cavK, mieFarWaves(tab, k, L, cavDirs), j => mieFarWaves(tab, k, unitWave(j), cavDirs), k, nMed));
-    });
+    }
     for (const L of launches) {
       fars.push(dirs => mieFarWaves(tab, k, L, dirs));
       yield { stage: 'sphere' };
@@ -45146,15 +45558,20 @@ function* scatterGen(el, R, opts) {
     out.mie = { terms: CM.n };
   } else if (model === 'rayleigh') {
     if (mAbs * out.kL > 0.5) flags.push('rayleighBig');
-    E0s.forEach((e0, i) => {
+    for (let i = 0; i < E0s.length; i++) {
+      const e0 = E0s[i];
       // its own light a retro-reflector brings back: the field of the returned waves at its centre added, iterated
       let e = e0, p = smallP(e);
+      if (pup && i === pupL) {
+        const sol = yield* pupSolve(launches[i], dipoleFar(k, p, pup.G.dirs), function* (A) { const W = pupWaves(A); return dipoleFar(k, smallP(wavesAt0(W)), pup.G.dirs); });
+        e = e0.map((v, q) => v + sol.er[q]); p = smallP(e);
+      }
       if (i === cavL) {
         const sol = cavitySolve(plan, cavK, dipoleFar(k, p, cavDirs), j => dipoleFar(k, smallP(Array.from(unitWave(j).E)), cavDirs), k, nMed);
         e = e0.map((v, q) => v + sol.Ef[q] + sol.Eb[q]); p = smallP(e);
         cavDone(launches[i], sol);
       }
-      const R = i === cavL ? null : returnPlan(launches[i], { TB, nMed, zRef, C, d0, k, flags });
+      const R = i === cavL || (pup && i === pupL) ? null : returnPlan(launches[i], { TB, nMed, zRef, C, d0, k, flags });
       if (R) {
         let Fc = dipoleFar(k, p, R.dirs), passes = 0, change = 0;
         for (; passes < R.cap; passes++) {
@@ -45167,7 +45584,7 @@ function* scatterGen(el, R, opts) {
       fars.push(dirs => dipoleFar(k, p, dirs));
       let s = 0; for (let q = 0; q < 3; q++) s += e[2 * q] * p[2 * q + 1] - e[2 * q + 1] * p[2 * q];
       Pext.push(4 * Math.PI * k * s / (2 * Z)); Pabs.push(null);
-    });
+    }
     const p1 = smallP(pol);
     ref = refFrom(dirs => dipoleFar(k, p1, dirs), out.rayleigh.Cext, out.rayleigh.Cabs, 1);
     ref.Csca = out.rayleigh.Csca;
@@ -45206,7 +45623,21 @@ function* scatterGen(el, R, opts) {
       }
       // its own light a retro-reflector brings back: the returned field at every dipole added to the beams', and the array solved
       // again, each pass from the last answer
-      const R = launches.indexOf(L) === cavL ? null : returnPlan(L, { TB, nMed, zRef, C, d0, k, flags });
+      // in a degenerate cavity: each pass of the pupil solve one more solve of the array (from the last answer), the array's
+      // answer to all of it then the sum of the two, the array being linear
+      if (pup && launches.indexOf(L) === pupL) {
+        let last = null, pass = 0;
+        const sol = yield* pupSolve(L, farOf(p)(pup.G.dirs), function* (A) {
+          const Er = wavesOnLattice(pupWaves(A), lat, k, body);
+          last = yield* runSolve(Er, 'the cavity\u2019s returns, pass ' + (++pass), last);
+          return farOf(last)(pup.G.dirs);
+        });
+        const Er = wavesOnLattice(pupWaves(sol.x), lat, k, body), pr = yield* runSolve(Er, 'the cavity\u2019s returns', last);
+        const E2 = new Float64Array(E.length), p2 = new Float64Array(p.length);
+        for (let q = 0; q < E.length; q++) { E2[q] = E[q] + Er[q]; p2[q] = p[q] + pr[q]; }
+        E = E2; p = p2;
+      }
+      const R = launches.indexOf(L) === cavL || (pup && launches.indexOf(L) === pupL) ? null : returnPlan(L, { TB, nMed, zRef, C, d0, k, flags });
       if (R) {
         const E1 = E, its = [];
         let Fc = farOf(p)(R.dirs), passes = 0, change = 0;
@@ -45566,6 +45997,9 @@ function scatterLaunch(surfsBy) {
         if (st.probeKey) PROBES.set(el.id, { key: st.probeKey, met: met0 });
         // each part the look saw: its cone, and the power of every launch into it
         for (const c0 of st.cands) {
+          // a particle solved in a degenerate cavity's pupil: the light it sends onto the cavity's own mirrors is the cavity's
+          // (the field run carries what of it the beams hold); it is not sent as cones
+          if (S.cav && S.cav.method === 'pupil' && S.cav.mirrors && S.cav.mirrors.includes(c0.el.id)) continue;
           let far = 0; for (let i = 0; i < SC_LOOK; i++) { const m = met0[c0.look + i]; if (m && m.el === c0.el.id) far = Math.max(far, m.t); }
           if (!(far > 0)) continue;
           c0.G = coneDirs(c0.axis, c0.half);

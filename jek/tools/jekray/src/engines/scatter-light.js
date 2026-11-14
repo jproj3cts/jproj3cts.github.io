@@ -243,6 +243,9 @@ export function scatterLaunch(surfsBy) {
         if (st.probeKey) PROBES.set(el.id, { key: st.probeKey, met: met0 });
         // each part the look saw: its cone, and the power of every launch into it
         for (const c0 of st.cands) {
+          // a particle solved in a degenerate cavity's pupil: the light it sends onto the cavity's own mirrors is the cavity's
+          // (the field run carries what of it the beams hold); it is not sent as cones
+          if (S.cav && S.cav.method === 'pupil' && S.cav.mirrors && S.cav.mirrors.includes(c0.el.id)) continue;
           let far = 0; for (let i = 0; i < SC_LOOK; i++) { const m = met0[c0.look + i]; if (m && m.el === c0.el.id) far = Math.max(far, m.t); }
           if (!(far > 0)) continue;
           c0.G = coneDirs(c0.axis, c0.half);

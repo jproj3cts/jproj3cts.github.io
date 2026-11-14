@@ -243,6 +243,27 @@ def closed_form_beta(cav, h1, h2):
     return (1j / LAM) * K * K / (4 * np.pi * EPS0) * (S1 + S2) * np.diag([phi_perp, phi_perp, phi_z])
 
 
+W0_LASER = 20e-6          # the laser's waist, at the cavity's middle
+
+
+def beam_spectrum(U, rp):
+    """the forward beam's plane waves (unit field at the sphere): a Gaussian of waist W0_LASER at the origin along +z, its
+    spectrum referred to the sphere at rp; zero off the forward cap"""
+    th2 = np.maximum(0, 1 - U[:, 2] ** 2)
+    g = np.exp(-(K * W0_LASER) ** 2 * th2 / 4) * np.exp(1j * K * ((U - np.array([0, 0, 1.0])) @ rp))
+    return np.where(U[:, 2] > 0, g, 0)
+
+
+def through_change(U, W, Xout, f, pol, rp):
+    """the change of the forward beam leaving the sphere (the light through the far mirror), first order and to all
+    orders: ratio = <A, X> / <A, A> with A = f pol g / sum(w g), X the change of the forward waves (A units)"""
+    g = beam_spectrum(U, rp)
+    Sg, gg = np.sum(W * g), np.sum(W * abs(g) ** 2)
+    num = np.sum(W * np.conj(g) * (Xout @ pol)) * np.conj(f) / abs(f) ** 2
+    ratio = num * Sg / gg
+    return complex(ratio), float(abs(1 + ratio) ** 2 - 1)
+
+
 def dipole_case(cav, alpha, f, b, pol):
     E0 = (f + b) * pol
     Bt = cav.beta()
@@ -250,7 +271,31 @@ def dipole_case(cav, alpha, f, b, pol):
     Etot = E0 + Bt @ p
     Psca = C0 ** 2 * Z0 * K ** 4 / (12 * np.pi) * np.sum(abs(p) ** 2)
     Pext = OMEGA / 2 * np.imag(np.vdot(Etot, p))
-    return dict(E2_ratio=float(np.sum(abs(Etot) ** 2) / np.sum(abs(E0) ** 2)), Psca_W=float(Psca), Pext_W=float(Pext), I0=float(np.sum(abs(E0) ** 2) / (2 * Z0)))
+    # the through beam: the returns that come back along the forward cap near the axis, and the dipole's own forward light
+    U, Wg = cap_grid(cav.theta, 601)
+    near = np.arccos(np.clip(np.abs(U[:, 2]), -1, 1)) < 0.15
+    U, Wg = U[near], Wg[near]
+    Fp = dipole_far(p, U)
+    X = (1j / LAM) * Fp * (U[:, 2] > 0)[:, None]
+    # returns: emission along u comes back along d; add its plane wave where d is (onto the nearest grid direction)
+    for n, (d, phi, amp, Mx, alive) in enumerate(trace_returns(cav.m, cav.rp, U, cav.pattern, 400)):
+        A = -(1j / LAM) * (-1) ** n * (amp * np.exp(1j * K * phi) * alive)[:, None] * np.einsum('nij,nj->ni', Mx, Fp)
+        fw = (d[:, 2] > 0) & alive
+        if fw.any():
+            # an integral over the emission's own grid: <A_beam, dA> = sum_u w_u conj(A_beam(d(u))) . A(u)
+            g = beam_spectrum(d[fw], cav.rp)
+            X_ = None
+            Sg_dummy = None
+            dipole_case.acc = getattr(dipole_case, 'acc', 0) + np.sum(Wg[fw] * np.conj(g) * (A[fw] @ pol))
+        if not alive.any() or np.max(np.abs(amp[alive])) < 1e-9:
+            break
+    gU = beam_spectrum(U, cav.rp)
+    Sg, gg = np.sum(Wg * gU), np.sum(Wg * abs(gU) ** 2)
+    num = (np.sum(Wg * np.conj(gU) * (X @ pol)) + dipole_case.acc) * np.conj(f) / abs(f) ** 2
+    dipole_case.acc = 0
+    ratio = num * Sg / gg
+    return dict(E2_ratio=float(np.sum(abs(Etot) ** 2) / np.sum(abs(E0) ** 2)), Psca_W=float(Psca), Pext_W=float(Pext), I0=float(np.sum(abs(E0) ** 2) / (2 * Z0)),
+                through_ratio=[float(ratio.real), float(ratio.imag)], through_change=float(abs(1 + ratio) ** 2 - 1))
 
 
 def mie_case(cav, sph, f, b, pol, n=41):
@@ -261,8 +306,11 @@ def mie_case(cav, sph, f, b, pol, n=41):
     d, phi, amp, Mx, alive = rets[0]
     # where each direction comes back to on the grid
     tgt = np.array([np.argmin(np.sum((U - d[i]) ** 2, 1)) for i in range(N)])
+    # (an off-axis point's image is not quite a mirror image: coma moves its rays by a thousandth of the grid's step or
+    # less, and each is taken onto the nearest grid direction)
     miss = np.max(np.linalg.norm(U[tgt] - d, axis=1)[alive]) if alive.any() else 0
-    assert miss < 1e-9, miss
+    step = np.sin(cav.theta) * 1.02 * 2 / (n - 1)
+    assert miss < 2e-3 * step, (miss, step)
     fac = -(1j / LAM) * amp * np.exp(1j * K * phi) * alive
     drive_d = np.array([[0, 0, 1.0], [0, 0, -1.0]])
     drive_E = np.array([f * pol, b * pol])
@@ -295,16 +343,21 @@ def mie_case(cav, sph, f, b, pol, n=41):
     Fs = sph.far_many(D_all, E_all, R)
     Psca = float(np.sum(np.sum(abs(Fs) ** 2, -1) * WR) / (2 * Z0))
     Fd = sph.far_many(D_all, E_all, D_all)
+    # the through beam's change: the forward waves' change x + (i/lambda) F (A units), F the sphere's whole far field
+    Fg = Fd[2:]
+    ratio, chg = through_change(U, W, A + (1j / LAM) * Fg, f, pol, cav.rp)
     Pext = float(4 * np.pi / K * np.imag(np.sum(np.conj(E_all) * Fd)) / (2 * Z0))
     return dict(E2_ratio=float(np.sum(abs(Etot) ** 2) / np.sum(abs(E0) ** 2)), Psca_W=Psca, Pext_W=Pext, I0=float(np.sum(abs(E0) ** 2) / (2 * Z0)),
-                gmres_info=int(info), nodes=int(N))
+                gmres_info=int(info), nodes=int(N), through_ratio=[ratio.real, ratio.imag], through_change=chg)
 
 
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     bench = json.load(open(os.path.join(here, '..', 'ref', 'scatter-cavity-degen-bench.json')))
     n_si = complex(float(silica_index(1.55)), 0)
-    out = dict(wavelength_nm=1550, cases={}, checks={})
+    path = os.path.join(here, '..', 'ref', 'scatter-cavity-degen.json')
+    only = sys.argv[1:]
+    out = json.load(open(path)) if only and os.path.exists(path) else dict(wavelength_nm=1550, cases={}, checks={})
     # D0: the ray-traced series against the closed form, the ideal concentric cavity, the dipole at its centre
     cav = Cavity('concentric')
     h2 = np.sqrt(0.9) * np.exp(0.3j)
@@ -322,6 +375,8 @@ def main():
     out['checks']['D0'] = dict(beta_rel_diff=err, emission_series=float(1 + dP), emission_closed=float(1 + dPc))
     pol = np.array([1.0, 0, 0])
     for name, B0 in bench['cases'].items():
+        if only and name not in only:
+            continue
         cav = Cavity(B0['kind'], delta=B0.get('delta_m', 0.0), rp=B0.get('rp_m', (0, 0, 0)))
         h2 = complex(*B0['h2']) if B0.get('h2') else None
         lam = complex(*B0['lam'])
@@ -331,9 +386,9 @@ def main():
         res['dipole'] = dipole_case(cav, alpha, f, b, pol)
         if B0.get('mie'):
             res['mie'] = mie_case(cav, Sphere(150e-9, n_si), f, b, pol)
-        print(name, json.dumps(res))
+        print(name, json.dumps(res), flush=True)
         out['cases'][name] = res
-    with open(os.path.join(here, '..', 'ref', 'scatter-cavity-degen.json'), 'w') as fh:
+    with open(path, 'w') as fh:
         json.dump(out, fh, indent=1)
 
 

@@ -131,7 +131,7 @@ function partCone(P, el, ss) {
   }
   return cone;
 }
-const vsrc = (el, pos, nm, root, extra) => Object.assign({ type: 'source', virtual: true, name: el.name, bench: el.bench, x: pos[0], y: pos[1], z: pos[2], angle: 0, wavelength: nm, lines: [],
+export const vsrc = (el, pos, nm, root, extra) => Object.assign({ type: 'source', virtual: true, name: el.name, bench: el.bench, x: pos[0], y: pos[1], z: pos[2], angle: 0, wavelength: nm, lines: [],
   colourAuto: true, colour: wavelengthColour(nm), gauss: false, rays: 1, traceRays: true, width: 0, divergence: 0, pol: 's', polAngle: 0, coh: (root && root.coh) || 0,
   lineshape: (root && root.lineshape) || 'lorentz', power: 0, vLp: 0, tau: 0, vJ: [1, 0, 0, 0], vRoot: root, vLag: 0, vKey: 'scat:q0', vFo: 0, sweeps: {} }, extra);
 

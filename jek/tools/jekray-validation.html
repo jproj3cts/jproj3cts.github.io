@@ -2705,6 +2705,44 @@ const ALL_CASES = [
       } finally { J.cavDegenCheck(true); }
     },
   },
+  {
+    id: 'scatter-cavity-degen', area: 'Scattering', title: 'A particle inside a concentric or confocal cavity, solved in the pupil',
+    kind: 'Independent code', ref: 'scatter-cavity-degen.json', script: 'scatter_cavity_degen.py',
+    cite: 'The stationary-phase form of a converging spherical wave as plane waves (Born and Wolf, §8.8), Gouy’s π at each focus, and the vector law of a perfect mirror; Bohren and Huffman (1983), chapter 4, for Mie theory. The reference’s ray-traced series is checked against the closed form for a dipole at the centre of an ideal concentric cavity.',
+    what: 'Two mirrors of 90%, 5 mm across, a 1550 nm laser of 1 mW focused to 20 µm at the middle: concentric (R = 10 mm, 20 mm apart), and 2, 10 and 50 µm short of it; confocal (paraboloids, R = 20 mm, 20 mm apart). A silica sphere at the centre, beside it by 0.2 µm along and across, and 2 µm off the confocal axis: 50 nm as a single dipole, 150 nm by Mie and as a dipole array. JEKray traces every direction over the mirrors’ caps once round the cavity with its own tracer, follows each direction’s returns through that map until they fade, and solves the particle with them. The reference is written in Python and shares no code with JEKray: exact rays on the mirrors, each return a converging wave, the dipole summed ray by ray, the Mie sphere solved on a grid of directions by GMRES. From JEKray it takes only the empty cavity’s lock and the standing wave at the particle.',
+    tolerance: 'The reference against the closed form within 10⁻³. The light at the particle with its returns, |E|²/|E₀|² − 1, within 2% of the reference’s (5% near degeneracy); the scattered power and extinction within 3%; the detector behind the far mirror’s change within 10%. A cavity of Fresnel number under 10 gets the note.',
+    async run(J, R) {
+      const checks = [], benches = [], B = R.bench, C = R.cases;
+      const mir = (kind, d, len) => { const [Rm, k] = kind === 'concentric' ? [10, 0] : [20, -1];
+        return [{ id: 'm1', type: 'mirror', name: 'M1', x: -10, y: 0, angle: 0, length: len || 5, reflect: 90, transmit: 10, R: Rm, k }, { id: 'm2', type: 'mirror', name: 'M2', x: 10 - d, y: 0, angle: 180, length: len || 5, reflect: 90, transmit: 10, R: Rm, k }]; };
+      const open = (kind, d, rp, model, len) => { const doc = bench('A particle in a degenerate cavity', [{ id: 'laser', type: 'source', name: 'Laser', x: -40, y: 0, angle: 0, wavelength: 1550, gauss: true, w0: 0.02, z0: 40, rays: 0, traceRays: false, power: 1, pol: 's' },
+        ...mir(kind, d, len), { id: 'through', type: 'detector', name: 'Through', x: 30, y: 0, angle: 180, length: 30 },
+        ...(model ? [{ id: 'p', type: 'particle', name: 'Particle', x: rp[2] * 1e3, y: rp[1] * 1e3, angle: 90, trapMat: 'Fused silica', trapR: model === 'rayleigh' ? 50 : 150, trapMed: 'vacuum', scatModel: model }] : [])], { maxBounces: 60, minPower: 1e-6 }); J.load(doc); J.trace(); return doc; };
+      const D0 = R.checks.D0;
+      checks.push(check('Reference: its ray-traced series against the closed form (largest difference)', 0, D0.beta_rel_diff, { abs: 1e-3 }));
+      const list = [['concentric', 'rayleigh', 'dipole'], ['concentric', 'mie', 'mie'], ['concentric', 'dda', 'mie'], ['concentric-along', 'rayleigh', 'dipole'], ['concentric-across', 'rayleigh', 'dipole'],
+        ['concentric-2um', 'rayleigh', 'dipole'], ['concentric-10um', 'rayleigh', 'dipole'], ['concentric-50um', 'rayleigh', 'dipole'], ['confocal', 'rayleigh', 'dipole'], ['confocal', 'mie', 'mie'],
+        ['confocal-across', 'rayleigh', 'dipole'], ['confocal-across', 'mie', 'mie']];
+      for (const [name, model, rn] of list) {
+        const b0 = B.cases[name], Rf = C[name][rn], data = open(b0.kind, b0.delta_m * 1e3, b0.rp_m, model), S = J.scatter('Particle'), K = S.cav || {};
+        if (name === 'concentric' && model === 'mie') benches.push(['The concentric cavity, a Mie sphere at its centre', data]);
+        const tol = /um$/.test(name) ? 0.05 : 0.02, lab = name.replace('-', ', ') + ', ' + ({ rayleigh: 'single dipole', mie: 'Mie', dda: 'dipole array' })[model] + ': ';
+        checks.push(check(lab + 'the light at the particle with its returns (change from the empty cavity’s, ×10⁻³)', (Rf.E2_ratio - 1) * 1e3, (K.E2ratio - 1) * 1e3, { abs: tol * Math.abs(Rf.E2_ratio - 1) * 1e3 }));
+        checks.push(check(lab + 'the scattered power (pW)', Rf.Psca_W * 1e12, S.Psca * 1e12, { rel: 0.03 }));
+        if ((name === 'concentric' || name === 'confocal') && model !== 'dda') {
+          const on = J.detector('Through').mw;
+          // the reading without the particle's factors: the same bench, the particle's light off
+          const off = (() => { const doc = bench('A particle in a degenerate cavity', [{ id: 'laser', type: 'source', name: 'Laser', x: -40, y: 0, angle: 0, wavelength: 1550, gauss: true, w0: 0.02, z0: 40, rays: 0, traceRays: false, power: 1, pol: 's' }, ...mir(b0.kind, b0.delta_m * 1e3), { id: 'through', type: 'detector', name: 'Through', x: 30, y: 0, angle: 180, length: 30 }], { maxBounces: 60, minPower: 1e-6 }); J.load(doc); J.trace(); return J.detector('Through').mw; })();
+          checks.push(check(lab + 'the detector behind the far mirror, its change (×10⁻⁴ of its reading)', Rf.through_change * 1e4, (on / off - 1) * 1e4, { abs: 0.1 * Math.abs(Rf.through_change) * 1e4 }));
+        }
+        await idle();
+      }
+      // D9: mirrors 0.3 mm across: a Fresnel number of 0.7
+      open('concentric', 0, [0, 0, 0], 'rayleigh', 0.3); const Sf = J.scatter('Particle');
+      checks.push(check('Mirrors 0.3 mm across (Fresnel number ' + fmt(Sf.cav && Sf.cav.fresnel, 2) + '): the note shows (1)', 1, Sf.flags.includes('fresnel') ? 1 : 0, { abs: 0 }));
+      return { checks, benches, notes: 'An exactly concentric cavity passes 0.633 of the light even empty (an independent Fox–Li calculation, concentric_empty.py, gives 0.63295; JEKray 0.63283): its round trip is a shear, so a beam focused at its middle comes back more curved each time. The lock the particle’s returns take is the empty cavity’s own light at the particle for an exactly concentric cavity, and the steady state’s TEM₀₀ without its Gouy phase near it.' };
+    },
+  },
 ];
 
 /* ---------- Running and reporting ---------- */

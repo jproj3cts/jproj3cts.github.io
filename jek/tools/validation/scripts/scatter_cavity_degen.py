@@ -467,6 +467,7 @@ def main():
             res['mie'] = mie_case(cav, Sphere(150e-9, n_si), f, b, pol)
         print(name, json.dumps(res), flush=True)
         out['cases'][name] = res
+    out['bench'] = bench          # (the validation page reads the benches from here)
     with open(path, 'w') as fh:
         json.dump(out, fh, indent=1)
 

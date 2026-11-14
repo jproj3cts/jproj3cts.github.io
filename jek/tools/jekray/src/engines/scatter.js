@@ -352,7 +352,7 @@ export function* scatterGen(el, R, opts) {
   // directions over the mirrors' caps, each traced round to its return
   let pup = null, pupL = -1, pupWhy = null;
   if (plan && (plan.why === 'degenerate' || plan.why === 'unstable')) {
-    const Cw = [C[0], C[1], C[2] + zRef], PP = pupilPlan(TB, Cw, nMed, nm);
+    const Cw = [C[0], C[1], C[2] + zRef], PP = pupilPlan(TB, Cw, nMed, nm, el);
     if (PP && !PP.why) {
       // the empty cavity's waves at the particle: forward (towards the far mirror: the light let in and the loop's leg) and back
       const at = q => { const W = scatterWaves([q], C, nMed, 0, zRef).launches[0]; return W && W.n ? Array.from(W.E.subarray(0, 6)) : [0, 0, 0, 0, 0, 0]; };

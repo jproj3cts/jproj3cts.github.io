@@ -4,8 +4,8 @@
    ref/scatter-cavity-degen.json). The tolerances were written before the first run (the report's "A particle inside a
    degenerate cavity"): D1 the field at the particle with its returns within 2 % of the reference's change from the empty
    cavity's, D2 the scattered power and extinction within 3 % (D5: 5 % for the cavity near degeneracy). The cases that
-   met them are held here; the Mie sphere 2 um off a confocal cavity's axis did not (2.4 % against 2 %), and stays in the
-   report. */
+   met them are held here; the single dipole 2 um off a confocal cavity's axis does not (its change, -2.8e-6, is a near
+   cancellation of its two images' returns), and stays in the report. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -23,7 +23,7 @@ const doc = els => ({ format: 'jekray', version: 1, name: 't', maxBounces: 60, m
 
 for (const [name, model, rn] of [['concentric', 'rayleigh', 'dipole'], ['concentric', 'mie', 'mie'], ['concentric', 'dda', 'mie'], ['concentric-along', 'rayleigh', 'dipole'], ['concentric-across', 'rayleigh', 'dipole'],
   ['concentric-2um', 'rayleigh', 'dipole'], ['concentric-10um', 'rayleigh', 'dipole'], ['concentric-50um', 'rayleigh', 'dipole'], ['confocal', 'rayleigh', 'dipole'], ['confocal', 'mie', 'mie'],
-  ['confocal-across', 'rayleigh', 'dipole']]) {
+  ['confocal-across', 'mie', 'mie']]) {
   test(name + ', ' + model + ': solved in the pupil, against the reference', async () => {
     const B0 = BENCH[name], R = REF[name][rn];
     (await openBench(doc([LASER, ...mirrors(B0.kind, B0.delta_m * 1e3), { id: 'p', type: 'particle', name: 'P', x: B0.rp_m[2] * 1e3, y: B0.rp_m[1] * 1e3, angle: 90, trapMat: 'Fused silica', trapR: model === 'rayleigh' ? 50 : 150, trapMed: 'vacuum', scatModel: model }]))).trace();

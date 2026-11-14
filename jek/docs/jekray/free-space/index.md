@@ -256,7 +256,7 @@ where $$S$$ is the power entering it summed over its passes, and $$w$$ the cavit
 
 ### A particle inside
 
-A [Particle](/jek/docs/jekray/free-space/scattering/#inside-a-cavity) between the two mirrors of a stable, non-degenerate cavity is solved in the cavity's Hermite–Gauss modes, with each mode's round trip taken from the steady state above. Its light that goes round and comes back drives it again. The cavity's own light is then taken by what the particle does to it: the forward and backward waves are each multiplied by the factor the solve gives, so a detector behind either mirror reads the loaded cavity. The Scattering tab gives how far the particle moves the resonance and how much it widens it.
+A [Particle](/jek/docs/jekray/free-space/scattering/#inside-a-cavity) between the two mirrors of a stable, non-degenerate cavity is solved in the cavity's Hermite–Gauss modes, with each mode's round trip taken from the steady state above. Its light that goes round and comes back drives it again. The cavity's own light is then taken by what the particle does to it: the forward and backward waves are each multiplied by the factor the solve gives, so a detector behind either mirror reads the loaded cavity. The Scattering tab gives how far the particle moves the resonance and how much it widens it. A concentric or confocal cavity, or one near them, brings the particle's light back re-imaged; it is solved in the directions over its mirrors instead, each traced round by the tracer ([A degenerate cavity](/jek/docs/jekray/free-space/scattering/#a-degenerate-cavity)).
 
 ## Short pulses
 

@@ -19,6 +19,7 @@ import { deg, project } from '../state/project.js';
 import { faceAmps } from '../core/face-pol.js';
 import { scatRevNow } from './scatter.js';
 import { placeFromScreen, scatterLaunch } from './scatter-light.js';
+import { pmapLaunch, pmapStep } from './scatter-pupil-map.js';
 import { FREE_3D, VSRC, applySpins, beamOn, getEl, lampBody, lampEmits, lampRaysOf, lightOf, raysOn, setVSRC } from '../state/elements.js';
 import { ensureBenches, linkPairs } from '../state/tabs.js';
 import { dsagFn, kapIn, makeSurf, maskOf, rawDsag, rawSag, sagFn, zoneHit } from '../core/geometry.js';
@@ -898,7 +899,7 @@ function traceSceneOnce() {
       // a particle's scattered light (engines/scatter-light.js): each ray as it is given, its direction in 3D and its own
       // amplitudes; drawn by the power the whole cone carries. (vProbe: rays traced one step, to see what each meets.)
       const z0 = zOf(src);
-      if (!src.vProbe) { raySc[src.id] = lmw; srcMw[src.id] = src.power; }
+      if (!src.vProbe && !src.vMap) { raySc[src.id] = lmw; srcMw[src.id] = src.power; }
       const famS = famAt(famOf(0, false), src.vFo || 0);
       for (let i = src.vRays.length - 1; i >= 0; i--) {
         const r = src.vRays[i];
@@ -1041,6 +1042,8 @@ function traceSceneOnce() {
       let lastSeen = last, lastPrev = null;
       for (; bounce < maxB; bounce++) {
         if (--budget < 0) { truncated = true; break; }
+        // a cavity map's probe ray (engines/scatter-pupil-map.js): its state kept after each reflection, until it leaves
+        if (src.vMap && bounce > 0 && pmapStep(src.vMap, vK, bounce, px, py, zh, dx, dy, uz, opl, sr, si, pr, pi, par)) break;
         if (last !== lastSeen) { lastPrev = lastSeen; lastSeen = last; }
         const tMin = s => s === last || s === lastPrev ? 1e-4 : last && last.el && s.el !== last.el ? -EPS : EPS;
         let best = Infinity, hit = null, hitSeg = false;
@@ -2027,6 +2030,10 @@ function traceSceneOnce() {
   // particle says what the light meets first; then a cone to each of those parts is traced as rays of the driving laser
   {
     placeFromScreen();
+    // a particle in a two-mirror cavity: the cavity's one-pass map, traced here (engines/scatter-pupil-map.js), for its
+    // solve; no light of it is on the bench
+    const PM = pmapLaunch();
+    if (PM) { for (const v of PM.srcs) VSRC.set(v.id, v); runSources(PM.srcs); for (const v of PM.srcs) VSRC.delete(v.id); PM.done(); }
     const t0 = performance.now(), SL = scatterLaunch(surfsBy);
     if (SL) {
       // (ms: where the time went, for the tests and the report)

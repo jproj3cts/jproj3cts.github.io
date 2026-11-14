@@ -178,6 +178,7 @@
   "ui/closeup.js",
   "engines/diffraction.js",
   "engines/scatter-cavity.js",
+  "engines/scatter-pupil-map.js",
   "engines/scatter-pupil.js",
   "engines/scatter.js",
   "engines/scatter-light.js",

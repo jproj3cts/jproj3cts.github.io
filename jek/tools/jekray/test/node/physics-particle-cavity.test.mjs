@@ -135,3 +135,41 @@ test('the particle is solved in the empty cavity’s light; the field run takes 
     say('loaded against empty, through:', (on - off).toExponential(4), 'mW; from the forward wave’s factor', (want / 2).toExponential(4));
   } finally { SCV.setCavDegenCheck(true); }
 });
+
+/* Near degeneracy but outside its test (round-trip Gouy phase 0.70 to 0.90 rad): the mode solve's list stops at order 12
+   and the orders past it carry as much, so the returns are followed ray by ray for them (cavTail). Against the ray
+   reference (validation/scripts/scatter_cavity_degen.py, which has no list of modes): the change of |E|^2 at the
+   particle within 5%, written before the runs. The list alone is kept beside it: it has the wrong sign at 0.6 mm. */
+{
+  const DREF = JSON.parse(readFileSync(new URL('../../../validation/ref/scatter-cavity-degen.json', import.meta.url), 'utf8'));
+  const near = (d, len) => [{ id: 'laser', type: 'source', name: 'Laser', x: -40, y: 0, angle: 0, wavelength: 1550, gauss: true, w0: 0.02, z0: 40, rays: 0, traceRays: false, power: 1, pol: 's' },
+    { id: 'm1', type: 'mirror', name: 'M1', x: -10, y: 0, angle: 0, length: len, reflect: 90, transmit: 10, R: 10 }, { id: 'm2', type: 'mirror', name: 'M2', x: 10 - d, y: 0, angle: 180, length: len, reflect: 90, transmit: 10, R: 10 },
+    { id: 'p', type: 'particle', name: 'P', x: -d / 2, y: 0, angle: 90, trapMat: 'Fused silica', trapR: 50, trapMed: 'vacuum', scatModel: 'rayleigh' }];
+  for (const name of ['short-0.6mm', 'short-0.8mm', 'short-1.0mm']) {
+    test(name + ' of concentric, mirrors 2 mm across: the mode solve with the returns followed, against the reference', async () => {
+      const B0 = DREF.bench.cases[name], want = DREF.cases[name].dipole.E2_ratio - 1;
+      await open(near(B0.delta_m * 1e3, 2e3 * B0.a_m));
+      const S = SC.scatterNow(getEl('p')), C = S.cav;
+      assert.ok(C.solved && !C.method && C.tail && C.tail.returns > 1e6, JSON.stringify(C.tail));
+      say(name, 'change of |E|^2', (C.E2ratio - 1).toExponential(4), 'reference', want.toExponential(4), 'off by', ((C.E2ratio - 1) / want - 1).toExponential(2), 'reach', C.tail.reach.toFixed(2), 'shift/linewidth', C.shiftLw, 'widening', C.widenLw);
+      assert.ok(Math.abs(C.E2ratio - 1 - want) <= 0.05 * Math.abs(want), 'the change of |E|^2 ' + (C.E2ratio - 1) + ' against ' + want);
+      assert.ok(!S.flags.includes('modeNear') && C.tail.reach <= SCV.CAV_TAIL_REACH, 'a checked cavity carries no warning: ' + S.flags + ' ' + C.tail.reach);
+      // the list alone, and the shift and widening, which are the resonant mode's and do not move
+      const sh = [C.shiftLw, C.widenLw];
+      SCV.CAV_TAIL.on = false;
+      try {
+        await open(near(B0.delta_m * 1e3, 2e3 * B0.a_m));
+        const S0 = SC.scatterNow(getEl('p')), C0 = S0.cav;
+        say('   the list alone', (C0.E2ratio - 1).toExponential(4), 'flags', S0.flags.join(','));
+        assert.ok(!C0.tail && S0.flags.includes('modeNear'));
+        assert.ok(Math.abs(C0.shiftLw / sh[0] - 1) < 1e-9 && Math.abs(C0.widenLw / sh[1] - 1) < 1e-9, 'the shift or the widening moved');
+        if (name === 'short-0.6mm') assert.ok((C0.E2ratio - 1) * want < 0, 'the list alone no longer has the wrong sign here: say so in the notes');
+      } finally { SCV.CAV_TAIL.on = true; }
+    });
+  }
+  test('mirrors 5 mm across, 0.6 mm short: the returns cross too far from the particle to be trusted, and the warning stays', async () => {
+    await open(near(0.6, 5));
+    const S = SC.scatterNow(getEl('p')), C = S.cav;
+    assert.ok(C.solved && C.tail && C.tail.reach > SCV.CAV_TAIL_REACH && S.flags.includes('modeNear'), JSON.stringify(C.tail) + ' ' + S.flags);
+  });
+}

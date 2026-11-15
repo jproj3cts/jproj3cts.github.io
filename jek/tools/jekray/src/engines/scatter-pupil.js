@@ -61,6 +61,7 @@ export function pupilPlan(TB, Cw, nMed, nm, el) {
    taken for the share of it that does and at their mean direction; solid angles */
 export function pupGrid(P) {
   const { map } = P, out = [], w = [], at = [];
+  if (map.grid) return map.grid;          // (the map's own: kept with it while the cavity stays as it is)
   const capCells = [0, 1].map(ci => new Map());
   map.cell.forEach((c, i) => { if (c) capCells[c.ci].set(c.k, i); });
   map.caps.forEach((cap, ci) => cap.cells.forEach((cl, k) => {
@@ -81,53 +82,99 @@ export function pupGrid(P) {
   const node = map.caps.map(cap => new Int32Array(cap.n * cap.n).fill(-1)), rec = map.caps.map(cap => new Int32Array(cap.n * cap.n).fill(-1));
   at.forEach(([ci, i, j], k) => { node[ci][i * map.caps[ci].n + j] = k; });
   map.cell.forEach((c, k) => { if (c) { const cl = map.caps[c.ci].cells[c.k]; rec[c.ci][cl.i * map.caps[c.ci].n + cl.j] = k; } });
-  return { N, dirs, w: W, n: map.caps[0].n, P, node, rec };
-}
-/* the map at any direction d and crossing q of the particle's plane: bilinear among the four cells round d (those that
-   bring light back, their weights made up), moved by the offsets' derivatives for q. { q, d, ell, M } or null */
-function pupMapAt(P, G, d, q) {
-  const { map } = P, ci = dotp(d, P.dir) > 0 ? 0 : 1, cap = map.caps[ci], n = cap.n, h = cap.h;
-  const fa = (dotp(d, P.ex) + cap.s) / h, fb = (dotp(d, P.ey) + cap.s) / h, ia = Math.floor(fa), ib = Math.floor(fb), ta = fa - ia, tb = fb - ib;
-  let W = 0;
-  const acc = { q: [0, 0, 0], d: [0, 0, 0], ell: 0, M: new Float64Array(18), jq: [[0, 0, 0], [0, 0, 0]], jd: [[0, 0, 0], [0, 0, 0]], je: [0, 0], he: [0, 0, 0] };
-  const dx2 = 2 * map.dx;
-  // Catmull-Rom over the 4 x 4 cells round d where all of them bring light back (fourth order: the paths' phase, k ell,
-  // is interpolated to well under a hundredth of a radian), bilinear among the four nearest near a rim
-  const cr = t => [(-t * t * t + 2 * t * t - t) / 2, (3 * t * t * t - 5 * t * t + 2) / 2, (-3 * t * t * t + 4 * t * t + t) / 2, (t * t * t - t * t) / 2];
-  let pts = [];
-  {
-    const wa = cr(ta), wb = cr(tb);
-    let all = true;
-    for (let u = 0; u < 4 && all; u++) for (let v = 0; v < 4 && all; v++) { const a = ia - 1 + u, b = ib - 1 + v; if (a < 0 || b < 0 || a >= n || b >= n || G.rec[ci][a * n + b] < 0) all = false; else pts.push([a, b, wa[u] * wb[v]]); }
-    if (!all) pts = [[ia, ib, (1 - ta) * (1 - tb)], [ia + 1, ib, ta * (1 - tb)], [ia, ib + 1, (1 - ta) * tb], [ia + 1, ib + 1, ta * tb]].filter(([, , wt]) => wt > 0);
-  }
-  for (const [a, b, wt] of pts) {
-    if (a < 0 || b < 0 || a >= n || b >= n) continue;
-    const r = G.rec[ci][a * n + b];
-    if (r < 0) continue;
-    const c = map.cell[r];
-    W += wt;
-    for (let x = 0; x < 3; x++) { acc.q[x] += wt * c.q[x]; acc.d[x] += wt * c.d[x]; }
-    acc.ell += wt * c.ell;
-    for (let x = 0; x < 18; x++) acc.M[x] += wt * c.M[x];
-    // the derivatives across the plane, from the offsets either side (across: ex, then ey)
+  // each cell's numbers laid flat for pupMapAt (PUP_CD each): where it lands q (3), its way d (3), its phase ell - d.q,
+  // its field matrix (18), and across the particle's plane the first differences of q and d (ex, ey: 6 + 6) and the
+  // second (ex ex, ey ey, ex ey: 9 + 9)
+  const cd = new Float64Array(map.cell.length * PUP_CD), dx2 = 2 * map.dx, dxx = map.dx * map.dx;
+  map.cell.forEach((c, r) => {
+    if (!c) return;
+    const o = r * PUP_CD;
+    cd.set(c.q, o); cd.set(c.d, o + 3); cd[o + 6] = c.ell - dotp(c.d, c.q); cd.set(c.M, o + 7);
     for (let t = 0; t < 2; t++) {
       const A = c.jac[2 * t], B = c.jac[2 * t + 1];
       if (!A || !B) continue;
-      for (let x = 0; x < 3; x++) { acc.jq[t][x] += wt * (A.q[x] - B.q[x]) / dx2; acc.jd[t][x] += wt * (A.d[x] - B.d[x]) / dx2; }
-      acc.je[t] += wt * (A.ell - B.ell) / dx2;
-      // the path's curvature across the plane (the mirrors' focusing): second differences, and the cross term
-      acc.he[t] += wt * (A.ell + B.ell - 2 * c.ell) / (map.dx * map.dx);
+      for (let x = 0; x < 3; x++) {
+        cd[o + 25 + 3 * t + x] = (A.q[x] - B.q[x]) / dx2; cd[o + 31 + 3 * t + x] = (A.d[x] - B.d[x]) / dx2;
+        cd[o + 37 + 3 * t + x] = (A.q[x] + B.q[x] - 2 * c.q[x]) / dxx; cd[o + 46 + 3 * t + x] = (A.d[x] + B.d[x] - 2 * c.d[x]) / dxx;
+      }
     }
-    if (c.jac[0] && c.jac[2] && c.jac[4]) acc.he[2] += wt * (c.jac[4].ell - c.jac[0].ell - c.jac[2].ell + c.ell) / (map.dx * map.dx);
+    if (c.jac[0] && c.jac[2] && c.jac[4]) for (let x = 0; x < 3; x++) {
+      cd[o + 43 + x] = (c.jac[4].q[x] - c.jac[0].q[x] - c.jac[2].q[x] + c.q[x]) / dxx;
+      cd[o + 52 + x] = (c.jac[4].d[x] - c.jac[0].d[x] - c.jac[2].d[x] + c.d[x]) / dxx;
+    }
+  });
+  return (map.grid = { N, dirs, w: W, n: map.caps[0].n, P, node, rec, cd });
+}
+const PUP_CD = 55, PUP_ACC = new Float64Array(PUP_CD);
+const pupCr = (t, o) => { const t2 = t * t, t3 = t2 * t; o[0] = (-t3 + 2 * t2 - t) / 2; o[1] = (3 * t3 - 5 * t2 + 2) / 2; o[2] = (-3 * t3 + 4 * t2 + t) / 2; o[3] = (t3 - t2) / 2; return o; };
+const PUP_WA = new Float64Array(4), PUP_WB = new Float64Array(4);
+/* a polynomial's value at the origin from samples at (x, y) (least squares, degree 1 or 2), as weights on the samples:
+   null when the samples do not fix it */
+function pupFitWeights(xy, deg) {
+  const m = deg === 2 ? 6 : 3, n = xy.length, row = ([x, y]) => (deg === 2 ? [1, x, y, x * x, x * y, y * y] : [1, x, y]);
+  // solve (A^T A) z = e0, weights = A z
+  const N = Array.from({ length: m }, () => new Float64Array(m + 1));
+  const rows = xy.map(row);
+  for (const r of rows) for (let a = 0; a < m; a++) for (let b = 0; b < m; b++) N[a][b] += r[a] * r[b];
+  N[0][m] = 1;
+  for (let c = 0; c < m; c++) {
+    let pv = c;
+    for (let r = c + 1; r < m; r++) if (Math.abs(N[r][c]) > Math.abs(N[pv][c])) pv = r;
+    if (!(Math.abs(N[pv][c]) > 1e-9)) return null;
+    [N[c], N[pv]] = [N[pv], N[c]];
+    for (let r = 0; r < m; r++) { if (r === c) continue; const f = N[r][c] / N[c][c]; if (f) for (let b = c; b <= m; b++) N[r][b] -= f * N[c][b]; }
   }
-  if (!(W > 0)) return null;
-  const s = 1 / W, qx = dotp(q, P.ex), qy = dotp(q, P.ey);
-  const qo = [0, 1, 2].map(x => s * (acc.q[x] + acc.jq[0][x] * qx + acc.jq[1][x] * qy));
-  const dO = unitp([0, 1, 2].map(x => s * (acc.d[x] + acc.jd[0][x] * qx + acc.jd[1][x] * qy)));
-  const ell = s * (acc.ell + acc.je[0] * qx + acc.je[1] * qy + 0.5 * (acc.he[0] * qx * qx + acc.he[1] * qy * qy) + acc.he[2] * qx * qy);
-  for (let x = 0; x < 18; x++) acc.M[x] *= s;
-  return { q: qo, d: dO, ell, M: acc.M };
+  const z = N.map((r, a) => r[m] / r[a]), w = new Float64Array(n);
+  for (let k = 0; k < n; k++) for (let a = 0; a < m; a++) w[k] += rows[k][a] * z[a];
+  return w;
+}
+/* the map at any direction d and crossing q of the particle's plane: { q, d, ell, M } or null. Among the cells round d:
+   Catmull-Rom over the 4 x 4 where all of them bring light back; near a rim a surface of second degree through those
+   of them that do (of first degree under nine of them), so the map is carried to the rim as it runs, not held level.
+   Across the plane: where the ray lands and its way to second order in q (the offsets' first and second differences),
+   and the phase it brings, ell - d'.q', from those by the rays' own law (the path between two points changes by
+   d'.dq' - d.dq: Hamilton), which gives it to third order with no difference of the paths themselves taken. */
+export function pupMapAt(P, G, d, q) {
+  const { map } = P, ci = dotp(d, P.dir) > 0 ? 0 : 1, cap = map.caps[ci], n = cap.n, h = cap.h, rec = G.rec[ci], cd = G.cd, acc = PUP_ACC;
+  const fa = (dotp(d, P.ex) + cap.s) / h, fb = (dotp(d, P.ey) + cap.s) / h, ia = Math.floor(fa), ib = Math.floor(fb);
+  const wa = pupCr(fa - ia, PUP_WA), wb = pupCr(fb - ib, PUP_WB);
+  acc.fill(0);
+  let all = ia >= 1 && ib >= 1 && ia + 2 < n && ib + 2 < n;
+  for (let u = 0; u < 4 && all; u++) for (let v = 0; v < 4; v++) if (rec[(ia - 1 + u) * n + ib - 1 + v] < 0) { all = false; break; }
+  if (all) {
+    for (let u = 0; u < 4; u++) for (let v = 0; v < 4; v++) {
+      const o = rec[(ia - 1 + u) * n + ib - 1 + v] * PUP_CD, wt = wa[u] * wb[v];
+      for (let x = 0; x < PUP_CD; x++) acc[x] += wt * cd[o + x];
+    }
+  } else {
+    const have = [];
+    for (let u = 0; u < 4; u++) for (let v = 0; v < 4; v++) {
+      const a = ia - 1 + u, b = ib - 1 + v;
+      if (a < 0 || b < 0 || a >= n || b >= n || rec[a * n + b] < 0) continue;
+      have.push([a, b]);
+    }
+    if (!have.length) return null;
+    const xy = have.map(([a, b]) => [a - fa, b - fb]);
+    let w = (have.length >= 9 && pupFitWeights(xy, 2)) || (have.length >= 3 && pupFitWeights(xy, 1));
+    if (!w) { const d2 = xy.map(([x, y]) => x * x + y * y); w = new Float64Array(have.length); w[d2.indexOf(Math.min(...d2))] = 1; }
+    for (let k = 0; k < have.length; k++) {
+      const o = rec[have[k][0] * n + have[k][1]] * PUP_CD, wt = w[k];
+      if (wt) for (let x = 0; x < PUP_CD; x++) acc[x] += wt * cd[o + x];
+    }
+  }
+  const qx = dotp(q, P.ex), qy = dotp(q, P.ey), xx = qx * qx, yy = qy * qy, xy2 = 2 * qx * qy;
+  // a = Jq q, b = Hq[q, q], c = Jd q, e = Hd[q, q]; phi(q) = phi(0) - d.q - the sum along s q of q'.dd'
+  const qo = [0, 0, 0], dO = [0, 0, 0];
+  let sum = 0;
+  for (let x = 0; x < 3; x++) {
+    const a = acc[25 + x] * qx + acc[28 + x] * qy, c = acc[31 + x] * qx + acc[34 + x] * qy;
+    const b = acc[37 + x] * xx + acc[40 + x] * yy + acc[43 + x] * xy2, e = acc[46 + x] * xx + acc[49 + x] * yy + acc[52 + x] * xy2;
+    qo[x] = acc[x] + a + 0.5 * b; dO[x] = acc[3 + x] + c + 0.5 * e;
+    sum += acc[x] * (c + 0.5 * e) + a * (0.5 * c + e / 3) + b * (c / 6 + e / 8);
+  }
+  const l = Math.hypot(dO[0], dO[1], dO[2]) || 1;
+  dO[0] /= l; dO[1] /= l; dO[2] /= l;
+  return { q: qo, d: dO, ell: acc[6] - dotp(d, q) - sum + dotp(dO, qo), M: acc.slice(7, 25) };
 }
 /* The lock: the axial returns (the map at the axis each way), calibrated to the empty cavity's own (h2: A to A by the far
    mirror; lam: the round trip), as a phase on each mirror. Returns the two mirrors' phases */
@@ -169,20 +216,28 @@ export function pupReturns(P, G, k0mm, nMed, lamM, h2, lam) {
    returns is kept as a sparse map from each source direction to the grid points its returns land on, a 3 x 3 complex
    block each: S = sum_n C^n T, the empty cavity's every return of the particle's light at once. */
 export function pupChains(P, G, Rt, k0mm, nMed, lamM, tol = 1e-9) {
+  // (kept with the map: the same cavity, particle's place, light and lock give the same returns, whatever the particle
+  // is; a solve that only changes the particle, or is asked again, takes them as they are)
+  const had = P.map.chains, sig = [Rt.psi[0], Rt.psi[1], k0mm, nMed, lamM, tol];
+  if (had && had.sig.every((v, x) => Math.abs(v - sig[x]) <= 1e-12 * Math.max(1, Math.abs(v)))) return Object.assign({}, had.S, { kept: true });
   const N = G.N, rows = [];
   let total = 0, longest = 0;
-  const mulM = (A, B) => { const C = new Float64Array(18); for (let x = 0; x < 3; x++) for (let y = 0; y < 3; y++) { let r = 0, im = 0; for (let z = 0; z < 3; z++) { const ar = A[2 * (3 * x + z)], ai = A[2 * (3 * x + z) + 1], br = B[2 * (3 * z + y)], bi = B[2 * (3 * z + y) + 1]; r += ar * br - ai * bi; im += ar * bi + ai * br; } C[2 * (3 * x + y)] = r; C[2 * (3 * x + y) + 1] = im; } return C; };
+  // C = A B, 3 x 3 complex, into C (not A or B)
+  const mulM = (A, B, C) => { for (let x = 0; x < 3; x++) for (let y = 0; y < 3; y++) { let r = 0, im = 0; for (let z = 0; z < 3; z++) { const ar = A[2 * (3 * x + z)], ai = A[2 * (3 * x + z) + 1], br = B[2 * (3 * z + y)], bi = B[2 * (3 * z + y) + 1]; r += ar * br - ai * bi; im += ar * bi + ai * br; } C[2 * (3 * x + y)] = r; C[2 * (3 * x + y) + 1] = im; } };
+  const Ma = new Float64Array(18), Mc = new Float64Array(18);
   const I3 = Float64Array.from([1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0]);
   for (let i = 0; i < N; i++) {
     const blocks = new Map();
-    let d = [G.dirs[3 * i], G.dirs[3 * i + 1], G.dirs[3 * i + 2]], q = [0, 0, 0], ell = 0, Mx = I3, psi = 0;
+    let d = [G.dirs[3 * i], G.dirs[3 * i + 1], G.dirs[3 * i + 2]], q = [0, 0, 0], ell = 0, psi = 0, Mx = Ma, Mb = Mc;
+    Mx.set(I3);
     for (let ret = 1; ret < 100000; ret++) {
       const fwd = dotp(d, P.dir) > 0;
       // the mirrors' phases (the lock) for the reflections of this return
       psi += P.pattern === 1 ? Rt.psi[fwd ? 1 : 0] : Rt.psi[0] + Rt.psi[1];
       const R = pupMapAt(P, G, d, q);
       if (!R) break;
-      Mx = mulM(R.M, Mx); ell += R.ell; d = R.d; q = R.q;
+      mulM(R.M, Mx, Mb); { const t = Mx; Mx = Mb; Mb = t; }
+      ell += R.ell; d = R.d; q = R.q;
       let amp2 = 0; for (let x = 0; x < 18; x++) amp2 += Mx[x] * Mx[x];
       if (amp2 < tol * tol) break;
       const ph = k0mm * (ell - dotp(d, q)) + psi, sgn = ret % 2 ? 1 : -1;
@@ -209,7 +264,9 @@ export function pupChains(P, G, Rt, k0mm, nMed, lamM, tol = 1e-9) {
     js.forEach((j, k) => bl.set(blocks.get(j), 18 * k));
     rows.push({ js, bl });
   }
-  return { rows, returns: total, longest };
+  const S = { rows, returns: total, longest };
+  P.map.chains = { sig, S };
+  return S;
 }
 /* S on outgoing far fields Fo (6 N): every return of them, as plane waves on the grid (6 N) */
 export function pupApplyChains(G, S, Fo, out) {
@@ -237,10 +294,12 @@ const cdotv = (a, b) => { let r = 0, i = 0; for (let q = 0; q < a.length; q += 2
 const nrm = a => Math.sqrt(cdotv(a, a)[0]);
 export function* pupGmres(B, rhs, x0) {
   const n = rhs.length, x = x0 ? Float64Array.from(x0) : new Float64Array(n), bn = nrm(rhs) || 1;
-  let iters = 0, resid = 1;
+  let iters = 0, resid = 1, comb = null;
   for (let cyc = 0; cyc < PUP_ITERS / PUP_RESTART; cyc++) {
-    const Bx = yield* B(x), r = new Float64Array(n);
-    for (let q = 0; q < n; q++) r[q] = rhs[q] - (x[q] - Bx[q]);
+    // (from nothing, B(x) is nothing: not asked for)
+    const Bx = cyc === 0 && !x0 ? null : yield* B(x), r = new Float64Array(n);
+    for (let q = 0; q < n; q++) r[q] = rhs[q] - (x[q] - (Bx ? Bx[q] : 0));
+    comb = null;
     const beta = nrm(r);
     resid = beta / bn;
     if (resid < PUP_TOL) break;
@@ -288,9 +347,12 @@ export function* pupGmres(B, rhs, x0) {
       y[i] = [(t[0] * d[0] + t[1] * d[1]) / dd, (t[1] * d[0] - t[0] * d[1]) / dd];
     }
     for (let i = 0; i < m; i++) for (let q = 0; q < n; q += 2) { x[q] += y[i][0] * V[i][q] - y[i][1] * V[i][q + 1]; x[q + 1] += y[i][0] * V[i][q + 1] + y[i][1] * V[i][q]; }
+    // (found in one go from nothing: x is this sum of the vectors B was asked for, in order; so anything linear in x
+    // is the same sum of what was worked out for each)
+    if (cyc === 0 && !x0) comb = y;
     if (resid < PUP_TOL) break;
   }
-  return { x, iters, resid };
+  return { x, iters, resid, comb };
 }
 /* the empty cavity's lock, from its steady state: the round trip (A to A, physicists' convention) */
 export function pupLock(P) {

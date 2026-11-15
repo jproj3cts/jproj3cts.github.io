@@ -345,10 +345,11 @@ def dipole_case(cav, alpha, f, b, pol):
     Etot = E0 + Bt @ p
     Psca = C0 ** 2 * Z0 * K ** 4 / (12 * np.pi) * np.sum(abs(p) ** 2)
     Pext = OMEGA / 2 * np.imag(np.vdot(Etot, p))
-    # the through beam: the returns that come back along the forward cap near the axis, and the dipole's own forward light
-    U, Wg = cap_grid(cav.theta, 601)
-    near = np.arccos(np.clip(np.abs(U[:, 2]), -1, 1)) < 0.15
-    U, Wg = U[near], Wg[near]
+    # the through beam: the returns that come back along the forward cap, and the dipole's own forward light, against
+    # the beam over the whole cap (a concentric cavity's beam fills it: each round trip comes back more curved. Until
+    # November 2026 the overlap was taken within 0.15 rad of the axis, which left a sixth of it out there, and the
+    # change read 2.27e-5 for 2.71e-5; a confocal cavity's beam is narrow and its number did not move)
+    U, Wg = cap_grid(cav.theta, 301)
     Fp = dipole_far(p, U)
     gU = beam_spectrum(U, cav.rp, cav)
     from scipy.spatial import cKDTree
@@ -377,30 +378,30 @@ def dipole_case(cav, alpha, f, b, pol):
 
 
 def mie_case(cav, sph, f, b, pol, n=41):
-    """the exact degenerate cavity: each grid direction comes back onto its image on the grid"""
+    """the sphere in the degenerate cavity: x = S (F0 + P x), x the returned waves on the grid, S every return of the
+    sphere's light, each traced as its own ray from the sphere (as the dipole's are) and put on the grid direction nearest
+    where it comes back, P the sphere's answer to the returned waves. (Until November 2026 the first return's map was
+    applied again and again instead. That is the same thing for a sphere on the axis; beside it the second return
+    starts from the image, across the axis, and is not the first over again: the reference was 2.3% out there.)"""
+    from scipy.spatial import cKDTree
     U, W = cap_grid(cav.theta, n)
     N = U.shape[0]
-    rets = list(trace_returns(cav.m, cav.rp, U, cav.pattern, 1))
-    d, phi, amp, Mx, alive = rets[0]
-    # where each direction comes back to on the grid
-    tgt = np.array([np.argmin(np.sum((U - d[i]) ** 2, 1)) for i in range(N)])
-    # (an off-axis point's image is not quite a mirror image: coma moves its rays by a thousandth of the grid's step or
-    # less, and each is taken onto the nearest grid direction)
-    miss = np.max(np.linalg.norm(U[tgt] - d, axis=1)[alive]) if alive.any() else 0
-    step = np.sin(cav.theta) * 1.02 * 2 / (n - 1)
-    assert miss < 2e-3 * step, (miss, step)
-    fac = -(1j / LAM) * amp * np.exp(1j * K * phi) * alive
+    tree = cKDTree(U)
+    ops = []
+    for r, (d, phi, amp, Mx, alive) in enumerate(trace_returns(cav.m, cav.rp, U, cav.pattern, 400)):
+        if not alive.any() or np.max(np.abs(amp[alive])) < 1e-9:
+            break
+        ops.append((tree.query(d)[1], (-(1j / LAM) * (-1) ** r * amp * np.exp(1j * K * phi) * alive)[:, None, None] * Mx))
     drive_d = np.array([[0, 0, 1.0], [0, 0, -1.0]])
     drive_E = np.array([f * pol, b * pol])
     F0 = sph.far_many(drive_d, drive_E, U)            # the sphere's far field in the empty cavity's light
 
     def apply(x):
         A = x.reshape(N, 3)
-        Fp = F0 + sph.far_many(U, A, U, W)
-        Fout = -1j * LAM * A + Fp                         # outgoing along each grid direction
+        Fp = F0 + sph.far_many(U, A, U, W)                # the sphere's light along each grid direction
         new = np.zeros((N, 3), dtype=complex)
-        # comes back along d (onto tgt), with the field matrix and factor; per unit solid angle: dOmega' = dOmega here
-        np.add.at(new, tgt, fac[:, None] * np.einsum('nij,nj->ni', Mx, Fout))
+        for tgt, C in ops:
+            np.add.at(new, tgt, np.einsum('nij,nj->ni', C, Fp))
         return new.reshape(-1)
 
     rhs = apply(np.zeros(3 * N, dtype=complex))

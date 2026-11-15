@@ -369,6 +369,7 @@ export function* scatterGen(el, R, opts) {
         return { q, e: at(q), kmm, z, w0, off, d: Fb.d, sg };
       };
       PP.legSpec = [legWaves(PP.legF.q, 1), legWaves(PP.legB.q, -1)];
+      PP.entrySpec = PP.entry.map(q => legWaves(q, 1));         // the light let in, on its way past the particle the first time
       // the round trip, as the empty cavity's own light has it at the particle: the forward wave is the light let in and
       // the loop's forward leg, and the leg is the round trip of the whole (f = entry + lam f), so lam = leg / f. (The
       // steady state's Ritz value is no measure here: a concentric cavity's round trip is a shear, with no mode of its own)
@@ -390,13 +391,25 @@ export function* scatterGen(el, R, opts) {
         // each leg's own light as plane waves: its field, as the field run has it, over a square across its way at the
         // particle (the steady state's every round trip, not one Gaussian: a concentric cavity's come back ever more
         // curved), Fourier summed onto the grid's directions of its own way; along the light's polarisation
+        // (kept with the map while the bench's sources are as they were and the leg's field is the same at nine places
+        // across it: the sampling is a few seconds, and a solve that only changes the particle finds the same light)
         const kmm = 2 * Math.PI * nMed / (nm * 1e-6), NS = 64;
-        for (const LS of PP.legSpec) {
+        const srcSig = JSON.stringify(project.elements.filter(e => e.type === 'source' && e.bench === el.bench));
+        const allSpec = [...PP.legSpec, ...PP.entrySpec];
+        const kept = PP.map.spec && PP.map.spec.sig === srcSig && PP.map.spec.legs.length === allSpec.length ? PP.map.spec : null, store = { sig: srcSig, legs: [] };
+        for (const [li, LS] of allSpec.entries()) {
           const half = 4 * Math.max(LS.w0, 0.004), h = 2 * half / NS, smp = [];
+          const fieldAt = (u, v) => {
+            const Pt = [0, 1, 2].map(q => C[q] + u * PP.ex[q] + v * PP.ey[q]), W = scatterWaves([LS.q], Pt, nMed, 0, zRef).launches[0], e = W && W.n ? W.E : null;
+            return e ? pr(e) : null;
+          };
+          const probe = [];
+          for (const [a, b] of [[0, 0], [0.11, 0], [0, 0.13], [-0.17, 0], [0, -0.19], [0.23, 0.29], [-0.31, 0.37], [0.41, -0.43], [-0.47, -0.53]]) { const e = fieldAt(a * half, b * half); probe.push(e ? e[0] : NaN, e ? e[1] : NaN); }
+          const was = kept && kept.legs[li], scale = Math.hypot(probe[0], probe[1]) || 1;
+          if (was && was.half === half && was.n === G.N && was.probe.every((v, x) => Math.abs(v - probe[x]) <= 1e-10 * scale)) { LS.spec = was.spec; store.legs.push(was); continue; }
           for (let a = 0; a < NS; a++) for (let b = 0; b < NS; b++) {
-            const u = -half + (a + 0.5) * h, v = -half + (b + 0.5) * h, Pt = [0, 1, 2].map(q => C[q] + u * PP.ex[q] + v * PP.ey[q]);
-            const W = scatterWaves([LS.q], Pt, nMed, 0, zRef).launches[0], e = W && W.n ? W.E : null;
-            if (e) smp.push([u, v, ...pr(e)]);
+            const u = -half + (a + 0.5) * h, v = -half + (b + 0.5) * h, e = fieldAt(u, v);
+            if (e) smp.push([u, v, ...e]);
           }
           const spec = new Float64Array(2 * G.N);
           for (let i = 0; i < G.N; i++) {
@@ -408,7 +421,9 @@ export function* scatterGen(el, R, opts) {
             spec[2 * i] = sr; spec[2 * i + 1] = si;
           }
           LS.spec = spec;
+          store.legs.push({ half, n: G.N, probe, spec });
         }
+        PP.map.spec = store;
         if (!Rt) pupWhy = 'noimage';
         else pup = { PP, G, Rt, f, b, h2, lock, lamM: nm * 1e-9 / nMed, nm, nMed };
       }
@@ -426,7 +441,8 @@ export function* scatterGen(el, R, opts) {
     // has only the particle's own part to find
     const t0s = Date.now(), Sm = pup.S || (pup.S = pupChains(pup.PP, G, Rt, 2 * Math.PI / (pup.nm * 1e-6), pup.nMed, lamM));
     const tChains = Date.now() - t0s, terms = Sm.returns;
-    const B = function* (x) { return pupApplyChains(G, Sm, yield* respond(x)); };
+    const asked = [];
+    const B = function* (x) { const r = yield* respond(x); asked.push(r); return pupApplyChains(G, Sm, r); };
     const rhs = pupApplyChains(G, Sm, F0), S = yield* pupGmres(B, rhs);
     const x = S.x, n0 = L.n, d = new Float64Array(3 * (n0 + N)), E = new Float64Array(6 * (n0 + N));
     d.set(L.d); E.set(L.E); d.set(G.dirs, 3 * n0);
@@ -436,45 +452,64 @@ export function* scatterGen(el, R, opts) {
     const et = e0.map((v, q) => v + er[q]);
     // what the cavity's light is taken by in the field run: each leg's wave against its own, coming in and going out
     // (the forward leg carries the whole forward change; the light let in, none), by projection on its spectrum
-    const Px = yield* respond(x), Fp = new Float64Array(6 * N), Fp0 = F0;
+    // (the particle's answer to x: the solve's own sum of the answers it asked for, when it was found in one go)
+    let Px;
+    if (S.comb && S.comb.length === asked.length) {
+      Px = new Float64Array(6 * N);
+      S.comb.forEach((y, i) => { const r = asked[i]; for (let q = 0; q < 6 * N; q += 2) { Px[q] += y[0] * r[q] - y[1] * r[q + 1]; Px[q + 1] += y[0] * r[q + 1] + y[1] * r[q]; } });
+    } else Px = yield* respond(x);
+    const Fp = new Float64Array(6 * N), Fp0 = F0;
     for (let q = 0; q < 6 * N; q++) Fp[q] = F0[q] + Px[q];
-    const tw = [], tin = [], tout = [];
-    for (const [li, LS] of pup.PP.legSpec.entries()) {
-      let n0 = [0, 0], nin = [0, 0], nout = [0, 0], gw = 0, gg = 0;
-      const g = new Float64Array(2 * N);
+    L.farGrid = Fp;            // the particle's far field in all this launch's light, along the grid's directions
+    // A leg's light is A = e g / sum(w g) over the grid (e its field at the particle, g its spectrum's shape, the field
+    // run's own); the change X of the waves going its way is taken as one factor on it, 1 + r. Backward, the leg is all
+    // the light there is and r = <A, X> / <A, A>. Forward, the light let in goes the same way on its first pass and is
+    // not the loop's (the field run leaves it as it is): the factor on the loop's leg is the one that changes the power
+    // of all the forward light as X does, r = <A_all, X> / <A_all, A_leg>, A_all the leg's and the light let in. (Where
+    // every pass has the same shape, a confocal cavity's, the two are one; in a concentric cavity each pass comes back
+    // more curved, and the far detector reads the whole.)
+    const tin = [], tout = [];
+    const cm2 = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]], cj = a => [a[0], -a[1]];
+    const cd2 = (a, b) => { const d = b[0] * b[0] + b[1] * b[1]; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
+    // for a spectrum: sum(w g), sum(w |g|^2), and <e g, X> = sum w conj(e g) . X for the incoming change x and the
+    // outgoing one, x + Fp / (-i lambda) = x + i Fp / lambda
+    const against = LS => {
+      const g = LS.spec, e = LS.e, S1 = [0, 0], nin = [0, 0], nout = [0, 0];
+      let gg = 0;
       for (let i = 0; i < N; i++) {
-        const u = [G.dirs[3 * i], G.dirs[3 * i + 1], G.dirs[3 * i + 2]], c = u[0] * LS.d[0] + u[1] * LS.d[1] + u[2] * LS.d[2];
-        if (c <= 0) continue;
-        // the leg's own spectrum, as sampled from the field run; it is the field's own, so the e it is scaled to below is
-        // its value at the particle (sum w g), and only its shape enters
-        g[2 * i] = LS.spec[2 * i]; g[2 * i + 1] = LS.spec[2 * i + 1];
-        gw += G.w[i] * g[2 * i]; gg += G.w[i] * (g[2 * i] ** 2 + g[2 * i + 1] ** 2);
-      }
-      void gw;
-      // <A, X> = sum w conj(A) . X, A = e g / sum(w g): the ratio needs only <g e, X> / (|e|^2 sum w |g|^2) times sum(w g)
-      let sgr = 0, sgi = 0;
-      for (let i = 0; i < N; i++) { sgr += G.w[i] * g[2 * i]; sgi += G.w[i] * g[2 * i + 1]; }
-      const e = LS.e, ee = abs2(e);
-      for (let i = 0; i < N; i++) {
-        if (g[2 * i] === 0 && g[2 * i + 1] === 0) continue;
-        // conj(g e) . X for X the incoming change x and the outgoing change (x + Fp / (-i lambda))
+        const gr = g[2 * i], gi = g[2 * i + 1];
+        if (gr === 0 && gi === 0) continue;
+        S1[0] += G.w[i] * gr; S1[1] += G.w[i] * gi; gg += G.w[i] * (gr * gr + gi * gi);
         for (let q = 0; q < 3; q++) {
-          const er2 = e[2 * q] * g[2 * i] - e[2 * q + 1] * g[2 * i + 1], ei2 = e[2 * q] * g[2 * i + 1] + e[2 * q + 1] * g[2 * i];
+          const er2 = e[2 * q] * gr - e[2 * q + 1] * gi, ei2 = e[2 * q] * gi + e[2 * q + 1] * gr;
           const xr = x[6 * i + 2 * q], xi = x[6 * i + 2 * q + 1];
-          // Fp / (-i lambda) = i Fp / lambda
           const orr = xr - Fp[6 * i + 2 * q + 1] / lamM, oi = xi + Fp[6 * i + 2 * q] / lamM;
           nin[0] += G.w[i] * (er2 * xr + ei2 * xi); nin[1] += G.w[i] * (er2 * xi - ei2 * xr);
           nout[0] += G.w[i] * (er2 * orr + ei2 * oi); nout[1] += G.w[i] * (er2 * oi - ei2 * orr);
         }
       }
-      void n0; void Fp0;
-      // <A, A> = |e|^2 gg / |sum w g|^2;  <A, X> = conj(sum w g)^-1 ... : ratio = <g e, X> (sum w g)^* ... over (|e|^2 gg)
-      const S2 = sgr * sgr + sgi * sgi, den = ee * gg;
-      const mul = (a) => [(a[0] * sgr - a[1] * sgi) / den, (a[0] * sgi + a[1] * sgr) / den];
-      void S2;
-      const ri = mul(nin), ro = mul(nout);
+      return { LS, S1, gg, nin, nout };
+    };
+    void Fp0;
+    for (const [li, LS] of pup.PP.legSpec.entries()) {
+      const R0 = against(LS), ee = abs2(LS.e), S2 = R0.S1[0] * R0.S1[0] + R0.S1[1] * R0.S1[1];
+      // <A, X> = <e g, X> / conj(S1); <A, A> = |e|^2 gg / |S1|^2
+      let numIn = cd2(R0.nin, cj(R0.S1)), numOut = cd2(R0.nout, cj(R0.S1)), den = [ee * R0.gg / S2, 0];
+      if (li === 0) for (const ES of pup.PP.entrySpec || []) {
+        if (!ES.spec) continue;
+        const Re = against(ES), ce = cj(Re.S1);
+        if (!(Re.gg > 0)) continue;
+        const a = cd2(Re.nin, ce), b = cd2(Re.nout, ce);
+        numIn = [numIn[0] + a[0], numIn[1] + a[1]]; numOut = [numOut[0] + b[0], numOut[1] + b[1]];
+        // <A_e, A_leg> = (conj(e_e) . e_leg) sum(w conj(g_e) g_leg) / (conj(S_e) S_leg)
+        const ed = [0, 0], go = [0, 0];
+        for (let q = 0; q < 3; q++) { ed[0] += ES.e[2 * q] * LS.e[2 * q] + ES.e[2 * q + 1] * LS.e[2 * q + 1]; ed[1] += ES.e[2 * q] * LS.e[2 * q + 1] - ES.e[2 * q + 1] * LS.e[2 * q]; }
+        for (let i = 0; i < N; i++) { const ar = ES.spec[2 * i], ai = ES.spec[2 * i + 1], br = LS.spec[2 * i], bi = LS.spec[2 * i + 1]; go[0] += G.w[i] * (ar * br + ai * bi); go[1] += G.w[i] * (ar * bi - ai * br); }
+        const cross = cd2(cm2(ed, go), cm2(ce, R0.S1));
+        den = [den[0] + cross[0], den[1] + cross[1]];
+      }
+      const ri = cd2(numIn, den), ro = cd2(numOut, den);
       tin[li] = [1 + ri[0], ri[1]]; tout[li] = [1 + ro[0], ro[1]];
-      tw.push({ ri, ro });
     }
     const cdv = (a, b) => { const d = b[0] * b[0] + b[1] * b[1]; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
     // by loop leg: [0] or [1] of the cavity's segments
@@ -483,7 +518,7 @@ export function* scatterGen(el, R, opts) {
     out.cav.load = { start: Tin[0], ends: [cdv(Tout[0], Tin[0]), cdv(Tout[1], Tout[0])] };
     out.cav.s = { fin: tin[0], fout: tout[0], bin: tin[1], bout: tout[1] };
     out.cav.mirrors = pup.PP.M.map(m => m.el.id);
-    Object.assign(out.cav, { method: 'pupil', pattern: pup.PP.pattern, nodes: N, lost: Rt.lost, iters: S.iters, terms, longest: Sm.longest, msChains: tChains, resid: S.resid, fresnel: pup.PP.fresnel, h2: pup.h2, lam00: pup.lock.lam, lamHow: pup.lock.how, ritz: pup.lock.ritz, dLock: pup.lock.delta,
+    Object.assign(out.cav, { method: 'pupil', pattern: pup.PP.pattern, nodes: N, lost: Rt.lost, iters: S.iters, terms, longest: Sm.longest, msChains: tChains, chainsKept: !!Sm.kept, resid: S.resid, fresnel: pup.PP.fresnel, h2: pup.h2, lam00: pup.lock.lam, lamHow: pup.lock.how, ritz: pup.lock.ritz, dLock: pup.lock.delta,
       E2ratio: abs2(et) / abs2(e0), returnedField: er, f0: pup.f, b0: pup.b, dir: pup.PP.dir, ms: Date.now() - t0p });
     if (pup.PP.fresnel < PUP_FRESNEL && !flags.includes('fresnel')) flags.push('fresnel');
     return { x, er };
@@ -540,7 +575,10 @@ export function* scatterGen(el, R, opts) {
       fars.push(dirs => mieFarWaves(tab, k, L, dirs));
       yield { stage: 'sphere' };
       // the optical theorem, wave by wave: P_ext = (4 pi / k) / (2 Z) Im sum conj(E_o) . F(d_o)
-      const F = mieFarWaves(tab, k, L, L.d);
+      // (a pupil solve's returned waves: along them the far field is the solve's own)
+      let F;
+      if (L.farGrid && L.n0 !== undefined && L.farGrid.length === 6 * (L.n - L.n0)) { F = new Float64Array(6 * L.n); F.set(mieFarWaves(tab, k, L, L.d.subarray(0, 3 * L.n0))); F.set(L.farGrid, 6 * L.n0); }
+      else F = mieFarWaves(tab, k, L, L.d);
       let s = 0; for (let q = 0; q < F.length; q += 2) s += L.E[q] * F[q + 1] - L.E[q + 1] * F[q];
       Pext.push(4 * Math.PI / k * s / (2 * Z)); Pabs.push(null);
     }

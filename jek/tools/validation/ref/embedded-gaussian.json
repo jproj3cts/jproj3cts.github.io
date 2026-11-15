@@ -1,0 +1,64 @@
+{
+ "lambda_nm": 1064,
+ "M2": 4.0,
+ "W0_mm": 0.5,
+ "embedded_w0_mm": 0.25,
+ "zR_mm": 184.53904215165608,
+ "theta_mrad": 2.7094537511964263,
+ "f_mm": 150.0,
+ "lens_at_mm": 300.0,
+ "waist_after_lens_mm": 209.67678197842253,
+ "W_waist_after_mm": 0.3153748615495073,
+ "tem00_waist_after_mm": 155.94845172984654,
+ "rows": [
+  {
+   "z_mm": 0.0,
+   "after_lens": false,
+   "W_mm": 0.5
+  },
+  {
+   "z_mm": 92.26952107582804,
+   "after_lens": false,
+   "W_mm": 0.5590169943749475
+  },
+  {
+   "z_mm": 184.53904215165608,
+   "after_lens": false,
+   "W_mm": 0.7071067811865476
+  },
+  {
+   "z_mm": 400.0,
+   "after_lens": false,
+   "W_mm": 1.1935586876143047
+  },
+  {
+   "z_mm": 800.0,
+   "after_lens": false,
+   "W_mm": 2.2244840667261085
+  },
+  {
+   "z_mm": 400.0,
+   "after_lens": true,
+   "past_lens_mm": 100.0,
+   "W_mm": 0.5669421160688921
+  },
+  {
+   "z_mm": 509.6767819784225,
+   "after_lens": true,
+   "past_lens_mm": 209.67678197842253,
+   "W_mm": 0.3153748615495073
+  },
+  {
+   "z_mm": 550.0,
+   "after_lens": true,
+   "past_lens_mm": 250.0,
+   "W_mm": 0.35981100620435735
+  },
+  {
+   "z_mm": 700.0,
+   "after_lens": true,
+   "past_lens_mm": 400.0,
+   "W_mm": 0.876273838901498
+  }
+ ]
+}

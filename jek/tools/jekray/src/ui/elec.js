@@ -3,7 +3,7 @@ import { V, deg, nextName, project } from '../state/project.js';
 import { getEl, normElement } from '../state/elements.js';
 import { benchName } from '../state/tabs.js';
 import { frame } from '../core/mask.js';
-import { bodyFill, ctx, getCss, keepOffLabel, pathLocal, portFill, portsInUse, removeFibre, selInk, sx, sy } from './render.js';
+import { bodyFill, ctx, figure, getCss, keepOffLabel, portR, pathLocal, portFill, portsInUse, removeFibre, selInk, sx, sy, untinted, inkFill } from './render.js';
 import { snapVal } from './pointer.js';
 import { pkey, portName, portWorld, portsOf, portsOfOptic } from '../engines/fibre.js';
 import {
@@ -133,29 +133,30 @@ function elecDraw(el, sel) {
   G.draw(c, el);
   FLIP = false;
   c.restore();
-  const used = portsInUse(), r = clamp(1.0 * s, 3, 6), names = [...K.ins, ...K.outs];
+  const used = portsInUse(), r = portR(1.0), names = [...K.ins, ...K.outs];
   // which ports are named on the bench: any on a side with more than one, and any not plainly "in" or "out"
   const named = (P, i) => (P.elec === 'in' ? K.ins.length : K.outs.length) > 1 || !['in', 'out'].includes(names[i]);
   const fs = clamp(1.7 * s, 8, 11);
-  ports.forEach((P, i) => {
+  // the ports and their names, in the tool's own colours whatever the part's (render.js untinted)
+  untinted(() => ports.forEach((P, i) => {
     const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i));
     c.beginPath(); c.arc(X, Y, r, 0, 2 * Math.PI);
-    c.fillStyle = on || P.elec === 'out' ? ELEC_YELLOW : portFill(); c.fill(); c.strokeStyle = ELEC_YELLOW; c.lineWidth = 1.4; c.stroke();
-    if (named(P, i) && s > 2.2) {
+    c.strokeStyle = ELEC_YELLOW; c.lineWidth = 1.4; c.fillStyle = on || P.elec === 'out' ? ELEC_YELLOW : portFill(); c.fill(); c.stroke();
+    if (named(P, i) && s > 2.2 && !(figure && figure.ports === false)) {
       // the name just outside the port, away from the part, upright whatever the part's angle
       c.save(); c.font = fs + 'px ' + getCss('--jek-mono'); c.fillStyle = INK;
       const ox = Q.dx, oy = -Q.dy, out = r + 3;
       c.textAlign = Math.abs(ox) < 0.3 ? 'center' : ox > 0 ? 'left' : 'right'; c.textBaseline = 'bottom';
       c.fillText(names[i], X + ox * out, Y + oy * out - 3); c.restore();
     }
-  });
+  }));
 }
 /* a node: a yellow dot on the wiring, its input and output either side; it hands on what it is given */
 function drawNode(el, sel) {
   const s = V().scale, X = sx(el.x), Y = sy(el.y), r = clamp(NODE_R * s, 7, 12);
   ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
   ctx.fillStyle = bodyFill(DARK); ctx.fill(); ctx.strokeStyle = sel ? selInk() : ELEC_YELLOW; ctx.lineWidth = sel ? 2.4 : 1.6; ctx.stroke();
-  ctx.beginPath(); ctx.arc(X, Y, NODE_PORT, 0, 2 * Math.PI); ctx.fillStyle = ELEC_YELLOW; ctx.fill();
+  ctx.beginPath(); ctx.arc(X, Y, NODE_PORT, 0, 2 * Math.PI); inkFill(ELEC_YELLOW); ctx.fill();
 }
 /* ---------- panels ---------- */
 function elecPanelFor(el) {
@@ -240,14 +241,14 @@ function instrumentSection(el) {
 function elecDrawExtras(el) {
   const X = elecExtra(el);
   if (!X.length) return;
-  const base = portsOf(el).length - X.length, used = portsInUse(), r = clamp(1.0 * V().scale, 3, 6);
+  const base = portsOf(el).length - X.length, used = portsInUse(), r = portR(1.0);
   X.forEach((P, k) => {
     const Q = portWorld(el, base + k), on = used.has(pkey(el.id, base + k));
     ctx.beginPath(); ctx.arc(sx(Q.x), sy(Q.y), r, 0, 2 * Math.PI);
-    ctx.fillStyle = on || P.elec === 'out' ? ELEC_YELLOW : portFill(); ctx.fill(); ctx.strokeStyle = ELEC_YELLOW; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.strokeStyle = ELEC_YELLOW; ctx.lineWidth = 1.4; ctx.fillStyle = on || P.elec === 'out' ? ELEC_YELLOW : portFill(); ctx.fill(); ctx.stroke();
     keepOffLabel({ x: sx(Q.x) - r - 1, y: sy(Q.y) - r - 1, w: 2 * r + 2, h: 2 * r + 2 });                      // the part's name keeps off the port
     // its name beside it, outside the part, upright
-    if (V().scale > 2.2) {
+    if (V().scale > 2.2 && !(figure && figure.ports === false)) {
       ctx.save(); ctx.font = clamp(1.7 * V().scale, 8, 11) + 'px ' + getCss('--jek-mono'); ctx.fillStyle = INK;
       const side = Math.abs(Q.dx) > 0.3, X = sx(Q.x), Y = sy(Q.y);
       ctx.textAlign = side ? (Q.dx > 0 ? 'left' : 'right') : 'left'; ctx.textBaseline = side ? 'bottom' : 'middle';

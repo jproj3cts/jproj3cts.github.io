@@ -4,6 +4,10 @@ import { designPrescription } from '../engines/lens-design.js';
 import { lensPathed } from '../core/assembly.js';
 import { normRfTol } from '../engines/rf-design.js';
 import { drawableParts, drawingData, drawSag, rfDrawableParts, rfDrawingData } from '../engines/lens-drawing.js';
+import { surfaceParts } from '../engines/lens-design.js';
+import { PART_FINISHES, partMakeOf } from '../core/part-make.js';
+import { filmSpec, normFilm } from '../../../jekfilm/src/core/film.js';
+import { drawingNote } from '../../../jekfilm/src/core/film-make.js';
 import { layoutSvg } from '../io/layout.js';
 import { VecCtx, pdfDoc } from '../io/pdf.js';
 import { downloadFile, safeFileName, toast } from './actions.js';
@@ -25,6 +29,35 @@ const SH_SCALES = [[10, 1], [5, 1], [4, 1], [2, 1], [1, 1], [1, 2], [1, 5], [1, 
 const dfmt = (v, p) => !isFinite(v) ? '—' : String(+(+v).toFixed(p === undefined ? 3 : p));
 const sgn = v => (v < 0 ? '−' : '') + dfmt(Math.abs(v));
 
+/* a face's coating as the drawing names it: a JEKfilm coating or a named stack by its name, an AR by its reflectance,
+   a band coating by its label; '' for bare glass (a mirror is named by the drawing itself) */
+export function faceCoatName(c) {
+  if (!c || c.mode === 'bare' || c.mode === 'mirror') return '';
+  if (c.mode === 'stack') return c.label || 'Thin-film stack, ' + c.layers.length + ' layers';
+  if (c.mode === 'ar') return 'AR, R ≤ ' + c.R + ' %';
+  if (c.mode === 'band') return c.label || 'Coated ' + c.lo + '–' + c.hi + ' nm';
+  return 'R ' + (c.R || 0) + ' %';
+}
+/* a face's JEKfilm coating as a coating document (normFilm), when the face keeps what it was designed to (coat.film) */
+export function coatFilmDoc(c) {
+  if (!c || c.mode !== 'stack' || !c.film) return null;
+  return normFilm(Object.assign({}, c.film, { name: c.label || c.film.name, layers: c.layers }));
+}
+/* each drawn face of a part, in the order drawn: its index on the part (a part turned round is drawn as the light meets
+   it) and its coating */
+function drawnFaces(P, pi, e, pathed) {
+  if (e && e.type === 'prism') return [0, 1].map(j => ({ i: j, coat: e.coat }));
+  const n = P.parts[pi].n, k0 = surfaceParts(P).findIndex(s => s.pi === pi);
+  return Array.from({ length: n }, (_, j) => {
+    const sf = pathed ? null : P.surfaces[k0 + j], i = sf && sf.from && sf.from.i !== undefined ? sf.from.i : j;
+    return { i, coat: e && e.surfaces && e.surfaces[i] ? e.surfaces[i].coat : sf ? sf.coat : null };
+  });
+}
+/* the part's make settings in force, its faces in the order drawn */
+export function drawnMake(P, pi, e, T, pathed) {
+  const faces = drawnFaces(P, pi, e, pathed), n = e && e.type === 'lens' ? e.surfaces.length : 2, M = partMakeOf(e && e.make, n, T);
+  return Object.assign({}, M, { faces: faces.map(f => M.faces[f.i] || M.faces[0]), order: faces.map(f => f.i) });
+}
 /* the drawing data of each drawable part of the assembly, in order */
 export function lensDrawings(asm) {
   const P = designPrescription(asm), T = asm.design && asm.design.tol, rf = asm.kind === 'rf' && asm.rf;
@@ -33,11 +66,15 @@ export function lensDrawings(asm) {
     if (asm.kind === 'rf' && asm.rf) return rfDrawingData(P, pi, Object.assign(o, { rf: asm.rf, tol: normRfTol(asm.rfTol), mount: e && e.mount, coats: e && e.surfaces ? e.surfaces.map(q => q.coat) : null, grin: e && e.grin, zoned: e && e.zoned }));
     // a lens the light is followed through (mirror coats, stacked surfaces): drawn as the part is, its surfaces in their
     // own order with its own gaps, not as the light meets them
-    if (e && e.type === 'lens' && e.surfaces && lensPathed(e)) {
-      const Pe = { surfaces: e.surfaces.map(q => Object.assign({}, q, { semi: q.semi || e.diameter / 2, hole: q.hole || 0 })), gaps: e.gaps.slice(), materials: e.materials.map(m => Object.assign({}, m)), parts: [{ id: e.id, kind: 'lens', n: e.surfaces.length }], stopIndex: -1 };
-      return drawingData(Pe, 0, o);
-    }
-    return drawingData(P, pi, o);
+    const pathed = !!(e && e.type === 'lens' && e.surfaces && lensPathed(e));
+    // what it is made to, and each face's coating (a JEKfilm coating with the note its drawing carries)
+    const faces = drawnFaces(P, pi, e, pathed), make = drawnMake(P, pi, e, T, pathed);
+    Object.assign(o, { make, coats: faces.map(f => faceCoatName(f.coat)) });
+    const D = pathed ? drawingData({ surfaces: e.surfaces.map(q => Object.assign({}, q, { semi: q.semi || e.diameter / 2, hole: q.hole || 0 })), gaps: e.gaps.slice(), materials: e.materials.map(m => Object.assign({}, m)), parts: [{ id: e.id, kind: 'lens', n: e.surfaces.length }], stopIndex: -1 }, 0, o)
+      : drawingData(P, pi, o);
+    D.id = e ? e.id : null; D.make = make;
+    D.films = faces.map((f, j) => { const doc = coatFilmDoc(f.coat); return doc ? { surface: D.surfaces[j].n, doc, note: drawingNote(doc, filmSpec(doc), doc.make) } : null; }).filter(Boolean);
+    return D;
   });
 }
 
@@ -118,7 +155,7 @@ export function drawSheet(g, D, meta) {
   const xl = Math.min(...D.surfaces.map((s, j) => Math.min(X(j, r), X(j, 0)))) - 26;
   for (const y of [r, -r]) { g.beginPath(); g.moveTo(X(0, y) - 3, Y(y)); g.lineTo(xl - 5, Y(y)); g.stroke(); }
   arrowLine(g, xl, Y(r), xl, Y(-r));
-  g.save(); g.translate(xl - 5, cy); g.rotate(-Math.PI / 2); text(g, 'Ø ' + dfmt(D.dia), 0, 0, { align: 'center', size: 9 }); g.restore();
+  g.save(); g.translate(xl - 5, cy); g.rotate(-Math.PI / 2); text(g, 'Ø ' + dfmt(D.dia) + (D.diaTol ? ' +0/−' + dfmt(D.diaTol) : ''), 0, 0, { align: 'center', size: 9 }); g.restore();
   if (fl) {
     const xo = xl - 26, xf = cx + Math.min(...zs) * k;
     for (const y of [ro, -ro]) { g.beginPath(); g.moveTo(Math.min(xf, X(0, r)) - 3, Y(y)); g.lineTo(xo - 5, Y(y)); g.stroke(); }
@@ -157,7 +194,8 @@ export function drawSheet(g, D, meta) {
   if (D.surfaces.some(s => s.dR !== undefined)) row('  tolerance', D.surfaces.map(s => s.dR === null || s.dR === undefined ? '—' : '± ' + dfmt(s.dR, 4)));
   row('Clear aperture Øe', D.surfaces.map(s => dfmt(s.clear)));
   if (D.surfaces.some(s => s.hole)) row('Hole Ø', D.surfaces.map(s => s.hole ? dfmt(s.hole) : '—'));
-  if (D.surfaces.some(s => s.coat)) row('Coating', D.surfaces.map(s => s.coat || '—'));
+  if (D.surfaces.some(s => s.finish)) row('Finish', D.surfaces.map(s => PART_FINISHES[s.finish] || '—'));
+  if (D.surfaces.some(s => s.coat)) row('Coating', D.surfaces.map(s => s.coat ? (s.coat.length > 18 ? s.coat.slice(0, 17) + '…' : s.coat) + (D.films && D.films.some(f => f.surface === s.n) ? ' *' : '') : '—'));
   if (D.surfaces.some(s => s.k)) row('Conic k', D.surfaces.map(s => dfmt(s.k, 6)));
   if (D.surfaces.some(s => s.A.length || s.a2 || s.odd)) row('Aspheric', D.surfaces.map(s => s.A.length || s.a2 || s.odd ? 'see note' : '—'));
   if (D.surfaces.some(s => s.asphDep !== undefined)) row('Aspheric departure', D.surfaces.map(s => s.asphDep === undefined ? '—' : sgn(s.asphDep) + ' at Øe'));
@@ -167,8 +205,10 @@ export function drawSheet(g, D, meta) {
     row('Matching layer εr', D.surfaces.map(s => s.match ? dfmt(s.match.eps, 3) + (s.match.centre ? ' at centre' : '') : '—'));
     row('  thickness', D.surfaces.map(s => s.match ? dfmt(s.match.thick, 3) : '—'));
   }
-  if (D.surfaces.some(s => s.form !== undefined || s.irr !== undefined)) row('3/ Surface form', D.surfaces.map(s => '3/' + (s.form === undefined ? '-' : dfmt(s.form, 2)) + '(' + (s.irr === undefined ? '-' : dfmt(s.irr, 2)) + ')'));
+  if (D.surfaces.some(s => s.form !== undefined || s.irr !== undefined)) row('3/ Surface form', D.surfaces.map(s => s.finish === 'ground' ? '—' : '3/' + (s.form === undefined ? '-' : dfmt(s.form, 2)) + '(' + (s.irr === undefined ? '-' : dfmt(s.irr, 2)) + ')'));
   if (D.surfaces.some(s => s.centring !== undefined)) row('4/ Centring', D.surfaces.map(s => s.centring === undefined ? '—' : '4/ ' + dfmt(s.centring, 2) + '′'));
+  if (D.surfaces.some(s => s.sd !== undefined)) row('Scratch-dig', D.surfaces.map(s => s.sd || '—'));
+  if (D.surfaces.some(s => s.chamfer !== undefined)) row('Chamfer', D.surfaces.map(s => s.chamfer === undefined ? '—' : '≤ ' + dfmt(s.chamfer, 2) + ' × 45°'));
   ty += 10;
   text(g, RF ? 'Material' : D.elements.filter(e => !e.air && !e.stack).length > 1 ? 'Glasses' : 'Glass', tx, ty, { size: 9.5, bold: true }); ty += 14;
   const gl = D.elements.filter(e => !e.air && !e.stack), gw = (tw - c0) / Math.max(1, gl.length);
@@ -205,7 +245,10 @@ export function drawSheet(g, D, meta) {
     'A drawing of the design, for reference: how it is made is the maker’s.']
   : ['Dimensions in millimetres. Light from the left: a radius is positive with its centre of curvature to the right.',
     'Edge thickness, in brackets, is a reference dimension at the full diameter.',
-    D.toleranced ? 'Surface form (3/A(B)): A fringes of power and B of irregularity at 632.8 nm over the clear aperture. Centring (4/): surface tilt in arcminutes.' : 'No tolerances are set in the design’s tolerance settings.'];
+    D.toleranced ? 'Surface form (3/A(B)): A fringes of power and B of irregularity at 632.8 nm over the clear aperture. Centring (4/): surface tilt in arcminutes.' : 'No tolerances are set in the design’s tolerance settings.',
+    ...(D.made ? ['Scratch-dig to MIL-PRF-13830B over the clear aperture. Chamfers: protective, at 45°, no wider than given.' + (D.diaTol ? ' Diameter +0/−' + dfmt(D.diaTol) + '.' : '')] : [])];
+  // a JEKfilm coating: marked (λ) (λ in a circle, ISO 10110-9) on its face, its requirements as its specification gives them
+  for (const f of D.films || []) notes.push('* S' + f.surface + ' (λ) “' + f.doc.name + '”: ' + f.note.slice(1, -1).join('; ') + '. ' + f.note[f.note.length - 1] + '. See its coating specification.');
   D.surfaces.forEach(s => {
     if (!(s.A.length || s.a2 || s.odd)) return;
     const terms = [];
@@ -233,6 +276,8 @@ export function drawSheet(g, D, meta) {
   g.restore();
 }
 
+/* one drawing's sheet as a record, for a PDF of its own (Make the part) */
+export function drawingRec(D, meta) { const rec = new VecCtx(SHEET_W, SHEET_H, { plain: true }); drawSheet(rec, D, meta); return rec; }
 /* the sheets as records, for SVG or PDF */
 function sheetRecs(asm, which) {
   const all = lensDrawings(asm), pick = which === undefined ? all.map((_, i) => i) : [which];

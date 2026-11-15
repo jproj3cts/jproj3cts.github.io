@@ -1,0 +1,202 @@
+{
+ "wavelength_nm": 1550,
+ "silica_index": 1.444023621703261,
+ "low_na": {
+  "waist_um": 6.578404314465008,
+  "radius_nm": 50,
+  "gittes_schmidt_per_um": 4.268145788232608e-06,
+  "scatter_bench_per_um": 4.315685155814325e-06,
+  "slope_per_um": {
+   "mask": 4.233739555130042e-06,
+   "thin lens": 4.236688700012261e-06,
+   "aplanatic": 4.314090330142106e-06
+  },
+  "checks": [
+   {
+    "lens": "mask",
+    "check": "against Gittes and Schmidt",
+    "value": 4.233739555130042,
+    "reference": 4.268145788232609,
+    "off": -0.008061166326001623,
+    "tolerance": 0.02,
+    "ok": true
+   },
+   {
+    "lens": "mask",
+    "check": "against scatter_bench.py",
+    "value": 4.233739555130042,
+    "reference": 4.315685155814325,
+    "off": -0.018987854239988167,
+    "tolerance": 0.01,
+    "ok": false
+   },
+   {
+    "lens": "mask",
+    "check": "interference over the cone against -C_ext I_0 of the paraxial waist",
+    "value": -3.6308360353464994e-09,
+    "reference": -3.672293987600647e-09,
+    "off": -0.011289388157410207,
+    "tolerance": 0.01,
+    "ok": false
+   },
+   {
+    "lens": "thin lens",
+    "check": "against Gittes and Schmidt",
+    "value": 4.2366887000122615,
+    "reference": 4.268145788232609,
+    "off": -0.007370200030906937,
+    "tolerance": 0.02,
+    "ok": true
+   },
+   {
+    "lens": "thin lens",
+    "check": "against scatter_bench.py",
+    "value": 4.2366887000122615,
+    "reference": 4.315685155814325,
+    "off": -0.01830449927415012,
+    "tolerance": 0.01,
+    "ok": false
+   },
+   {
+    "lens": "thin lens",
+    "check": "interference over the cone against -C_ext I_0 of the paraxial waist",
+    "value": -3.6308490147280333e-09,
+    "reference": -3.672293987600647e-09,
+    "off": -0.011285853750421682,
+    "tolerance": 0.01,
+    "ok": false
+   },
+   {
+    "lens": "aplanatic",
+    "check": "against Gittes and Schmidt",
+    "value": 4.314090330142106,
+    "reference": 4.268145788232609,
+    "off": 0.010764520283296664,
+    "tolerance": 0.02,
+    "ok": true
+   },
+   {
+    "lens": "aplanatic",
+    "check": "against scatter_bench.py",
+    "value": 4.314090330142106,
+    "reference": 4.315685155814325,
+    "off": -0.0003695417099810472,
+    "tolerance": 0.01,
+    "ok": true
+   },
+   {
+    "lens": "aplanatic",
+    "check": "interference over the cone against -C_ext I_0 of the paraxial waist",
+    "value": -3.671569862745957e-09,
+    "reference": -3.672293987600647e-09,
+    "off": -0.00019718597071338717,
+    "tolerance": 0.01,
+    "ok": true
+   }
+  ]
+ },
+ "tight": {
+  "beam_radius_mm": 1.5,
+  "focal_length_mm": 2,
+  "lens_diameter_mm": 5.333,
+  "radius_nm": 150,
+  "cases": [
+   {
+    "polarised": "out of the plane, the sphere moved in the plane (across the polarisation)",
+    "mask": {
+     "slope_per_um": 0.03929258809116735,
+     "slope_coarser_per_um": 0.03929808098119259,
+     "dipole_per_um": 0.03741474416766855,
+     "extinction_W": 0.0001263319128896069
+    },
+    "thin lens": {
+     "slope_per_um": 0.04092562827719552,
+     "slope_coarser_per_um": 0.04093063290048246,
+     "dipole_per_um": 0.03904727986470685,
+     "extinction_W": 0.0001274679396242566
+    },
+    "aplanatic": {
+     "slope_per_um": 0.0415282655445585,
+     "slope_coarser_per_um": 0.041533257462418705,
+     "dipole_per_um": 0.03973857398948103,
+     "extinction_W": 0.00012406775788129733
+    }
+   },
+   {
+    "polarised": "in the plane, the sphere moved in the plane (along the polarisation)",
+    "mask": {
+     "slope_per_um": 0.03231359582815282,
+     "slope_coarser_per_um": 0.03231804562290369,
+     "dipole_per_um": 0.03049382788080413,
+     "extinction_W": 0.0001263366352578183
+    },
+    "thin lens": {
+     "slope_per_um": 0.03286430639963878,
+     "slope_coarser_per_um": 0.03286954772039847,
+     "dipole_per_um": 0.031071701527748456,
+     "extinction_W": 0.0001274745094702475
+    },
+    "aplanatic": {
+     "slope_per_um": 0.03238491056180752,
+     "slope_coarser_per_um": 0.032390181735762455,
+     "dipole_per_um": 0.030660440486042054,
+     "extinction_W": 0.0001240756145899547
+    }
+   }
+  ],
+  "x_um": [
+   -1.2,
+   -1.1,
+   -1.0,
+   -0.8999999999999999,
+   -0.7999999999999999,
+   -0.7,
+   -0.6,
+   -0.5,
+   -0.39999999999999997,
+   -0.3,
+   -0.19999999999999998,
+   -0.0999999999999999,
+   0.0,
+   0.0999999999999999,
+   0.19999999999999998,
+   0.3000000000000001,
+   0.39999999999999997,
+   0.4999999999999999,
+   0.6,
+   0.7000000000000001,
+   0.7999999999999999,
+   0.8999999999999998,
+   1.0000000000000002,
+   1.1,
+   1.2
+  ],
+  "signal": [
+   -0.0032314911669150486,
+   -0.005074519777261523,
+   -0.007130532345289255,
+   -0.009222962132313777,
+   -0.011127220079543094,
+   -0.012595838125128584,
+   -0.013391867963403194,
+   -0.013325513536453877,
+   -0.012287726184457977,
+   -0.010274427968447415,
+   -0.0073962660163334115,
+   -0.003871165219318252,
+   -8.999725064576941e-21,
+   0.003871165219318252,
+   0.007396266016333414,
+   0.010274427968447417,
+   0.012287726184457975,
+   0.013325513536453873,
+   0.013391867963403192,
+   0.012595838125128581,
+   0.011127220079543094,
+   0.009222962132313781,
+   0.0071305323452892505,
+   0.005074519777261523,
+   0.0032314911669150486
+  ]
+ }
+}

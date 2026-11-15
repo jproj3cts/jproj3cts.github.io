@@ -1,3 +1,4 @@
+import { particleAz } from '../core/traps.js';
 import { SPEC_L, SPEC_W } from '../parts/spectrometer.js';
 import { ffSag } from '../core/freeform.js';
 import { grinDesign } from '../core/grin.js';
@@ -20,7 +21,7 @@ import { lastTrace, setRoll, setTip, setZ, tippable, traceKeyNow, traceStore, tr
 import {
   beamPowerShare, benchBg, benchHoles, benchLight, bez, byPowerOn, draw, fibreLight, fibreSegs, fibreSplit, filterColour, halfSize, hornShape, moveGrip, powerFade, powerTop, rayPowerShare, symbolCanvas, rayAlpha, rayDensity, rayTops,
   requestRender, resize, segPlanes, selFibre, selection, setSelFibreId, setSelection, surfPoints
-} from './render.js';
+, scatLevel } from './render.js';
 import { groupOf } from './drawings.js';
 import { mateSpread, poseCarry, poseSnap, poseTurn } from '../core/mates.js';
 import { snapVal } from './pointer.js';
@@ -271,6 +272,7 @@ export const V3D = (() => {
       R.boardBelow = below;
       R.groups.board.traverse(o => { if (!o.material) return; for (const m of [].concat(o.material)) { m.transparent = below; m.opacity = below ? 0.18 : 1; m.depthWrite = !below; m.needsUpdate = true; } });
     }
+    particleSizes(camera);
     spreadNames(camera);
     volPass();
     gl.render(scene, camera);
@@ -584,6 +586,7 @@ export const V3D = (() => {
         add(...sagSolid(sg, s.semi, lo - t, false, R0 ? mat.metal() : Object.assign(mat.metal(0xd8e4ea, 0.05), { transparent: true, opacity: 0.35 + 0.55 * el.reflect / 100 }), mat.glass(0xa9d8e6, 0.45)));
         return g;
       }
+      case 'particle': add(particle3(el)); return g;          // the sign alone: it has no body
       case 'screen': {
         const [s] = elementSurfaces(el), sg = sag3(s);
         // a monitor the light goes through is see-through; a dump or a camera is a solid plate
@@ -740,6 +743,38 @@ export const V3D = (() => {
       r.sp.center.set(0.5, -n * (r.h + 3) / r.h);
     }
   }
+  /* A screen's particle (the Trap and Scattering tabs'), where the light meets the screen: its shape, its proportions
+     and its axis as set, in its material's colour, and far larger than life: nanometres would not show on a bench in
+     millimetres, so it is a sign that keeps its size on the page, its longest side PARTICLE_PX long however near
+     the view is (particleSizes, each frame). Its axis is given on the bench, not on the screen: the model is turned
+     back by the screen's own pose each time the screen is placed (benchAxis). */
+  const PARTICLE_PX = 36;
+  const PARTICLE_COL = { Au: 0xd8a650, Ag: 0xdfe3e6, Al: 0xc9ced3 };
+  function particle3(el) {
+    const shape = ['cylinder', 'capsule', 'spheroid'].includes(el.trapShape) ? el.trapShape : 'sphere';
+    const D = Math.max(1, 2 * el.trapR), Lr = shape === 'sphere' ? D : Math.max(shape === 'capsule' ? D : 1, el.trapLen || D);
+    const k = 1 / Math.max(D, Lr), r = Math.max(1 / 16, D * k / 2), L = Math.max(1 / 8, Lr * k);      // its longest side 1: scaled each frame
+    const m = PARTICLE_COL[el.trapMat] ? mat.metal(PARTICLE_COL[el.trapMat], 0.25) : new T.MeshStandardMaterial({ color: col(0xdff1f7), roughness: 0.15, metalness: 0, emissive: col(0x6fb7cf), emissiveIntensity: 0.25 });
+    const ax = new T.Group(); ax.userData.benchAxis = [(particleAz(el) || 0) * deg, (el.trapTilt || 0) * deg]; ax.userData.particle = { shape, r, L };
+    const lie = geo => mesh(geo.rotateZ(Math.PI / 2), m);                       // a cylinder is made standing: laid along x, the axis
+    if (shape === 'sphere') ax.add(mesh(new T.SphereGeometry(r, 28, 18), m));
+    else if (shape === 'spheroid') { const s = mesh(new T.SphereGeometry(1, 28, 18), m); s.scale.set(L / 2, r, r); ax.add(s); }
+    else if (shape === 'cylinder') ax.add(lie(new T.CylinderGeometry(r, r, L, 28)));
+    else {
+      const mid = Math.max(0, L - 2 * r);
+      if (mid > 0) ax.add(lie(new T.CylinderGeometry(r, r, mid, 28, 1, true)));
+      for (const sgn of [-1, 1]) { const c = mesh(new T.SphereGeometry(r, 28, 18), m); c.position.x = sgn * mid / 2; ax.add(c); }
+    }
+    ax.traverse(o => { o.castShadow = false; });          // a sign, not a body on the table
+    return ax;
+  }
+  function particleSizes(camera) {
+    const k = 2 * Math.tan(camera.fov * deg / 2) / Math.max(1, R.h) * PARTICLE_PX, v = new T.Vector3();
+    for (const p of R.groups.parts.children) for (const o of p.children) if (o.userData.particle) { const d = v.copy(p.position).sub(camera.position).dot(camera.getWorldDirection(new T.Vector3())); o.scale.setScalar(Math.max(1e-4, k * Math.abs(d))); }
+  }
+  /* the pieces of a placed part that keep to the bench's directions, turned back by the part's own turn */
+  const benchAxes = p => { for (const o of p.children) if (o.userData.benchAxis) { const [az, tl] = o.userData.benchAxis; o.quaternion.copy(p.quaternion).invert().multiply(new T.Quaternion().setFromEuler(new T.Euler(0, -tl, az, 'ZYX'))); } };
+
   /* a name, drawn the same size on screen however far away */
   function label(text, colour) {
     const c = document.createElement('canvas'), g = c.getContext('2d'), fs = 26;
@@ -846,7 +881,7 @@ export const V3D = (() => {
       }
       if (!p) continue;
       used.add(el.id);
-      p.position.set(el.x, el.y, z3(el)); p.rotation.set((el.roll || 0) * deg, -(el.tip || 0) * deg, el.angle * deg, 'ZYX');
+      p.position.set(el.x, el.y, z3(el)); p.rotation.set((el.roll || 0) * deg, -(el.tip || 0) * deg, el.angle * deg, 'ZYX'); benchAxes(p);
       p.userData.id = el.id; p.traverse(o => { o.userData.id = el.id; if (o.userData.phosphor) for (const t of o.userData.texs) phosphorRoll(t, el); });
       G.parts.add(p);
       if (names) {
@@ -937,7 +972,9 @@ export const V3D = (() => {
     for (const r of rays) {
       if (r.bench !== project.tab || !r.pts || r.pts.length < 4) continue;
       // (by power, as on the bench: against the bench's brightest source, the faintest gone)
-      const lvl = byPow ? Math.round(0.8 * powerFade(rayPowerShare(r, lastTrace, byPow, tops)) * dens * 12) : Math.max(1, Math.round(rayAlpha(r.w / (tops.get(r.src) || 1)) * dens * 12)), key = r.colour + '|' + lvl;
+      // (a particle's scattered light, far below the beam that drives it, is the faintest steps that show: as on the bench)
+      const lvl = r.sc ? Math.max(scatLevel(r, tops), byPow ? Math.round(0.8 * powerFade(rayPowerShare(r, lastTrace, byPow, tops)) * dens * 12) : 0)
+        : byPow ? Math.round(0.8 * powerFade(rayPowerShare(r, lastTrace, byPow, tops)) * dens * 12) : Math.max(1, Math.round(rayAlpha(r.w / (tops.get(r.src) || 1)) * dens * 12)), key = r.colour + '|' + lvl;
       if (!lvl) continue;
       if (!groups.has(key)) groups.set(key, { colour: r.colour, alpha: lvl / 12, pos: [] });
       const P = groups.get(key).pos, p = r.pts, zs = r.zs;
@@ -945,6 +982,19 @@ export const V3D = (() => {
         const x0 = p[i - 2], y0 = p[i - 1], x1 = p[i], y1 = p[i + 1], c = cut(x0, y0, x1, y1, rb);
         const z0 = zs ? zs[(i >> 1) - 1] : BEAM_H, z1 = zs ? zs[i >> 1] : BEAM_H;
         if (c) P.push(x0 + (x1 - x0) * c[0], y0 + (y1 - y0) * c[0], z0 + (z1 - z0) * c[0], x0 + (x1 - x0) * c[1], y0 + (y1 - y0) * c[1], z0 + (z1 - z0) * c[1]);
+      }
+    }
+    // a particle's fan (lastTrace.scat.fans): every ray of it, over the sphere, each as bright as the pattern is along it
+    R.nFan = 0;
+    for (const F of (lastTrace.scat && lastTrace.scat.fans) || []) {
+      if (!F.on || F.bench !== project.tab) continue;
+      for (let i = 0; i < F.n; i++) {
+        const o = 5 * i, w = F.rays[o + 4];
+        if (!(w > 1e-4)) continue;
+        const lvl = Math.min(4, 1 + Math.floor(3.999 * Math.sqrt(w))), key = F.colour + '|fan' + lvl, L = F.rays[o + 3];
+        if (!groups.has(key)) groups.set(key, { colour: F.colour, alpha: 0.06 * lvl, pos: [] });
+        const c = cut(F.pos[0], F.pos[1], F.pos[0] + F.rays[o] * L, F.pos[1] + F.rays[o + 1] * L, rb);
+        if (c) { groups.get(key).pos.push(F.pos[0] + F.rays[o] * L * c[0], F.pos[1] + F.rays[o + 1] * L * c[0], F.pos[2] + F.rays[o + 2] * L * c[0], F.pos[0] + F.rays[o] * L * c[1], F.pos[1] + F.rays[o + 1] * L * c[1], F.pos[2] + F.rays[o + 2] * L * c[1]); R.nFan++; }
       }
     }
     R.nRays = 0;
@@ -966,12 +1016,29 @@ export const V3D = (() => {
       qy.set(i, q); return q;
     };
     R.nBeams = 0;
+    /* Beams that run the same path at the same size are one envelope: a fibre's light in many spectral slices (an
+       amplifier's spontaneous emission, a modulator's sidebands) leaves a collimator as a beam a slice, all along one
+       line and alike to a few per cent. Drawn each on the last they were tens of see-through tubes to fill for one
+       that looks the same; the strongest of each family is drawn, as bright as the family's power together. */
+    const fam = new Map(), lead = new Map();
+    const envOk = seg => lightOf().envelope && !seg.fan && !seg.pol && seg.bench === project.tab && (seg.len3 || seg.len) > 0;
     B.forEach((seg, i) => {
-      if (!lightOf().envelope || seg.fan || seg.pol || seg.bench !== project.tab || !((seg.len3 || seg.len) > 0)) return;
-      if (byPow && !(powerFade(beamPowerShare(seg, lastTrace, byPow)) > 0.0025)) return;
+      if (!envOk(seg)) return;
       const src = getEl(seg.src);
       if (!src) return;
       if (!m2.has(seg.src)) m2.set(seg.src, [m2Env(src), m2Of(src) * modeM2(src)[1]]);
+      const Mx = m2.get(seg.src)[0], L3 = seg.len3 || seg.len, wa = beamAt(seg.qr, seg.qi, seg.n, seg.nm, Mx), wb = beamAt(seg.qr + L3, seg.qi, seg.n, seg.nm, Mx);
+      const bin = b2 => b2 && b2.w > 0 ? Math.round(Math.log(b2.w) / 0.08) : 'x';                  // sizes within about 8%
+      const k = [seg.x0, seg.y0, seg.z0 === undefined ? '' : seg.z0, seg.dx, seg.dy, seg.uz || 0, L3].map(v => typeof v === 'number' ? v.toFixed(2) : v).join() + seg.colour + '|' + bin(wa) + ',' + bin(wb);
+      const sh = byPow ? beamPowerShare(seg, lastTrace, byPow) : seg.w === undefined ? 1 : seg.w, f = fam.get(k);
+      if (!f) fam.set(k, { i, top: sh, sum: sh }); else { f.sum += sh; if (sh > f.top) { f.top = sh; f.i = i; } }
+    });
+    for (const f of fam.values()) lead.set(f.i, Math.min(1, f.sum));
+    B.forEach((seg, i) => {
+      if (!lead.has(i)) return;
+      const share = lead.get(i);
+      if (byPow && !(powerFade(share) > 0.0025)) return;
+      const src = getEl(seg.src);
       const [Mx, My] = m2.get(seg.src), q0 = qyAt(i), lam0 = seg.nm * 1e-6;
       // a beam with its axes turned: its ellipse from its whole Q along the segment (see beamQ)
       const QG = beamQ(B.map((b2, j) => j === i ? Object.assign({}, b2, { len: 0, len3: 0 }) : b2), i, lam0);
@@ -1007,7 +1074,7 @@ export const V3D = (() => {
       }
       for (let s = 0; s < steps; s++) for (let j = 0; j < nt; j++) { const a = s * nt + j, b = s * nt + (j + 1) % nt; idx.push(a, a + nt, b + nt, a, b + nt, b); }
       const geo = new T.BufferGeometry(); geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setIndex(idx);
-      G.add(new T.Mesh(geo, new T.MeshBasicMaterial({ clippingPlanes: segClip3(PL), color: col(seg.colour), transparent: true, opacity: (add ? 0.16 : 0.22) * (byPow ? Math.sqrt(powerFade(beamPowerShare(seg, lastTrace, byPow))) : clamp(Math.sqrt(seg.w === undefined ? 1 : seg.w), 0.15, 1)), blending: blend, side: T.DoubleSide, depthWrite: false })));
+      G.add(new T.Mesh(geo, new T.MeshBasicMaterial({ clippingPlanes: segClip3(PL), color: col(seg.colour), transparent: true, opacity: (add ? 0.16 : 0.22) * (byPow ? Math.sqrt(powerFade(share)) : clamp(Math.sqrt(share), 0.15, 1)), blending: blend, side: T.DoubleSide, depthWrite: false })));
       R.nBeams++;
       geo.computeBoundingBox(); box.union(geo.boundingBox);
     });
@@ -2018,6 +2085,10 @@ export const V3D = (() => {
       meshAt(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const p = R.groups.parts.children.find(q => q.userData.id === el.id); return p ? p.position.toArray() : null; },
       // a network part's body in 3D: its size (mm) and the picture on its top, as a data URL
       netBody(name) { const el = project.elements.find(e => e.name === name); if (!el || !NET_3D.has(el.type)) return null; const B = netBox(el); return { hx: B.hx, hy: B.hy, h: B.h, ports: B.P.length, top: symbolCanvas(el, B.hx, B.hy, 14).toDataURL() }; },
+      // a screen's particle as drawn: its shape, its drawn half-width and length (mm), and its axis on the bench
+      particleOf(name) { const el = project.elements.find(e => e.name === name), c = el && R && (sync(), R.partCache && R.partCache.get(el.id)); const o = c && c.obj.children.find(x => x.userData.particle); if (!o) return null; o.updateWorldMatrix(true, false); const v = new T.Vector3(1, 0, 0).transformDirection(o.matrixWorld); particleSizes(R.camera); return Object.assign({ axis: [v.x, v.y, v.z], px: o.scale.x * R.h / (2 * Math.tan(R.camera.fov * deg / 2) * o.getWorldPosition(new T.Vector3()).sub(R.camera.position).dot(R.camera.getWorldDirection(new T.Vector3()))) }, o.userData.particle); },
+      // a particle's scattered light as drawn: the fan's rays, and the cones' (how many leave the bench plane)
+      scatLight() { if (!R) return null; sync(); const rs = (lastTrace.rays || []).filter(r => r.sc && r.bench === project.tab); return { fan: R.nFan || 0, cone: rs.length, coneUp: rs.filter(r => r.zs && r.zs.some(z => Math.abs(z - r.zs[0]) > 1e-6)).length, lines: R.nRays }; },
       screenOf(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const v = new T.Vector3(el.x, el.y, z3(el)).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
     },
   };

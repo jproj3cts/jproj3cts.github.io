@@ -83,6 +83,14 @@ export function normCoat(c) {
     // the substrate the JEKfilm coating was designed on (its name and index at the design wavelength): the face's note
     // says so when this face's glass differs (ui/panels.js filmNote)
     if (c.sub && typeof c.sub === 'object' && isFinite(+c.sub.n) && +c.sub.n >= 1) out.sub = { name: String(c.sub.name || '').slice(0, 40), n: clamp(+c.sub.n, 1, 10) };
+    // what a JEKfilm coating was designed to (its spec, make limits and tolerance settings, not its layers: those are the
+    // face's own copy), so the part's drawing and Make the part give its coating specification; kept as given, bounded
+    if (c.film && typeof c.film === 'object' && !Array.isArray(c.film)) {
+      const keep = {};
+      for (const k of ['spec', 'make', 'tol']) if (c.film[k] && typeof c.film[k] === 'object') keep[k] = c.film[k];
+      const txt = JSON.stringify(keep);
+      if (txt.length > 2 && txt.length < 20000) out.film = JSON.parse(txt);
+    }
     // up to 200 layers, as JEKfilm allows (an edge filter or a broadband HR can need over a hundred)
     out.layers = (Array.isArray(c.layers) ? c.layers : []).slice(0, FACE_LAYERS_MAX).map(L => ({
       n: Math.max(1, num(L && L.n, 1.38)),

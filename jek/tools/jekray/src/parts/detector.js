@@ -19,6 +19,7 @@ export const DETECTOR = {
       vmax: Math.max(0.01, num(e.vmax, 10)),           // output swing, V
       demodF: Math.max(0, num(e.demodF, 0)),           // mixer frequency, MHz (0: none)
       demodPhase: num(e.demodPhase, 0),                // and its phase, degrees
+      ...(e.quad === true ? { quad: true } : {}),      // a split diode: also reads right less left and top less bottom
       absorb: true,
     });
   },
@@ -27,6 +28,6 @@ export const DETECTOR = {
     angle: 'the direction its face points: towards the light.',
     fields: { length: 'mm: the active area’s diameter.', material: 'one of the detector materials below.', resp: 'A/W, used when material is "custom".', gain: 'V/A transimpedance.',
     bandwidth: 'Hz: the amplifier’s 3 dB bandwidth, a single pole; its noise counts over π/2 times it.', dark: 'nA dark current.', ampNoise: 'pA/√Hz input noise.', vmax: 'V output limit.',
-    demodF: 'MHz: mix the output down at this frequency (0: no mixer). With an EOM at fm, this gives a PDH error signal.', demodPhase: 'degrees: the mixer’s phase.' },
+    demodF: 'MHz: mix the output down at this frequency (0: no mixer). With an EOM at fm, this gives a PDH error signal.', demodPhase: 'degrees: the mixer’s phase.', quad: 'true: a split (quadrant) diode. Its readout adds right less left (across the face in the bench plane, towards the face’s own left as it looks at the light counted negative) and top less bottom, each the difference of the light on the two halves, in mW and as a share of the sum. For a particle’s place in a focus read from its scattered light.' },
   },
 };

@@ -10,7 +10,7 @@ import { hooks } from '../core/hooks.js';
    (jek-api FREE_LINKS): signed out they ask for an account; signed in the API says when they are used up (JEKray
    counts them on the badge, io/tasters.js). The tests, and a build without accounts, are not gated.
    ========================================================================== */
-const FREE_WORK = /optimise|search for designs|substitute glasses|tolerance a|design report|drawings|export a design|run scripts|export (data as|several kinds|everything)|save a coating file|coating specification/;
+const FREE_WORK = /optimise|search for designs|substitute glasses|tolerance a|design report|drawings|export a design|run scripts|export (data as|several kinds|everything)|save a coating file|coating specification|make the part/;
 export const freeWork = what => FREE_WORK.test(String(what || ''));
 const shareWork = what => /share a link|QR code/.test(String(what || ''));
 /* why the work named is not open now, from the account's own reason (cloud.js proWhy: not signed in, or no plan): '' when it is */

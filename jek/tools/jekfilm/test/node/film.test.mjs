@@ -126,7 +126,7 @@ test('tolerancing: no error gives the nominal coating; an error spreads it, the 
   assert.ok(a.merit.p90 > a.merit.nominal && a.mean.p90 > a.mean.nominal, 'errors make it worse');
   const n = T.filmTolerance(f.layers, s, { kind: 'abs', sigma: 2, runs: 50 });
   assert.equal(n.tol.kind, 'abs');
-  assert.deepEqual(T.normTol({ sigma: -3, runs: 5, kind: 'x' }), { kind: 'rel', sigma: 0, runs: 10, seed: 1 });
+  assert.deepEqual(T.normFilmTol({ sigma: -3, runs: 5, kind: 'x' }), { kind: 'rel', sigma: 0, runs: 10, seed: 1 });
   assert.deepEqual(F.normFilm({}).tol, T.TOL_DEFAULT);
 });
 test('the examples are what their descriptions say', async () => {
@@ -234,4 +234,14 @@ test('the yield: the tolerance runs counted against the Make it limits, each alo
   // a limit tighter than the design: no run meets it
   const tight = M.filmYield(res.stacks, f, s, M.normMake({ limits: { mean: 0.001 } }));
   assert.equal(tight.pass, 0);
+});
+test('every example meets its own Make it limits, so its coating specification sends no limit the design misses', async () => {
+  const fs = await import('node:fs');
+  const M = await import('../../src/core/film-make.js');
+  const { FILM_EXAMPLES } = await import('../../src/io/files.js');
+  for (const [slug] of FILM_EXAMPLES) {
+    const f = F.normFilm(JSON.parse(fs.readFileSync(new URL('../../../demos/' + slug + '.jekfilm', import.meta.url), 'utf8')));
+    const miss = M.makeLimits(f, F.filmSpec(f), f.make).filter(r => !r.ok);
+    assert.deepEqual(miss.map(r => r.label), [], slug + ' misses ' + miss.map(r => r.label + ' ' + r.design.toFixed(2) + ' vs ' + r.value).join(', '));
+  }
 });

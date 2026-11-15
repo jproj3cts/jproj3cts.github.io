@@ -1,4 +1,5 @@
 import { PRISM_SHAPES, nextName, normCoat, normMat, num } from '../state/project.js';
+import { normPartMake } from '../core/part-make.js';
 
 /* Prism: A glass prism or window. */
 export const PRISM = {
@@ -22,6 +23,8 @@ export const PRISM = {
       material: normMat(e.material),
       coat: normCoat(e.coat),
       source: typeof e.source === 'string' ? e.source : undefined,
+      // a window's: what it is made to (core/part-make.js), its two faces
+      ...(e.shape === 'window' && e.make ? { make: normPartMake(e.make, 2) } : {}),
     });
   },
   zHalf: el => el.size / 2,
@@ -31,6 +34,6 @@ export const PRISM = {
     angle: 'rotates the prism about its centre; check the result on the bench.',
     fields: { shape: 'one of the prism shapes below. The equilateral prism\'s apex points along +x at angle 0, so a beam along +x meets the apex; a pentaprism or Pellin–Broca prism takes light in along +x through its first face.', size: 'mm (a pentaprism\'s or Pellin–Broca\'s first face; ignored for a polygon).', thickness: 'mm (for a window).',
       verts: 'a polygon\'s corners, [[x, y], ...] in mm, 3 to 16, in order round it.', mirrored: 'the faces silvered, by index from the first corner\'s face (a pentaprism\'s two are by default).',
-      material: 'e.g. {"glass": "N-BK7"}.', coat: 'coating on its faces.' },
+      material: 'e.g. {"glass": "N-BK7"}.', coat: 'coating on its faces.', make: 'optional, a window only: what it is made to, as a lens\u2019s "make" (its two faces).' },
   },
 };

@@ -174,17 +174,95 @@ export const MASK_EDGE_SHARE = 0.5;
 /* A mask delay's slope along u, in waves per mm, from just round (u, 0) where the formula is
    singular or jumps there: the mean of its slopes at four points 2 um away, each taken modulo
    whole waves, or 0 unless all four are smooth (a binary step bends nothing) */
-export function maskMeanSlope(fn, u, lam) {
+export function maskMeanSlope(fn, u, lam, v = 0, up = false, cell = fn.cell) {
   // round a sampled delay's core (a mod's table), far enough out that the samples hold the vortex
-  const h = 1e-4, e = Math.max(2e-3, 2.5 * (fn.cell || 0)), w = d => d - Math.round(d);
+  const h = 1e-4, e = Math.max(2e-3, 2.5 * (cell || 0)), w = d => d - Math.round(d);
   let sum = 0;
   for (const [a, b] of [[e, 0], [-e, 0], [0, e], [0, -e]]) {
-    const D = (x) => fn(u + a + x, b, lam)[1], d0 = D(0), dp = w(D(h) - d0), dm = w(d0 - D(-h));
+    // (up: the slope along v, out of the bench plane, taken the same way)
+    const D = (x) => fn(u + a + (up ? 0 : x), v + b + (up ? x : 0), lam)[1], d0 = D(0), dp = w(D(h) - d0), dm = w(d0 - D(-h));
     if (Math.abs(dp) > 0.45 || Math.abs(dm) > 0.45 || Math.abs(dp - dm) > 0.05) return 0;
     sum += (dp + dm) / (2 * h);
   }
   return sum / 4;
 }
+/* What a mask's delay does to a whole beam, where the delay at the beam's own ray is no guide to it.
+   A lens bends a beam by its slope where the beam's ray crosses it and focuses it by its curvature
+   there, because its slope runs on evenly across the beam. A grating finer than the beam does
+   not: its slope under the ray is whatever part of a period the ray happens to cross (a sinusoidal
+   phase grating's, anything from -beta/d to +beta/d waves per mm), while the light goes into orders
+   set by the whole pattern. What the whole beam takes is the mean of the slope over its irradiance,
+   which is where the centroid of the light it sends on goes (the mean of the transverse wavevector
+   it adds), and the trend of the slope across it, which is the lens it makes.
+   The slopes are sampled over the beam's footprint (1/e^2 half-widths wu along u and wv along v
+   about (u0, v0)), each modulo whole waves, in pairs either side of the centre so that a vortex on
+   the beam's ray cancels and a carrier stays; a straight-line fit across the footprint gives the
+   trend. Where that fit accounts for most of the slope's variation (a lens, aberrated or not, an
+   axicon) or what it leaves would not spread the beam, the answer is null and the delay at the
+   ray stands, as before. Else { gu, gv, cu, cv, su, sv, ku, kv }: the mean slopes (waves/mm), their
+   trends (waves/mm^2) along u and v, and what a grid needs to know of the rest (see below). */
+export function maskBeamFit(fn, u0, v0, wu, wv, lam) {
+  if (!(wu > 0) || !(wv > 0) || !isFinite(wu) || !isFinite(wv)) return null;
+  const memo = BEAM_FIT.get(fn), key = u0 + ',' + v0 + ',' + wu + ',' + wv + ',' + lam;
+  if (memo && memo.key === key) return memo.out;
+  const h = 1e-4, w = d => d - Math.round(d), n = BEAM_FIT_N;
+  // a slope from one-sided differences that agree; none at a step or a core
+  const grad = (u, v) => {
+    const f0 = fn(u, v, lam), d0 = f0[1];
+    const a1 = w(fn(u + h, v, lam)[1] - d0), a2 = w(d0 - fn(u - h, v, lam)[1]), b1 = w(fn(u, v + h, lam)[1] - d0), b2 = w(d0 - fn(u, v - h, lam)[1]);
+    if (Math.abs(a1) > 0.45 || Math.abs(a2) > 0.45 || Math.abs(a1 - a2) > 0.05 || Math.abs(b1) > 0.45 || Math.abs(b2) > 0.45 || Math.abs(b1 - b2) > 0.05) return null;
+    return [(a1 + a2) / (2 * h), (b1 + b2) / (2 * h), f0[0] * f0[0], (a1 - a2) / (h * h), (b1 - b2) / (h * h)];
+  };
+  const A = new Float64Array(n), B = new Float64Array(n), GU = new Float64Array(n), GV = new Float64Array(n), W = new Float64Array(n), CU = new Float64Array(n), CV = new Float64Array(n);
+  // Points on a Fibonacci lattice over the footprint out to 2.2 w, each weighted by the beam's
+  // irradiance there, exp(-2 r^2 / w^2), and the mask's own transmission: a lattice sums a pattern
+  // far finer than its own spacing to nothing, as it should, where points scattered at random
+  // would leave a share of it. Point n - i is point i through the centre.
+  const G = new Array(n), half = 2.2;
+  let m = 0, s0 = 0, su = 0, sv = 0, all = 0, ok = 0;
+  const at = i => [2 * half * wu * (i / n - 0.5), 2 * half * wv * ((i * BEAM_FIT_GEN % n) / n - 0.5)];
+  for (let i = 1; i < n; i++) { const [a, b] = at(i); G[i] = grad(u0 + a, v0 + b); }
+  for (let i = 1; i < n; i++) {
+    const [a, b] = at(i), g = G[i], wt = Math.exp(-2 * (a * a / (wu * wu) + b * b / (wv * wv)));
+    all += wt;
+    if (!g || !G[n - i]) continue;
+    ok += wt;
+    A[m] = a; B[m] = b; GU[m] = g[0]; GV[m] = g[1]; W[m] = g[2] * wt; CU[m] = g[3]; CV[m] = g[4];
+    s0 += W[m]; su += W[m] * g[0]; sv += W[m] * g[1]; m++;
+  }
+  let out = null;
+  if (ok >= 0.5 * all && s0 > 0) {
+    const gu = su / s0, gv = sv / s0;
+    let aa = 0, bb = 0, ua = 0, ub = 0, va = 0, vb = 0, tot = 0;
+    for (let i = 0; i < m; i++) {
+      const du = GU[i] - gu, dv = GV[i] - gv, wt = W[i];
+      aa += wt * A[i] * A[i]; bb += wt * B[i] * B[i]; ua += wt * du * A[i]; ub += wt * du * B[i]; va += wt * dv * A[i]; vb += wt * dv * B[i];
+      tot += wt * (du * du + dv * dv);
+    }
+    const cu = aa > 0 ? ua / aa : 0, cuv = bb > 0 ? ub / bb : 0, cvu = aa > 0 ? va / aa : 0, cv = bb > 0 ? vb / bb : 0;
+    let res = 0, ru = 0, rv = 0, qu = 0, qv = 0;
+    const RU = [], RV = [];
+    for (let i = 0; i < m; i++) {
+      const du = GU[i] - gu - cu * A[i] - cuv * B[i], dv = GV[i] - gv - cvu * A[i] - cv * B[i];
+      res += W[i] * (du * du + dv * dv); ru += W[i] * du * du; rv += W[i] * dv * dv;
+      qu += W[i] * (CU[i] - cu) ** 2; qv += W[i] * (CV[i] - cv) ** 2;
+      if (W[i] > 0) { RU.push(Math.abs(du)); RV.push(Math.abs(dv)); }
+    }
+    // what the fit leaves, as an angle (waves/mm times lambda), against the beam's own spread lambda / (pi w)
+    if (res > 0.5 * tot && Math.sqrt(res / s0) * Math.PI * Math.min(wu, wv) > 0.5) {
+      // and for the grid that must hold it: the steepest slope left (all but the hundredth of
+      // the samples nearest a vortex's core, where it has no bound), in waves/mm, and how fast the
+      // slope itself turns, rms(D'') / rms(D'), a sinusoid's 2 pi / d, in rad/mm
+      const top = R => { R.sort((a, b) => a - b); return R.length ? R[Math.min(R.length - 1, Math.floor(0.99 * R.length))] : 0; };
+      // (along an axis the mask leaves alone both are nothing: a ratio of rounding errors is no rate)
+      const su = top(RU), sv = top(RV), live = (sl, wd) => sl * Math.PI * wd > 0.05;
+      out = { gu, gv, cu, cv, su: live(su, wu) ? su : 0, sv: live(sv, wv) ? sv : 0, ku: live(su, wu) && ru > 0 ? Math.sqrt(qu / ru) : 0, kv: live(sv, wv) && rv > 0 ? Math.sqrt(qv / rv) : 0 };
+    }
+  }
+  BEAM_FIT.set(fn, { key, out });
+  return out;
+}
+const BEAM_FIT = new WeakMap(), BEAM_FIT_N = 1597, BEAM_FIT_GEN = 987;
 /* How many whole waves a mask's delay resets by between two points (a blazed grating's or a
    kinoform's): its change less what its local slopes, taken modulo whole waves, account for */
 export function maskResets(fn, u0, v0, u1, v1, lam) {

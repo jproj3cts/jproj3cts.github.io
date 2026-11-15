@@ -98,14 +98,18 @@ import { wireTasters } from '../io/tasters.js';
 import { gatherData } from '../engines/data-export.js';
 import { endTour, nameInput, openDemo, startNewBench, startTour, tour, TOURS, tourTick, wireTours } from './tours.js';
 import { modAsk, modLoad, modPrepare, modReset, wireMods } from '../io/mods.js';
-import { FW, TW, WORKERS_OK, fieldWorker, fwMismatch, fwRequest, newAppWorker } from '../page/workers.js';
+import { FW, TW, WORKERS_OK, fieldWorker, fwMismatch, fwProject, fwRequest, newAppWorker } from '../page/workers.js';
+import { scatterPlain, scatterPrep } from '../engines/scatter.js';
+import { setCavDegenCheck } from '../engines/scatter-cavity.js';
+import { wireScatter } from './scatter.js';
 import { drawingSvgText, drawingsPdfBlob, lensDrawings } from './lens-drawing.js';
+import { partFiles } from './lens-make.js';
 import { reportPdfBlob } from './lens-report.js';
 import { rfReportPdfBlob, rfReportRecs } from './rf-report.js';
 import { closeLensDesign, lensDesignOpen, lensOptState, lensTolRun, openLensDesign, optStart } from './lens-workspace.js';
 import { closeRfDesign, newRfDesign } from './rf-workspace.js';
 import { closeCoatDesign, coatDesignOpen, openCoatDesign, wireCoatDesign } from './coat-workspace.js';
-import { benchCoats, designInFilm, filmFolder, filmStale, updateFilms, wireFilmCoats } from '../io/film-coats.js';
+import { benchCoats, designInFilm, filmDocOn, filmFolder, filmStale, updateFilms, wireFilmCoats } from '../io/film-coats.js';
 import { designFigures, designPrescription } from '../engines/lens-design.js';
 import { anaSystems, footprints, huygensPsf, mtfAnalysis, psfAnalysis, relIllum, spotDiagram } from '../engines/lens-analysis.js';
 import { besselJ01, besselZerosJ0 } from '../core/special.js';
@@ -139,7 +143,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireFilmCoats(); wireMods(); wireView3d(); wireMate3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline, vecLightLayer: () => lightLayer }); wireCommands(); wireRecent();
+wireRender(); wireScatter(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireFilmCoats(); wireMods(); wireView3d(); wireMate3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline, vecLightLayer: () => lightLayer }); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -329,7 +333,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     lgComps: (p, l) => lgComps(p, l).map(c => c.slice()),
     trapAlpha, trapPhysics,
     sphereAlpha, gasDamping, waterViscosity,
-    trap(name) { const el = this.byName(name), D = diffraction(el); return D && D.trap ? trapReport(el, D.trap) : null; },
+    // a screen's atom trap, or a Particle part's trap (from its scattering run, as its Trap tab has it)
+    trap(name) { const el = this.byName(name); if (el && el.type === 'particle') { const S = this.scatter(name); return S && S.trapRaw ? trapReport(el, S.trapRaw) : null; } const D = diffraction(el); return D && D.trap ? trapReport(el, D.trap) : null; },
     fibreSPM: (F, nm, len, P, Pavg, gdd) => { const r = fibreSPM(Object.assign({ loss: 0, disp: null, gamma: null, ftype: 'smf' }, F), nm, len, Object.assign({ pshape: 'sech2', rep: 80, gdd0: 0 }, P), Pavg, gdd || 0, null); return r && { N: r.N, steps: r.steps, B: r.B, broad: r.broad, peakIn: r.peakIn, half: r.half, d0: r.d0, dd: r.dd, re: Array.from(r.re), im: Array.from(r.im) }; },
     fibreGamma: (F, nm) => fibreGamma(F, nm),
     nlc(name) { const el = this.byName(name); return ((lastTrace.nlc) || []).filter(H => H.id === el.id).map(H => ({ P: H.P, nm: H.nm, q: H.q, r: H.r })); },
@@ -398,6 +403,25 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
         w.onerror = e => { e.preventDefault(); done({ ok: false, err: e.message }); };
         w.onmessage = e => done(e.data.ok ? { ok: true, rays: e.data.out.rays.length } : { ok: false, err: e.data.err });
         w.postMessage({ id: 1, kind: 'trace', proj: JSON.stringify(serialize()), args: { key: 'probe' } });
+      });
+    },
+    // a particle's scattering run in a worker of its own, as the Scattering tab runs it (ui/scatter.js): the progress it
+    // sends and its answer (same: worked out for the bench as the page has it); stop: end it at the first progress of that stage
+    scatterProbe(name, opts) {
+      return new Promise(resolve => {
+        const el = this.byName(name), J = el && scatterPrep(el);
+        if (!WORKERS_OK || !J) { resolve({ ok: false, err: J ? 'no worker here' : 'no particle, or no beam' }); return; }
+        const w = newAppWorker(), prog = [];
+        let timer = null;
+        const done = r => { clearTimeout(timer); w.terminate(); resolve(Object.assign({ prog }, r)); };
+        timer = setTimeout(() => done({ ok: false, err: 'no answer' }), 120000);
+        w.onerror = e => { e.preventDefault(); done({ ok: false, err: e.message }); };
+        w.onmessage = e => {
+          const m = e.data;
+          if (m.prog) { prog.push(m.prog); if (opts && opts.stop === m.prog.stage) done({ ok: true, stopped: true }); return; }
+          done(m.ok ? { ok: true, same: m.out.key === J.key, S: m.out.S && scatterPlain(m.out.S) } : { ok: false, err: m.err });
+        };
+        w.postMessage({ id: 1, kind: 'scatter', proj: fwProject(), args: { id: el.id } });
       });
     },
     // the bench's field as drawn: each drawn stretch's half-width where it starts and ends
@@ -483,6 +507,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // the drawings of an assembly's lenses: their data, one sheet as SVG text, all (or one) as PDF text
     lensDrawings(name) { const a = assemblies().find(x => x.name === name); return a ? lensDrawings(a) : null; },
     lensDrawingSvg(name, i) { const a = assemblies().find(x => x.name === name); return a ? drawingSvgText(a, i || 0) : null; },
+    // Make the part: a drawing's documents as { name, text } (PDFs uncompressed), and a .jekfilm's content put on a lens face
+    async makePartFiles(name, i) { const a = assemblies().find(x => x.name === name); if (!a) return null; const D = lensDrawings(a)[i || 0]; return (await partFiles(D, { assembly: a.name, raw: true, date: '2026-01-01' })).map(f => ({ name: f.name, text: new TextDecoder('latin1').decode(f.data) })); },
+    filmOnFace(elName, j, doc, label) { const e = this.byName(elName), s = e && e.surfaces && e.surfaces[j]; return s ? filmDocOn(s, doc, label || doc.name) : false; },
     rfReportSvg(name, i) { const a = assemblies().find(x => x.name === name); if (!a) return null; const recs = rfReportRecs(a); return i === undefined ? recs.length : layoutSvg(recs[i], a.name); },
     async rfReportPdf(name) { const a = assemblies().find(x => x.name === name); return a ? await (await rfReportPdfBlob(a, { raw: true })).text() : null; },
     async lensReportPdf(name) { const a = assemblies().find(x => x.name === name); return a ? await (await reportPdfBlob(a, { raw: true })).text() : null; },
@@ -553,6 +580,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     },
     cavityModes(count) { const [k, v] = [...cavSolved.entries()].pop() || []; if (!v || !v.res) return null; const c = findCavities().find(c2 => c2.id === k);
       return cavModes(v.res, c ? c.fsr : 1, count).map(md => ({ abs: md.abs, loss: md.loss, offset: md.offset, share: md.share })); },
+    // (the validation page and the tests: a particle's cavity solved in its modes even where the degeneracy test would keep the
+    // warning, to set the solve against a reference on a cavity of low finesse; engines/scatter-cavity.js)
+    cavDegenCheck(on) { setCavDegenCheck(on); },
     setCavityLock(mode) { const c = findCavities()[0]; if (!c) return; project.cavityLock = Object.assign({}, project.cavityLock, { [c.id]: mode }); cavSolved.delete(c.id); cavRunCache.delete(lastTrace); },
     cavityPeaks(tol) {
       // the lines in the latest scan: position (as a share of the free spectral range from the

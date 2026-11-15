@@ -9,6 +9,7 @@ import { linkBudget, rfSweep } from './rf-sweep.js';
 import { antennaNow } from './antenna-field.js';
 import { diffraction, pctOfSources, viaCavity } from './pd-cavity.js';
 import { screenStats } from './screen-stats.js';
+import { scatterCached } from './scatter.js';
 
 /* ==========================================================================
    The bench's numbers as data: tables and arrays for File › Export data (io/data-export.js), a script's
@@ -38,7 +39,7 @@ export function partSettings(el) {
 const col = (name, unit, values, type) => ({ name, unit: unit || '', values, ...(type ? { type } : {}) });
 const isRf = () => benchNms().some(nm => nm > 1e5);
 const isAntenna = el => (el.type === 'lens' && (el.mmw || el.grin) && isRf()) || (el.type === 'mirror' && isRf() && (F => !!F && !F.h)(mirrorFocus(el)));
-const readoutParts = () => project.elements.filter(el => el.type === 'screen' || el.type === 'detector' || el.type === 'spectrometer' || isAntenna(el));
+const readoutParts = () => project.elements.filter(el => el.type === 'screen' || el.type === 'detector' || el.type === 'spectrometer' || el.type === 'particle' || isAntenna(el));
 
 /* ---------- Readouts: every screen, detector, spectrometer and antenna on the bench, as one long table ---------- */
 export function readoutsData() {
@@ -80,6 +81,30 @@ export function readoutsData() {
         add(el, 'MTF falls to 50% at', D.mtf50, 'lp/mm'); add(el, 'Airy radius', D.airy, 'mm'); add(el, 'NA', D.NA, '');
         add(el, 'Field power arriving', D.power, 'relative'); add(el, 'Degree of polarisation', D.dop, '');
       }
+      // its particle's scattering, where its Scattering tab has worked it out (not run here: a dipole array can take minutes)
+      const S = scatterCached(el);
+      if (S && !S.error) {
+        add(el, 'Scattering model', ({ mie: 'Lorenz–Mie', dda: 'dipole array', rayleigh: 'Rayleigh' })[S.model]);
+        add(el, 'Scattering cross-section', S.Csca, 'm²'); add(el, 'Extinction cross-section', S.Cext, 'm²'); add(el, 'Absorption cross-section', S.Cabs, 'm²');
+        add(el, 'Scattering efficiency', S.Qsca, ''); add(el, 'Extinction efficiency', S.Qext, ''); add(el, 'Asymmetry g', S.g, '');
+        add(el, 'Power scattered', S.Psca, 'W'); add(el, 'Power absorbed', S.Pabs, 'W'); add(el, 'Irradiance at the particle', S.I0, 'W/m²');
+        add(el, 'Scattered forward', S.fwd, '', 'share of the scattered power'); add(el, 'Scattered back', S.back, '', 'share of the scattered power');
+        add(el, 'Scattered light collected', S.collect.frac, '', 'share into NA ' + S.collect.na); add(el, 'Scattered power collected', S.collect.P, 'W');
+        if (S.dda) { add(el, 'Dipoles', S.dda.N, ''); add(el, 'Dipole spacing', S.dda.d, 'nm'); add(el, '|m|kd', S.dda.mkd, ''); }
+      }
+    } else if (el.type === 'particle') {
+      // a Particle part: its scattering where it has been worked out, and where its scattered light goes on the bench
+      const S = scatterCached(el), R = lastTrace.scat && lastTrace.scat.parts[el.id];
+      if (S && !S.error) {
+        add(el, 'Scattering model', ({ mie: 'Lorenz–Mie', dda: 'dipole array', rayleigh: 'Rayleigh' })[S.model]);
+        add(el, 'Scattering cross-section', S.Csca, 'm²'); add(el, 'Extinction cross-section', S.Cext, 'm²'); add(el, 'Absorption cross-section', S.Cabs, 'm²');
+        add(el, 'Power scattered', S.Psca, 'W'); add(el, 'Power absorbed', S.Pabs, 'W'); add(el, 'Irradiance at the particle', S.I0, 'W/m²');
+        add(el, 'Scattered forward', S.fwd, '', 'share of the scattered power'); add(el, 'Scattered back', S.back, '', 'share of the scattered power');
+      }
+      if (R && R.state === 'ok') {
+        for (const r of R.rows) { add(el, 'Scattered light caught by ' + r.name, r.share, '', 'share of the scattered power'); add(el, 'Scattered power caught by ' + r.name, r.P, 'W'); }
+        add(el, 'Scattered light not collected', R.lostShare, '', 'share of the scattered power'); add(el, 'Scattered power not collected', R.lost, 'W');
+      }
     } else if (el.type === 'detector') {
       const r = detectorReading(el);
       if (el.mmw) {
@@ -93,6 +118,8 @@ export function readoutsData() {
       } else {
         add(el, 'Power', r.mw, 'mW'); add(el, 'Photocurrent', r.mA, 'mA'); add(el, 'Output', r.V, 'V'); add(el, 'Saturated', !!r.sat);
         add(el, 'Noise, rms', r.noiseV, 'V'); add(el, 'Signal to noise', r.snr, 'dB'); add(el, 'From the cavity’s field', !!viaCavity(el));
+        if (el.quad) { add(el, 'Right less left', r.X, 'mW'); add(el, 'Top less bottom', r.Y, 'mW'); }
+        if (r.scat) { add(el, 'Scattered light on it', r.scat.mw - r.scat.cross, 'mW', 'a particle’s'); add(el, 'Its interference with the beam', r.scat.cross, 'mW'); }
       }
     } else if (el.type === 'spectrometer') {
       const r = specReading(el);
@@ -120,6 +147,15 @@ export function screensData() {
   traceScene();
   const items = [], ids = new Set();
   for (const el of screensOf()) {
+    // the pattern of the light its particle scatters, where the Scattering tab has worked it out
+    const S = scatterCached(el);
+    if (S && !S.error) {
+      ids.add(el.id);
+      const ang = S.cutIn.I.map((_, i) => i * 360 / (S.cutIn.I.length - 1));
+      items.push({ kind: 'table', name: el.name + ' scattering', about: 'the light ' + el.name + '’s particle scatters, per solid angle: in the bench plane by bench angle, and in the plane out of it by the angle from the beam’s direction towards up; each with the part polarised square to that plane',
+        cols: [col('angle', '°', ang), col('in the bench plane', 'W/sr', S.cutIn.I), col('in the bench plane, polarised out of it', 'W/sr', S.cutIn.Is),
+          col('out of the plane', 'W/sr', S.cutOut.I), col('out of the plane, polarised in the bench plane', 'W/sr', S.cutOut.Is)] });
+    }
     const hits = ((lastTrace.screens || {})[el.id] || []).filter(t => !t.chief);
     if (hits.length) {
       ids.add(el.id);

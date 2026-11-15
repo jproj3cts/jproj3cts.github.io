@@ -13,6 +13,7 @@ import { cavLoops } from './cavity.js';
 import { popStats2 } from './field2d.js';
 import { popRun, popRunGen } from './beam-tree.js';
 import { diffFns, popDiffraction, popScreenPrep, segFieldAt } from './diffraction.js';
+import { cavLoadKey } from './scatter-cavity.js';
 
 /* ---------- A photodiode behind a cavity ----------
    The tracer follows a cavity's light round only as many times as its interaction limit
@@ -92,7 +93,7 @@ export let detFieldGen = 0;                   // readings come in from the worke
 export function detectorFieldResult(el) {
   const J = popScreenPrep(el);
   if (!J) return { mw: 0, tones: [] };
-  const key = J.key + '|' + el.length, c = detFieldCache.get(el.id);
+  const key = J.key + '|' + el.length + cavLoadKey(), c = detFieldCache.get(el.id);
   if (c && c.key === key) return c.r;
   const now = () => { const r = detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })); detFieldCache.set(el.id, { key, r }); return r; };
   if (TEST_MODE || !hooks.fieldWorker()) return now();

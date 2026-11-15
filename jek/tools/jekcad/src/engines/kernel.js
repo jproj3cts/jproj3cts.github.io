@@ -1165,6 +1165,66 @@ export function makeKernel(oc) {
     } finally { flush(); }
     return out;
   }
+  /* ---------- a drawing: parts seen square on from a direction, as lines on paper ----------
+     items as an assembly's (a Part Studio's parts are items at the origin). views: [{ id, n, x }]: n towards the
+     eye, x across the paper (up the paper is n × x). Each view comes back as the lines that show and the lines
+     behind (each a run of points, in the view's own millimetres), hidden lines removed by the kernel. */
+  function drawingViews(items, views) {
+    const out = [];
+    try {
+      const shapes = asmBodies(items).map(x => moved(x.b.shape, x.t));
+      for (const v of views) {
+        const res = { id: v.id, vis: [], hid: [] };
+        if (shapes.length) {
+          const hlr = T(new oc.HLRBRep_Algo());
+          for (const s of shapes) hlr.Add(s, 0);
+          hlr.Projector(T(new oc.HLRAlgo_Projector(T(new oc.gp_Ax2(pnt([0, 0, 0]), gdir(v.n), gdir(v.x))))));
+          hlr.Update(); hlr.Hide();
+          const hs = T(new oc.HLRBRep_HLRToShape(hlr));
+          const take = (comp, into) => {
+            if (!comp || comp.IsNull()) return;
+            try { oc.BRepLib.BuildCurves3d(comp); } catch (err) { /* as they are */ }
+            for (const e of subShapes(comp, TA.TopAbs_EDGE)) {
+              try {
+                const c = T(new oc.BRepAdaptor_Curve(e)), t0 = c.FirstParameter(), t1 = c.LastParameter();
+                if (!(Math.abs(t1 - t0) > 1e-12) || !Number.isFinite(t0) || !Number.isFinite(t1)) continue;
+                const n = c.GetType() === oc.GeomAbs_CurveType.GeomAbs_Line ? 1 : 32, run = [];
+                for (let i = 0; i <= n; i++) { const p = T(c.Value(t0 + (t1 - t0) * i / n)); run.push(+p.X().toFixed(6), +p.Y().toFixed(6)); }
+                into.push(run);
+              } catch (err) { /* that edge left out */ }
+            }
+          };
+          take(hs.VCompound(), res.vis); take(hs.OutLineVCompound(), res.vis);
+          take(hs.HCompound(), res.hid); take(hs.OutLineHCompound(), res.hid);
+        }
+        out.push(res);
+      }
+    } finally { flush(); }
+    return out;
+  }
+  /* what a drawing's dimensions hold to, found on the model as it is now. reqs: [{ doc, part, p, q, ref }] (ref: a
+     corner's or an edge's, as refs gives them): a corner's place; a round edge's centre, radius and axis; where the
+     assembly puts them. null where it is gone. And the refs of picks, for a studio that is not the one in hand. */
+  function drawLocate(reqs) {
+    const keepLast = last, out = [];
+    try {
+      const byDoc = new Map();
+      for (const r of reqs) if (!byDoc.has(r.doc.id)) { regen(r.doc, {}); byDoc.set(r.doc.id, last.S); }
+      for (const r of reqs) {
+        const S = byDoc.get(r.doc.id), q = r.q || [0, 0, 0, 1], p = r.p || [0, 0, 0];
+        const put = v => { const [x, y, z, w] = q, ux = [x, y, z], t = v3.mul(v3.cross(ux, v), 2), c = v3.cross(ux, t); return [v[0] + w * t[0] + c[0] + p[0], v[1] + w * t[1] + c[1] + p[1], v[2] + w * t[2] + c[2] + p[2]]; };
+        const turn = v => { const o = put([0, 0, 0]), e = put(v); return v3.sub(e, o); };
+        try {
+          if (r.pick) { const ref = refOf(S, r.pick); out.push({ ref }); continue; }
+          if (r.ref.kind === 'vertex') { out.push({ pt: put(findVertex(S, r.ref)) }); continue; }
+          const hit = findEdge(S, r.ref, true), e = edgesOf(hit.b)[hit.j], c = T(new oc.BRepAdaptor_Curve(e));
+          if (c.GetType() === oc.GeomAbs_CurveType.GeomAbs_Circle) { const ci = T(c.Circle()), ax = T(ci.Axis()); out.push({ c: put(xyz(T(ax.Location()))), r: ci.Radius(), n: turn(xyz(T(ax.Direction()))) }); }
+          else out.push(null);
+        } catch (err) { out.push(null); }
+      }
+    } finally { last = keepLast; flush(); }
+    return out;
+  }
   /* which parts run into each other: each pair that shares some volume, and how much */
   function asmClash(items) {
     const out = [];
@@ -1279,5 +1339,5 @@ export function makeKernel(oc) {
     } finally { flush(); }
     return out;
   }
-  return { regen, refs, measure, exportStep, exportStl, project: projectEdges, section: sectionEdges, pierce: piercePoints, asmExport, asmMeasure, asmClash, state: () => last.S };
+  return { regen, refs, measure, exportStep, exportStl, project: projectEdges, section: sectionEdges, pierce: piercePoints, asmExport, asmMeasure, asmClash, drawingViews, drawLocate, state: () => last.S };
 }

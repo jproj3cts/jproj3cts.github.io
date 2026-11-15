@@ -32,6 +32,11 @@
   .cad-tabs button .ic2 { display: inline-flex; margin-right: 0.35rem; vertical-align: -0.2em; }
   .cad-tabs button .ic2 svg.ic { width: 13px; height: 13px; }
   .cad-tabs button[data-kind="assembly"] .ic2 { color: var(--jek-orange); }
+  /* a drawing open: the stage is its sheet of paper */
+  .cad-stage.drw #view, .cad-stage.drw #viewCube, .cad-stage.drw #measure, .cad-stage.drw #hint { visibility: hidden; }
+  .cad-stage.drw { background: var(--rt-bg, #1c1f24); }
+  #drwSide .cad-frow { display: flex; align-items: center; gap: 0.4rem; margin: 0.15rem 0.3rem; } #drwSide .cad-frow label { flex: none; width: 5.2rem; font-size: 0.78rem; } #drwSide .cad-frow input, #drwSide .cad-frow select { flex: 1; min-width: 0; }
+  #drwSide .cad-check { display: block; margin: 0.15rem 0.4rem; font-size: 0.78rem; } .cad-drwviews { display: grid; grid-template-columns: 1fr 1fr; }
   .cad-tabmenu { position: fixed; z-index: 60; min-width: 180px; top: auto; right: auto; display: flex; flex-direction: column; }
   .cad-irow { cursor: pointer; }
   .cad-irow.picked { background: var(--jek-well); box-shadow: inset 2px 0 0 var(--jek-orange); }

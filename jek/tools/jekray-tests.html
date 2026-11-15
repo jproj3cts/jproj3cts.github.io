@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex" />
 <title>JEKray regression tests</title>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261120">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261121">
 <style>
   .tt-wrap { width: 100%; max-width: 1100px; text-align: left; }
   .tt-bar {
@@ -159,6 +159,8 @@ const src = o => Object.assign({
   width: 10, divergence: 0, rays: 15, pol: 'p', colourAuto: true,
 }, o);
 const screen = o => Object.assign({ type: 'screen', name: 'Screen', x: 60, y: 0, angle: 180, length: 40 }, o);
+// a Particle part, from what a screen's particle was given (a screen's length and trap fields are not a particle's; its trapAz is the part's angle)
+const particleAt = ({ length, absorb, trap, trapAz, ...o }) => Object.assign({ type: 'particle', name: 'Particle', x: 0, y: 0, angle: trapAz === undefined ? 90 : trapAz }, o);
 const bk7Lens = o => Object.assign({
   type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25.4,
   surfaces: [{ R: 51.5 }, { R: -51.5 }], gaps: [3.6], materials: [{ glass: 'N-BK7' }],
@@ -4359,6 +4361,19 @@ const TESTS = [
     },
   },
   {
+    name: 'A beam of M\u00b2 = 4 keeps all its modes past a lens',
+    why: 'its 36 modes take 72 segments: the cap of 60 is each mode\u2019s, so none is dropped; past an ideal 150 mm lens 300 mm on, Siegman\u2019s width M w(z) of the embedded Gaussian, 100 mm past the lens',
+    want: (() => { const lam = 1064e-6, zR = Math.PI * 0.0625 / lam, qr = 300, qi = zR, ar = 1 - qr / 150, ai = -qi / 150, dn = ar * ar + ai * ai, nr = (qr * ar + qi * ai) / dn + 100, ni = (qi * ar - qr * ai) / dn; return 2 * Math.sqrt(lam * (nr * nr + ni * ni) / (Math.PI * ni)); })(),
+    tol: 1e-3, rel: true, unit: ' mm',
+    run: J => {
+      J.load(bench('m2 lens', [src({ x: -50, rays: 1, width: 1, wavelength: 1064, gauss: true, w0: 0.5, z0: 50, m2: 4, pol: 's' }),
+        { type: 'mask', name: 'L', x: 300, y: 0, angle: 0, length: 25.4, amp: '1', delay: '-(r^2)/(300*lambda)', preset: 'custom' },
+        screen({ name: 'S', x: 400, length: 20 })], { minPower: 1e-6 }));
+      const D = J.diffraction('S');
+      return Math.abs(D.power - 1) < 1e-3 ? D.wx : NaN;
+    },
+  },
+  {
     name: 'A Fabry\u2013Perot fed by a broad line transmits its average',
     why: 'Lorentzian line of Lc = 5 m: T1 T2 (1 + \u03c1) / ((1 \u2212 r\u00b2)(1 \u2212 \u03c1)), r = \u221a(R1 R2), \u03c1 = r e^{\u2212\u03c0 Lrt / Lc}',
     want: (() => { const r = Math.sqrt(0.99 * 0.999), rho = r * Math.exp(-Math.PI * 500 / 5000); return 1e-5 * (1 + rho) / ((1 - r * r) * (1 - rho)); })(),
@@ -4892,9 +4907,26 @@ const TESTS = [
   },
   {
     name: 'A Bragg grating on a circulator reflects its band to the third port',
-    why: 'laser 0.2 nm off a 90%, 0.5 nm grating: R = 0.9 exp(\u22124 ln 2 (0.2/0.5)\u00b2), times the circulator\u2019s 0.8 dB twice',
+    why: 'a 5 mm grating of index modulation 1.8e-4 at its Bragg wavelength: R = tanh\u00b2(\u03baL) with \u03ba = \u03c0 \u03b4n / \u03bb, times the circulator\u2019s 0.8 dB twice',
+    want: Math.tanh(Math.PI * 1.8e-4 * 5 / 1550e-6) ** 2 * Math.pow(10, -1.6 / 10), tol: 1e-9, unit: ' mW',
+    run: J => { J.load(fnet([fc('laser', 'L', { power: 1, wavelength: 1550 }), fc('circ', 'C'), fc('fbg', 'G'), fc('term', 'T', { rl: 200 }), fc('pd', 'P')],
+      [['L', 0, 'C', 0], ['C', 1, 'G', 0], ['G', 1, 'T', 0], ['C', 2, 'P', 0]])); return J.fibrePd('P'); },
+  },
+  {
+    name: 'and nothing at its first zero, where \u03c3\u00b2 = \u03ba\u00b2 + (\u03c0/L)\u00b2',
+    why: 'the same grating with the laser at the first zero on the long side (found here by bisection): the power on the third port',
+    want: 0, tol: 1e-15, unit: ' mW',
+    run: J => {
+      const f = nm => { const s = 2 * Math.PI * 1.468 * (1e6 / nm - 1e6 / 1550), k = Math.PI * 1.8e-4 * 1e6 / nm; return s * s - k * k - (Math.PI / 5) ** 2; };
+      let a = 1550, b = 1550.5; for (let i = 0; i < 100; i++) { const m = 0.5 * (a + b); if (f(a) * f(m) <= 0) b = m; else a = m; }
+      J.load(fnet([fc('laser', 'L', { power: 1, wavelength: a }), fc('circ', 'C'), fc('fbg', 'G'), fc('term', 'T', { rl: 200 }), fc('pd', 'P')],
+        [['L', 0, 'C', 0], ['C', 1, 'G', 0], ['G', 1, 'T', 0], ['C', 2, 'P', 0]])); return J.fibrePd('P'); },
+  },
+  {
+    name: 'A grating saved as a band (its width and peak, before it had a length) still reflects that Gaussian band',
+    why: 'laser 0.2 nm off a 90%, 0.5 nm grating given by fwhm and rmax alone: R = 0.9 exp(\u22124 ln 2 (0.2/0.5)\u00b2), times the circulator\u2019s 0.8 dB twice',
     want: 0.9 * Math.exp(-4 * Math.LN2 * 0.16) * Math.pow(10, -1.6 / 10), tol: 1e-9, unit: ' mW',
-    run: J => { J.load(fnet([fc('laser', 'L', { power: 1, wavelength: 1550.2 }), fc('circ', 'C'), fc('fbg', 'G'), fc('term', 'T', { rl: 200 }), fc('pd', 'P')],
+    run: J => { J.load(fnet([fc('laser', 'L', { power: 1, wavelength: 1550.2 }), fc('circ', 'C'), fc('fbg', 'G', { centre: 1550, fwhm: 0.5, rmax: 90 }), fc('term', 'T', { rl: 200 }), fc('pd', 'P')],
       [['L', 0, 'C', 0], ['C', 1, 'G', 0], ['G', 1, 'T', 0], ['C', 2, 'P', 0]])); return J.fibrePd('P'); },
   },
   {
@@ -5305,9 +5337,9 @@ const TESTS = [
   },
   {
     name: 'A link opens on the same panels: selection, pins and their tabs',
-    why: 'the levitated trap with its trap screen pinned on the Trap tab and a collimator selected: shared and opened again, the same element shown, the same one pinned, on the same tab',
+    why: 'the levitated trap with its particle pinned on the Trap tab and a collimator selected: shared and opened again, the same element shown, the same one pinned, on the same tab',
     want: 1, tol: 0, unit: '',
-    run: J => { J.load(JSON.parse(getDemo('levitated-trap'))); J.select('Trap at the focus', 'trap'); J.pin('Trap at the focus'); J.select('Collimator B');
+    run: J => { J.load(JSON.parse(getDemo('levitated-trap'))); J.select('Particle at the focus', 'trap'); J.pin('Particle at the focus'); J.select('Collimator B');
       const r = J.shareUiRoundTrip(); return r.same && r.after.pins.length === 1 && r.after.views[r.after.pins[0]].screenTab === 'trap' ? 1 : 0; },
   },
   { group: 'Short pulses' },
@@ -5563,12 +5595,12 @@ const TESTS = [
   },
   {
     name: 'A field splits the lines as the sum rules say, weak or strong',
-    why: 'rubidium in 50 G and 2000 G: the strength-weighted centres of the σ+ and σ− lines lie about 2 × 7/6 μB B apart on D2 and 2 × 4/3 μB B on D1 (exactly, from Landé’s g), whatever the hyperfine mixing, each hand’s strengths averaging one per ground state (worst relative error)',
+    why: 'rubidium in 50 G and 2000 G: the strength-weighted centres of the σ+ and σ− lines lie about 2 × 7/6 μB B apart on D2 and 2 × 4/3 μB B on D1 (exactly, from the excited states’ Landé g and the ground state’s measured g_J), whatever the hyperfine mixing, each hand’s strengths averaging one per ground state (worst relative error)',
     want: 0, tol: 1e-6, unit: '',
     run: J => {
-      // Landé's g: P3/2 (2 gL + gS)/3, about 4/3; P1/2 (4 gL - gS)/3, about 2/3
-      const gS = 2.00231930436, gL = 0.99999369, gP32 = (2 * gL + gS) / 3, gP12 = (4 * gL - gS) / 3;
-      const want = { D2: 2 * ((1 / 3) * (gP32 / 2 + gS / 2) + (1.5 * gP32 - gS / 2)) / (4 / 3), D1: 2 * (gP12 / 2 + gS / 2) };
+      // Landé's g: P3/2 (2 gL + gS)/3, about 4/3; P1/2 (4 gL - gS)/3, about 2/3; the ground state's g_J as measured (Steck)
+      const gS = 2.00231930436, gL = 0.99999369, gG = 2.00233113, gP32 = (2 * gL + gS) / 3, gP12 = (4 * gL - gS) / 3;
+      const want = { D2: 2 * ((1 / 3) * (gP32 / 2 + gG / 2) + (1.5 * gP32 - gG / 2)) / (4 / 3), D1: 2 * (gP12 / 2 + gG / 2) };
       let worst = 0;
       for (const line of ['D2', 'D1']) for (const B of [50, 2000]) {
         const L = J.zeemanLines('Rb', line, B), cen = q => { let s = 0, w = 0; for (const a of L) if (a.q === q) { s += a.share * a.S * a.nu; w += a.share * a.S; } return [s / w, w]; };
@@ -5580,10 +5612,10 @@ const TESTS = [
   },
   {
     name: 'Rubidium 87’s ground state follows Breit and Rabi into the Paschen–Back regime',
-    why: 'its eight levels at 1000 G, from diagonalising the hyperfine and Zeeman energy, against the Breit–Rabi formula (worst, MHz)',
+    why: 'its eight levels at 1000 G, from diagonalising the hyperfine and Zeeman energy, against the Breit–Rabi formula with Steck’s measured g_J (worst, MHz)',
     want: 0, tol: 1e-6, unit: ' MHz',
     run: J => {
-      const B = 1000, I = 1.5, dE = 3417.341305452 * (I + 0.5), gJ = 2.00231930436, gI = -0.0009951414, muB = 1.39962449361, x = (gJ - gI) * muB * B / dE;
+      const B = 1000, I = 1.5, dE = 3417.341305452 * (I + 0.5), gJ = 2.00233113, gI = -0.0009951414, muB = 1.39962449361, x = (gJ - gI) * muB * B / dE;
       const br = (m, sg) => -dE / (2 * (2 * I + 1)) + gI * muB * m * B + sg * dE / 2 * Math.sqrt(1 + 4 * m * x / (2 * I + 1) + x * x);
       // the stretched states, m = ±2, are the formula's with the root taken as 1 ± x
       const stretched = m => -dE / (2 * (2 * I + 1)) + gI * muB * m * B + dE / 2 * (1 + Math.sign(m) * x);
@@ -6010,7 +6042,7 @@ const TESTS = [
       const w0 = 0.005, a = 20e-9, lam = 1.064e-6, k = 2 * Math.PI / lam, eps0 = 8.8541878128e-12, c = 299792458, zR = Math.PI * w0 * w0 / 1064e-6 * 1e-3;
       const n = J.index({ glass: 'Fused silica' }, 1064), CM = (n * n - 1) / (n * n + 2), al = 4 * Math.PI * eps0 * a ** 3 * CM, sig = (8 * Math.PI / 3) * k ** 4 * a ** 6 * CM * CM;
       J.load(bench('rp', [src({ name: 'L', x: -5, wavelength: 1064, gauss: true, w0, z0: 5, width: 0.3, rays: 1, pol: 's', power: 100, popN: 256 }),
-        screen({ name: 'S', x: 0, length: 0.05, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 20, trapMed: 'vacuum' })], { minPower: 1e-6 }));
+        particleAt({ name: 'S', x: 0, length: 0.05, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 20, trapMed: 'vacuum' })], { minPower: 1e-6 }));
       const T = J.trap('S');
       const g = u => (al / (eps0 * c)) * u / (zR * (1 + u * u) ** 2) - (sig / c) / (1 + u * u) * (1 - 1 / (k * zR * (1 + u * u)));
       let lo = 0, hi = 0.5; for (let i = 0; i < 80; i++) { const mid = (lo + hi) / 2; if (g(mid) < 0) lo = mid; else hi = mid; }
@@ -6023,7 +6055,7 @@ const TESTS = [
     want: 0, tol: 0, unit: '',
     run: J => {
       J.load(bench('rp2', [src({ name: 'L', x: -20, wavelength: 1064, gauss: true, w0: 0.01, z0: 20, width: 0.3, rays: 1, pol: 's', power: 100, popN: 256 }),
-        screen({ name: 'S', x: 0, length: 0.05, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 30, trapMed: 'vacuum' })], { minPower: 1e-6 }));
+        particleAt({ name: 'S', x: 0, length: 0.05, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 30, trapMed: 'vacuum' })], { minPower: 1e-6 }));
       return J.trap('S').trap ? 1 : 0;
     },
   },
@@ -6034,7 +6066,7 @@ const TESTS = [
     run: J => {
       const r = pol => { J.load(bench('na', [src({ name: 'L', x: -20, wavelength: 1064, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol, power: 100, popN: 256 }),
         { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+1)-1)/lambda' },
-        screen({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 50, trapMed: 'vacuum' })], { minPower: 1e-6 })); const T = J.trap('S'); return T.fx / T.fy; };
+        particleAt({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 50, trapMed: 'vacuum' })], { minPower: 1e-6 })); const T = J.trap('S'); return T.fx / T.fy; };
       const p = r('p'), s2 = r('s');
       return p < 0.92 && s2 > 1 / 0.92 && Math.abs(p * s2 - 1) < 0.01 ? 0 : 1;
     },
@@ -6047,7 +6079,7 @@ const TESTS = [
       J.load(bench('water', [src({ name: 'L', x: -20, wavelength: 1064, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol: 's', power: 100, popN: 256 }),
         { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+9)-3)/lambda' },
         { type: 'prism', shape: 'window', name: 'Water', x: 3, y: 0, angle: 0, size: 10, thickness: 4, material: { glass: 'Water' } },
-        screen({ name: 'S', x: 3.5, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 50 })], { minPower: 1e-6 }));
+        particleAt({ name: 'S', x: 3.5, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 50 })], { minPower: 1e-6 }));
       const T = J.trap('S');
       return T.trap ? T.nMed : NaN;
     },
@@ -6334,10 +6366,16 @@ const TESTS = [
     run: J => { J.load(ampBench(0, false)); J.trace(); return J.fibrePd('D'); },
   },
   {
-    name: 'A multimode tip takes in a beam that fits its core and NA',
-    why: 'a 1550 nm beam focused to a 10 µm waist on a 50 µm, NA 0.22 fibre: nearly all of it, where a single-mode fibre takes much less',
-    want: 1, tol: 0.01, unit: '',
-    run: J => { J.load(mmBench(true)); J.trace(); const mm = J.metric('T', 'couple') / 100; J.load(mmBench(false)); J.trace(); const sm = J.metric('T', 'couple') / 100; return sm < 0.5 ? mm : NaN; },
+    name: 'Fibre tips are single-mode: one marked multimode in an old file loads as a single-mode tip',
+    why: 'a tip saved with mm: true, a 62.5 µm core and NA 0.275 (from when a tip could be multimode) loads as the 4.4 µm, NA 0.12 single-mode fibre, not as a 62.5 µm core treated as one mode; it then takes in a beam by overlap with its mode, about 55% of a 20 µm waist where the multimode reading was nearly all of it; a single-mode tip’s own core and NA are kept; the tip’s panel has no Type choice (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(mmBench(true)); J.trace(); const T = J.byName('T'), was = !T.mm && T.core === 4.4 && T.na === 0.12, took = J.metric('T', 'couple') / 100;
+      J.select('T'); const typed = [...rigDoc().querySelectorAll('#panel label, .rt-panel label')].some(l => /^Type$/.test(l.textContent.trim()));
+      J.load(mmBench(false)); const U = J.byName('T'), kept = !U.mm && U.core === 9 && U.na === 0.14;
+      if (!(was && took > 0.4 && took < 0.7 && kept && !typed)) console.log('single-mode tip', JSON.stringify({ was, took, kept, typed, T: [T.mm, T.core, T.na], U: [U.mm, U.core, U.na] }));
+      return was && took > 0.4 && took < 0.7 && kept && !typed ? 1 : 0;
+    },
   },
   {
     name: 'A mirror reads the light arriving at its face, as a screen does',
@@ -8317,6 +8355,46 @@ const TESTS = [
       dlg.close();
       if (!(journal && technical && slides)) console.log('figure', { journal, technical, balloons, slides, head: [jr, tc, sl].map(t => t.slice(0, 300)) });
       return journal && technical && slides ? 1 : 0;
+    },
+  },
+  {
+    name: 'A journal figure’s names: all one size, none on another or on a part, none cut at the edge, the ports’ names left out',
+    why: 'the fibre Michelson with long names, some scaled up and some down and dragged onto their neighbours on the bench, and four free-space parts 9 mm apart: on the figure every name is Helvetica at the same 8 pt (a name’s own scale is the screen’s business), no two names’ boxes overlap, each lies inside the page, and no port is named (in, out, 1, 2) unless Port names is set to Shown; with Names set to Numbered, each part has its number beside it and the key under the bench lists every number with its name; a symbol’s value (the laser’s 1550 nm) is given with its name, not as a tag of its own; with Light left out and the parts black and white nothing is in colour (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc();
+      const d = JSON.parse(getDemo('fibre-michelson'));
+      const names = ['Fibre laser 1', 'Polarisation controller 1', 'Circulator 1', 'Fibre photodetector 1', 'Spectrum analyser 1', 'Lock-in amplifier 1', 'Fibre EOM 1', 'Oscilloscope 1'];
+      d.elements.forEach((e, i) => { e.name = names[i % names.length]; if (i % 3 === 0) e.label = { dx: -6, dy: -8, s: 2.2 }; if (i % 3 === 1) e.label = { dx: 3, dy: 4, s: 0.7 }; });
+      const x0 = Math.min(...d.elements.map(e => e.x));
+      d.elements.push({ type: 'lens', name: 'Asphere 1', x: x0, y: -60, angle: 0, f: 20, length: 12 }, { type: 'lens', name: 'Asphere 2', x: x0 + 9, y: -60, angle: 0, f: 20, length: 12 },
+        { type: 'mirror', name: 'Mirror 1', x: x0 + 18, y: -60, angle: 180, length: 12 }, { type: 'screen', name: 'Detector 2', x: x0 + 27, y: -60, angle: 180, length: 12 });
+      J.load(d);
+      const all = [...names, 'Asphere 1', 'Asphere 2', 'Mirror 1', 'Detector 2'];
+      const fig = o => { try { W.localStorage.setItem('jek-rt-figure', JSON.stringify({ preset: 'journal', journal: o })); } catch (err) { /* fine */ }
+        D.getElementById('btnExportFigure').click(); const dlg = D.getElementById('figureDialog'); dlg.querySelector('.rt-figtabs [data-preset="journal"]').click(); const s = dlg.figSvg || ''; dlg.close(); return s; };
+      try {
+        const svg = fig({ width: 174, names: 'beside' }), doc = new W.DOMParser().parseFromString(svg, 'image/svg+xml'), root = doc.documentElement;
+        const pw = parseFloat(root.getAttribute('width')), ph = parseFloat(root.getAttribute('height'));
+        const cx = D.createElement('canvas').getContext('2d'); cx.font = '8px Helvetica, Arial, sans-serif';
+        const isName = t => all.some(n => t === n || t.startsWith(n + ' (')), texts = [...doc.querySelectorAll('text')], named = texts.filter(t => isName(t.textContent));
+        // a symbol's value (the laser's wavelength) goes with its name, not as a small tag of its own beside the symbol
+        const valued = texts.some(t => /^Fibre laser 1 \(\d+ nm\)$/.test(t.textContent)) && !texts.some(t => /^\d+ nm$/.test(t.textContent));
+        const sizes = named.map(t => parseFloat(t.getAttribute('font-size'))), one = named.length === all.length && sizes.every(v => Math.abs(v - sizes[0]) < 1e-6 && Math.abs(v - 8) < 0.25);   // 8 pt to the 3% the figure's scale is settled to
+        const boxes = named.map(t => { const w = cx.measureText(t.textContent).width, x = parseFloat(t.getAttribute('x')), y = parseFloat(t.getAttribute('y')), a = t.getAttribute('text-anchor'); const l = a === 'middle' ? x - w / 2 : a === 'end' ? x - w : x; return { x: l, y: y - 6.2, w, h: 8 }; });
+        let apart = true; for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) { const a = boxes[i], b = boxes[j]; if (a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h) apart = false; }
+        const inside = boxes.every(b => b.x >= -0.5 && b.x + b.w <= pw + 0.5 && b.y >= -0.5 && b.y + b.h <= ph + 0.5);
+        const port = s => [...new W.DOMParser().parseFromString(s, 'image/svg+xml').querySelectorAll('text')].some(t => /^(in|out)$/.test(t.textContent));
+        const ports = !port(svg) && port(fig({ width: 174, names: 'beside', ports: true }));
+        // numbered, with a key: a number beside each part, and under the bench each number with its part's name
+        const kt = [...new W.DOMParser().parseFromString(fig({ width: 85, names: 'key' }), 'image/svg+xml').querySelectorAll('text')].map(t => t.textContent);
+        const key = all.every(n => kt.some(t => t === n || t.startsWith(n + ' ('))) && all.every((n, i) => kt.filter(t => t === String(i + 1)).length === 2);
+        // Light: Left out: nothing on the figure is in the light's colour
+        const hues = o => [...new Set([...new W.DOMParser().parseFromString(fig(o), 'image/svg+xml').querySelectorAll('path')].flatMap(e => [e.getAttribute('stroke'), e.getAttribute('fill')]).filter(v => v && v !== 'none'))];
+        const grey = c => c.slice(1, 3) === c.slice(3, 5) && c.slice(3, 5) === c.slice(5, 7), dark = hues({ width: 174, names: 'none', parts: 'bw', mono: 'none' }).every(grey) && hues({ width: 174, names: 'none', parts: 'bw' }).some(c => !grey(c));
+        if (!(one && apart && inside && ports && key && valued && dark)) console.log('figure names', { one, apart, inside, ports, key, valued, dark, n: named.length, pw, ph, boxes: boxes.map(b => [b.x, b.y, b.w].map(v => +v.toFixed(1))) });
+        return one && apart && inside && ports && key && valued && dark ? 1 : 0;
+      } finally { try { W.localStorage.removeItem('jek-rt-figure'); } catch (err) { /* fine */ } }
     },
   },
   {
@@ -11994,7 +12072,7 @@ const TESTS = [
       const front = J.byName('Front'), sag = (R, h) => R ? R - Math.sign(R) * Math.sqrt(R * R - h * h) : 0, r = front.diameter / 2;
       const et = front.gaps[0] + sag(front.surfaces[1].R, r) - sag(front.surfaces[0].R, r);
       const dataOk = Math.abs(D[0].elements[0].ct - front.gaps[0]) < 1e-12 && Math.abs(D[0].elements[0].et - et) < 1e-9 && D[0].name === 'Front';
-      const svg = J.lensDrawingSvg('Cooke triplet', 0), svgOk = /<svg/.test(svg) && />Front</.test(svg) && /3\/3\(-\)/.test(svg) && /Scale \d+:\d+/.test(svg);
+      const svg = J.lensDrawingSvg('Cooke triplet', 0), svgOk = /<svg/.test(svg) && />Front</.test(svg) && /3\/3\(1\)/.test(svg) && /Scale \d+:\d+/.test(svg);
       J.openLensDesign('Cooke triplet');
       let tabOk = false;
       try {
@@ -12006,6 +12084,35 @@ const TESTS = [
       const pdf = await J.lensDrawingsPdf('Cooke triplet'), pdfOk = /^%PDF-1\.4/.test(pdf) && /\/Count 3>>/.test(pdf) && (pdf.match(/\/Type\/Page\//g) || []).length === 3 && /%%EOF\s*$/.test(pdf);
       if (!(dataOk && svgOk && tabOk && pdfOk)) console.log('drawings', dataOk, svgOk, tabOk, pdfOk);
       return dataOk && svgOk && tabOk && pdfOk ? 1 : 0;
+    },
+  },
+  {
+    name: 'Make the part: a lens with a JEKfilm coating gives its drawing, its part specification and the coating’s specification, its make settings set in the Drawings tab',
+    why: 'the Cooke triplet’s Front lens with a one-layer JEKfilm AR on S1: its Coating list in the element data names it (◆); Make the part gives three PDFs, the drawing with its scratch-dig and chamfers and the coating’s note, the part specification with its quantity and the coating’s file named, and the coating’s two-page specification; in the Drawings tab a quantity typed and S2 made fine ground are kept on the lens (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(optTriplet());
+      const doc = { format: 'jekfilm', version: 1, name: 'AR 587', spec: { target: 'ar', design: 587.56, lo: 480, hi: 660, sub: { n: 1.62 } }, layers: [{ n: 1.38, d: 106.44 }] };
+      const put = J.filmOnFace('Front', 0, doc) && !!J.byName('Front').surfaces[0].coat.film;
+      const files = await J.makePartFiles('Cooke triplet', 0), names = files.map(f => f.name), txt = i => files[i].text;
+      const filesOk = names.length === 3 && names[0] === 'Front - drawing.pdf' && names[1] === 'Front - part specification.pdf' && /^Front - S1 coating - AR 587\.pdf$/.test(names[2]);
+      const drawOk = /\(Scratch-dig\)/.test(txt(0)) && /\(60-40\)/.test(txt(0)) && /AR 587/.test(txt(0)) && /MIL-PRF-13830B/.test(txt(0));
+      const specOk = /\(Part specification\)/.test(txt(1)) && /\(Quantity\)/.test(txt(1)) && /\(10\)/.test(txt(1)) && /coating specification enclosed/.test(txt(1)) && /AR 587/.test(txt(1));
+      const coatOk = /\(Coating specification\)/.test(txt(2)) && (txt(2).match(/\/Type\s*\/Page\b/g) || []).length === 2;
+      J.openLensDesign('Cooke triplet');
+      let listOk = false, tabOk = false;
+      try {
+        const sel = rigDoc().querySelector('#lensWs select[aria-label="Coating of surface 1"]');
+        listOk = !!sel && sel.options[sel.selectedIndex].textContent === '◆ AR 587' && [...sel.options].some(o => o.value === 'filmfile');
+        wsClick('Drawings', null, 'tab');
+        const D = rigDoc(), W = rigWin();
+        const q = D.querySelector('#lensWs input[aria-label="Quantity"]'); q.value = '25'; q.dispatchEvent(new W.Event('change'));
+        const fin = D.querySelector('#lensWs select[aria-label="Finish of S2"]'); fin.value = 'ground'; fin.dispatchEvent(new W.Event('change'));
+        const m = J.byName('Front').make;
+        tabOk = !!D.querySelector('#lensWs #lensMakePart') && m && m.qty === 25 && m.faces[1].finish === 'ground' && !D.querySelector('#lensWs input[aria-label="Scratch-dig of S2"]');
+      } finally { J.closeLensDesign(); }
+      if (!(put && filesOk && drawOk && specOk && coatOk && listOk && tabOk)) console.log('make part', put, filesOk, drawOk, specOk, coatOk, listOk, tabOk, names);
+      return put && filesOk && drawOk && specOk && coatOk && listOk && tabOk ? 1 : 0;
     },
   },
   {
@@ -12459,6 +12566,352 @@ const TESTS = [
         { type: 'screen', id: 'B', name: 'Behind', x: -40, y: 0, angle: 180, length: 25 }], maxBounces: 20, minPower: 0.001, ghosts: false });
       J.trace();
       return J.metric('Behind', 'power') || 0;
+    },
+  },
+  { group: 'Scattering by a particle' },
+  {
+    name: 'Mie: Bohren and Huffman’s test sphere',
+    why: 'their Appendix A case, a sphere of radius 0.525 µm and index 1.55 at 0.6328 µm: Q_ext = 3.10543 (and Q_sca the same, Q_back = 2.92534, checked in the Node tests)',
+    want: 3.10543, tol: 6e-6, unit: '',
+    run: J => J.mie(2 * Math.PI * 0.525 / 0.6328, 1.55, 0).Qext,
+  },
+  {
+    name: 'The Scattering tab: a 300 nm silica sphere in a tight 1550 nm focus, by Mie',
+    why: 'an ideal lens of f = 1 mm brings a 0.8 mm beam to NA above 0.6; the screen at its focus holds the sphere. The tab opens, names Lorenz–Mie as Auto’s choice, takes the focus as plane waves, lists the cross-sections and the collected share, and draws the pattern with numbers to save behind it; the scattered power is the Mie cross-section times the light at the sphere to within 2% (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r))), doc = rigDoc();
+      J.load(bench('scatter', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol: 'p', power: 100, popN: 256 }),
+        { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+1)-1)/lambda' },
+        particleAt({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum' })], { minPower: 1e-6 }));
+      J.select('S'); await frame();
+      const tab = [...doc.querySelectorAll('#panel .rt-tab')].find(b => b.textContent === 'Scattering');
+      if (!tab) return 0;
+      tab.click(); await frame(); await frame();
+      const text = doc.getElementById('panel').textContent, cv = doc.querySelector('#panel .rt-plot canvas');
+      const S = J.scatter('S'), Q = J.mie(S.x, S.m[0], S.m[1]);
+      const shown = /Lorenz–Mie/.test(text) && /Auto’s choice/.test(text) && /the tight focus as \d+ plane waves/.test(text) && /Cross-sections/.test(text) && /Collected/.test(text) && /Rayleigh would give/.test(text);
+      const plot = !!(cv && cv._csv && cv._csv.cols.length === 3 && cv._csv.rows().length === 361 && cv.width > 100);
+      const mie = S.model === 'mie' && Math.abs(S.Csca / (Q.Qsca * Math.PI * 150e-9 ** 2) - 1) < 1e-9 && Math.abs(S.Psca / (S.Csca * S.I0) - 1) < 0.02 && S.fwd > 0.52 && S.fwd < 0.57;
+      // p light: little goes sideways along the polarisation in the bench plane
+      const dip = S.cutIn.I[90] < 0.02 * S.cutIn.I[0];
+      // the other views draw, and have their numbers
+      const links = [...doc.querySelectorAll('#panel .rt-link')];
+      links.find(b => b.textContent === 'Every direction').click(); await frame();
+      const map = !!(cv._csv && /map/.test(cv._csv.name) && cv._csv.rows().length === S.map.nT * S.map.nP);
+      if (!(shown && plot && mie && dip && map)) console.log('scattering tab', { shown, plot, mie, dip, map, text: text.slice(0, 600) });
+      return shown && plot && mie && dip && map ? 1 : 0;
+    },
+  },
+  {
+    name: 'In 3D the particle is drawn in its shape, enlarged, its axis on the bench as set',
+    why: 'a 1 µm × 200 nm rod is far too small to show on a bench in millimetres: it is drawn as a sign 36 px long with its proportions, where the part is, whatever the zoom. Its axis is set on the bench (30° round, 20° up), and moving the part does not turn it; a sphere is a ball of the same size; with no particle nothing is drawn',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('particle 3d', [src({ name: 'L', x: -20, wavelength: 1550, rays: 1 }),
+        particleAt({ name: 'S', x: 10, absorb: false, trap: 'sphere', trapShape: 'cylinder', trapR: 100, trapLen: 1000, trapAz: 30, trapTilt: 20 })]));
+      try {
+        await J.view3d.set(true);
+        const d = Math.PI / 180, want = [Math.cos(20 * d) * Math.cos(30 * d), Math.cos(20 * d) * Math.sin(30 * d), Math.sin(20 * d)];
+        const near = a => a && a.axis.every((v, k) => Math.abs(v - want[k]) < 1e-6);
+        const a = J.view3d.particleOf('S');
+        const S = J.byName('S'); S.x = 12; J.redraw();
+        const b = J.view3d.particleOf('S');
+        S.trapShape = 'sphere'; J.redraw();
+        const c = J.view3d.particleOf('S');
+        J.load(bench('particle 3d none', [src({ name: 'L', x: -20, wavelength: 1550, rays: 1 })]));
+        const e = J.view3d.particleOf('S');
+        return near(a) && near(b) && a.shape === 'cylinder' && Math.abs(a.L - 1) < 1e-9 && Math.abs(a.r - 0.1) < 1e-9 && Math.abs(a.px - 36) < 0.01 && Math.abs(b.px - 36) < 0.01 && c && c.shape === 'sphere' && Math.abs(c.r - 0.5) < 1e-9 && !e ? 1 : 0;
+      } finally { await J.view3d.set(false); }
+    },
+  },
+  {
+    name: 'A Particle part made a rod: its shape, the dipole array, and the Trap tab’s sphere of its volume',
+    why: 'the Shape list on the part’s own tab makes it a rod (its length and tilt then show, and Auto runs a dipole array), and the Trap tab keeps the sphere of its volume (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r))), doc = rigDoc(), win = rigWin();
+      J.load(bench('scatter rod', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.5, z0: 0, width: 1.6, rays: 1, pol: 's', power: 100, popN: 256 }),
+        particleAt({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 30, trapLen: 150, scatDip: 6, trapMed: 'vacuum' })], { minPower: 1e-6 }));
+      const el = J.byName('S');
+      J.select('S'); await frame();
+      const pick = v => { const sel = [...doc.querySelectorAll('#panel select')].find(s => [...s.options].some(o => o.value === 'capsule')); sel.value = v; sel.dispatchEvent(new win.Event('change', { bubbles: true })); };
+      const sphere = el.trapShape === 'sphere' && !/Length \(nm\)/.test(doc.getElementById('panel').textContent);
+      pick('cylinder'); await frame(); await frame();
+      const text = doc.getElementById('panel').textContent, S = J.scatter('S');
+      const rod = el.trapShape === 'cylinder' && /Length \(nm\)/.test(text) && /Axis tilt up/.test(text) && S.model === 'dda' && S.dda.converged && Math.abs(S.Cext / S.Csca - 1) < 0.01;
+      const T = J.trap('S'), eq = Math.cbrt(0.75 * 30 * 30 * 150), vol = !!T && Math.abs(T.ka / (2 * Math.PI / 1550 * eq) - 1) < 1e-9;
+      if (!(sphere && rod && vol)) console.log('scattering particle', JSON.stringify({ sphere, rod, vol, shape: el.trapShape }));
+      return sphere && rod && vol ? 1 : 0;
+    },
+  },
+  {
+    name: 'A dipole-array sphere in the focus is within 2% of Mie',
+    why: 'the same 300 nm sphere at the same NA 0.6 focus, as an array of dipoles each driven by the focus’s plane waves: its scattered power over Mie’s',
+    want: 1, tol: 0.02, unit: '',
+    run: J => {
+      const run = model => { J.load(bench('scatter dda', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol: 's', power: 100, popN: 256 }),
+        { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+1)-1)/lambda' },
+        particleAt({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum', scatModel: model })], { minPower: 1e-6 })); return J.scatter('S'); };
+      return run('dda').Psca / run('mie').Psca;
+    },
+  },
+  {
+    name: 'The scattering worker: a rod’s dipole array runs in a worker, reports as it goes, and can be stopped',
+    why: 'the Scattering tab’s run in a worker of this page’s own code: it sends the solver’s iterations as progress, answers for the bench as the page has it, with the numbers the page itself works out; and a run ended at its first iteration ends (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('scatter worker', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.5, z0: 0, width: 1.6, rays: 1, pol: 's', power: 100, popN: 256 }),
+        particleAt({ name: 'S', x: 1, length: 0.02, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapShape: 'cylinder', trapR: 100, trapLen: 1000, trapAz: 90, scatDip: 8, trapMed: 'vacuum' })], { minPower: 1e-6 }));
+      const P = await J.scatterProbe('S');
+      if (!P.ok && P.err === 'no worker here') return 1;                 // (a browser without workers runs it on the page)
+      const here = J.scatter('S');
+      const ran = P.ok && P.same && P.S && P.S.model === 'dda' && P.S.dda.converged && P.prog.some(p => p.stage === 'dipoles' && p.iter >= 1 && p.resid < 1) && P.prog.some(p => p.stage === 'pattern');
+      const same = ran && Math.abs(P.S.Csca / here.Csca - 1) < 1e-9 && Math.abs(P.S.cutIn.I[30] / here.cutIn.I[30] - 1) < 1e-9;
+      const Q = await J.scatterProbe('S', { stop: 'dipoles' });
+      const stopped = Q.ok && Q.stopped && !Q.S;
+      if (!(ran && same && stopped)) console.log('scattering worker', { ok: P.ok, err: P.err, same: P.same, prog: P.prog && P.prog.length, ran, stopped });
+      return ran && same && stopped ? 1 : 0;
+    },
+  },
+  {
+    name: 'The Particle part: added from the list, picked by a click, dragged, with its Particle, Trap and Scattering tabs',
+    why: 'a laser brought to a focus by an ideal lens. Add puts a Particle on the bench; set at the focus it leaves the beams as they were (it is a point: nothing meets it). A click on its sign selects it, a drag moves it, and its panel has the three tabs: the Trap tab finds the trap the focus makes, the Scattering tab names Lorenz–Mie and lists what the lens catches and what is not collected (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r))), doc = rigDoc(), W = rigWin(), cv = doc.getElementById('bench');
+      J.load(bench('particle part', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol: 'p', power: 100, popN: 256 }),
+        { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+1)-1)/lambda' }], { minPower: 1e-6, view: { cx: 0, cy: 0, scale: 40 } }));
+      const rays0 = J.traceInfo().rays, name = J.add('particle'), el = J.byName(name);
+      const added = !!el && el.type === 'particle' && el.trap === 'sphere' && el.scatLight === true && el.scatFan === true;
+      J.set(name, { x: 1, y: 0 }); await frame();
+      const r = () => cv.getBoundingClientRect(), v = () => J.project().view, at = (X, Y) => [r().width / 2 + (X - v().cx) * v().scale, r().height / 2 - (Y - v().cy) * v().scale];
+      const P = (type, x, y, b) => cv.dispatchEvent(new W.PointerEvent(type, { clientX: r().left + x, clientY: r().top + y, pointerId: 12, button: 0, buttons: b, bubbles: true, isPrimary: true, pointerType: 'mouse' }));
+      J.select('L'); await frame();
+      const [px, py] = at(1, 0);
+      P('pointermove', px + 3, py + 2, 0); P('pointerdown', px + 3, py + 2, 1); P('pointerup', px + 3, py + 2, 0); await frame();
+      const picked = J.sel().length === 1 && J.sel()[0] === name;
+      const [qx, qy] = at(1.5, 0.75);
+      P('pointerdown', px, py, 1); for (let i = 1; i <= 6; i++) P('pointermove', px + (qx - px) * i / 6, py + (qy - py) * i / 6, 1); P('pointerup', qx, qy, 0); await frame();
+      const dragged = Math.abs(el.x - 1.5) < 0.05 && Math.abs(el.y - 0.75) < 0.05;
+      J.set(name, { x: 1, y: 0 }); J.select(name); await frame();
+      const tabs = [...doc.querySelectorAll('#panel .rt-tab')].map(b => b.textContent), hasTabs = ['Particle', 'Trap', 'Scattering'].every(t => tabs.includes(t));
+      const own = /Send its scattered light to the parts/.test(doc.getElementById('panel').textContent) && /Diameter \(nm\)/.test(doc.getElementById('panel').textContent);
+      const tab = t => { [...doc.querySelectorAll('#panel .rt-tab')].find(b => b.textContent === t).click(); };
+      tab('Trap'); await frame(); await frame();
+      const trap = /Frequencies/.test(doc.getElementById('panel').textContent) && /Depth/.test(doc.getElementById('panel').textContent);
+      tab('Scattering'); await frame(); await frame();
+      const text = doc.getElementById('panel').textContent;
+      const scat = /Lorenz–Mie/.test(text) && /Caught by Obj/.test(text) && /Not collected/.test(text) && /Where the part is/.test(text);
+      // with its light off the trace has the rays it had without the particle
+      J.set(name, { scatLight: false }); await frame();
+      const same = J.traceInfo().rays === rays0;
+      if (!(added && picked && dragged && hasTabs && own && trap && scat && same)) console.log('particle part', JSON.stringify({ added, picked, dragged, hasTabs, own, trap, scat, same, tabs, x: el.x, y: el.y, sel: J.sel(), text: text.slice(0, 300) }));
+      return added && picked && dragged && hasTabs && own && trap && scat && same ? 1 : 0;
+    },
+  },
+  {
+    name: 'A particle’s scattered light reaches the parts: the trace has its cones, a detector reads them, and the switches turn them off',
+    why: 'the tight focus with a like lens ahead and a detector behind it, and a second detector at 90°. With the light on, the trace has scattered rays to the two lenses and the side detector; the forward detector reads less by the extinction and more by the forward scatter the lens collects (within 1% of the extinction), the side detector reads what its row says it catches, and the rows with what is not collected add to the scattered power. The fan off changes no reading; the light off leaves the bench as it is without the particle (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const L = (name, x, y, angle, len) => ({ type: 'mask', name, x, y, angle, length: len, amp: '1', delay: '-(sqrt(r^2+4)-2)/lambda' });
+      const els = o => [src({ name: 'L', x: -30, wavelength: 1550, gauss: true, w0: 1.5, z0: 0, width: 3, rays: 1, pol: 'p', power: 100, popN: 256 }), L('Obj', 0, 0, 0, 5.333),
+        Object.assign({ type: 'particle', name: 'P', x: 2, y: 0, angle: 90, trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum' }, o), L('Col', 4, 0, 0, 5.333),
+        { type: 'detector', name: 'D', x: 10, y: 0, angle: 180, length: 8, quad: true }, { type: 'detector', name: 'Side', x: 2, y: 3, angle: 270, length: 2 }];
+      J.load(bench('particle light', els({}), { minPower: 1e-6 }));
+      const R = J.scattered('P'), S = J.scatter('P'), d = J.detector('D'), s = J.detector('Side');
+      const row = n => R.rows.find(r => r.name === n);
+      const rows = R.state === 'ok' && !!row('Col') && !!row('Obj') && !!row('Side') && Math.abs((R.rows.reduce((a, r) => a + r.P, 0) + R.lost) / R.Psca - 1) < 1e-9 && row('Col').share > 0.2 && row('Col').share < 0.35;
+      const read = !!d.scattered && Math.abs(d.scattered.interference / (-S.Pext * 1e3) - 1) < 0.01 && Math.abs((d.scattered.mw - d.scattered.interference) / (row('Col').P * 1e3) - 1) < 0.01
+        && Math.abs(s.mw / (row('Side').P * 1e3) - 1) < 0.01 && Math.abs(d.X) < 1e-9;
+      J.load(bench('particle light', els({ scatFan: false }), { minPower: 1e-6 }));
+      const fanOff = J.detector('D').mw === d.mw && J.detector('Side').mw === s.mw;
+      J.load(bench('particle light', els({ scatLight: false }), { minPower: 1e-6 }));
+      const off = J.detector('D'), noLight = J.scattered('P') === null && off.scattered === null && J.detector('Side').mw === 0;
+      J.load(bench('particle light', els({}).filter(e => e.type !== 'particle'), { minPower: 1e-6 }));
+      const bare = Math.abs(J.detector('D').mw / off.mw - 1) < 1e-12;
+      if (!(rows && read && fanOff && noLight && bare)) console.log('particle light', JSON.stringify({ rows, read, fanOff, noLight, bare, R, d, s, off }));
+      return rows && read && fanOff && noLight && bare ? 1 : 0;
+    },
+  },
+  {
+    name: 'A split detector follows a particle moved across the focus',
+    why: 'the same bench: moved 20 nm across the focus in the bench plane the detector’s right less left is as far from nothing one way as, moved back 20 nm, the other (to 2%), and twice what 10 nm gives (to 3%); top less bottom stays nothing',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const L = (name, x, len) => ({ type: 'mask', name, x, y: 0, angle: 0, length: len, amp: '1', delay: '-(sqrt(r^2+4)-2)/lambda' });
+      const at = y => { J.load(bench('particle place', [src({ name: 'L', x: -30, wavelength: 1550, gauss: true, w0: 1.5, z0: 0, width: 3, rays: 1, pol: 's', power: 100, popN: 256 }), L('Obj', 0, 5.333),
+        { type: 'particle', name: 'P', x: 2, y, angle: 90, trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum' }, L('Col', 4, 5.333), { type: 'detector', name: 'D', x: 10, y: 0, angle: 180, length: 8, quad: true }], { minPower: 1e-6 })); return J.detector('D'); };
+      const a = at(2e-5), b = at(-2e-5), c = at(1e-5);
+      const ok = Math.abs(a.X) > 1e-6 && Math.abs(a.X + b.X) < 0.02 * Math.abs(a.X) && Math.abs(c.X / a.X - 0.5) < 0.03 && Math.abs(a.Y) < 1e-3 * Math.abs(a.X);
+      if (!ok) console.log('particle place', JSON.stringify({ a: [a.X, a.Y], b: [b.X, b.Y], c: [c.X, c.Y] }));
+      return ok ? 1 : 0;
+    },
+  },
+  {
+    name: 'The scattered light is drawn in 2D and in 3D, and the fan switches off',
+    why: 'a particle in a wide beam polarised in the bench plane, with a detector raised above the bench looking down at it. On the 2D bench the fan’s rays are drawn (the picture with the fan differs from the one without along the fan’s rays, by more than half as much again about the beam’s line, where the pattern is bright, as about the polarisation’s, where it is dark) and the particle’s sign is drawn in a figure. In 3D the fan has its rays over the sphere, the cone to the raised detector leaves the plane, and with the fan off only the cones are left (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r))), doc = rigDoc(), cv = doc.getElementById('bench');
+      const els = fan => [src({ name: 'L', x: -30, wavelength: 1550, gauss: true, w0: 0.5, z0: 0, width: 1.6, rays: 1, pol: 'p', power: 100, popN: 256 }),
+        { type: 'particle', name: 'P', x: 0, y: 0, angle: 90, trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum', scatFan: fan },
+        { type: 'detector', name: 'High', x: 0, y: 12, z: 87, angle: 270, tip: -45, length: 6 }];
+      // the bench's pixels in a square 8 mm across about the particle
+      const shot = async fan => {
+        J.load(bench('particle picture', els(fan), { minPower: 1e-6, view: { cx: 0, cy: 0, scale: 30 }, light: { rays: true, envelope: true, field: false, byPower: true } })); await frame(); await frame();
+        const r = cv.getBoundingClientRect(), k = cv.width / r.width, n = Math.round(240 * k);
+        return { n, d: cv.getContext('2d').getImageData(Math.round((r.width / 2 - 120) * k), Math.round((r.height / 2 - 120) * k), n, n).data };
+      };
+      const A = await shot(true), svg = J.layoutSvg(), B = await shot(false);
+      // where the two differ is the fan: counted in the quarters about the beam's line (bright) and about the polarisation's (dark)
+      let along = 0, across = 0;
+      for (let y = 0; y < A.n; y++) for (let x = 0; x < A.n; x++) {
+        const o = 4 * (y * A.n + x), dx = x - A.n / 2, dy = y - A.n / 2;
+        if (Math.hypot(dx, dy) < 0.25 * A.n || Math.hypot(dx, dy) > 0.48 * A.n) continue;
+        const df = Math.abs(A.d[o] - B.d[o]) + Math.abs(A.d[o + 1] - B.d[o + 1]) + Math.abs(A.d[o + 2] - B.d[o + 2]);
+        if (Math.abs(dx) > Math.abs(dy)) along += df; else across += df;
+      }
+      const two = along > 5000 && along > 1.5 * across;
+      const on = along, off = across;
+      const sign = /#dff1f7/i.test(svg);
+      let three = false, V1 = null, V0 = null;
+      try {
+        J.load(bench('particle picture', els(true), { minPower: 1e-6 }));
+        await J.view3d.set(true);
+        V1 = J.view3d.scatLight();
+        const p = J.view3d.particleOf('P');
+        J.set('P', { scatFan: false }); J.redraw();
+        V0 = J.view3d.scatLight();
+        three = !!V1 && V1.fan > 100 && V1.cone > 100 && V1.coneUp > 100 && !!V0 && V0.fan === 0 && V0.cone === V1.cone && !!p && p.shape === 'sphere' && Math.abs(p.px - 36) < 0.01;
+      } finally { await J.view3d.set(false); }
+      if (!(two && sign && three)) console.log('particle picture', JSON.stringify({ two, on, off, sign, three, V1, V0 }));
+      return two && sign && three ? 1 : 0;
+    },
+  },
+  {
+    name: 'A bench from before the Particle part: a screen’s particle opens as a Particle and scatters as it did',
+    why: 'the example as it was, a screen at the NA 0.8 focus holding the 300 nm sphere: its scattered power 126.551 µW and the 10.2338 µW into NA 0.5 behind it, the figures the code gave before the Particle part (less 8.2e-4 since the pupil takes the round field by its series), to 1 part in 10⁹, from the Particle part it opens as (named after the screen), whose scattered light is now on the bench (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(bench('old particle', [src({ name: 'L', id: 'laser', x: -30, wavelength: 1550, gauss: true, w0: 1.5, z0: 0, width: 3, rays: 7, pattern: 'hex', pol: 'p', power: 100, popN: 256 }),
+        { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 5.333, amp: '1', delay: '-(sqrt(r^2+4)-2)/lambda' },
+        screen({ name: 'S', x: 2, length: 0.1, absorb: false, trap: 'sphere', trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum', scatNA: 0.5, scatDir: 'back' })], { minPower: 1e-6, maxBounces: 20 }));
+      const S = J.scatter('S particle');
+      const same = Math.abs(S.Psca / 0.00012655093745271483 - 1) < 1e-9 && Math.abs(S.collect.P / 0.000010233824053466721 - 1) < 1e-9;
+      // (a Particle part, so its light is on the bench now; the screen is a screen with no trap)
+      const moved = J.byName('S').trap === 'none' && J.byName('S particle').type === 'particle' && J.scattered('S particle') !== null;
+      if (!(same && moved)) console.log('old particle', JSON.stringify({ same, moved, Psca: S.Psca, collect: S.collect.P }));
+      return same && moved ? 1 : 0;
+    },
+  },
+  { group: 'Parts in their own colours' },
+  {
+    name: 'A part with a line and a fill colour is drawn in them, as see-through as before; the parts without are untouched',
+    why: 'a source, a lens and a mirror, exported as the layout’s SVG twice: as an old bench has them (no colour fields), and with the lens given lineColour #b0005a and fillColour #0050b0. The first has neither colour and its elements keep no colour field; the second differs from it only in the lens’s own paths, each the same path at the same opacity with only its colour changed (its glass, 0.16 opaque, is still 0.16 opaque); a colour that is not "#rrggbb" is dropped on loading and "#ABC" is kept as #aabbcc (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const bench = col => ({ format: 'jekray', version: 1, name: 'Colours', elements: [{ type: 'source', id: 'S', name: 'Src', x: 0, y: 0, angle: 0, wavelength: 633 },
+        Object.assign({ type: 'lens', id: 'L', name: 'L', x: 50, y: 0, angle: 0, f: 50, length: 20 }, col || {}), { type: 'mirror', id: 'M', name: 'M', x: 100, y: 0, angle: 180, length: 20 }] });
+      J.load(bench()); const a = J.layoutSvg().split('\n');
+      const old = !/#b0005a|#0050b0/.test(a.join('')) && J.project().elements.every(e => !('lineColour' in e) && !('fillColour' in e));
+      J.load(bench({ lineColour: '#b0005a', fillColour: '#0050b0' })); const b = J.layoutSvg().split('\n');
+      const kept = J.byName('L').lineColour === '#b0005a' && J.byName('L').fillColour === '#0050b0' && !('lineColour' in J.byName('M'));
+      const diff = a.map((l, i) => [l, b[i]]).filter(([x, y]) => x !== y), bare = l => String(l).replace(/#[0-9a-f]{6}/g, '#');
+      const only = a.length === b.length && diff.length >= 2 && diff.every(([x, y]) => bare(x) === bare(y) && /#b0005a|#0050b0/.test(y));
+      const line = diff.some(([, y]) => /stroke="#b0005a"/.test(y)), fill = diff.some(([x, y]) => /fill="#0050b0" fill-opacity="0\.16"/.test(y) && /fill-opacity="0\.16"/.test(x));
+      J.load(bench({ lineColour: 'red', fillColour: '#ABC' }));
+      const norm = !('lineColour' in J.byName('L')) && J.byName('L').fillColour === '#aabbcc';
+      if (!(old && kept && only && line && fill && norm)) console.log('part colours', { old, kept, only, line, fill, norm, n: [a.length, b.length], diff: diff.slice(0, 6) });
+      return old && kept && only && line && fill && norm ? 1 : 0;
+    },
+  },
+  {
+    name: 'Export figure, Parts: Black and white: every part, port and fibre in black lines and white fills, the light still in its colour',
+    why: 'a lens with colours of its own, a mirror, a fibre coupler joined to a fibre photodetector, and an oscilloscope, as a journal figure with Parts set to Black and white: with no light on the bench every path is stroked #000000 and filled #ffffff, or #000000 where it is a solid mark (the lens’s own colours overridden, its glass still 0.16 opaque), and every word is black; with a 633 nm source added the light is drawn in a colour, as it is with Parts in their colours, where the lens has its own colours again; with Light set to Black as well nothing on the figure has a colour; the technical drawing takes the same choice (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc();
+      const bench = src => ({ format: 'jekray', version: 1, name: 'Black and white', elements: [...(src ? [{ type: 'source', id: 'S', name: 'Src', x: 0, y: 0, angle: 0, wavelength: 633 }] : []),
+        { type: 'lens', id: 'L', name: 'L', x: 50, y: 0, angle: 0, f: 50, length: 20, lineColour: '#b0005a', fillColour: '#0050b0' }, { type: 'mirror', id: 'M', name: 'M', x: 100, y: 0, angle: 160, length: 20 },
+        { type: 'fcomp', kind: 'coupler', id: 'C', name: 'C', x: 0, y: -50, angle: 0 }, { type: 'fcomp', kind: 'pd', id: 'P', name: 'P', x: 60, y: -50, angle: 0 }, { type: 'elec', kind: 'scope', id: 'O', name: 'O', x: 100, y: -50, angle: 0 }],
+        fibres: [{ a: ['C', 2], b: ['P', 0] }] });
+      const fig = (preset, o) => { try { W.localStorage.setItem('jek-rt-figure', JSON.stringify({ preset, [preset]: o })); } catch (err) { /* fine */ }
+        D.getElementById('btnExportFigure').click(); const dlg = D.getElementById('figureDialog'); dlg.querySelector('.rt-figtabs [data-preset="' + preset + '"]').click(); const s = dlg.figSvg || ''; dlg.close();
+        return [...new W.DOMParser().parseFromString(s, 'image/svg+xml').querySelectorAll('path, text')]; };
+      const inks = (els, at) => [...new Set(els.map(e => e.getAttribute(at)).filter(v => v && v !== 'none'))].sort();
+      const grey = c => c.slice(1, 3) === c.slice(3, 5) && c.slice(3, 5) === c.slice(5, 7);
+      try {
+        J.load(bench(false));
+        const dark = fig('journal', { width: 174, parts: 'bw', names: 'beside', scaleBar: false }), paths = dark.filter(e => e.tagName === 'path'), words = dark.filter(e => e.tagName === 'text');
+        const bw = paths.length > 20 && inks(paths, 'stroke').join() === '#000000' && inks(paths, 'fill').join() === '#000000,#ffffff' && words.length >= 5 && inks(words, 'fill').join() === '#000000';
+        const glass = paths.some(e => e.getAttribute('fill') === '#ffffff' && e.getAttribute('fill-opacity') === '0.16');
+        const opts = !!D.querySelector('#figureDialog') && (() => { D.getElementById('btnExportFigure').click(); const dlg = D.getElementById('figureDialog'), s = dlg.querySelector('select[data-key="parts"]'), ok = !!s && [...s.options].map(o => o.value).join() === 'colour,bw'; dlg.close(); return ok; })();
+        J.load(bench(true));
+        const lit = fig('journal', { width: 174, parts: 'bw', names: 'none', scaleBar: false }), col = fig('journal', { width: 174, parts: 'colour', names: 'none', scaleBar: false }), mono = fig('journal', { width: 174, parts: 'bw', mono: true, names: 'none', scaleBar: false });
+        const light = inks(lit, 'stroke').some(c => !grey(c)) && !inks(lit, 'stroke').includes('#b0005a') && !inks(lit, 'fill').includes('#0050b0');
+        const own = inks(col, 'stroke').includes('#b0005a') && inks(col, 'fill').includes('#0050b0') && inks(lit, 'stroke').filter(c => !grey(c)).every(c => inks(col, 'stroke').includes(c));
+        const none = [...inks(mono, 'stroke'), ...inks(mono, 'fill')].every(grey);
+        const tech = o => inks(fig('technical', Object.assign({ sheet: 'A4', mono: true, dims: false, callouts: false }, o)), 'stroke'), sheet = !tech({ parts: 'bw' }).includes('#b0005a') && tech({ parts: 'colour' }).includes('#b0005a');
+        if (!(bw && glass && opts && light && own && none && sheet)) console.log('black and white', JSON.stringify({ bw, glass, opts, light, own, none, sheet, n: paths.length, strokes: inks(paths, 'stroke'), fills: inks(paths, 'fill'), words: inks(words, 'fill'), lit: inks(lit, 'stroke'), mono: inks(mono, 'stroke') }));
+        return bw && glass && opts && light && own && none && sheet ? 1 : 0;
+      } finally { try { W.localStorage.removeItem('jek-rt-figure'); } catch (err) { /* fine */ } }
+    },
+  },
+  {
+    name: 'A fibre and a wire in colours of their own; the light in a fibre goes black with the figure’s light',
+    why: 'a fibre laser joined to a fibre photodetector, its output wired to an oscilloscope: the fibre given #0a7a2a and the wire #123456 are stroked in them in a journal figure (and not without); a colour that is not one is dropped on loading; with Parts black and white and Light black nothing on the figure is in colour, the light in the fibre included (it used to stay pink) (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc();
+      const bench = (fc, wc) => ({ format: 'jekray', version: 1, name: 'Fibre colours', elements: [{ type: 'fcomp', kind: 'laser', id: 'L', name: 'L', x: 0, y: 0, angle: 0, wavelength: 1550, power: 1 },
+        { type: 'fcomp', kind: 'pd', id: 'P', name: 'P', x: 60, y: 0, angle: 0 }, { type: 'elec', kind: 'scope', id: 'O', name: 'O', x: 110, y: 0, angle: 0 }],
+        fibres: [Object.assign({ id: 'f1', a: ['L', 0], b: ['P', 0] }, fc ? { lineColour: fc } : {}), Object.assign({ id: 'w1', a: ['P', 1], b: ['O', 0] }, wc ? { lineColour: wc } : {})] });
+      const fig = o => { try { W.localStorage.setItem('jek-rt-figure', JSON.stringify({ preset: 'journal', journal: Object.assign({ width: 174, names: 'none', scaleBar: false }, o) })); } catch (err) { /* fine */ }
+        D.getElementById('btnExportFigure').click(); const dlg = D.getElementById('figureDialog'); dlg.querySelector('.rt-figtabs [data-preset="journal"]').click(); const s = dlg.figSvg || ''; dlg.close();
+        return [...new Set([...new W.DOMParser().parseFromString(s, 'image/svg+xml').querySelectorAll('path, text')].flatMap(e => [e.getAttribute('stroke'), e.getAttribute('fill')]).filter(v => v && v !== 'none'))]; };
+      const grey = c => c.slice(1, 3) === c.slice(3, 5) && c.slice(3, 5) === c.slice(5, 7);
+      try {
+        J.load(bench('#0a7a2a', '#123456'));
+        const kept = J.project().fibres.map(F => F.lineColour).join(), own = fig({}), bw = fig({ parts: 'bw', mono: true }), bwLit = fig({ parts: 'bw' });
+        const drawn = kept === '#0a7a2a,#123456' && own.includes('#0a7a2a') && own.includes('#123456');
+        const black = bw.length > 1 && bw.every(grey) && bwLit.some(c => !grey(c));                  // all grey with the light black; the light in the fibre still in colour otherwise
+        J.load(bench('not a colour', ''));
+        const plain = J.project().fibres.every(F => F.lineColour === undefined), def = fig({}), dropped = plain && !def.includes('#0a7a2a') && !def.includes('#123456');
+        if (!(drawn && black && dropped)) console.log('fibre colours', JSON.stringify({ kept, drawn, black, dropped, own, bw, bwLit }));
+        return drawn && black && dropped ? 1 : 0;
+      } finally { try { W.localStorage.removeItem('jek-rt-figure'); } catch (err) { /* fine */ } }
+    },
+  },
+  {
+    name: 'A part’s panel, Colours: a colour picked sets it, Default takes it away, Undo brings each back; several parts picked take one colour together',
+    why: 'a lens and a mirror: the lens’s panel has a Colours section with Line colour and Fill colour, each reading "default" with Default disabled; picking #ff0000 as the line colour gives the lens lineColour #ff0000 (one Undo step: Undo leaves it without, Redo with); Default deletes the field and Undo brings #ff0000 back; with both parts picked, a fill colour picked in the group’s panel is given to both, and its Default takes it from both (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc(), frame = () => new Promise(r => W.requestAnimationFrame(() => W.requestAnimationFrame(r)));
+      J.load({ format: 'jekray', version: 1, name: 'Colours', elements: [{ type: 'lens', id: 'L', name: 'L', x: 50, y: 0, angle: 0, f: 50, length: 20 }, { type: 'mirror', id: 'M', name: 'M', x: 100, y: 0, angle: 180, length: 20 }] });
+      const inp = k => D.querySelector('#panel input[type=color][data-colour="' + k + '"]'), def = k => D.querySelector('#panel button[data-default="' + k + '"]');
+      const pick = (k, v) => { const i = inp(k); i.value = v; i.dispatchEvent(new W.Event('input', { bubbles: true })); i.dispatchEvent(new W.Event('change', { bubbles: true })); };
+      J.select('L'); await frame();
+      const heads = [...D.querySelectorAll('#panel h3')].map(x => x.textContent.trim()), states = [...D.querySelectorAll('#panel .rt-partcol .rt-colstate')].map(x => x.textContent);
+      const shown = heads.includes('Colours') && !!inp('lineColour') && !!inp('fillColour') && states.join() === 'default,default' && def('lineColour').disabled && def('fillColour').disabled;
+      pick('lineColour', '#ff0000'); await frame();
+      const set = J.byName('L').lineColour === '#ff0000' && !('fillColour' in J.byName('L')) && !def('lineColour').disabled && inp('lineColour').value === '#ff0000' && D.querySelector('#panel .rt-partcol .rt-colstate').textContent === '';
+      J.undo(); const undone = !('lineColour' in J.byName('L'));
+      J.redo(); const redone = J.byName('L').lineColour === '#ff0000';
+      J.select('L'); await frame();
+      def('lineColour').click(); await frame();
+      const cleared = !('lineColour' in J.byName('L')) && def('lineColour').disabled;
+      J.undo(); const back = J.byName('L').lineColour === '#ff0000';
+      J.selectMany(['L', 'M']); await frame();
+      const mixed = !!inp('lineColour') && D.querySelector('#panel .rt-partcol .rt-colstate').textContent === 'mixed';
+      pick('fillColour', '#00aa55'); await frame();
+      const both = J.byName('L').fillColour === '#00aa55' && J.byName('M').fillColour === '#00aa55' && J.byName('L').lineColour === '#ff0000';
+      def('fillColour').click(); await frame();
+      const neither = !('fillColour' in J.byName('L')) && !('fillColour' in J.byName('M'));
+      if (!(shown && set && undone && redone && cleared && back && mixed && both && neither)) console.log('colours panel', { shown, set, undone, redone, cleared, back, mixed, both, neither, heads, states });
+      return shown && set && undone && redone && cleared && back && mixed && both && neither ? 1 : 0;
     },
   },
 ];

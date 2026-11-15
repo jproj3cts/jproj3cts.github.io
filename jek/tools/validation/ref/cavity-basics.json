@@ -1,0 +1,61 @@
+{
+ "source": "The Airy sum of round trips (Born and Wolf, section 7.6): free spectral range from the group path, finesse, linewidth, build-up",
+ "nm": 1064.0,
+ "L_mm": 100.0,
+ "plate_mm": 10.0,
+ "cases": [
+  {
+   "name": "Linear, 100 mm, 99% and 99.8%",
+   "R": [
+    0.99,
+    0.998
+   ],
+   "Lg_mm": 200.0,
+   "fsr_Hz": 1498962290.0,
+   "finesse": 521.3242050425688,
+   "linewidth_Hz": 2875297.7043864713,
+   "buildup": 277.03405950340914
+  },
+  {
+   "name": "Linear, 100 mm, with 10 mm of fused silica",
+   "R": [
+    0.99,
+    0.998
+   ],
+   "Lg_mm": 209.24795891938814,
+   "fsr_Hz": 1432713893.83298,
+   "finesse": 521.3242050425688,
+   "linewidth_Hz": 2748220.550618768,
+   "buildup": 277.03405950340914,
+   "n": 1.4496309898590634,
+   "ng": 1.4623979459694072
+  },
+  {
+   "name": "Ring of three mirrors, 98%, 99.9% and 99.9%",
+   "R": [
+    0.98,
+    0.999,
+    0.999
+   ],
+   "Lg_mm": 264.22205101855957,
+   "fsr_Hz": 1134623158.227403,
+   "finesse": 282.97764700157956,
+   "linewidth_Hz": 4009585.810928273,
+   "buildup": 164.0801280527363,
+   "corners_mm": [
+    [
+     0,
+     0
+    ],
+    [
+     120.0,
+     0
+    ],
+    [
+     60.0,
+     40.0
+    ]
+   ]
+  }
+ ]
+}

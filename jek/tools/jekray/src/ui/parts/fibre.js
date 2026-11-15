@@ -6,6 +6,7 @@ import { bodyFill, ctx, drawPorts, pathLocal, selInk } from '../render.js';
 import { bindSync, panel, param, selectField } from '../panel.js';
 import { h } from '../dom.js';
 import { fibreMode } from '../../engines/fibre-face.js';
+import { portsOfOptic } from '../../engines/fibre.js';
 import { anyPulse, pulseSection, pulseSectionEmpty, readoutBox } from '../panels.js';
 
 /* Fibre on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/fibre.js */
@@ -22,8 +23,10 @@ function drawFibre(el, sel) {
     const pts = []; for (let i = 0; i <= 16; i++) { const v = L * 0.85 * (2 * i / 16 - 1); pts.push([-0.3 * L * (1 - (v / L) ** 2), v]); }
     pathLocal(f, pts); ctx.strokeStyle = '#8fd3e8'; ctx.lineWidth = 1.6; ctx.stroke();
   }
-  // the jacketed fibre leaving the back of the ferrule
-  pathLocal(f, [[-body, 0], [-body - 10, 0]]);
+  // the jacketed fibre leaving the back of the ferrule, as far as its port: the port stands off by a length on the
+  // page, not on the bench, so zoomed out (or on a figure) it is far behind the ferrule, and the fibre must reach it
+  const port = portsOfOptic(el)[0];
+  pathLocal(f, [[-body, 0], [Math.min(-body - 10, port ? port.x : 0), 0]]);
   ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 3; ctx.stroke();
   // the core on the face
   pathLocal(f, [[0, -Math.max(el.core * 5e-4, 2 * k)], [0, Math.max(el.core * 5e-4, 2 * k)]]);
@@ -34,13 +37,8 @@ function drawFibre(el, sel) {
 function fibrePanel(el) {
   panel.append(h('h3', null, 'Fibre'));
   panel.append(h('div', { class: 'rt-rows' },
-    selectField('Type', [['sm', 'Single mode'], ['mm', 'Multimode']], () => el.mm ? 'mm' : 'sm', v => {
-      el.mm = v === 'mm';
-      // the usual fibres of each kind, where the core still has the other kind's size
-      if (el.mm && el.core < 20) { el.core = 50; el.na = 0.22; } else if (!el.mm && el.core >= 20) { el.core = 4.4; el.na = 0.12; }
-    }, { wide: true }),
     param('Core (µm)', el, 'core'), param('NA', el, 'na'),
-    ...(el.mm ? [] : [param('Collimating lens f (mm)', el, 'coll', { wide: true })]),
+    param('Collimating lens f (mm)', el, 'coll', { wide: true }),
     param('Diameter (mm)', el, 'length', { wide: true })));
   if (el.coll > 0 && !el.mm) {
     // the beam it sends out, as the focal length is edited: lambda f / (pi w) at 1550 nm
@@ -59,8 +57,7 @@ function fibrePanel(el) {
     selectField('Grid points', [128, 256, 512, 1024].map(v => [String(v), String(v)]), () => String(el.popN || 256), v => { el.popN = +v; })));
   panel.append(readoutBox('fibre'));
   if (anyPulse()) pulseSection(el); else pulseSectionEmpty();
-  if (el.mm) panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A multimode fibre (50 or 62.5 \u00b5m core, NA 0.22 or 0.275 are usual): it takes in whatever lands on its core inside its acceptance cone, so it is forgiving to align, and sends light out filling its core and NA, a beam of M\u00b2 = \u03c0 a NA / \u03bb (capped at 30). Joined to the network, what it carries keeps its power; its polarisation and phase are scrambled (set the fibre joined to it to Multimode), and the speckle a real one makes is not modelled: think of its output as speckle averaged.'));
-  else panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Takes in the overlap of the light arriving on its face with its own mode, for each polarisation, with the beams of one launch added as fields first. The mode size comes from the core and NA (Marcuse’s formula for the fundamental mode), so offset, tilt, a mismatched waist and a wrong focus all cost what they should. It needs a Gaussian source; a ray fan has no field to overlap.'));
+  panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Takes in the overlap of the light arriving on its face with its own mode, for each polarisation, with the beams of one launch added as fields first. The mode size comes from the core and NA (Marcuse’s formula for the fundamental mode), so offset, tilt, a mismatched waist and a wrong focus all cost what they should. It needs a Gaussian source; a ray fan has no field to overlap.'));
 }
 
 function hitFibre(el, lx, ly, tol) {

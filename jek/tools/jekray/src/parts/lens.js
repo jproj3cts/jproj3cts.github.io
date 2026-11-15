@@ -2,6 +2,7 @@ import { deg, nextName, normCoat, normMat, num } from '../state/project.js';
 import { normMirror, normSurface } from '../state/elements.js';
 import { normMount, normZoned } from '../core/rf.js';
 import { normOrder } from '../core/diffractive.js';
+import { normPartMake } from '../core/part-make.js';
 
 /* Lens: A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylinder, axicon) in real glass. */
 export const LENS = {
@@ -98,6 +99,7 @@ export const LENS = {
       design: e.design > 0 ? +e.design : undefined,                      // the wavelength it was designed for, nm (from a lens file)
       mount: normMount(e.mount),                                         // a made-to-order RF lens's flange
       zoned: normZoned(e.zoned),                                         // a made-to-order RF lens cut in zones (core/rf.js lensZones)
+      make: normPartMake(e.make, surfaces.length),                        // what it is made to: finish, form, scratch-dig, chamfer, tolerances, quantity (core/part-make.js)
       // an asphere: its surfaces may have conics and aspheric terms; a plain lens's are spheres. A lens from
       // before the two were told apart is an asphere if any surface has them
       asphere: e.asphere === true || (e.asphere === undefined && surfaces.some(s => s.k || s.a2 || s.A.some(a => a) || s.F)) ? true : undefined,
@@ -120,6 +122,7 @@ export const LENS = {
     cyl: 'optional: "plane" for a cylindrical lens with power in the bench plane, "out" for power out of it.',
     design: 'optional: nm, the wavelength the lens was designed for (an imported lens file\u2019s primary wavelength); for the reader only, it changes nothing in the trace.',
     mount: 'optional, a made-to-order RF lens only: {"kind": "flange", "width": mm out from the rim, "thick": mm along the axis, "holes": bolt holes (0 to 12), "hole": their diameter, mm}, on the circle through the flange\u2019s middle. Outside the lens: not traced.',
+    make: 'optional: what the lens is made to, for its drawing and Make the part (each value optional; one not given follows the lens designer\u2019s tolerance settings, else a commercial grade): {"qty": quantity ordered, "diaTol": mm, the diameter\u2019s tolerance (+0/−diaTol), "ctTol": ± mm on each centre thickness, "cent": centring 4/, arcminutes, "faces": one per surface, each {"finish": "polished" | "ground", "form": fringes of power and "irr": fringes of irregularity at 632.8 nm (3/form(irr)), "sd": scratch-dig to MIL-PRF-13830B as "60-40", "chamfer": mm, the widest protective chamfer at 45°}}.',
     zoned: 'optional, a made-to-order RF lens of two faces only: {"ghz": its zone frequency} to have it cut in zones, whole layers a wave of path deep at that frequency taken out of its curved face where it is thick. The bench traces it as cut (a ray meeting a step\u2019s wall is lost); the RF designer, its weight and its quote take it as cut too.' },
   },
 };

@@ -422,6 +422,8 @@ function popMask(r, a) {
    and every reference phase is put back analytically. */
 export let BAB_N = 1024;                       // samples for the light a disc takes out (see popSurface)
 export function setBAB_N(v) { return (BAB_N = v); }
+/* Behind a phase mask the pilot is refitted where the light's M^2 is this many times the pilot's own */
+export const SPREAD_M2 = 1.2;
 const POP_N_MAX = 1024;                    // the most radial points a steep surface refines a field to
 export function popSurface(F, q, ev) {
   // Behind an obscuring disc the light is the free beam less what a round opening of the
@@ -486,6 +488,36 @@ export function popSurface(F, q, ev) {
       m2In = Math.max(1, 2 * Math.PI * Math.sqrt((m2 / p) * (s2 / s0)));
     }
   }
+  // A round mask that cuts nothing but is finer than the beam (rings of phase, a round diffuser)
+  // spreads the light as an edge does, and the pilot must spread with it or its near-field grid
+  // never grows (see the 2D step). The tracer's fit of the mask across the beam (maskBeamFit) says
+  // when; the light's M^2 is then measured as above, with the mask's phase on it, on a grid fine
+  // enough for that phase, the lens the pilot takes from the mask and the pilot's own curvature off.
+  let spread = false, gMask = 0;
+  const rawS = ev.raw, mfS = rawS && rawS.mfit && rawS.surf && rawS.surf.maskFn && rawS.mode !== 'P' && !ev.paraxial ? rawS.mfit : null;
+  if (mfS) gMask = Math.max(2 * Math.PI * mfS.su, Math.PI * mfS.su + 2 * mfS.ku);
+  if (mfS && !clipped && !ev.fixed && gMask > 0) {
+    const fn = rawS.surf.maskFn, c0 = isFinite(rawS.ly) ? rawS.ly : 0, D0 = fn(c0, 0, lam0)[1];
+    const R1 = Math.min(G * popW(qr, qi, lamIn), N * Math.PI / (2 * gMask)), r1 = popRadii(Q, R1);
+    const [re, im] = popResample(r, F.re, F.im, r1);
+    const b = 0.5 * kIn * (popInvR([qr, qi]) - (F.sphere ? 1 / F.z : 0));
+    const cr = new Float64Array(N), ci = new Float64Array(N);
+    let p = 0, m2 = 0;
+    for (let i = 0; i < N; i++) {
+      const [a, d] = fn(c0 + r1[i], 0, lam0), ph = (b + 0.5 * kIn * ev.C) * r1[i] * r1[i] - 2 * Math.PI * (d - D0), c = Math.cos(ph) * a, s = Math.sin(ph) * a;
+      cr[i] = re[i] * c - im[i] * s; ci[i] = re[i] * s + im[i] * c;
+      const w = (cr[i] ** 2 + ci[i] ** 2) * Q.inv[i];
+      p += w; m2 += w * r1[i] * r1[i];
+    }
+    if (p > 0) {
+      const [Hr, Hi] = hankel(Q, R1, cr, ci);
+      let s0 = 0, s2 = 0;
+      for (let k = 0; k < N; k++) { const nu = Q.j[k] / (2 * Math.PI * R1), P = (Hr[k] ** 2 + Hi[k] ** 2) * Q.inv[k]; s0 += P; s2 += P * nu * nu; }
+      const mm = 2 * Math.PI * Math.sqrt((m2 / p) * (s2 / s0)), wF = Math.sqrt(2 * m2 / p);
+      const own = Math.max(1, Math.PI * wF * wF * qi / ((qr * qr + qi * qi) * lamIn));
+      if (mm > SPREAD_M2 * own) { spread = true; m2In = mm; wFitIn = wF; }
+    }
+  }
   // pilot through the surface: q' = A q / (C q + D)
   const A = ev.A, aA = Math.abs(A), C = ev.C, D = ev.D;
   {
@@ -495,9 +527,9 @@ export function popSurface(F, q, ev) {
   }
   const qAB = [qr, qi];
   const n2 = ev.n2, k2 = 2 * Math.PI * n2 / lam0, lam2 = lam0 / n2;
-  if (ev.fixed) clipped = ev.fixed.clipped;
-  if (clipped && ev.fixed) { qr = ev.fixed.q[0]; qi = ev.fixed.q[1]; }
-  else if (clipped) {
+  if (ev.fixed) { clipped = ev.fixed.clipped; spread = !!ev.fixed.spread; }
+  if ((clipped || spread) && ev.fixed) { qr = ev.fixed.q[0]; qi = ev.fixed.q[1]; }
+  else if (clipped || spread) {
     // recompute the pilot from what got through, the usual way: its curvature from the
     // pilot, its width from the second moment of the clipped field
     const wFit = aA * wFitIn;
@@ -538,7 +570,8 @@ export function popSurface(F, q, ev) {
       if (prev !== null) g = Math.max(g, Math.abs(v - prev[1]) / (u - prev[0]));
       prev = [u, v];
     }
-    g /= aA;
+    // (a mask finer than these 41 points: its slope from the fit made of it across the beam)
+    g = Math.max(g, gMask) / aA;
     if (g > 0) Rn = Math.min(Rn, Q.N * Math.PI / (2 * g));
     if (Rn < wFloor) { steep = 1; Rn = wFloor; }
     // a surface that turns the wavefront faster than the grid can follow (a high-NA objective):
@@ -641,6 +674,6 @@ export function popSurface(F, q, ev) {
   const coarse = !ev.fixed && (pAreaM > 0 && pEdgeM > MASK_EDGE_SHARE * pAreaM || discSpot < 3 * Rn / N) ? 1 : 0;
   if (bab) field.bab = bab;
   return { field, q: [qr, qi], clipped, steep, coarse,
-    decision: { Rn, clipped, q: [qr, qi], areaScale, resScale } };
+    decision: { Rn, clipped, spread, q: [qr, qi], areaScale, resScale } };
 }
 

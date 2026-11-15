@@ -9,14 +9,14 @@ import { coatCurve, coatMerit } from '../../../jekray/src/core/coatdesign.js';
    reflectance as nominal, median and 90th percentile; and each run's stack (stacks), for the yield (core/film-make.js).
    ========================================================================== */
 export const TOL_DEFAULT = { kind: 'rel', sigma: 1, runs: 200, seed: 1 };
-export function normTol(t) {
+export function normFilmTol(t) {
   t = t && typeof t === 'object' ? t : {};
   const num = (v, lo, hi, d) => (isFinite(+v) && v !== null && v !== '' ? Math.min(hi, Math.max(lo, +v)) : d);
   return { kind: t.kind === 'abs' ? 'abs' : 'rel', sigma: num(t.sigma, 0, 50, 1), runs: Math.round(num(t.runs, 10, 2000, 200)), seed: Math.round(num(t.seed, 1, 1e9, 1)) };
 }
-const pct = (sorted, p) => { if (!sorted.length) return NaN; const x = (sorted.length - 1) * p, i = Math.floor(x), f = x - i; return sorted[i] + (sorted[Math.min(sorted.length - 1, i + 1)] - sorted[i]) * f; };
+const tolPct = (sorted, p) => { if (!sorted.length) return NaN; const x = (sorted.length - 1) * p, i = Math.floor(x), f = x - i; return sorted[i] + (sorted[Math.min(sorted.length - 1, i + 1)] - sorted[i]) * f; };
 export function filmTolerance(layers, spec, tol) {
-  const T = normTol(tol), rnd = seededRng(T.seed), N = 81, a0 = spec.theta0 || 0;
+  const T = normFilmTol(tol), rnd = seededRng(T.seed), N = 81, a0 = spec.theta0 || 0;
   const stat = R => { let m = 0, w = 0; for (const r of R) { m += r; w = Math.max(w, r); } return [m / R.length, w]; };
   const nom = coatCurve(layers, spec, a0, N), nomMerit = coatMerit(layers, spec), [nomMean, nomWorst] = stat(nom.R);
   const cols = nom.nms.map(() => []), merits = [], means = [], worsts = [], stacks = [];
@@ -30,7 +30,7 @@ export function filmTolerance(layers, spec, tol) {
   }
   for (const c of cols) c.sort((a, b) => a - b);
   for (const a of [merits, means, worsts]) a.sort((x, y) => x - y);
-  const three = (nominal, s) => ({ nominal, median: pct(s, 0.5), p90: pct(s, 0.9) });
-  return { tol: T, nms: nom.nms, nominal: nom.R, p5: cols.map(c => pct(c, 0.05)), p50: cols.map(c => pct(c, 0.5)), p95: cols.map(c => pct(c, 0.95)),
+  const three = (nominal, s) => ({ nominal, median: tolPct(s, 0.5), p90: tolPct(s, 0.9) });
+  return { tol: T, nms: nom.nms, nominal: nom.R, p5: cols.map(c => tolPct(c, 0.05)), p50: cols.map(c => tolPct(c, 0.5)), p95: cols.map(c => tolPct(c, 0.95)),
     merit: three(nomMerit, merits), mean: three(nomMean, means), worst: three(nomWorst, worsts), stacks };
 }

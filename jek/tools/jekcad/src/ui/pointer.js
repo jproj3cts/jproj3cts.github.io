@@ -1,5 +1,6 @@
 import { app, emit, redo, toast, undo } from './app.js';
 import { V, fit, normalTo, orbit, pan, pickAt, pickBox, viewFrom, zoomAt } from './view3d.js';
+import { drwDown, drwKey, drwMove, drwUp, drwWheel } from './drawing.js';
 import { AS, asmDragEnd, asmDragMove, asmDragStart, deleteInstance, matePick, triadAt } from './assembly.js';
 import { modelDimAt, modelDimEdit, modelDimHover, overlayPick, setBoxSel, sketchDbl, sketchDown, sketchKey, sketchMove, sketchRight, sketchUp } from './sketcher.js';
 import { closeDialog, editFeature, fieldPick, fieldWants, okDialog, openFeature } from './dialog.js';
@@ -54,6 +55,7 @@ export function wirePointer() {
   over.addEventListener('pointerdown', e => {
     const [sx, sy] = xy(e);
     over.setPointerCapture(e.pointerId);
+    if (app.drw) { drwDown(e, sx, sy); drag = { mode: 'drw' }; return; }
     if (e.button === 2 || e.button === 1) { drag = { mode: e.button === 1 || e.shiftKey ? 'pan' : 'orbit', x: sx, y: sy, moved: false, travel: 0, button: e.button }; return; }
     if (app.sketch && sketchDown(e, sx, sy)) { drag = { mode: 'sketch' }; return; }
     // in an assembly a part is dragged about by its own faces (Ctrl: turned about the line of sight)
@@ -63,6 +65,7 @@ export function wirePointer() {
   over.addEventListener('pointermove', e => {
     const [sx, sy] = xy(e);
     lastXY = [sx, sy];
+    if (app.drw) { drwMove(e, sx, sy); return; }
     if (drag && (drag.mode === 'orbit' || drag.mode === 'pan')) {
       const dx = sx - drag.x, dy = sy - drag.y; drag.x = sx; drag.y = sy; drag.moved = true; drag.travel += Math.abs(dx) + Math.abs(dy);
       if (drag.travel < 4) return;
@@ -82,6 +85,7 @@ export function wirePointer() {
   over.addEventListener('pointerup', async e => {
     const [sx, sy] = xy(e), d = drag;
     drag = null;
+    if (app.drw) { await drwUp(e, sx, sy); return; }
     if (!d) return;
     if (d.mode === 'sketch') { sketchUp(e, sx, sy); return; }
     // the right button let go where it went down: in a sketch, what is being drawn ends
@@ -106,9 +110,10 @@ export function wirePointer() {
     selectPick(p, d.add);
   });
   over.addEventListener('pointerleave', () => { if (app.hover) { app.hover = null; emit('hover'); emit('sel'); } });
-  over.addEventListener('wheel', e => { e.preventDefault(); const [sx, sy] = xy(e); zoomAt(sx, sy, Math.exp(Math.max(-0.5, Math.min(0.5, e.deltaY * (e.deltaMode ? 0.05 : 0.0015))))); }, { passive: false });
+  over.addEventListener('wheel', e => { e.preventDefault(); const [sx, sy] = xy(e); if (app.drw) { drwWheel(sx, sy, Math.exp(Math.max(-0.5, Math.min(0.5, e.deltaY * (e.deltaMode ? 0.05 : 0.0015))))); return; } zoomAt(sx, sy, Math.exp(Math.max(-0.5, Math.min(0.5, e.deltaY * (e.deltaMode ? 0.05 : 0.0015))))); }, { passive: false });
   over.addEventListener('dblclick', async e => {
     const [sx, sy] = xy(e);
+    if (app.drw) return;
     if (app.sketch) { sketchDbl(sx, sy); return; }
     if (app.editing) return;
     if (app.asm) { fit(); return; }
@@ -139,6 +144,8 @@ export function wirePointer() {
     if (ctrl && k === 'z') { e.preventDefault(); if (app.editing) return; if (e.shiftKey) redo(); else undo(); return; }
     if (ctrl && k === 'y') { e.preventDefault(); if (!app.editing) redo(); return; }
     if (ctrl) return;
+    // (a drawing open: its own keys, and none of the Part Studio's)
+    if (app.drw) { if (drwKey(k)) e.preventDefault(); return; }
     if (k === 'escape') { if (app.editing) closeDialog(); else if (app.sel.length || app.picked) { app.sel = []; app.picked = null; emit('sel'); emit('picked'); } return; }
     if (k === 'enter' && app.editing && !app.editing.sketchPlane) { okDialog(); return; }
     // Delete, with whole parts selected (the Parts filter, or their rows): they are deleted

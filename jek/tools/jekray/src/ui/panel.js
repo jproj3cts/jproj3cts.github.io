@@ -21,7 +21,7 @@ import { ELEC_UI } from './elec.js';
 import { PIC_UI } from './pic.js';
 import { PART_UI } from './parts/registry.js';
 import { updateReadouts } from './readouts.js';
-import { fibreLinkPanel, groupPanel, rfHornPanel } from './panels.js';
+import { coloursRows, fibreLinkPanel, groupPanel, rfHornPanel } from './panels.js';
 import { assumedBox } from './plots.js';
 import { renderOverview, setBenchTab } from './panel-cavity.js';
 import { cavitiesOf } from '../engines/cavity.js';
@@ -182,7 +182,7 @@ function paramGrid(el, items, opts = {}, cells = []) {        // cells: filled w
   return h('div', { class: 'rt-f rt-pgridf' }, grid, ...boxes);
 }
 /* what a part's Angle means, for the line under it: the way it points, by kind */
-const ANGLE_MEANS = { source: 'the way its light leaves', lens: 'the way its optical axis points', mirror: 'the way its reflecting face points', grating: 'the way its grooved face points',
+const ANGLE_MEANS = { particle: 'the way a rod’s or spheroid’s axis points on the bench', source: 'the way its light leaves', lens: 'the way its optical axis points', mirror: 'the way its reflecting face points', grating: 'the way its grooved face points',
   screen: 'the way its face points, towards the light', detector: 'the way its face points, towards the light', spectrometer: 'the way its entrance faces, towards the light', fibre: 'the way its end faces, towards the light',
   isolator: 'the way light passes forward', faraday: 'the way its magnetic field points', cube: 'turns it about its centre', prism: 'turns it about its centre (an equilateral\u2019s apex points this way)',
   stl: 'turns it about its centre', draw: 'turns it about its x, y', fcomp: 'turns it about its centre', pic: 'turns it about its centre', elec: 'turns it about its centre' };
@@ -637,7 +637,7 @@ function renderPanelBody(el) {
   }
   if (!el) {
     const F = selFibre();
-    if (F && panel === mainPanel) { (F.wg ? PIC_UI.wgPanel : F.wire ? ELEC_UI.wirePanel : fibreLinkPanel)(F); panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, routeField(F))); }   // PIC hook
+    if (F && panel === mainPanel) { (F.wg ? PIC_UI.wgPanel : F.wire ? ELEC_UI.wirePanel : fibreLinkPanel)(F); panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' }, routeField(F))); if (!F.wg) panel.append(coloursRows([F], ['lineColour'])); }   // PIC hook; a fibre's or a wire's own colour
     else { renderOverview(); sectionise(panel, 'bench'); }
     return;
   }
@@ -697,6 +697,8 @@ function renderPanelBody(el) {
   if (U && !(horn && (el.type === 'source' || el.type === 'detector')) && !(el.mod && U.noModPanel)) U.panel(el);
   if (matesOf(el).length) matesPanel(el);                                                    // its mates (ui/mate3d.js)
   if (el.type !== 'elec' && el.type !== 'draw') ELEC_UI.opticPanel(el);                                 // ELEC hook
+  // its own line and fill colour on the bench and in exported pictures, folded until wanted (a drawing has its own)
+  if (el.type !== 'draw') panel.append(h('h3', { 'data-shut': '' }, 'Colours'), coloursRows([el]));
   for (const c of cavitiesOf(el)) {
     panel.append(h('div', { class: 'rt-cavlink' },
       h('span', null, 'Part of ' + c.name + ': ' + c.kind + ', FSR ' + fmtHz(c.fsr) + (c.finesse ? ', finesse ' + (+c.finesse.toPrecision(3)) : '')),

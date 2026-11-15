@@ -18,6 +18,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const PAGE = path.resolve(HERE, '../jekray.html');
 const WORKER_LINE = 'if (IN_WORKER) { (self.JEKRAY_SCRIPT_WORKER ? scriptWorkerMain : workerMain)(); return; }';     // the worker branch (a script's, or the field's), between the worker's and the page's modules
 const read = f => fs.readFileSync(path.join(HERE, f), 'utf8');
+/* a module's path as order.json gives it, relative to src/: another app's module reaching back into JEKray's src/
+   (JEKfilm's ../../jekray/src/core/x.js, seen from ../../jekfilm/src/core/) comes back to core/x.js */
+const srcPath = p => path.posix.relative('/a/jek/tools/jekray/src', path.posix.resolve('/a/jek/tools/jekray/src', p));
 export const order = () => JSON.parse(read('order.json'));
 
 /* a module's header (its imports and the shared-state note) and its body: the header is
@@ -113,7 +116,7 @@ export function scan() {
     const text = read('src/' + f), ast = parse(text);
     const decls = new Map(), exported = new Set(), imports = new Map(), uses = new Set();
     for (const st of ast.body) {
-      if (st.type === 'ImportDeclaration') { const to = path.posix.normalize(path.posix.join(path.posix.dirname(f), st.source.value)); for (const s of st.specifiers) imports.set(s.local.name, to); continue; }
+      if (st.type === 'ImportDeclaration') { const to = srcPath(path.posix.join(path.posix.dirname(f), st.source.value)); for (const s of st.specifiers) imports.set(s.local.name, to); continue; }
       const d = st.type === 'ExportNamedDeclaration' ? st.declaration : st, ex = st.type === 'ExportNamedDeclaration';
       if (!d) continue;
       const names = d.type === 'VariableDeclaration' ? d.declarations.filter(v => v.id.type === 'Identifier').map(v => v.id.name) : d.id ? [d.id.name] : [];

@@ -4,8 +4,8 @@ import { track } from '../../../jekray/src/io/usage.js';
 import { h } from '../../../jekray/src/ui/dom.js';
 import { qwot } from '../../../jekray/src/core/coatings.js';
 import { metalNK } from '../../../jekray/src/core/metals.js';
-import { FILM_VERSION, subLabelOf } from '../core/film.js';
-import { film, filmCurves } from '../ui/designer.js';
+import { FILM_VERSION, filmCurves, subLabelOf } from '../core/film.js';
+import { film } from '../ui/designer.js';
 import { toast } from '../ui/bar.js';
 import { downloadBlob, filmFileName } from './files.js';
 

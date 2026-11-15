@@ -24,6 +24,7 @@ import { portsInUse } from './render.js';
 import { playing } from './sweeps.js';
 import { detectorReading, faceArrivals, fibreCoupling, fibreMode, rfCoupling } from '../engines/fibre-face.js';
 import { ampASE, ampGain, netPower, pkey } from '../engines/fibre.js';
+import { fbgBand } from '../core/fbg.js';
 import { ELEC } from '../engines/elec.js';
 import { pdNetMw, pdSignal } from '../engines/detector.js';
 import { PIC_UI } from './pic.js';
@@ -134,6 +135,12 @@ function updateReadoutsIn(container, el) {
         ['In, total', fmtMw(Pin) + ' (' + (Pin > 0 ? (10 * Math.log10(Pin)).toFixed(1) : '\u2212\u221e') + ' dBm)'],
         ['ASE out, each way', fmtMw(2 * A.perPol * 1e3) + ' over ' + el.bw + ' nm']);
     }
+    if (el.kind === 'fbg' && el.model !== 'band') {
+      const B = fbgBand(el), nmT = v => v < 0.1 ? (+(v * 1e3).toPrecision(4)) + ' pm' : (+v.toPrecision(4)) + ' nm';
+      rows.unshift(['\u03baL', String(+B.kL.toPrecision(4))], ['Peak reflectance', (B.peak > 0.999 ? (100 * B.peak).toFixed(Math.min(12, Math.ceil(-Math.log10(1 - B.peak)))) : String(+(100 * B.peak).toPrecision(4))) + '% at ' + (+B.at.toFixed(3)) + ' nm'],
+        ...(B.zeros !== null ? [['Band between first zeros', nmT(B.zeros)]] : []), ['Width at half the peak', nmT(B.fwhm)],
+        ['Period \u039b', (+B.period.toFixed(2)) + ' nm'], ['Delay reflected at the peak', (+B.delay.toPrecision(4)) + ' ps']);
+    }
     if (el.kind === 'laser') rows.unshift(['Linewidth', el.coh > 0 ? fmtHz(299792458e3 / el.coh) : 'a single frequency']);
     if (lastTrace.net && lastTrace.net.truncated) rows.push(['Note', 'the light was followed round a very long way: the readings leave out what was left']);
     parts = [rows, 'Powers are for the light leaving each port into its fibre and arriving from it.'];
@@ -177,7 +184,10 @@ function updateReadoutsIn(container, el) {
     const f = v => v === 0 ? '0' : Math.abs(v) >= 0.01 ? String(+v.toPrecision(4)) : v.toExponential(3);
     const twisted = faceArrivals(el).some(A => A.QM && A.QM.twisted), twistNote = ['Note', 'a higher-order beam arrives twisted (parts at odd angles to each other turned its axes apart): its modes are only roughly placed; read it from the diffracted field'];
     parts = [[...(twisted && !r.field ? [twistNote] : []), ...(r.pending ? [['Behind a cavity', 'working out its steady state\u2026']] : r.field ? [['Behind a cavity', 'read from the solved field']] : []),
-      ['Optical power', f(r.mw) + ' mW'], r.mw > 0 ? ['Responsivity', (+(r.mA / r.mw).toPrecision(3)) + ' A/W, for the light arriving'] : ['Responsivity at ' + nm + ' nm', (+responsivity(el, nm).toPrecision(3)) + ' A/W'],
+      ['Optical power', f(r.mw) + ' mW'],
+      ...(r.scat ? [['Scattered light', f(r.scat.mw - r.scat.cross) + ' mW from a particle' + (Math.abs(r.scat.cross) > 0 ? '; its interference with the beam ' + (r.scat.cross < 0 ? 'takes ' : 'adds ') + f(Math.abs(r.scat.cross)) + ' mW' : '')]] : []),
+      ...(el.quad ? [['Right less left', f(r.X) + ' mW' + (r.mw > 0 ? ' (' + f(r.X / r.mw) + ' of the sum)' : '')], ['Top less bottom', f(r.Y) + ' mW' + (r.mw > 0 ? ' (' + f(r.Y / r.mw) + ' of the sum)' : '')]] : []),
+      r.mw > 0 ? ['Responsivity', (+(r.mA / r.mw).toPrecision(3)) + ' A/W, for the light arriving'] : ['Responsivity at ' + nm + ' nm', (+responsivity(el, nm).toPrecision(3)) + ' A/W'],
       ['Photocurrent', f(r.mA) + ' mA'], ...(el.diode ? [['Noise', f(r.noiseI * 1e9) + ' nA rms']] : [['Output', f(r.V) + ' V' + (r.sat ? ', at its limit' : '')],
       ['Noise', f(r.noiseV * 1e3) + ' mV rms']]), ['Signal to noise', r.snr === null ? 'n/a' : (+r.snr.toPrecision(4)) + ' dB']],
       'Sources count at the power set on each. Noise is over the noise bandwidth, \u03c0/2 times the bandwidth given (its single pole\u2019s 3 dB corner).'];

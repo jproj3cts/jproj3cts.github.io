@@ -4,6 +4,7 @@ import { fmtHz, fmtLen } from '../core/format.js';
 import { hornGeom } from '../core/rf.js';
 import { beamAt, m2Env } from '../core/beams-hom.js';
 import { wavelengthColour } from '../core/colour.js';
+import { partTint } from '../core/part-colours.js';
 import { DOVE_RATIO, V, deg, extraSel, project, selectedId, setExtraSel, setSelectedId } from '../state/project.js';
 import { FIBRE_COLOUR, getEl, lightOf, selected, srcBody } from '../state/elements.js';
 import { benchName, linkPartner, onTab } from '../state/tabs.js';
@@ -36,6 +37,7 @@ import { cssColour } from '../io/pdf.js';
 import { scheduleSave } from '../io/autosave.js';
 import { updateEmpty } from './tours.js';
 import { TW, traceLater } from '../page/workers.js';
+import { scatterKeepUp } from './scatter.js';
 
 /* ==========================================================================
    Rendering
@@ -97,7 +99,8 @@ export const themeDark = () => themePref === 'dark' || (themePref === 'system' &
 const hexRgb = x => [1, 3, 5].map(i => parseInt(x.slice(i, i + 2), 16));
 const benchStyle = () => (project && project.style) || {};
 /* A figure being drawn (io/figure.js): plain (no bench colour or holes; the paper white), its labels at a size,
-   in a font, or none, its light in black (mono), no scale bar or credit of the bench's own */
+   in a font, or none, its light in black (mono), its parts in black lines and white fills (partsBw: see tinted),
+   no scale bar or credit of the bench's own */
 export let figure = null;
 export function setFigure(f) { return (figure = f); }
 export const benchBg = () => figure && figure.bg ? figure.bg : themeDark() ? BENCH_DEFAULT : BENCH_PAPER;
@@ -453,7 +456,13 @@ function drawBeams(fieldShown) {
   ctx.save();
   // a cavity's round trips land on one another: each envelope once, to the pixel
   const done = new Set(), m2 = new Map(), idx = new Map(B.map((b, i) => [b, i]));
-  for (const seg of B) {
+  /* on a figure, a beam that leaves the bench with nothing to meet is drawn a short way and stops (an eighth of the
+     bench's longest side): run to the figure's edge, a spreading beam was a wedge across half the page */
+  let stray = 0;
+  if (figure && figure.tidy) { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (const e of project.elements) if (onTab(e) && e.type !== 'draw') { const b = worldBox(e); x0 = Math.min(x0, b.x0); x1 = Math.max(x1, b.x1); y0 = Math.min(y0, b.y0); y1 = Math.max(y1, b.y1); } if (isFinite(x0)) stray = Math.max(5, 0.125 * Math.max(x1 - x0, y1 - y0)); }
+  for (const seg0 of B) {
+    if (figure && figure.noLight) break;
+    const seg = stray && !seg0.endEl && seg0.len > stray ? Object.assign({}, seg0, { len: stray }) : seg0;
     if (seg.fan || seg.pol || seg.bench !== project.tab) continue;       // a ray fan's pilot is not a beam; one envelope per beam
     if (closeupOn && fieldShown && fieldShown.has(seg.src)) continue;   // meaningless at this scale
     const outline = fieldShown && fieldShown.has(seg.src);   // the field is drawn: just mark 1/e²
@@ -469,7 +478,7 @@ function drawBeams(fieldShown) {
     const steps = Math.max(12, Math.min(96, Math.round(seg.len * V().scale / 6)));
     const up = [], dn = [], upIn = [], dnIn = [];
     // past each end as far as its surface runs across the beam, then cut along the surface
-    const PL = segPlanes(B, idx.get(seg)), wMax = Math.max(bA ? bA.w : 0, bB ? bB.w : 0, seg.hole || 0) * 1.6;
+    const PL = segPlanes(B, idx.get(seg0)), wMax = Math.max(bA ? bA.w : 0, bB ? bB.w : 0, seg.hole || 0) * 1.6;
     const e0 = PL.p0 ? Math.min(5, PL.p0.tan) * wMax : 0, e1 = PL.p1 ? Math.min(5, PL.p1.tan) * wMax : 0;
     for (let i = -1; i <= steps + 1; i++) {
       const t = i < 0 ? -e0 : i > steps ? seg.len + e1 : seg.len * i / steps;
@@ -559,6 +568,7 @@ function drawTrail() {
   ctx.drawImage(cv, 0, 0); ctx.restore();
 }
 function drawRays(stale) {
+  if (figure && figure.noLight) return;                                  // a figure with the light left out
   const rays = stale && TW.rays ? TW.rays : lastTrace.rays;
   if (rays.length < RAY_LAYER_MIN || exporting || typeof document.createElement !== 'function') { drawRaysOn(ctx, rays); return; }
   const frameKey = [W, H, DPR, project.tab, lightLayer, byPowerOn(), lightOf().rayWidth || 0, !!lightOf().glow].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
@@ -642,6 +652,37 @@ function whiteRuns(rays) {
   }
   return out;
 }
+/* a ray of a particle's scattered light, where its power would not show it: a step or two of the twelve, by its share of its cone's strongest */
+export const scatLevel = (r, tops) => (r.w / (tops.get(r.src) || 1) > 0.5 ? 2 : 1);
+/* A particle's fan (lastTrace.scat.fans, engines/scatter-light.js): its rays in the bench plane, each as bright as the
+   pattern is along it. A picture: nothing reads it. */
+function drawScatFans() {
+  const SC = lastTrace.scat;
+  if (!SC || !SC.fans) return;
+  const v = V(), k = v.scale, ox = W / 2 - v.cx * k, oy = H / 2 + v.cy * k;
+  ctx.save();
+  ctx.globalCompositeOperation = glowOp();
+  ctx.lineWidth = 1;
+  for (const F of SC.fans) {
+    if (!F.on || F.bench !== project.tab) continue;
+    const x0 = ox + F.pos[0] * k, y0 = oy - F.pos[1] * k;
+    for (let lvl = 1; lvl <= 4; lvl++) {
+      ctx.beginPath();
+      let any = false;
+      for (let i = 0; i < F.nPlane; i++) {
+        const o = 5 * i, w = F.rays[o + 4];
+        if (Math.min(4, 1 + Math.floor(3.999 * Math.sqrt(w))) !== lvl || !(w > 1e-4)) continue;
+        const L = Math.min(F.rays[o + 3], 3e3 / k);
+        ctx.moveTo(x0, y0); ctx.lineTo(x0 + F.rays[o] * L * k, y0 - F.rays[o + 1] * L * k); any = true;
+      }
+      if (!any) continue;
+      if (lightLayer) { ctx.globalAlpha = 1; ctx.strokeStyle = paperTint(lightInk(F.colour), glowA(0.05 * lvl)); }
+      else { ctx.globalAlpha = glowA(0.05 * lvl); ctx.strokeStyle = F.colour; }
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
 function drawRaysOn(ctx, rays, shared) {
   ctx.save();
   ctx.globalCompositeOperation = glowOp();
@@ -656,10 +697,11 @@ function drawRaysOn(ctx, rays, shared) {
   ctx.lineWidth = (dens < 1 ? 1.4 : 1.2) * RW;          // a dense fan: lines wide enough to run together into a fill (drawn at twice the resolution, see drawRays)
   if (shared === undefined) shared = lightLayer ? whiteRuns(rays) : null;
   for (const r of rays) {
-    if (r.bench !== project.tab) continue;
+    if (r.bench !== project.tab || r.sc === 2) continue;        // (sc 2: a particle's scattered ray off the cut the bench plane shows; 3D draws it)
     // a few steps: lines in one step are one stroke, and do not pile up where they cross; by power, the faintest go
     const alpha = (byPow ? 0.8 * powerFade(rayPowerShare(r, lastTrace, byPow, tops)) : rayAlpha(r.w / (tops.get(r.src) || 1))) * dens;
-    const lvl = byPow ? Math.round(alpha * 12) : Math.max(1, Math.round(alpha * 12));
+    // (a particle's scattered light is far below the beam that drives it: by power it is the faintest step that shows, never nothing)
+    const lvl = byPow ? Math.max(r.sc ? scatLevel(r, tops) : 0, Math.round(alpha * 12)) : r.sc ? scatLevel(r, tops) : Math.max(1, Math.round(alpha * 12));
     if (!lvl) continue;
     for (const part of shared && shared.has(r) ? shared.get(r) : [{ pts: r.pts, colour: r.colour }]) {
       const key = part.colour + '|' + lvl;
@@ -781,6 +823,7 @@ export function bodyOutline(el) {
   if (el.type === 'elec' || el.type === 'pic') return rect(-7, 7, r);
   if (el.type === 'detector') { const o = []; for (let i = 0; i <= 8; i++) { const a = -Math.PI / 2 + Math.PI * i / 8; o.push([r * Math.cos(a), r * Math.sin(a)]); } return o; }
   if (el.type === 'chopper') return rect(-2.5, 2.5, r);
+  if (el.type === 'particle') return rect(-r, r, r);
   if (el.type === 'spectrometer') return rect(-SPEC_L, 0, SPEC_W / 2);
   return [[0, -r], [0, r]];
 }
@@ -798,6 +841,7 @@ export function halfSize(el) {
   if (el.type === 'pic') return PIC.halfSize(el);                                             // PIC hook
   if (el.type === 'elec') return ELEC.halfSize(el);                                           // ELEC hook
   if (el.type === 'chopper') return el.length / 2 + 5;                                        // ELEC hook
+  if (el.type === 'particle') return 17 / V().scale;                                         // a sign that keeps its size on the page (ui/parts/particle.js)
   if (el.type === 'stl') return Math.max(1, ...meshHull(el).map(p => Math.hypot(p[0], p[1])));
   if (el.type === 'lens') return el.diameter / 2;
   if (el.type === 'source') return srcBody(el).hw;
@@ -865,12 +909,93 @@ function drawLabels() {
   ctx.textAlign = 'center';
   labelBoxes.clear();
   const taken = portLabelBoxes.splice(0);
+  /* a figure's names set as a figure's are (figure.tidy): all one size, whatever each was scaled to on the screen;
+     each beside its part where it is clear of every part and every other name (under it, over it, at either side,
+     then further out), and one that had to go further than beside its part joined to it by a thin line */
+  const tidy = !!(figure && figure.tidy);
+  const bodies = tidy ? project.elements.filter(e => onTab(e) && e.type !== 'draw' && !(e.type === 'elec' && e.kind === 'node')).map(e => { const b = worldBox(e); const m = 0.2 * figure.labelPx; return { x: sx(b.x0) - m, y: sy(b.y1) - m, w: sx(b.x1) - sx(b.x0) + 2 * m, h: sy(b.y0) - sy(b.y1) + 2 * m }; }) : [];   // a thin part still has a body to keep off
+  const nameOf = el => figure && figure.numbers ? String(figure.numbers.get(el.id) ?? '') : tidy ? figName(el) : el.name;      // a figure with a key: the part's number
+  const spots = new Map();
+  if (tidy) {
+    const fs = figure.labelPx, u = fs / 11, lh = 13 * u, gap = 0.5 * fs, placed = [];
+    ctx.font = +fs.toFixed(3) + 'px ' + sans;
+    const over = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+    const cost = (it, x, y) => { const b = { x: x - it.w / 2 - gap, y: y - 10 * u, w: it.w + 2 * gap, h: lh }; let c = 0; for (const o of placed) c += over(b, o); for (const o of taken) c += over(b, o); for (const o of bodies) c += over(b, o); return c; };
+    const ring = (it, r) => {
+      const bx = it.bx, d = 0.35 * fs + r * lh, cx = bx.x + bx.w / 2, below = bx.y + bx.h + d + 10 * u, above = bx.y - d - 3 * u, mid = bx.y + bx.h / 2 + 3.5 * u, right = bx.x + bx.w + d + gap + it.w / 2, left = bx.x - d - gap - it.w / 2;
+      // under and over it, centred or with an end of the name at an end of the part; at either side; at the corners
+      const la = bx.x + it.w / 2, ra = bx.x + bx.w - it.w / 2;
+      return [[cx, below], [cx, above], [right, mid], [left, mid], [la, below], [ra, below], [la, above], [ra, above], [right, below], [left, below], [right, above], [left, above]];
+    };
+    let far = 0, clash = 0;
+    // the line from a name to its part, when it is further than beside it: from the name's nearest edge to the part's
+    const leadOf = (it, c) => {
+      const X = c[0], Y = c[1], bx = it.bx, lb = { x: X - it.w / 2, y: Y - 10 * u, w: it.w, h: lh }, near = (v, a, b) => Math.min(b, Math.max(a, v));
+      const px = near(X, bx.x, bx.x + bx.w), py = near(Y - 3.5 * u, bx.y, bx.y + bx.h), qx = near(px, lb.x, lb.x + lb.w), qy = near(py, lb.y, lb.y + lb.h);
+      return Math.hypot(px - qx, py - qy) > 1.1 * lh ? [qx, qy, px, py] : null;
+    };
+    const leads = [];
+    const fix = (it, c) => {
+      const X = c[0], Y = c[1], lead = leadOf(it, c);
+      if (lead) { far++; leads.push(lead); }
+      spots.set(it.el.id, { X, Y, lead }); placed.push({ x: X - it.w / 2, y: Y - 10 * u, w: it.w, h: lh });
+    };
+    // does a line cross a box, or another line (so a name's line is not led through a part, a name or another's line)
+    const segSeg = (a, b) => { const d = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]), A = [a[0], a[1]], B = [a[2], a[3]], C = [b[0], b[1]], D = [b[2], b[3]]; return d(A, B, C) * d(A, B, D) < 0 && d(C, D, A) * d(C, D, B) < 0; };
+    const segBox = (l, o) => { const inb = (x, y) => x > o.x && x < o.x + o.w && y > o.y && y < o.y + o.h; if (inb(l[0], l[1]) || inb(l[2], l[3])) return true; const x0 = o.x, y0 = o.y, x1 = o.x + o.w, y1 = o.y + o.h; return [[x0, y0, x1, y0], [x1, y0, x1, y1], [x1, y1, x0, y1], [x0, y1, x0, y0]].some(e => segSeg(l, e)); };
+    const list = project.elements.filter(e => onTab(e) && e.type !== 'draw' && !(e.type === 'elec' && e.kind === 'node')).map(el => { const b = worldBox(el); return { el, w: ctx.measureText(nameOf(el)).width, bx: { x: sx(b.x0), y: sy(b.y1), w: sx(b.x1) - sx(b.x0), h: sy(b.y0) - sy(b.y1) } }; });
+    // every name first tried beside its own part (where it was put on the bench, if that is clear at this size), so one
+    // name's detour never takes the place beside another part; then those left over, further out
+    /* one setting of every name. released: names put somewhere by hand on the bench that are set as the rest are */
+    const layout = released => {
+    placed.length = 0; leads.length = 0; far = 0; clash = 0; spots.clear();
+    const rest = [], hand = new Map();
+    for (const it of list) {
+      const el = it.el, byHand = el.label && !figure.numbers && !released.has(el.id), c0 = (byHand ? [[sx(el.x + el.label.dx), sy(el.y + el.label.dy)]] : []).concat(ring(it, 0));
+      const c = c0.find(q => cost(it, q[0], q[1]) === 0);
+      if (c) { fix(it, c); if (byHand && c === c0[0]) hand.set(el.id, placed[placed.length - 1]); } else rest.push(it);
+    }
+    for (const it of rest) {
+      // of the clear places out to six lines away, the one whose line to the part is shortest and crosses least
+      // (a part, a name, another name's line); with none clear, the place that lies on least
+      let best = null, bc = Infinity, bs = Infinity;
+      const own = { x: it.bx.x - 1, y: it.bx.y - 1, w: it.bx.w + 2, h: it.bx.h + 2 };
+      for (let r = 0; r < 7; r++) for (const q of ring(it, r)) {
+        const v = cost(it, q[0], q[1]);
+        if (v > 0) { if (bs === Infinity && v < bc - 1e-9) { bc = v; best = q; } continue; }
+        const l = leadOf(it, q);
+        let sc = 0;
+        if (l) { sc = Math.hypot(l[0] - l[2], l[1] - l[3]); for (const o of bodies) if (!(o.x < own.x + own.w && own.x < o.x + o.w && o.y < own.y + own.h && own.y < o.y + o.h) && segBox(l, o)) sc += 40 * lh; for (const o of placed) if (segBox(l, o)) sc += 40 * lh; for (const o of leads) if (segSeg(l, o)) sc += 40 * lh; }
+        if (sc < bs) { bs = sc; best = q; bc = 0; }
+      }
+      if (bc > 0) clash++;
+      fix(it, best);
+    }
+    return { far, clash, hand };
+    };
+    /* A name placed by hand on the bench keeps its place on the figure while that costs nothing. Where it stands in the
+       places beside another part, whose name then has to be led out on a line, it is set as the others are instead,
+       if that leaves fewer names led out and none more lying on something. */
+    let rel = new Set(), res = layout(rel);
+    for (let k = 0; k < 6 && res.far > 0 && res.hand.size; k++) {
+      const more = new Set(rel);
+      for (const it of list) {
+        const sp = spots.get(it.el.id);
+        if (!sp || !sp.lead) continue;
+        for (const q of ring(it, 0)) { const b = { x: q[0] - it.w / 2 - gap, y: q[1] - 10 * u, w: it.w + 2 * gap, h: lh }; for (const [id, hb] of res.hand) if (over(b, hb) > 0) more.add(id); }
+      }
+      if (more.size === rel.size) break;
+      const was = res, got = layout(more);
+      if (got.far < was.far && got.clash <= was.clash) { rel = more; res = got; } else { res = layout(rel); break; }
+    }
+    figure.placed = { n: list.length, far, clash };              // how it went: a crowded figure is given numbers and a key (io/figure.js)
+  }
   for (const el of project.elements) {
     if (!onTab(el) || el.type === 'draw') continue;                   // a drawing has no label
     if (el.type === 'elec' && el.kind === 'node' && !(el.id === selectedId || extraSel.has(el.id))) continue;   // ELEC hook: a node's name only when selected
     // its size on the bench, in mm, as everything drawn there: a figure looks the same at any
     // zoom; on the screen, kept readable (never tiny, never a banner) while the view is worked in
-    const k = el.label ? el.label.s : 1;
+    const k = tidy ? 1 : el.label ? el.label.s : 1;
     let fs = labelMm() * V().scale * k;
     if (!exporting) fs = Math.min(26, Math.max(8, fs));
     if (project.labelFixed && !exporting) fs = (project.labelPx || 12) * k;      // a fixed size on the screen
@@ -883,9 +1008,13 @@ function drawLabels() {
     if (el.label) { X = sx(el.x + el.label.dx); Y = sy(el.y + el.label.dy); }
     ctx.font = +fs.toFixed(3) + 'px ' + sans;
     // two names in the same place: the later one steps down until clear
-    const w = ctx.measureText(el.name).width;
+    const nm = nameOf(el), w = ctx.measureText(nm).width;
     // (on a figure, above the part too, before further down: a figure's names are large beside its parts)
-    if (!el.label) {
+    let lead = null;
+    if (tidy) {
+      const sp = spots.get(el.id); if (!sp) continue;
+      X = sp.X; Y = sp.Y; lead = sp.lead;
+    } else if (!el.label) {
       const Ya = sy(B.y1) - 4 * u, tries = figure ? [Y, Ya, Y + 13 * u, Ya - 13 * u, Y + 26 * u, Ya - 26 * u] : [Y, Y + 13 * u, Y + 26 * u, Y + 39 * u];
       // clear of the others, with a word's gap either side: two names side by side never read as one
       const gap = 0.6 * fs, clear = y => { const box = { x: X - w / 2 - gap, y: y - 10 * u, w: w + 2 * gap, h: 13 * u }; return ![...labelBoxes.values(), ...taken].some(b => box.x < b.x + b.w && b.x < box.x + box.w && box.y < b.y + b.h && b.y < box.y + box.h); };
@@ -894,12 +1023,13 @@ function drawLabels() {
     labelBoxes.set(el.id, { x: X - w / 2, y: Y - 10 * u, w, h: 13 * u, ax: X, ay: Y });
     if (textEdit && textEdit.el === el) continue;                          // being retyped in place
     if (fs < 2) continue;                                                  // too small to read at this zoom
+    if (lead) { ctx.save(); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.strokeStyle = '#6b727a'; ctx.lineWidth = 0.6 * u; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(lead[0], lead[1]); ctx.lineTo(lead[2], lead[3]); ctx.stroke(); ctx.restore(); }
     // a plate of the bench's own colour under the name, so a beam or a part passing under it never runs through the letters
     ctx.save(); ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = benchBg(); ctx.globalAlpha = 0.92; ctx.beginPath();
     if (ctx.roundRect) ctx.roundRect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u, 3 * u); else ctx.rect(X - w / 2 - 3 * u, Y - 10 * u, w + 6 * u, 13 * u);
     ctx.fill(); ctx.restore();
     ctx.fillStyle = figure && figure.bg ? '#000' : el.id === selectedId || extraSel.has(el.id) ? '#ffffff' : 'rgba(255,255,255,0.5)';
-    ctx.fillText(el.name, X, Y);
+    ctx.fillText(nm, X, Y);
     if (el.locked) drawLock(X + ctx.measureText(el.name).width / 2 + 8, Y - 4);
     // a part not at the beam height: by how much, under its name (see zOf)
     if (el.z !== undefined && Math.abs(el.z - BEAM_Z) > 1e-9) {
@@ -1061,6 +1191,7 @@ export function render() {
   // stale: the bench moved on and a background trace is catching up; its rays are drawn,
   // and the beams and fields, which need the full trace, wait for it
   const stale = traceLater();
+  if (!stale) scatterKeepUp();       // a Particle part's scattered light, where the bench has moved on from it
   phosphorKick();                    // a phosphor screen's glow moves on with the light
   // a tab shown in 3D draws there instead (the 2D bench under it waits)
   let in3d = false;
@@ -1077,12 +1208,15 @@ export function render() {
 function renderAll(stale) {
   drawBench();
   const order = { lens: 0, prism: 0, cube: 0, crystal: 0, mirror: 1, grating: 1, screen: 2, stop: 2, waveplate: 2, polariser: 2,
-    mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, cell: 1, nlc: 1, link: 2, fcomp: 2, pic: 2, aom: 2, eom: 2, chopper: 2, elec: 2, source: 3, stl: 0, draw: 0 };
+    mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, cell: 1, nlc: 1, link: 2, fcomp: 2, pic: 2, aom: 2, eom: 2, chopper: 2, elec: 2, source: 3, stl: 0, draw: 0, particle: 2 };
   const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
   for (const el of els) if (el.type === 'draw' && el.layer === 'under') draw(el);
   drawFibres();
-  for (const el of els) if (el.type !== 'source' && el.type !== 'draw') draw(el);
+  for (const el of els) if (el.type !== 'source' && el.type !== 'draw' && el.type !== 'particle') draw(el);
   if (lightOf().rays) { if (lightOf().trail && !exporting) drawTrail(); drawRays(stale); }
+  if (!stale) drawScatFans();
+  // (a particle is a dot on a beam: drawn over the light, where it can be seen)
+  for (const el of els) if (el.type === 'particle') draw(el);
   if (!stale) {
     setCloseupOn(drawCloseup());
     const fieldShown = closeupOn ? new Set(popSources().map(e => e.id)) : drawPop();
@@ -1274,15 +1408,18 @@ export const FSYM = (() => {
     c.strokeStyle = sel ? selInk() : FIBRE_COLOUR; c.lineWidth = (sel ? 2.2 : 1.5) / s; c.lineJoin = 'round'; c.lineCap = 'round';
     G.draw(c, el);
     c.restore();
-    if (G.val && s > 2.5) {
+    if (G.val && s > 2.5 && !(figure && figure.tidy)) {                  // (on a figure the value goes with the part's name: figName)
       const [t, v] = G.val(el), f = frame(el), [x, y] = toWorld(f, 0, -v);
       c.save(); c.font = clamp(1.6 * s, 8, 11) + 'px ' + getCss('--jek-mono'); c.fillStyle = el.kind === 'laser' ? wavelengthColour(el.wavelength) : 'rgba(244,199,220,0.9)';
       c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(t, sx(x), sy(y)); c.restore();
     }
     return true;
   }
-  return { draw };
+  return { draw, val: el => { const G = S[el.kind]; return G && G.val ? G.val(el)[0] : ''; } };
 })();
+/* a part's name on a figure: with the value its symbol carries on the bench (a laser's wavelength, an amplifier's gain, a
+   modulator's frequency), which at a figure's size no longer sits clear beside the symbol */
+export const figName = el => { const v = el.type === 'fcomp' ? FSYM.val(el) : ''; return v ? el.name + ' (' + v + ')' : el.name; };
 /* a w x hh half-size rectangle with corners of radius r, as points */
 export function roundRect(w, hh, r) {
   const pts = [], k = 6;
@@ -1293,17 +1430,20 @@ export function roundRect(w, hh, r) {
 /* a component's ports: open rings where nothing is joined, filled where a fibre is, numbered when there are several */
 /* where the port names were drawn this frame, in css px: the parts' names keep off them */
 const portLabelBoxes = [];
+/* a port's dot: on the bench a size to aim at; on a figure a small mark beside the names (a sixth of their height) */
+export const portR = k => figure && figure.tidy && figure.labelPx ? Math.max(0.8, 0.17 * figure.labelPx) : clamp(k * V().scale, 3, 6);
 export const keepOffLabel = box => { portLabelBoxes.push(box); };
-export function drawPorts(el) {
-  const ps = portsOf(el), used = portsInUse(), s = V().scale, r = clamp(1.1 * s, 3, 6);
+export function drawPorts(el) { untinted(() => drawPortsNow(el)); }
+function drawPortsNow(el) {
+  const ps = portsOf(el), used = portsInUse(), s = V().scale, r = portR(1.1);
   ELEC_UI.drawExtras(el);                                                                       // ELEC hook
   ps.forEach((P, i) => {
     if (P.elec) return;
     const Q = portWorld(el, i), X = sx(Q.x), Y = sy(Q.y), on = used.has(pkey(el.id, i));
     ctx.beginPath(); ctx.arc(X, Y, r, 0, 2 * Math.PI);
-    ctx.fillStyle = on ? FIBRE_COLOUR : portFill(); ctx.fill();
-    ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 1.4; ctx.stroke();
-    if (ps.length > 1 && s > 3) {                  // named when it has company: other fibre ports, or electrical ones
+    ctx.strokeStyle = FIBRE_COLOUR; ctx.lineWidth = 1.4;                  // (the ring's colour first: a joined port's fill is the same ink)
+    ctx.fillStyle = on ? FIBRE_COLOUR : portFill(); ctx.fill(); ctx.stroke();
+    if (ps.length > 1 && s > 3 && !(figure && figure.ports === false)) {                  // named when it has company (a figure may leave them out): other fibre ports, or electrical ones
       // the name just outside the port, above it, upright whatever the part's angle
       ctx.fillStyle = 'rgba(244,199,220,0.9)'; ctx.font = '9px ' + getCss('--jek-mono');
       const W = Math.abs(Q.dx) < 0.3;
@@ -1492,12 +1632,14 @@ function drawFibres() {
     if (!segs) return;
     const sel = F.id === selFibreId;
     // PIC hook: waveguides in green; ELEC hook: wires in yellow, thinner
-    tracePath(segs); ctx.strokeStyle = F.wg ? PIC.GREEN : F.wire ? ELEC.YELLOW : FIBRE_COLOUR; ctx.lineWidth = (sel ? 4 : 3) - (F.wg ? 0.8 : F.wire ? 1.4 : 0); ctx.stroke();
+    tracePath(segs); ctx.strokeStyle = linkInk(F.lineColour || (F.wg ? PIC.GREEN : F.wire ? ELEC.YELLOW : FIBRE_COLOUR)); /* its own colour, when it has one */ ctx.lineWidth = (sel ? 4 : 3) - (F.wg ? 0.8 : F.wire ? 1.4 : 0); ctx.stroke();
     if (F.wire) { if (sel) drawFibreNodes(F, segs); return; }
     const L = lights[i];
     if (L.colour && L.mw > 1e-9 * top) {
-      tracePath(segs); ctx.save(); ctx.globalAlpha = 0.25 + 0.75 * Math.sqrt(L.mw / top); ctx.strokeStyle = L.colour; ctx.lineWidth = 1.6;
-      ctx.shadowColor = L.colour; ctx.shadowBlur = 6; ctx.stroke(); ctx.restore();
+      if (figure && figure.noLight) { if (sel) drawFibreNodes(F, segs); return; }
+      const lc = figure && figure.mono ? figure.mono : L.colour;                 // the light in it, in the figure's one ink when its light is
+      tracePath(segs); ctx.save(); ctx.globalAlpha = 0.25 + 0.75 * Math.sqrt(L.mw / top); ctx.strokeStyle = lc; ctx.lineWidth = 1.6;
+      ctx.shadowColor = lc; ctx.shadowBlur = 6; ctx.stroke(); ctx.restore();
     }
     if (sel) drawFibreNodes(F, segs);
   });
@@ -1583,8 +1725,81 @@ export function filterColour(el) {
   if (el.ftype === 'bandpass') return wavelengthColour(el.centre);
   return wavelengthColour(el.ftype === 'longpass' ? el.edge + 60 : el.edge - 60);
 }
+/* ---------- A part in its own colours ----------
+   A part with a line or a fill colour of its own (lineColour, fillColour: its panel's Colours), and every part of a
+   figure whose parts are black and white (figure.partsBw), is drawn through a stand-in for the context: every stroke
+   colour the part sets becomes its line colour and every fill colour its fill colour, each as opaque as the colour it
+   stands in for (core/part-colours.js partTint), so glass stays see-through and nothing stays nothing. A gradient or a
+   pattern set as a fill becomes the fill colour. The words in the part's body are in the line colour, and so is a fill
+   in the stroke's own colour (`c.fillStyle = c.strokeStyle`: a dot, an electrode, a mirror's bar: ink, not a body;
+   inkFill for one given its colour outright). The same on the canvas and in a VecCtx. A part without colours is
+   drawn straight on the context and costs nothing.
+   Left as they are: the outline of a selected part, the part's name beside it, its ports and their names (drawn
+   untinted), the red "!" and the light. In black and white the ports, the fibres, wires and waveguides are black and
+   white too; drawings keep the colours they were given. */
+const BW_LINE = '#000000', BW_FILL = '#ffffff';
+export const partsBw = () => !!(figure && figure.partsBw);
+// a link's (a fibre's, a wire's, a waveguide's) own colour, black in black and white
+const linkInk = c => partsBw() ? partTint(c, BW_LINE) : c;
+let tintReal = null, tintLine = '', tintFill = '', tintSelInk = null, tintOff = 0, tintRawFill = null, tintRawStroke = null, tintInk = false;
+const tintStack = [], tintFns = new Map();
+let tintFnsOf = null, tintProxyOf = null, tintProxy = null;
+function tintedText(...a) {
+  const t = tintReal, keep = t.fillStyle;
+  if (tintOff || !tintLine) { t.fillStyle = tintRawFill; t.fillText(...a); }       // as the part wrote it (a light bench's dark words and all)
+  else { t.fillStyle = partTint(tintRawFill, tintLine); Object.getPrototypeOf(t).fillText.apply(t, a); }   // in the line colour itself, not darkened for paper
+  t.fillStyle = keep;
+}
+const TINT = {
+  get(t, k) {
+    if (k === 'fillText') return tintedText;
+    const v = t[k];
+    if (typeof v !== 'function') return v;
+    let f = tintFns.get(k);
+    if (!f) {
+      f = k === 'save' ? () => { tintStack.push([tintRawFill, tintRawStroke]); t.save(); } : k === 'restore' ? () => { if (tintStack.length) [tintRawFill, tintRawStroke] = tintStack.pop(); t.restore(); } : v.bind(t);
+      tintFns.set(k, f);
+    }
+    return f;
+  },
+  set(t, k, v) {
+    if (k === 'strokeStyle') { tintRawStroke = v; if (!tintOff && tintLine && v !== tintSelInk) v = partTint(v, tintLine); }
+    else if (k === 'fillStyle') {
+      const ink = tintInk || v === tintRawStroke || v === t.strokeStyle;         // ink: a fill in the line's colour (as the part gave it, or read back)
+      tintRawFill = v;
+      if (!tintOff) {
+        if (ink) { if (tintLine && v !== tintSelInk) v = partTint(v, tintLine); }
+        else if (tintFill) v = partTint(v, tintFill);
+      }
+    }
+    t[k] = v;
+    return true;
+  },
+};
+function tinted(line, fill, selInkNow, fn) {
+  const real = ctx;
+  if (tintReal || !real) return fn();                     // already in a part's colours
+  if (tintProxyOf !== real) { tintFns.clear(); tintProxy = new Proxy(real, TINT); tintProxyOf = real; }
+  tintReal = real; tintLine = line || ''; tintFill = fill || ''; tintSelInk = selInkNow; tintOff = 0; tintRawFill = real.fillStyle; tintRawStroke = null; tintStack.length = 0;
+  ctx = tintProxy;
+  try { return fn(); } finally { ctx = real; tintReal = null; tintSelInk = null; }
+}
+/* what a part draws that is not its body (its ports and their names): in the tool's own colours, unless the whole
+   figure is black and white */
+export function untinted(fn) {
+  if (!tintReal || partsBw()) return fn();
+  tintOff++;
+  try { return fn(); } finally { tintOff--; }
+}
+/* a fill that is ink (a solid mark with no outline: a transducer, an arrowhead), so in the part's line colour */
+export function inkFill(c) {
+  tintInk = true;
+  try { ctx.fillStyle = c; } finally { tintInk = false; }
+}
 export function draw(el) {
-  drawBody(el);
+  if (partsBw() && el.type !== 'draw') { tinted(BW_LINE, BW_FILL, null, () => { drawBody(el); if (el.type !== 'fcomp') ELEC_UI.drawExtras(el); }); return; }
+  if ((el.lineColour || el.fillColour) && el.type !== 'draw') tinted(el.lineColour, el.fillColour, el.id === selectedId || extraSel.has(el.id) ? selInk() : null, () => drawBody(el));
+  else drawBody(el);
   if (el.type !== 'fcomp') ELEC_UI.drawExtras(el);                                               // ELEC hook: electrical ports on optical parts
 }
 function drawBody(el) {

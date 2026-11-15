@@ -153,9 +153,10 @@ function hgRotate(comps, alpha) {
     if (!row) {
       const L = Math.sqrt(2 * N + 1) + 5, K = 2 * Math.ceil(12 * L) + 1, h = 2 * L / (K - 1), xs = Array.from({ length: K }, (_, i) => -L + i * h);
       row = [];
+      const um = xs.map(x => hgUnit(m, x)), un = xs.map(y => hgUnit(n, y));      // the mode itself: the same for every j
       for (let j = 0; j <= N; j++) {
         let s = 0;
-        for (const x of xs) for (const y of xs) s += hgUnit(m, x) * hgUnit(n, y) * hgUnit(j, x * ca + y * sa) * hgUnit(N - j, -x * sa + y * ca);
+        for (let ix = 0; ix < K; ix++) { const x = xs[ix]; for (let iy = 0; iy < K; iy++) { const y = xs[iy]; s += um[ix] * un[iy] * hgUnit(j, x * ca + y * sa) * hgUnit(N - j, -x * sa + y * ca); } }
         row.push(s * h * h);
       }
       if (hgRotMemo.size > 2000) hgRotMemo.clear();

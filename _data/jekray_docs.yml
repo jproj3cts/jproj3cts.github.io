@@ -23,6 +23,8 @@
       url: /jek/docs/jekray/free-space/detector/
     - title: Screen
       url: /jek/docs/jekray/free-space/screen/
+    - title: Scattering by a particle
+      url: /jek/docs/jekray/free-space/scattering/
     - title: Spectrometer
       url: /jek/docs/jekray/free-space/spectrometer/
     - title: Fibre tip

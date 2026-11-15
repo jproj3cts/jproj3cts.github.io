@@ -63,7 +63,8 @@ export function filmSubOf(d, design) {
 /* a .jekfilm's content as a face's coating, its design substrate kept */
 function filmFaceCoat(d, src) {
   const c = coatFromFilm(d, src), sub = filmSubOf(d, c.design);
-  return normCoat(sub ? { ...c, sub } : c);
+  // and what it was designed to, for the part's coating specification (state/project.js normCoat keeps it)
+  return normCoat({ ...c, ...(sub ? { sub } : {}), film: { spec: d.spec, make: d.make, tol: d.tol } });
 }
 /* a cloud coating as a face's coating: its stack fetched, linked to it */
 export async function filmCoat(id) {
@@ -81,25 +82,31 @@ export async function useFilmOn(holder, id) {
     toast('“' + coat.label + '” is on this face: a copy, linked to the coating in JEKfilm');
   } catch (err) { toast(err.status === 401 ? 'Sign in to use the coatings in the cloud' : 'Could not fetch the coating: ' + err.message, true); hooks.renderPanel(); }
 }
-/* a .jekfilm file from this computer onto a face: a copy, with no link */
-export function filmFileOn(holder) {
-  const input = h('input', { type: 'file', accept: '.jekfilm,application/json', hidden: '' });
+/* a .jekfilm's content onto a face: a copy, with no link; false if it is not a coating */
+export function filmDocOn(holder, d, name) {
+  if (!d || d.format !== 'jekfilm') return false;
+  checkpoint(); holder.coat = filmFaceCoat(Object.assign({ name }, d)); changed(true);
+  return true;
+}
+/* a .jekfilm file from this computer onto a face: a copy, with no link (done, if given, called once it is settled) */
+export function filmFileOn(holder, done) {
+  const input = h('input', { type: 'file', accept: '.jekfilm,application/json', hidden: '' }), end = () => { hooks.renderPanel(); if (done) done(); };
   document.body.append(input);
   input.addEventListener('change', () => {
     const f = input.files[0]; input.remove();
-    if (!f) { hooks.renderPanel(); return; }
+    if (!f) { end(); return; }
     const rd = new FileReader();
     rd.onload = () => {
       let d = null;
       try { d = JSON.parse(rd.result); } catch (err) { /* below */ }
-      if (!d || d.format !== 'jekfilm') { toast(f.name + ' is not a JEKfilm coating (.jekfilm)', true); hooks.renderPanel(); return; }
-      checkpoint(); holder.coat = filmFaceCoat(Object.assign({ name: f.name.replace(/\.jekfilm$/i, '') }, d)); changed(true);
+      if (!filmDocOn(holder, d, f.name.replace(/\.jekfilm$/i, ''))) { toast(f.name + ' is not a JEKfilm coating (.jekfilm)', true); end(); return; }
       track('import', 'film-face-file');
       toast('“' + holder.coat.label + '” is on this face, from the file');
+      if (done) done();
     };
     rd.readAsText(f);
   });
-  input.addEventListener('cancel', () => { input.remove(); hooks.renderPanel(); });
+  input.addEventListener('cancel', () => { input.remove(); end(); });
   input.click();
 }
 /* a linked coating opened in JEKfilm, in its tab */
@@ -175,7 +182,7 @@ function faceOf(f) {
 }
 /* the page's wiring: the folder listed with each cloud link, and JEKfilm's saves in another tab heard */
 export function wireFilmCoats() {
-  Object.assign(hooks, { cloudLinked: link => { if (!link || link.id !== filmFolder.benchId) loadFilmFolder(link); }, filmFolder: () => filmFolder.list, useFilmOn, filmFileOn, openFilm, updateFilms, designInFilm });
+  Object.assign(hooks, { cloudLinked: link => { if (!link || link.id !== filmFolder.benchId) loadFilmFolder(link); }, filmFolder: () => filmFolder.list, useFilmOn, filmFileOn, filmDocOn, openFilm, updateFilms, designInFilm });
   // a cloud bench restored with the page: its folder listed once the account is known
   Promise.resolve().then(() => { if (accountLoaded) accountLoaded.then(() => { if (cloud && filmFolder.benchId !== cloud.id) loadFilmFolder(); }); });
   if (EMBED || typeof BroadcastChannel !== 'function') return;

@@ -83,3 +83,15 @@ page last regenerated as the one picks are about. Mates also take an offset and 
 nothing until it is passed, then holds the part at it), and connectors on edges and corners (`edgeConnector`,
 `vertexConnector`). The handle on a part is `triad` in `ui/assembly.js`, drawn on the overlay through `hooks.cadOverlay`.
 
+## Drawings
+
+A Drawing is a third kind of tab (`normDrawing` in `core/drawing.js`): what it is of (a Part Studio, one of its
+parts, or an Assembly), its sheet and scale, its views, its dimensions and its title block. The kernel projects each
+view with OpenCascade's hidden-line removal (`drawingViews`: runs of points that show and that are hidden), and finds
+what a dimension holds to (`drawLocate`: a corner or a round edge by the kernel's reference, so it follows the model).
+`core/drawing.js` is pure: the layout (third angle, the largest usual scale that fits), each dimension's lines
+(`dimGeom`), the whole sheet drawn through a pen (`drawSheet`), and the PDF written with no library (`pdfOfSheet`,
+Helvetica, lines as lines). `ui/drawing.js` draws the sheet on the overlay canvas (`hooks.cadSheet`), and has the
+dimension tool, dragging of views and dimensions, and the side panel. The PDF is an export behind `accountGate`
+(`exportPdf` in `io/files.js`). Docs `jek/docs/jekcad/drawings.md`; tests `test/node/drawing.test.mjs` and the browser suite.
+

@@ -127,3 +127,24 @@ test('a line of rays standing for a round beam: an aperture at half its width pa
     assert.ok(Math.abs(frac(0.5 / Math.SQRT2) - 0.5) < 0.04, n + ' rays: one f-stop halves it, ' + frac(0.5 / Math.SQRT2));
   }
 });
+
+test('an amplifier’s spontaneous emission passes a fibre EOM as one wave a slice, with all its power less the loss; a laser still gets its sidebands', () => {
+  const fib = (a, pa, b, pb) => ({ id: 'f' + a + b, a: [a, pa], b: [b, pb], len: 1, loss: 0, conn: 'splice', ftype: 'smf' });
+  const amp = { id: 'A', type: 'fcomp', kind: 'amp', name: 'SOA', x: 0, y: 0, angle: 0, g0: 25, psat: 10, nf: 8, centre: 1550, bw: 60, iso: 0, soa: true };
+  const eom = { id: 'E', type: 'fcomp', kind: 'eom', name: 'EOM', x: 30, y: 0, angle: 0, fm: 1000, beta: 1.08, bias: 90, loss: 3, emode: 'phase', vpi: 5 };
+  const pd = id => ({ id, type: 'fcomp', kind: 'pd', name: id, x: 60, y: 0, angle: 0 });
+  const run = (elements, fibres) => { loadProject({ format: 'jekray', version: 1, name: 'ase eom', elements, fibres }); return FIBRE.fibreNetCached(); };
+  // the amplifier's forward emission straight to a photodiode, then through the modulator
+  const bare = run([amp, pd('P')], [fib('A', 1, 'P', 0)]), Pbare = FIBRE.netPower(bare.pd.get('P'), bare.keys);
+  const net = run([amp, eom, pd('P')], [fib('A', 1, 'E', 0), fib('E', 1, 'P', 0)]), P = FIBRE.netPower(net.pd.get('P'), net.keys);
+  assert.ok(Pbare > 0, 'the amplifier emits: ' + Pbare);
+  near(P / Pbare, Math.pow(10, -0.3), 1e-9, 'all the orders’ power together, less 3 dB');
+  const waves = [...net.pd.get('P').values()].flat();
+  assert.ok(waves.length > 0 && waves.every(w => w.fo === 0), 'no sidebands on the emission: ' + waves.filter(w => w.fo).length + ' of ' + waves.length);
+  assert.equal(waves.length, [...bare.pd.get('P').values()].flat().length, 'a wave for each slice and polarisation, as without the modulator');
+  // a laser through the same modulator keeps its sidebands
+  const las = { id: 'L', type: 'fcomp', kind: 'laser', name: 'Laser', x: -30, y: 0, angle: 0, wavelength: 1550, power: 1, pol: 's' };
+  const ln = run([las, eom, pd('P')], [fib('L', 0, 'E', 0), fib('E', 1, 'P', 0)]);
+  const lw = [...ln.pd.get('P').values()].flat();
+  assert.ok(lw.some(w => w.fo === 1e9) && lw.some(w => w.fo === -1e9), 'a laser’s first sidebands at ±1 GHz');
+});

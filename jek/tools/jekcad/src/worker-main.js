@@ -8,6 +8,7 @@ import './core/font-data.js';
 import './core/sketch-tools.js';
 import './core/measure.js';
 import './core/assembly.js';
+import './core/drawing.js';
 import './core/doc.js';
 import './engines/kernel.js';
 import './../../jekray/src/worker/shim.js';

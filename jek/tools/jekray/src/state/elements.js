@@ -3,6 +3,7 @@ import { assemblies, normAssemblies } from '../core/assembly.js';
 import { liveMates, normMates } from '../core/mates.js';
 import { hooks } from '../core/hooks.js';
 import { normModRef } from '../core/modulators.js';
+import { partHex } from '../core/part-colours.js';
 import { applyRf, normRf } from '../core/rf.js';
 import { applyPulse, isLaserLike, syncLine } from '../core/pulses.js';
 import { RF } from '../parts/rf.js';
@@ -92,6 +93,8 @@ export function normElementBase(e) {
   };
   if (e.locked === true) base.locked = true;                  // held in place: not moved by dragging or the arrow keys
   if (e.hide3d === true) base.hide3d = true;                  // not drawn in the 3D view (the light still meets it)
+  // its own colours on the bench and in exported pictures (core/part-colours.js): kept only when set, so a part without them is drawn as ever
+  if (e.type !== 'draw') { const lc = partHex(e.lineColour), fc = partHex(e.fillColour); if (lc) base.lineColour = lc; if (fc) base.fillColour = fc; }
   // its height above the breadboard (mm), kept only when not the beam height (see zOf)
   if (isFinite(e.z) && e.z !== null && +e.z !== 75) base.z = clamp(+e.z, 0, 2000);
   // a free-space part tipped up (+) or down out of the bench plane, degrees (see setTip)
@@ -320,7 +323,7 @@ export function normFibres(list, els) {
       used.add(pkey(...b));
       const pt = v => Array.isArray(v) && v.length === 2 && v.every(isFinite) ? [+v[0], +v[1]] : [0, 0];
       const path = Array.isArray(F.path) ? F.path.filter(n => n && isFinite(n.x) && isFinite(n.y)).map(n => ({ x: +n.x, y: +n.y, h1: pt(n.h1), h2: pt(n.h2) })) : [];
-      out.push(Object.assign({ id: typeof F.id === 'string' ? F.id : uid(), a, b, wire: true, path }, F.route === 'square' ? { route: 'square' } : {}));
+      out.push(Object.assign({ id: typeof F.id === 'string' ? F.id : uid(), a, b, wire: true, path }, F.route === 'square' ? { route: 'square' } : {}, partHex(F.lineColour) ? { lineColour: partHex(F.lineColour) } : {}));   // its own colour, when given one
       continue;
     }
     if (!a || !b || used.has(pkey(...a)) || used.has(pkey(...b)) || pkey(...a) === pkey(...b)) continue;
@@ -339,6 +342,8 @@ export function normFibres(list, els) {
       conn: CONNS[F.conn] ? F.conn : 'splice',
       key: num(F.key, 0), beat: Math.max(0.1, num(F.beat, 4)), per: clamp(num(F.per, 25), 0, 60), seed: Math.round(num(F.seed, 1)),
       path, ta: isFinite(F.ta) && F.ta !== null ? Math.max(0, +F.ta) : null, tb: isFinite(F.tb) && F.tb !== null ? Math.max(0, +F.tb) : null,
+      // its own colour on the bench and in exports, when given one
+      ...(partHex(F.lineColour) ? { lineColour: partHex(F.lineColour) } : {}),
       // wound round a radius (mm), turns times: its bend loss (core/bend.js)
       ...(isFinite(F.bendR) && F.bendR > 0 ? { bendR: clamp(+F.bendR, 1, 1000), turns: isFinite(F.turns) && F.turns > 0 ? clamp(+F.turns, 0.01, 1e5) : 1 } : {}),
       wg: F.wg ? PIC.normWg(F.wg) : undefined,                                               // PIC hook: a waveguide on a chip
@@ -370,7 +375,7 @@ export function lensKind(el) {
 
 /* the parts the 3D view can show: a bench with others on it cannot go to 3D */
 export const FREE_3D = new Set(['source', 'detector', 'spectrometer', 'screen', 'fibre', 'mirror', 'lens', 'cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator',
-  'stop', 'mask', 'filter', 'grating', 'prism', 'gain', 'cell', 'nlc', 'aom', 'eom', 'chopper', 'link', 'stl', 'draw']);
+  'stop', 'mask', 'filter', 'grating', 'prism', 'gain', 'cell', 'nlc', 'particle', 'aom', 'eom', 'chopper', 'link', 'stl', 'draw']);
 
 /* fibre components, circuit parts and chips: in the 3D view on the table, the fibres, wires and waveguides between
    them laid as tubes (ui/view3d.js); the light of free space does not meet them */
@@ -400,7 +405,15 @@ export function loadProject(data) {
     mods: normCarried(data.mods),                  // the code of the mods its parts use: kept, never run from here
   };
   setProject(p);
-  for (const e of data.elements) { const n = normElement(e); if (n) p.elements.push(n); }
+  for (const e of data.elements) {
+    // a screen's particle (files before 1.1): a Particle part of its own beside the screen, which keeps the rest
+    if (e && e.type === 'screen' && e.trap === 'sphere') {
+      const sc = normElement(Object.assign({}, e, { trap: 'none' }));
+      if (sc) { p.elements.push(sc); const q = normElement(Object.assign(PARTS.particle.fromScreen(Object.assign({}, e, { id: sc.id })), { id: sc.id + '-particle' })); if (q) p.elements.push(q); }
+      continue;
+    }
+    const n = normElement(e); if (n) p.elements.push(n);
+  }
   if (Array.isArray(data.benches) && data.benches.length) {
     const vw = v => ({ cx: num(v && v.cx, 0), cy: num(v && v.cy, 0), scale: Math.min(ZOOM_MAX, Math.max(0.05, num(v && v.scale, 4))) });
     p.benches = data.benches.filter(b => b && typeof b.id === 'string').map((b, i) => ({ id: b.id, name: String(b.name || 'Bench ' + (i + 1)).slice(0, 40), view: vw(b.view) }));

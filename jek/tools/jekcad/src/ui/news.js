@@ -3,8 +3,13 @@ import { h } from '../../../jekray/src/ui/dom.js';
 /* ==========================================================================
    The version, and what is new in it (Help › What’s new)
    ========================================================================== */
-export const APP_VERSION = '0.8.0';
+export const APP_VERSION = '0.9.0';
 export const NEWS = [
+  { v: '0.9.0', date: '12 Nov 2026', items: [
+    '<b>Drawings</b>: a new kind of tab. Front, top, right and isometric views of a Part Studio or an Assembly on a sheet, with hidden lines removed.',
+    'Dimensions on a drawing follow the model: overall sizes in one click, or click two corners and a place, or a circle for its diameter.',
+    'A title block, and <b>Export PDF</b> at true size.',
+  ] },
   { v: '0.8.0', date: '11 Nov 2026', items: [
     'Fixed: a fillet or chamfer on a whole face could leave a broken part where the size did not fit every edge. The edges it fits are now done, the rest are left square, and the feature says how many.',
     '<b>Regions understand the model</b>: a sketched shape that runs over the edge of a face, or over a part the sketch’s plane passes through, is cut there, so each piece is picked separately. For Extrude, Revolve, Sweep and Loft.',

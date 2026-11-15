@@ -36,6 +36,7 @@ export const PART_USES = {
   gain: USE_AMP + ' laser medium crystal rod pump cavity lasing',
   cell: 'atoms vapour vapor absorption spectroscopy rubidium caesium cesium potassium resonance saturated',
   nlc: 'frequency doubling second harmonic shg nonlinear convert colour green ppln ppktp',
+  particle: 'scatter scattering sphere nanoparticle rod bead dust levitate tweezers mie rayleigh dipole collect position',
   fibre: 'fibre fiber coupling launch end face tip connect free space',
   collimator: 'fibre fiber collimate launch couple out to free space connect',
   detector: USE_DETECT,

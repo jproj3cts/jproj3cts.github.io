@@ -4,8 +4,8 @@ import { designPro } from '../../../jekray/src/ui/pro.js';
 import { track } from '../../../jekray/src/io/usage.js';
 import { API_BASE, account, accountLoaded, accountsOn, api, fillAccount, setAccount } from '../../../jekray/src/io/account.js';
 import { h } from '../../../jekray/src/ui/dom.js';
-import { filmText } from '../core/film.js';
-import { film, filmCurves, render } from '../ui/designer.js';
+import { filmCurves, filmText } from '../core/film.js';
+import { film, render } from '../ui/designer.js';
 import { setStatus, toast } from '../ui/bar.js';
 import { filmAutosave, openFilmData } from './files.js';
 

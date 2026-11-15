@@ -28,6 +28,8 @@ export function cadRun(K, kind, a) {
   if (kind === 'asmStep' || kind === 'asmStl') return K.asmExport(kind === 'asmStl' ? 'stl' : 'step', a.items, a.fine);
   if (kind === 'asmMeasure') return K.asmMeasure(a.picks);
   if (kind === 'asmClash') return K.asmClash(a.items);
+  if (kind === 'drawing') return K.drawingViews(a.items, a.views);
+  if (kind === 'drawLocate') return K.drawLocate(a.reqs);
   if (kind === 'ping') return true;
   throw new Error('no such request: ' + kind);
 }

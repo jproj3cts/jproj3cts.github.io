@@ -1,0 +1,41 @@
+{
+ "lambda_nm": 1064.0,
+ "n_bk7": 1.506634801642448,
+ "w0_mm": 1.0,
+ "lens_at_mm": 500.0,
+ "mirror_at_mm": 300.0,
+ "mirror_R_mm": 500.0,
+ "incidence_deg": 15.0,
+ "rows": [
+  {
+   "system": "lens",
+   "name": "curved side first",
+   "R1": 51.5,
+   "R2": null,
+   "waist_past_mm": 99.725399439681,
+   "w0_mm": 0.03411827518633314
+  },
+  {
+   "system": "lens",
+   "name": "flat side first",
+   "R1": null,
+   "R2": -51.5,
+   "waist_past_mm": 102.11751162056619,
+   "w0_mm": 0.03411460637485259
+  },
+  {
+   "system": "mirror",
+   "name": "in the plane",
+   "f_mm": 241.4814565722671,
+   "waist_past_mm": 241.87272430587996,
+   "w0_mm": 0.08176929691632442
+  },
+  {
+   "system": "mirror",
+   "name": "out of the plane",
+   "f_mm": 258.81904510252076,
+   "waist_past_mm": 259.1354097241458,
+   "w0_mm": 0.0876487545389113
+  }
+ ]
+}

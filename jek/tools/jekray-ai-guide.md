@@ -100,7 +100,8 @@ Signs:
 - **A laser from parts:** a gain element ("g0", "isat", "centre" on the lasing line) between two mirrors, one partly transmitting, and a weak seed source at the lasing wavelength to find the cavity. Above threshold the output leaves the partly transmitting mirror as a beam.
 - **Vapour cell spectroscopy:** a "cell" on the beam, the source's wavelength on the line in vacuum nm. For saturated absorption, a weak probe and a strong pump from one laser ("splitFrom") crossing the cell in opposite directions along the same line, the probe onto a detector. A magnetic field along the cell ("bField", gauss) splits the lines: for a DAVLL lock, a linearly polarised probe through a cell at about 50 to 100 G, a quarter-wave plate at 45 degrees, a polarising cube and a detector on each port; for a Faraday filter, the cell (heated, a few hundred gauss) between crossed polarisers. Polarisation spectroscopy needs no field: a circularly polarised pump (a quarter-wave plate on it) against a linearly polarised probe, the probe then through a cube at 45 degrees onto two detectors.
 - **Higher-order and vortex beams:** give a Gaussian source "tem": "hg" with "hm" and "hn", or "tem": "lg" with "lp" and "ll" (the vortex charge); "w0" is the waist of the Gaussian the mode is built on. For an SLM, use a mask: "delay" "theta/(2*pi)" is a spiral phase plate of charge 1, "mod(x/0.1 + theta/(2*pi), 1)" a fork hologram of period 0.1 mm, and "mod(x/0.1, 1)" a blazed grating. Raise the source's "popN" if the tool flags the mask's detail as finer than its grid.
-- **Optical traps (atoms, nanoparticles):** focus the trapping light and put a small screen at the focus with "absorb": false and "trap" set to the atom ("Rb87", "Cs133" and so on) or to "sphere" with "trapMat", "trapR" (nm) and "trapMed". Its Trap tab finds where the particle sits and gives the depth, trap frequencies each way and scattering, from every beam through the screen's region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of "Water" so the optics are right too.
+- **Optical traps (atoms, nanoparticles):** focus the trapping light. For atoms, put a small screen at the focus with "absorb": false and "trap" set to the atom ("Rb87", "Cs133" and so on). For a nanoparticle, put a "particle" part at the focus with "trapMat", "trapR" (nm) and "trapMed". Its Trap tab finds where it sits and gives the depth, trap frequencies each way and scattering, from every beam through its region (so two counter-propagating beams of one laser make a standing-wave trap). For a sphere in water, put the focus inside a block of "Water" so the optics are right too.
+- **Light scattered by a particle:** the same "particle" part; its Scattering tab gives the cross-sections, the power it scatters and the pattern. "trapShape" makes it a rod ("cylinder", "capsule") or a "spheroid" with "trapLen" (nm), its "angle" (the axis in the bench plane) and "trapTilt"; the diameter is twice "trapR". "scatModel" "auto" takes Lorenz–Mie for a sphere and a dipole array for other shapes. A tight focus (NA above 0.3) is taken as its full vector field, a gentler beam as a plane wave. "scatNA" and "scatDir" set the cone whose share of the scattered light is read.
 - **Aberrations of an imaging system:** a fan source (collimated for an object at infinity, or with a "divergence" for a point object), the optics, and a screen at the image. The screen's Aberrations tab sweeps the source across the field ("abAng" degrees, or "abH" mm of object height) and gives Seidel's coefficients (W040, W131, W22T, W311), Zernike terms along the meridian, spot diagrams, field curvature and distortion, for the tangential section. Put a "stop" where the system's aperture stop is (in front of, between or behind the lenses): each field's chief ray is aimed through its centre.
 - **Frequency doubling:** a Gaussian laser focused into an "nlc" (a periodically poled crystal: "material" "ppln" or "ppktp", "nlLen" mm, "temp" °C, "axis" the polarisation that converts), its waist in the crystal's middle (the crystal is a block of index n, about 2.1 for PPLN, so a focus aimed at its middle in air lands further in: aim L/(2n) past its entrance face); leave "period" at 0 for the best period for that beam, or give it in µm (then the temperature tunes it). The second harmonic leaves as its own beam; separate it with a short-pass "filter". Focus so the crystal is about 2.84 confocal parameters long for the most harmonic.
 - **Self-phase modulation and solitons:** a pulsed fibre laser ("tau", "rep", "power") into fibre long and strong enough for a nonlinear phase (standard fibre has "gamma" 1.3 /(W km)); the fibre tip's beam carries the reshaped spectrum to a screen's Pulse tab. Anomalous dispersion (standard fibre at 1.55 µm) with peak power |β₂|/(γT₀²) makes a soliton.
@@ -132,6 +133,8 @@ A person may instead ask for a **part pack**: a set of ready-made parts and glas
 ## Element reference
 
 Every element has "type", "id" (any unique string), "name", "x", "y" (mm) and "angle" (degrees), and "bench" (a tab id) when there are several tabs. The other fields are listed with the value the tool uses if you leave them out. Leave out anything you do not need to change.
+
+Any element but a drawing may also have "lineColour" and "fillColour", each "#rrggbb": its own colours on the bench and in exported pictures. Every line of the part is drawn in the line colour and its body in the fill colour, as see-through as the tool draws it. Leave them out and the part is drawn in the tool’s own colours. They change nothing about the light.
 
 ### "source": Source
 
@@ -210,6 +213,7 @@ A lens of any number of surfaces (singlet, doublet, asphere, diffractive, cylind
 | design | (none) | optional: nm, the wavelength the lens was designed for (an imported lens file’s primary wavelength); for the reader only, it changes nothing in the trace. |
 | mount | (none) | optional, a made-to-order RF lens only: {"kind": "flange", "width": mm out from the rim, "thick": mm along the axis, "holes": bolt holes (0 to 12), "hole": their diameter, mm}, on the circle through the flange’s middle. Outside the lens: not traced. |
 | zoned | (none) | optional, a made-to-order RF lens of two faces only: {"ghz": its zone frequency} to have it cut in zones, whole layers a wave of path deep at that frequency taken out of its curved face where it is thick. The bench traces it as cut (a ray meeting a step’s wall is lost); the RF designer, its weight and its quote take it as cut too. |
+| make | (none) | optional: what the lens is made to, for its drawing and Make the part (each value optional; one not given follows the lens designer’s tolerance settings, else a commercial grade): {"qty": quantity ordered, "diaTol": mm, the diameter’s tolerance (+0/−diaTol), "ctTol": ± mm on each centre thickness, "cent": centring 4/, arcminutes, "faces": one per surface, each {"finish": "polished" \| "ground", "form": fringes of power and "irr": fringes of irregularity at 632.8 nm (3/form(irr)), "sd": scratch-dig to MIL-PRF-13830B as "60-40", "chamfer": mm, the widest protective chamfer at 45°}}. |
 | asphere | (none) | true for an asphere: only an asphere’s surfaces take a conic ("k"), aspheric terms ("A") and freeform terms ("F": {"mn": c_mn} for c_mn x^m y^n added to the sag, x up out of the bench plane and y across it; m even; "20", "02", "21", "03", "40", "22", "04", "41", "23", "05", "60", "42", "24", "06"); a plain lens’s are spheres. |
 | diffractive | (none) | true for a diffractive lens: its surfaces may take phase terms ("ph": [c1, c2, c3, c4], radians, the phase c1 ρ² + c2 ρ⁴ + c3 ρ⁶ + c4 ρ⁸ with ρ the height on the face in mm), in the order of diffraction "diffOrder" (1 unless given); all the light is taken to go into that order. Its power there is -diffOrder λ c1 / π. |
 | diffOrder | (none) | optional: a diffractive lens’s order of diffraction, a whole number (1 unless given). |
@@ -229,14 +233,8 @@ A screen: records the rays and the field arriving on its face, and gives spot si
 | binInterp | `true` | true interpolates the rays into the bins. |
 | mapScale | `"lin"` | "lin" or "log" irradiance map. |
 | vectorFocus | `"auto"` | "auto", "on" or "off": the vector focus model for steep beams. |
-| trap | `"none"` | "none", an atom ("Rb87", "Rb85", "Cs133", "K39", "K41", "Na23") or "sphere" (a dielectric sphere) to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen’s region. |
+| trap | `"none"` | "none", an atom ("Rb87", "Rb85", "Cs133", "K39", "K41", "Na23") to read an optical trap for near this screen (the Trap tab): where it sits, depth, trap frequencies each way and scattering, from every beam through the screen’s region. A particle is a Particle part of its own; a file with "sphere" here opens with its particle moved onto one. |
 | trapF | `"avg"` | for atoms, the ground hyperfine level they are in: "avg" (the centroid), "lo" or "hi" (F = I ∓ 1/2); it moves the lines by a few GHz, which matters close to them (the tune-out wavelength between D1 and D2 moves by picometres). |
-| trapMat | `"Fused silica"` | the sphere’s glass ("Fused silica", "Polystyrene" and so on). |
-| trapR | `100` | the sphere’s radius, nm. |
-| trapRho | `2200` | its density, kg/m³. |
-| trapMed | `"bench"` | "bench" (the index where the light is: put the focus in a block of "Water" for a liquid), "vacuum" or "air" (with trapP). |
-| trapP | `1013.25` | air pressure, mbar: sets the gas damping and quality factors. |
-| trapT | `295` | temperature (K): the depth in kT and the gas. |
 | mtfFreq | `50` | lp/mm at which the MTF is quoted. |
 | abSrc | `""` | the id of the fan source the Aberrations tab sweeps across the field ("" for the first reaching the screen). |
 | abAng | `2` | its largest field angle, degrees, for a collimated source. |
@@ -357,7 +355,6 @@ A fibre tip: takes free-space light into a fibre by mode overlap, and sends a fi
 | core | `4.4` | µm core diameter (mode field set from core and NA). |
 | na | `0.12` | numerical aperture. |
 | emitRays | `5` | rays in the fan it sends out, 0 to 51. |
-| mm | `false` | true for a multimode fibre (give it core 50 or 62.5 and na 0.22): it takes in what lands on its core inside its NA, and sends out a beam filling core and NA. |
 | coll | `0` | mm: the focal length of a collimating lens on the tip (0, the default, for a bare tip). With one, a single-mode tip sends out a collimated beam of 1/e² radius λf/(π w), w the fibre mode, and takes in by that beam's mode. |
 | popN | `256` | grid points for the field of the beam it sends out: 128, 256, 512 or 1024. |
 | popModel | `"auto"` | "auto" (round when it can be) or "2d" (always 2D, with polarisation). |
@@ -518,6 +515,38 @@ A periodically poled nonlinear crystal (MgO:PPLN or PPKTP) that doubles the freq
 | temp | `40` | °C: tunes the phase matching (PPLN is usually run hot, 40 to 200). |
 | axis | `"s"` | "s" (z axis out of the bench plane: s light converts) or "p". |
 | faces | `"ar"` | "ar" (end faces anti-reflection coated, 0.1%; the default) or "bare". |
+
+### "particle": Particle
+
+One small particle at a point of the bench: a sphere, a rod or a spheroid, in whatever light reaches it. Its Scattering tab gives its cross-sections and the light it scatters (Lorenz–Mie for a sphere, a dipole array for a rod), its Trap tab the optical trap the light makes for it. The scattered light goes to the parts that catch it, as light of the laser that drives the particle: a lens collimates it, a photodetector reads it with the unscattered beam as fields. The light itself passes the particle untouched.
+
+**angle:** the direction of a rod’s or spheroid’s axis in the bench plane (a sphere has none).
+
+| field | default | meaning |
+|---|---|---|
+| trap | `"sphere"` | always "sphere": the part is a particle (the field a screen’s particle is told by). |
+| trapMat | `"Fused silica"` | the particle’s material: a glass ("Fused silica", "Polystyrene" and so on), or "Au", "Ag", "Al" (metals, which absorb: their measured complex index). |
+| trapR | `150` | the particle’s radius, nm: half its diameter (for a rod or spheroid, half the diameter across its axis). |
+| trapRho | `2200` | its density, kg/m³. |
+| trapMed | `"bench"` | "bench" (the index where the light is), "vacuum", "air" (with trapP) or "water". |
+| trapShape | `"sphere"` | "sphere", "cylinder" (a rod with flat ends), "capsule" (a rod with round ends) or "spheroid". |
+| trapLen | `1000` | nm: a rod’s or spheroid’s whole length along its axis. |
+| trapTilt | `0` | degrees: its axis tilted up out of the bench plane (90: straight up). |
+| trapP | `1013.25` | mbar: the air’s pressure, for trapMed "air". |
+| trapT | `295` | K: the temperature the trap’s depth is compared with. |
+| scatModel | `"auto"` | "auto" (Mie for a sphere, a dipole array for other shapes, Rayleigh when tiny), "rayleigh", "mie" or "dda". |
+| scatDip | `0` | dipoles across the smallest dimension of a dipole array (0 chooses). |
+| scatAt | `"part"` | "part": the particle is where the part is; "trap": where the optical trap nearest the part holds it. |
+| scatDx | `0` | µm: moved from there across the strongest beam, in the bench plane (across it level, for a beam that rises or descends). |
+| scatDy | `0` | µm: moved up out of the plane (up from the beam, square to it, for a beam that rises or descends). |
+| scatDz | `0` | µm: moved along the beam. |
+| scatNA | `0.5` | the numerical aperture of the cone the Scattering tab’s Collected figure is for. |
+| scatDir | `"fwd"` | that cone’s direction: "fwd", "back", "side", "up" or "angle" (with scatAng). |
+| scatAng | `0` | degrees: the cone’s direction on the bench, for scatDir "angle". |
+| scatScale | `"log"` | "log" or "lin": the pattern plots’ scale. |
+| scatView | `"in"` | "in" (the bench plane), "out" (the plane out of it through the beam) or "map" (every direction). |
+| scatLight | `true` | true puts the scattered light on the bench: a cone to each part with a clear line to the particle, with the far field’s amplitude, phase and polarisation, coherent with the driving laser. false leaves the bench as it is without it. |
+| scatFan | `true` | true draws a faint fan of the scattered light in every direction, as bright as the pattern is; a picture only, never part of a reading. |
 
 ### "link": Link plane
 
@@ -810,8 +839,15 @@ Fibre components sit on the bench like any element (x, y, angle, name, id) and a
 | field | default | meaning |
 |---|---|---|
 | centre | `1550` | Bragg wavelength (nm) |
-| fwhm | `0.5` | Bandwidth (nm) |
-| rmax | `90` | Peak reflectance (%) |
+| len | `5` | Length (mm) |
+| dn | `0.00018` | Index modulation δn |
+| vis | `1` | Fringe visibility (0 to 1) |
+| neff | `1.468` | Effective index |
+| chirp | `0` | Chirp (nm/cm) |
+| fwhm | `0.5` | Bandwidth (nm), model "band" |
+| rmax | `90` | Peak reflectance (%), model "band" |
+| model | `"cmt"` | "cmt": a grating by coupled-mode theory, from len, dn, vis, neff, apod and chirp (peak reflectance tanh²(π vis dn len / λ), with side lobes, delay and dispersion); "band": a Gaussian band of peak rmax and width fwhm, with no phase. Give "model" when you give fwhm or rmax: a grating with those and neither len nor dn is read as "band", as files from before the grating model are |
+| apod | `"none"` | "none" (uniform), "gauss" (Gaussian, its full width at half maximum half the length) or "cos" (raised cosine): the index modulation’s profile along the grating |
 
 ### kind "term": Terminator
 

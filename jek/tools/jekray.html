@@ -37958,6 +37958,8 @@ const FLAG_TEXT = {
   skipped: 'A beam through here was left out: no field could be taken for it.',
   notrap: 'No stable trap was found, so the particle is where the beam meets the screen.',
   fresnel: 'The cavity\u2019s Fresnel number (its mirrors\u2019 radius squared over the wavelength times their spacing) is under 10: the returns are taken as rays with their phase and the rims as hard edges, which diffraction at the rims makes rough here.',
+  pupilFar: 'This cavity is further from the one that re-images its light than the solve has been checked: checked to 0.2 rad of round-trip Gouy phase from it (50 µm short of concentric with 90% mirrors), the light at the particle is 2 to 7% out at 0.4 rad and 28% at 0.6 rad.',
+  modeNear: 'This cavity’s transverse modes step by under 1 rad a round trip, and only those up to order 12 are kept: the part of the light at the particle that is off resonance is not to be trusted here (it has been found with the wrong sign). The shift and widening come from the resonant part.',
   cavity: 'Scattering inside a cavity is not modelled: the light here comes back to the particle more than once, and these readings take its scattered light back to it once only.',
 };
 /* why a cavity's modes do not take a particle's light (engines/scatter-cavity.js) */
@@ -44515,6 +44517,21 @@ function cavDegenerate(c) {
   }
   return null;
 }
+/* Where the two solves have not been checked, or are known to be out (November 2026): the Scattering tab says so.
+   pupilFar: a degenerate cavity this far from its re-imaging one. The pupil solve agrees with its reference to 0.20 rad
+   (50 um short of concentric at 90% mirrors); at 0.4 rad it is 2 to 7% out and at 0.6 rad 28%.
+   modeNear: a cavity the mode solve takes whose transverse modes step by under 1 rad a round trip. Its orders above
+   CAV_NMAX are left out and they do not die away there: at 0.70 rad the change of the light at the particle off
+   resonance has the wrong sign, at 1.86 rad it agrees with its reference. (1 rad is set between those two and no finer.) */
+const CAV_FAR_PUPIL = 0.25, CAV_NEAR_MODE = 1;
+function cavUnchecked(c, degen) {
+  if (degen) return degen.off > CAV_FAR_PUPIL ? 'pupilFar' : null;
+  for (const g of [c.gouy.x, c.gouy.y]) {
+    const t = ((g % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    if (Math.min(t, 2 * Math.PI - t) < CAV_NEAR_MODE) return 'modeNear';
+  }
+  return null;
+}
 const scMul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
 const scDiv = (a, b) => { const d = b[0] * b[0] + b[1] * b[1]; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
 const scConj = a => [a[0], -a[1]];
@@ -45949,6 +45966,7 @@ function* scatterGen(el, R, opts) {
     Object.assign(out.cav, { method: 'pupil', pattern: pup.PP.pattern, nodes: N, lost: Rt.lost, iters: S.iters, terms, longest: Sm.longest, msChains: tChains, chainsKept: !!Sm.kept, resid: S.resid, fresnel: pup.PP.fresnel, h2: pup.h2, h2ray: pup.h2ray, gouyHalf: pup.gouyHalf, lam00: pup.lock.lam, lamHow: pup.lock.how, ritz: pup.lock.ritz, dLock: pup.lock.delta,
       E2ratio: abs2(et) / abs2(e0), returnedField: er, back: (() => { let r = 0, i = 0; for (let q = 0; q < 6; q += 2) { r += e0[q] * er[q] + e0[q + 1] * er[q + 1]; i += e0[q] * er[q + 1] - e0[q + 1] * er[q]; } return [r / abs2(e0), i / abs2(e0)]; })(), f0: pup.f, b0: pup.b, dir: pup.PP.dir, ms: Date.now() - t0p });
     if (pup.PP.fresnel < PUP_FRESNEL && !flags.includes('fresnel')) flags.push('fresnel');
+    if (plan.degen && cavUnchecked(plan.c, plan.degen) && !flags.includes('pupilFar')) flags.push('pupilFar');
     return { x, er };
   };
   const pupWaves = A => { const N = pup.G.N, E = new Float64Array(6 * N); for (let i = 0; i < N; i++) for (let q = 0; q < 6; q++) E[6 * i + q] = A[6 * i + q] * pup.G.w[i]; return { n: N, d: pup.G.dirs, E }; };
@@ -45959,6 +45977,7 @@ function* scatterGen(el, R, opts) {
     const n0 = L.n, d = new Float64Array(3 * (n0 + 2)), E = new Float64Array(6 * (n0 + 2));
     d.set(L.d); E.set(L.E); d.set(plan.dir, 3 * n0); d.set(plan.dir.map(v => -v), 3 * n0 + 3); E.set(sol.Ef, 6 * n0); E.set(sol.Eb, 6 * n0 + 6);
     L.n0 = n0; L.d = d; L.E = E; L.n = n0 + 2;
+    if (cavUnchecked(plan.c, null) && !flags.includes('modeNear')) flags.push('modeNear');
     const lamM = plan.c.lam0 / plan.nLeg, zR = plan.qF[0][1];
     Object.assign(out.cav, { f00: cavK.modes[0].f0[cavK.sp], b00: cavK.modes[0].b0[cavK.sp], modes: cavK.kept.length, kept: cavK.kept.map(M => [M.m, M.n]), lam00: cavK.lam00, rho200: cavK.rho200, dLock: cavK.dLock,
       shiftK: sol.shiftK, widenK: sol.widenK, lwK: sol.lwK, shiftLw: sol.shiftLw, widenLw: sol.widenLw, shiftHz: sol.shiftK * C_SI / (2 * Math.PI), widenHz: sol.widenK * C_SI / (2 * Math.PI),

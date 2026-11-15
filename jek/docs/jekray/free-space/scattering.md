@@ -190,6 +190,8 @@ Each direction's light is then followed through every return, until it fades or 
 
 The rays carry their phase between the mirrors and the rims are hard edges. That holds while the Fresnel number $$a^2/\lambda L$$ is large. Under 10 the Scattering tab says so.
 
+Two ranges are not yet right, and the Scattering tab says so in each. A degenerate cavity more than 0.25 rad of round-trip Gouy phase from the one that re-images its light: the solve is checked to 0.2 rad (50 µm short of concentric with 90% mirrors), and the light at the particle is 2 to 7% out at 0.4 rad and 28% at 0.6 rad. A cavity outside the degeneracy test whose transverse modes step by under 1 rad a round trip: the modes above order 12 are left out, and the off-resonant part of the light at the particle has been found with the wrong sign at 0.70 rad.
+
 An exactly concentric cavity transmits less than its mirrors allow, even empty: 0.633 of the light for a 20 µm focus between 10 mm mirrors at 90%. Its round trip images its centre onto itself, but a wavefront flat there comes back curved by $$4/R$$ more each time. An independent Fox–Li calculation gives the same 0.633.
 
 ## Validation

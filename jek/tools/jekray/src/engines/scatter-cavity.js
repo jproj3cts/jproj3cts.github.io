@@ -62,6 +62,21 @@ export function cavDegenerate(c) {
   }
   return null;
 }
+/* Where the two solves have not been checked, or are known to be out (November 2026): the Scattering tab says so.
+   pupilFar: a degenerate cavity this far from its re-imaging one. The pupil solve agrees with its reference to 0.20 rad
+   (50 um short of concentric at 90% mirrors); at 0.4 rad it is 2 to 7% out and at 0.6 rad 28%.
+   modeNear: a cavity the mode solve takes whose transverse modes step by under 1 rad a round trip. Its orders above
+   CAV_NMAX are left out and they do not die away there: at 0.70 rad the change of the light at the particle off
+   resonance has the wrong sign, at 1.86 rad it agrees with its reference. (1 rad is set between those two and no finer.) */
+export const CAV_FAR_PUPIL = 0.25, CAV_NEAR_MODE = 1;
+export function cavUnchecked(c, degen) {
+  if (degen) return degen.off > CAV_FAR_PUPIL ? 'pupilFar' : null;
+  for (const g of [c.gouy.x, c.gouy.y]) {
+    const t = ((g % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    if (Math.min(t, 2 * Math.PI - t) < CAV_NEAR_MODE) return 'modeNear';
+  }
+  return null;
+}
 const scMul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
 const scDiv = (a, b) => { const d = b[0] * b[0] + b[1] * b[1]; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
 const scConj = a => [a[0], -a[1]];

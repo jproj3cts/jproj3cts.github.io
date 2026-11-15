@@ -11,7 +11,7 @@ import { lastTrace, zOf } from './trace.js';
 import { popKeyOf, popRun } from './beam-tree.js';
 import { trapBeams, trapLegAt, trapMedium, trapSolve } from './diffraction.js';
 import { beamFrame } from './phase-screen.js';
-import { cavitySolve, cavityModes, cavityPlan } from './scatter-cavity.js';
+import { cavUnchecked, cavitySolve, cavityModes, cavityPlan } from './scatter-cavity.js';
 import { PUP_FRESNEL, pupApplyChains, pupChains, pupGmres, pupGrid, pupLock, pupMapAt, pupReturns, pupilPlan } from './scatter-pupil.js';
 
 /* ---------- The light a particle scatters ----------
@@ -546,6 +546,7 @@ export function* scatterGen(el, R, opts) {
     Object.assign(out.cav, { method: 'pupil', pattern: pup.PP.pattern, nodes: N, lost: Rt.lost, iters: S.iters, terms, longest: Sm.longest, msChains: tChains, chainsKept: !!Sm.kept, resid: S.resid, fresnel: pup.PP.fresnel, h2: pup.h2, h2ray: pup.h2ray, gouyHalf: pup.gouyHalf, lam00: pup.lock.lam, lamHow: pup.lock.how, ritz: pup.lock.ritz, dLock: pup.lock.delta,
       E2ratio: abs2(et) / abs2(e0), returnedField: er, back: (() => { let r = 0, i = 0; for (let q = 0; q < 6; q += 2) { r += e0[q] * er[q] + e0[q + 1] * er[q + 1]; i += e0[q] * er[q + 1] - e0[q + 1] * er[q]; } return [r / abs2(e0), i / abs2(e0)]; })(), f0: pup.f, b0: pup.b, dir: pup.PP.dir, ms: Date.now() - t0p });
     if (pup.PP.fresnel < PUP_FRESNEL && !flags.includes('fresnel')) flags.push('fresnel');
+    if (plan.degen && cavUnchecked(plan.c, plan.degen) && !flags.includes('pupilFar')) flags.push('pupilFar');
     return { x, er };
   };
   const pupWaves = A => { const N = pup.G.N, E = new Float64Array(6 * N); for (let i = 0; i < N; i++) for (let q = 0; q < 6; q++) E[6 * i + q] = A[6 * i + q] * pup.G.w[i]; return { n: N, d: pup.G.dirs, E }; };
@@ -556,6 +557,7 @@ export function* scatterGen(el, R, opts) {
     const n0 = L.n, d = new Float64Array(3 * (n0 + 2)), E = new Float64Array(6 * (n0 + 2));
     d.set(L.d); E.set(L.E); d.set(plan.dir, 3 * n0); d.set(plan.dir.map(v => -v), 3 * n0 + 3); E.set(sol.Ef, 6 * n0); E.set(sol.Eb, 6 * n0 + 6);
     L.n0 = n0; L.d = d; L.E = E; L.n = n0 + 2;
+    if (cavUnchecked(plan.c, null) && !flags.includes('modeNear')) flags.push('modeNear');
     const lamM = plan.c.lam0 / plan.nLeg, zR = plan.qF[0][1];
     Object.assign(out.cav, { f00: cavK.modes[0].f0[cavK.sp], b00: cavK.modes[0].b0[cavK.sp], modes: cavK.kept.length, kept: cavK.kept.map(M => [M.m, M.n]), lam00: cavK.lam00, rho200: cavK.rho200, dLock: cavK.dLock,
       shiftK: sol.shiftK, widenK: sol.widenK, lwK: sol.lwK, shiftLw: sol.shiftLw, widenLw: sol.widenLw, shiftHz: sol.shiftK * C_SI / (2 * Math.PI), widenHz: sol.widenK * C_SI / (2 * Math.PI),

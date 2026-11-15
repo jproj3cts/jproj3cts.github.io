@@ -34,6 +34,7 @@ for (const [name, model, rn] of [['concentric', 'rayleigh', 'dipole'], ['concent
     (await openBench(doc([LASER, ...mirrors(B0.kind, B0.delta_m * 1e3), { id: 'p', type: 'particle', name: 'P', x: B0.rp_m[2] * 1e3, y: B0.rp_m[1] * 1e3, angle: 90, trapMat: 'Fused silica', trapR: model === 'rayleigh' ? 50 : 150, trapMed: 'vacuum', scatModel: model }]))).trace();
     const S = SC.scatterNow(getEl('p')), C = S.cav;
     assert.ok(C && C.solved && C.method === 'pupil' && !S.flags.includes('cavity'), JSON.stringify(C));
+    assert.ok(!S.flags.includes('pupilFar'), 'a checked cavity carries no warning of being unchecked: ' + JSON.stringify(C.degen));
     const tolD1 = /um$/.test(name) ? 0.05 : 0.02;                                                            // D5 for the near ones
     assert.ok(Math.abs((C.E2ratio - 1) - (R.E2_ratio - 1)) <= tolD1 * Math.abs(R.E2_ratio - 1), 'the field with the returns: ' + C.E2ratio + ' against ' + R.E2_ratio);   // D1, D4
     assert.ok(Math.abs(S.Psca / R.Psca_W - 1) <= 0.03 && Math.abs(S.Pext / R.Pext_W - 1) <= 0.03, 'scattered power ' + S.Psca + ' against ' + R.Psca_W);                      // D2

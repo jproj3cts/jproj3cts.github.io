@@ -138,6 +138,8 @@ const FLAG_TEXT = {
   skipped: 'A beam through here was left out: no field could be taken for it.',
   notrap: 'No stable trap was found, so the particle is where the beam meets the screen.',
   fresnel: 'The cavity\u2019s Fresnel number (its mirrors\u2019 radius squared over the wavelength times their spacing) is under 10: the returns are taken as rays with their phase and the rims as hard edges, which diffraction at the rims makes rough here.',
+  pupilFar: 'This cavity is further from the one that re-images its light than the solve has been checked: checked to 0.2 rad of round-trip Gouy phase from it (50 µm short of concentric with 90% mirrors), the light at the particle is 2 to 7% out at 0.4 rad and 28% at 0.6 rad.',
+  modeNear: 'This cavity’s transverse modes step by under 1 rad a round trip, and only those up to order 12 are kept: the part of the light at the particle that is off resonance is not to be trusted here (it has been found with the wrong sign). The shift and widening come from the resonant part.',
   cavity: 'Scattering inside a cavity is not modelled: the light here comes back to the particle more than once, and these readings take its scattered light back to it once only.',
 };
 /* why a cavity's modes do not take a particle's light (engines/scatter-cavity.js) */

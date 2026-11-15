@@ -52,6 +52,14 @@ test('the degeneracy test: a confocal cavity goes to the pupil solve, a flat one
   await open([laser(), ...cavity(25), particle(0, 0, 'mie')]);
   S = SC.scatterNow(getEl('p'));
   assert.ok(S.cav && S.cav.solved && !S.flags.includes('cavity'), 'the test cavity: ' + JSON.stringify(S.cav));
+  // where the solves are not checked the tab says so: not this cavity (1.855 rad a round trip); one stepping by 0.70 rad is
+  // (the mode solve's orders above 12 matter there), and a degenerate one 0.4 rad from re-imaging (the pupil solve's map)
+  assert.ok(!S.flags.includes('modeNear') && !S.flags.includes('pupilFar'), 'the test cavity is a checked one: ' + S.flags);
+  assert.equal(SCV.cavUnchecked({ gouy: { x: 0.696, y: 0.696 } }, null), 'modeNear');
+  assert.equal(SCV.cavUnchecked({ gouy: { x: 2 * Math.PI - 0.696, y: 1.855 } }, null), 'modeNear');
+  assert.equal(SCV.cavUnchecked({ gouy: { x: 1.855, y: 1.855 } }, null), null);
+  assert.equal(SCV.cavUnchecked({ gouy: { x: 0.4, y: 0.4 } }, { off: 0.4 }), 'pupilFar');
+  assert.equal(SCV.cavUnchecked({ gouy: { x: 0.2, y: 0.2 } }, { off: 0.2002 }), null);
   // a cavity near confocal at that finesse is still flagged: R = 10.5 mm, the third modes' resonance close to TEM00's
   assert.ok(SCV.cavDegenerate({ finesse: 29.8, gouy: { x: 2 * Math.PI / 3 + 0.05, y: 2 * Math.PI / 3 + 0.05 } }), 'q = 3 within 0.15 rad');
   assert.equal(SCV.cavDegenerate({ finesse: 29.8, gouy: { x: 1.855, y: 1.855 } }), null);

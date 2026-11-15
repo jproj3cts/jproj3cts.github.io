@@ -463,6 +463,9 @@ def main():
         f, b = complex(*B0['f']), complex(*B0['b'])
         res = dict(kind=B0['kind'], theta=cav.theta)
         res['dipole'] = dipole_case(cav, alpha, f, b, pol)
+        if B0.get('delta_m'):
+            # short of concentric the through beam's number is not kept: nothing has checked it there, and no check reads it
+            res['dipole'].pop('through_ratio'), res['dipole'].pop('through_change')
         res['lock'] = dict(lam_phase=float(np.angle(lam)), power_lock_phase=float(getattr(cav, 'power_lock', np.nan)))
         if B0.get('mie'):
             res['mie'] = mie_case(cav, Sphere(150e-9, n_si), f, b, pol)

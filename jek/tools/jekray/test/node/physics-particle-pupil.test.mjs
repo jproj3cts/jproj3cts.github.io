@@ -5,6 +5,9 @@
    degenerate cavity"): D1 the field at the particle with its returns within 2 % of the reference's change from the empty
    cavity's, D2 the scattered power and extinction within 3 % (D5: 5 % for the cavity near degeneracy), D3 the detector
    behind the far mirror within 10 % of the reference's change.
+   Short of concentric a return comes back spread, and both weight it by its change of solid angle, a quarter turn for
+   each focal line passed; and both take the lock from the bench's field numbers their own way (the reference by Gaussian
+   beams through the cavity's paraxial matrix, JEKray by its forward light's spectrum through its map): held here too.
    The cavity's one-pass map is the bench's own tracer's (engines/scatter-pupil-map.js). The mirror code the solve first
    had (exact rays on the two surfaces, written for it alone) is kept here only, as the thing the map is checked against,
    direction by direction, for a particle beside the axis. */
@@ -35,6 +38,20 @@ for (const [name, model, rn] of [['concentric', 'rayleigh', 'dipole'], ['concent
     assert.ok(Math.abs((C.E2ratio - 1) - (R.E2_ratio - 1)) <= tolD1 * Math.abs(R.E2_ratio - 1), 'the field with the returns: ' + C.E2ratio + ' against ' + R.E2_ratio);   // D1, D4
     assert.ok(Math.abs(S.Psca / R.Psca_W - 1) <= 0.03 && Math.abs(S.Pext / R.Pext_W - 1) <= 0.03, 'scattered power ' + S.Psca + ' against ' + R.Psca_W);                      // D2
     say(name, model, 'change', ((C.E2ratio - 1) / (R.E2_ratio - 1) - 1).toExponential(2), 'Psca', (S.Psca / R.Psca_W - 1).toExponential(2), 'GMRES', C.iters, 'series terms', C.terms, 'grid', C.nodes, 'pupil', C.ms, 'ms');
+  });
+}
+
+/* short of concentric: the ray's round trip and the Gouy phase the light takes in the half trip by the far mirror, as
+   the reference finds them its own way (0.005 rad) */
+for (const name of ['concentric-2um', 'concentric-10um', 'concentric-50um']) {
+  test(name + ': the lock, the ray\'s round trip and the half trip\'s Gouy phase, as the reference has them', async () => {
+    const B0 = BENCH[name], L = REF[name].lock;
+    (await openBench(doc([LASER, ...mirrors(B0.kind, B0.delta_m * 1e3), { id: 'p', type: 'particle', name: 'P', x: 0, y: 0, angle: 90, trapMat: 'Fused silica', trapR: 50, trapMed: 'vacuum', scatModel: 'rayleigh' }]))).trace();
+    const C = SC.scatterNow(getEl('p')).cav, round = Math.atan2(C.lam00[1], C.lam00[0]);
+    say(name, 'round trip', round.toFixed(5), 'reference', L.lam_phase.toFixed(5), '; the light\'s Gouy phase in the half trip', C.gouyHalf.toFixed(5), 'reference', L.light_half_gouy.toFixed(5), '(the mode\'s', L.mode_half_gouy.toFixed(5) + ')');
+    assert.equal(C.lamHow, 'mode');
+    assert.ok(Math.abs(round - L.lam_phase) < 0.005, 'the round trip ' + round + ' against ' + L.lam_phase);
+    assert.ok(Math.abs(C.gouyHalf - L.light_half_gouy) < 0.005, 'the half trip\'s Gouy phase ' + C.gouyHalf + ' against ' + L.light_half_gouy);
   });
 }
 

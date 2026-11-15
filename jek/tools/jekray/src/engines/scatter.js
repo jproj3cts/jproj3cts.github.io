@@ -12,7 +12,7 @@ import { popKeyOf, popRun } from './beam-tree.js';
 import { trapBeams, trapLegAt, trapMedium, trapSolve } from './diffraction.js';
 import { beamFrame } from './phase-screen.js';
 import { cavitySolve, cavityModes, cavityPlan } from './scatter-cavity.js';
-import { PUP_FRESNEL, pupApplyChains, pupChains, pupGmres, pupGrid, pupLock, pupReturns, pupilPlan } from './scatter-pupil.js';
+import { PUP_FRESNEL, pupApplyChains, pupChains, pupGmres, pupGrid, pupLock, pupMapAt, pupReturns, pupilPlan } from './scatter-pupil.js';
 
 /* ---------- The light a particle scatters ----------
    A Particle part (of any of the shapes), in the light the bench
@@ -376,7 +376,7 @@ export function* scatterGen(el, R, opts) {
       // In a stable cavity near degeneracy the steady state's TEM00 Ritz value is sound, and the ray's own round trip is it
       // without TEM00's Gouy phase: lam_ray = lam_00 e^{i (Gx + Gy)/2}, G the round trip's Gouy phases along the legs
       const fl = pr(at(PP.legF.q)), Rz = pupLock(PP), along = PP.c.mode && PP.c.mode.along;
-      let lam = d > 0 ? [(fl[0] * f[0] + fl[1] * f[1]) / d, (fl[1] * f[0] - fl[0] * f[1]) / d] : null, how = 'field';
+      let lam = d > 0 ? [(fl[0] * f[0] + fl[1] * f[1]) / d, (fl[1] * f[0] - fl[0] * f[1]) / d] : null, how = 'field', h2ray = h2, gouyHalf = 0;
       if (Rz && along && along.length === PP.c.p) {
         let G2 = 0;
         for (const A of along) for (const key of ['qx', 'qy']) { const q0 = A[key], z1 = q0[0] + A.len / A.n; G2 += 0.5 * (Math.atan2(z1, q0[1]) - Math.atan2(q0[0], q0[1])); }
@@ -387,7 +387,7 @@ export function* scatterGen(el, R, opts) {
       if (!lock) pupWhy = 'steady';
       else if (pupL < 0) pupWhy = 'launch';
       else {
-        const G = pupGrid(PP), Rt = pupReturns(PP, G, 2 * Math.PI / (nm * 1e-6), nMed, nm * 1e-9 / nMed, h2, lock.lam);
+        const G = pupGrid(PP);
         // each leg's own light as plane waves: its field, as the field run has it, over a square across its way at the
         // particle (the steady state's every round trip, not one Gaussian: a concentric cavity's come back ever more
         // curved), Fourier summed onto the grid's directions of its own way; along the light's polarisation
@@ -424,8 +424,33 @@ export function* scatterGen(el, R, opts) {
           store.legs.push({ half, n: G.N, probe, spec });
         }
         PP.map.spec = store;
+        // The half trip by the far mirror. The standing wave's b / f at the particle is a field's: the forward light's
+        // every plane wave brought back by the far mirror and summed, and a plane wave of a beam is not a ray from the
+        // particle. Across the axis the half trip is a paraxial system (A: how a ray's crossing moves with where it
+        // started, B: with its direction; the map's own, on the axis), which takes the plane wave along theta to
+        // (1/A) e^{-ik B theta^2 / 2A} of the axial ray's factor at the particle: -1 for an exactly concentric cavity
+        // (A = -1, B = 0), where the field's half trip is the ray's. So the ray's half trip is b / f over minus the
+        // forward light's own spectrum's mean of that (the Gouy phase the light itself picks up: the mode's for a
+        // matched beam, less for a beam the cavity is too near degeneracy to shape).
+        if (h2 && PP.pattern === 1) {
+          const R0 = pupMapAt(PP, G, PP.dir, [0, 0, 0], true), A = R0 && R0.J ? 0.5 * (R0.J.A[0] + R0.J.A[3]) : 0, B = R0 && R0.J ? 0.5 * (R0.J.B[0] + R0.J.B[3]) : 0;
+          if (Math.abs(A) > 1e-6) {
+            let nr = 0, ni = 0, dr = 0, di = 0;
+            for (let i = 0; i < G.N; i++) {
+              let gr = 0, gi = 0;
+              for (const LS of [PP.legSpec[0], ...PP.entrySpec]) if (LS.spec) { gr += LS.spec[2 * i]; gi += LS.spec[2 * i + 1]; }
+              if (gr === 0 && gi === 0) continue;
+              const ua = G.dirs[3 * i] * PP.ex[0] + G.dirs[3 * i + 1] * PP.ex[1] + G.dirs[3 * i + 2] * PP.ex[2], ub = G.dirs[3 * i] * PP.ey[0] + G.dirs[3 * i + 1] * PP.ey[1] + G.dirs[3 * i + 2] * PP.ey[2];
+              const ph = -kmm * B * (ua * ua + ub * ub) / (2 * A), kr = -Math.cos(ph) / A, ki = -Math.sin(ph) / A, w = G.w[i];
+              nr += w * (gr * kr - gi * ki); ni += w * (gr * ki + gi * kr); dr += w * gr; di += w * gi;
+            }
+            const dd = dr * dr + di * di, gam = dd > 0 ? [(nr * dr + ni * di) / dd, (ni * dr - nr * di) / dd] : [1, 0], g2 = gam[0] * gam[0] + gam[1] * gam[1];
+            if (g2 > 1e-6) { h2ray = [(h2[0] * gam[0] + h2[1] * gam[1]) / g2, (h2[1] * gam[0] - h2[0] * gam[1]) / g2]; gouyHalf = Math.atan2(gam[1], gam[0]); }
+          }
+        }
+        const Rt = pupReturns(PP, G, 2 * Math.PI / (nm * 1e-6), nMed, nm * 1e-9 / nMed, h2ray, lock.lam);
         if (!Rt) pupWhy = 'noimage';
-        else pup = { PP, G, Rt, f, b, h2, lock, lamM: nm * 1e-9 / nMed, nm, nMed };
+        else pup = { PP, G, Rt, f, b, h2, h2ray, gouyHalf, lock, lamM: nm * 1e-9 / nMed, nm, nMed };
       }
     } else if (PP) pupWhy = PP.why;
     if (pup) plan.why = null;
@@ -518,8 +543,8 @@ export function* scatterGen(el, R, opts) {
     out.cav.load = { start: Tin[0], ends: [cdv(Tout[0], Tin[0]), cdv(Tout[1], Tout[0])] };
     out.cav.s = { fin: tin[0], fout: tout[0], bin: tin[1], bout: tout[1] };
     out.cav.mirrors = pup.PP.M.map(m => m.el.id);
-    Object.assign(out.cav, { method: 'pupil', pattern: pup.PP.pattern, nodes: N, lost: Rt.lost, iters: S.iters, terms, longest: Sm.longest, msChains: tChains, chainsKept: !!Sm.kept, resid: S.resid, fresnel: pup.PP.fresnel, h2: pup.h2, lam00: pup.lock.lam, lamHow: pup.lock.how, ritz: pup.lock.ritz, dLock: pup.lock.delta,
-      E2ratio: abs2(et) / abs2(e0), returnedField: er, f0: pup.f, b0: pup.b, dir: pup.PP.dir, ms: Date.now() - t0p });
+    Object.assign(out.cav, { method: 'pupil', pattern: pup.PP.pattern, nodes: N, lost: Rt.lost, iters: S.iters, terms, longest: Sm.longest, msChains: tChains, chainsKept: !!Sm.kept, resid: S.resid, fresnel: pup.PP.fresnel, h2: pup.h2, h2ray: pup.h2ray, gouyHalf: pup.gouyHalf, lam00: pup.lock.lam, lamHow: pup.lock.how, ritz: pup.lock.ritz, dLock: pup.lock.delta,
+      E2ratio: abs2(et) / abs2(e0), returnedField: er, back: (() => { let r = 0, i = 0; for (let q = 0; q < 6; q += 2) { r += e0[q] * er[q] + e0[q + 1] * er[q + 1]; i += e0[q] * er[q + 1] - e0[q + 1] * er[q]; } return [r / abs2(e0), i / abs2(e0)]; })(), f0: pup.f, b0: pup.b, dir: pup.PP.dir, ms: Date.now() - t0p });
     if (pup.PP.fresnel < PUP_FRESNEL && !flags.includes('fresnel')) flags.push('fresnel');
     return { x, er };
   };

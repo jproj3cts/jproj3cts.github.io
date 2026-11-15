@@ -171,7 +171,16 @@ function pmapStore(run) {
     for (let x = 0; x < 3; x++) for (let y = 0; y < 3; y++) { M[2 * (3 * x + y)] = Es[x][0] * Si[y] + Ep[x][0] * Pi[y]; M[2 * (3 * x + y) + 1] = Es[x][1] * Si[y] + Ep[x][1] * Pi[y]; }
     const c0 = cross(a), jac = [];
     for (let q = 0; q < 5; q++) { const o = recOf(run.off[q], i, pattern); jac.push(o ? cross(o) : null); }
-    out.cell.push({ u, ci: main[i].ci, k: main[i].k, q: c0.q, d: c0.d, ell: c0.ell, M, jac });
+    // for the focal lines along a chain (the solve's weight): how far along the axis the first and the last mirror
+    // points are from the particle's plane, and, with two reflections a return, the stretch between the mirrors as a
+    // line (where it would cross the particle's plane, and its way), with the same from the offsets
+    const r1 = recOf(run.vs, i, 1), zOfX = X => pmD3(pmAd3(X, C, -1), axis);
+    const cell = { u, ci: main[i].ci, k: main[i].k, q: c0.q, d: c0.d, ell: c0.ell, M, jac, zl: zOfX(a.X), z1: r1 ? zOfX(r1.X) : zOfX(a.X), mid: null, jacm: null };
+    if (pattern === 2 && r1 && Math.abs(pmD3(r1.d, axis)) > 1e-6) {
+      cell.mid = cross(r1);
+      cell.jacm = [0, 1, 2, 3].map(q => { const o = recOf(run.off[q], i, 1); return o && Math.abs(pmD3(o.d, axis)) > 1e-6 ? cross(o) : null; });
+    }
+    out.cell.push(cell);
   }
   // the rim cells: their share and mean direction
   const rimAgg = new Map();

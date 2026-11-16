@@ -30,6 +30,9 @@ import { beamFrame } from './phase-screen.js';
    that holds every kept mode, round trips to all orders. The returned waves then join the bench's light on the particle
    (its far field, scattered power and extinction take them); light outside the kept modes leaves after one pass.
    Kept: HG_mn up to m + n = 12 while |HG_mn(r_p)|^2 |1 / (1 - lambda_n)|^2 is at least 1e-6 of TEM00's.
+   That list is enough where the orders past it average away. Near degeneracy they do not (the sum over orders does
+   not settle, and paraxial round trips are wrong for the high ones): there the four sums are taken from the returns
+   followed ray by ray instead, every order to the rims at once (engines/scatter.js, cavTail; CAV_TAIL_REACH, CAV_TAIL_LONG).
    What the cavity sends out changes with it: the forward wave leaving the particle is f0_n + (delta f_n + rho1_n
    delta b_n) / (1 - lambda_n), the backward one f... likewise. Against the empty cavity's (f0_n, b0_n, projected from
    the field run's own legs at the particle) that is a factor on each wave's power to first order; the field run
@@ -37,6 +40,19 @@ import { beamFrame } from './phase-screen.js';
 export const CAV_NMAX = 12;              // the highest mode order taken
 export const CAV_KEEP = 1e-6;            // a mode kept while its coupling and build-up are this much of TEM00's
 export const CAV_DEGEN_Q = 6, CAV_DEGEN_LW = 3;
+/* the orders past the list taken from the returns followed ray by ray, where the tracer's map has them re-imaged (engines/scatter.js,
+   cavTail); off for the tests that compare the two */
+export const CAV_TAIL = { on: true };
+/* The returns are carried across the particle's plane by the map's differences taken beside the particle; that is checked
+   while they cross close to it: k q^3 / R^2 up to this (q the mode's Rayleigh range times the mirrors' half angle from the
+   particle; 0.56 at the furthest cavity checked, mirrors 2 mm across 1.08 mm short of concentric at R = 10 mm, within
+   1.3% of the reference from 0.52 mm on; mirrors 5 mm across are 2 to 7 there, and 25% out at 0.6 mm short). Past it the
+   Scattering tab keeps its warning. */
+export const CAV_TAIL_REACH = 0.6;
+/* and while the returns are few: checked with 90% mirrors (399 returns to fade); followed for 821 (95%) the part of what
+   comes back that is in phase with the light is 15% out, and it does not settle at 4192 (99%). A cavity whose returns would
+   take more than this to fade keeps its list (and the following's cost, which grows with them, is not spent), with the warning. */
+export const CAV_TAIL_LONG = 500;
 const CAV_GRID = 40, CAV_SPAN = 4;       // the projection: points across, and mode radii each way
 
 /* Degenerate: for some q up to CAV_DEGEN_Q, the modes q orders up from TEM00 resonate within CAV_DEGEN_LW linewidths
@@ -66,8 +82,12 @@ export function cavDegenerate(c) {
    pupilFar: a degenerate cavity this far from its re-imaging one. The pupil solve agrees with its reference to 0.20 rad
    (50 um short of concentric at 90% mirrors); at 0.4 rad it is 2 to 7% out and at 0.6 rad 28%.
    modeNear: a cavity the mode solve takes whose transverse modes step by under 1 rad a round trip. Its orders above
-   CAV_NMAX are left out and they do not die away there: at 0.70 rad the change of the light at the particle off
-   resonance has the wrong sign, at 1.86 rad it agrees with its reference. (1 rad is set between those two and no finer.) */
+   CAV_NMAX are left out of the list and they do not die away there: at 0.70 rad the list's change of the light at the
+   particle off resonance has the wrong sign. There the returns are followed ray by ray instead (engines/scatter.js,
+   cavTail), which is checked from 0.65 to 0.94 rad for mirrors 2 mm across (CAV_TAIL_REACH); the warning is raised only
+   where they were not followed, or cross the particle's plane further off than that. (1 rad is where the degeneracy
+   test's own gap begins, 0.94 to 1.38 rad at 90% mirrors; from 1.73 rad the list stands and no reference has yet
+   converged well enough to judge it finer than 18%.) */
 export const CAV_FAR_PUPIL = 0.25, CAV_NEAR_MODE = 1;
 export function cavUnchecked(c, degen) {
   if (degen) return degen.off > CAV_FAR_PUPIL ? 'pupilFar' : null;
@@ -216,7 +236,7 @@ export function cavityModes(P, field, nm, nMed) {
 /* The solve. K: cavityModes' answer; respond(i) the particle's far field straight ahead and straight back ([12]: +dir
    then -dir) for unit wave i (0, 1: along +dir polarised e1, e2; 2, 3: along -dir), F0 that of its own light ([12]).
    k the wavenumber in the medium (1/m), nMed. Returns the returned waves x and what the cavity sends out. */
-export function cavitySolve(P, K, F0, respond, k, nMed) {
+export function cavitySolve(P, K, F0, respond, k, nMed, tail) {
   const eps = EPS0 * nMed * nMed, pf = 4 * Math.PI * eps / (k * k), omega = k * C_SI / nMed, g = [0, omega / 4];
   const e = [P.ex, P.ey], d = P.dir;
   // the mode sums: E_f = Gff p_f + Gfb p_b, E_b = Gbf p_f + Gbb p_b (each polarisation alike)
@@ -228,6 +248,9 @@ export function cavitySolve(P, K, F0, respond, k, nMed) {
     Gff = [Gff[0] + ff[0], Gff[1] + ff[1]]; Gbb = [Gbb[0] + bb[0], Gbb[1] + bb[1]]; Gfb = [Gfb[0] + fb[0], Gfb[1] + fb[1]]; Gbf = [Gbf[0] + bf[0], Gbf[1] + bf[1]];
   }
   [Gff, Gfb, Gbf, Gbb] = [Gff, Gfb, Gbf, Gbb].map(v => scMul(scMul(g, v), [pf, 0]));
+  // (the list's own sums, for the record; where the returns were followed ray by ray, theirs: every order to the rims)
+  const Glist = { ff: Gff, fb: Gfb, bf: Gbf, bb: Gbb };
+  if (tail) { Gff = tail.ff; Gfb = tail.fb; Gbf = tail.bf; Gbb = tail.bb; }
   // F's four numbers: ahead along e1, e2, back along e1, e2
   const four = F => { const o = []; for (const [off] of [[0], [6]]) for (const ev of e) o.push([F[off] * ev[0] + F[off + 2] * ev[1] + F[off + 4] * ev[2], F[off + 1] * ev[0] + F[off + 3] * ev[1] + F[off + 5] * ev[2]]); return o; };
   const Mx = F => [0, 1].map(s => scMul(Gff, F[s])).map((v, s) => [v[0] + scMul(Gfb, F[2 + s])[0], v[1] + scMul(Gfb, F[2 + s])[1]])
@@ -292,7 +315,7 @@ export function cavitySolve(P, K, F0, respond, k, nMed) {
   // the returned waves, as fields along the axis (world vectors)
   const wv = (a, b) => [0, 1, 2].flatMap(q => [a[0] * e[0][q] + b[0] * e[1][q], a[1] * e[0][q] + b[1] * e[1][q]]);
   return { x, Ef: wv(x[0], x[1]), Eb: wv(x[2], x[3]), F, s, load, shiftK, widenK, lwK: lwK * 1e3, shiftLw: shiftK / (lwK * 1e3), widenLw: widenK / (lwK * 1e3),
-    G: { ff: Gff, fb: Gfb, bf: Gbf, bb: Gbb }, d };
+    G: { ff: Gff, fb: Gfb, bf: Gbf, bb: Gbb }, Glist, d };
 }
 const cavAdd1 = a => [1 + a[0], a[1]];
 /* a small complex linear solve, Gaussian elimination with partial pivoting */

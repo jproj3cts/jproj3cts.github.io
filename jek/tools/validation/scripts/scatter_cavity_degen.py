@@ -345,7 +345,7 @@ class Cavity:
         self.lam = lam
         return a2, arnd
 
-    def lock_mode(self, bf, ritz):
+    def lock_mode(self, bf, ritz, bf_mode=False):
         """the mirrors' phases for a stable cavity short of concentric, from the bench's two field numbers: ritz, the round
         trip of the cavity's TEM00 (its phase is the lock), and bf, the standing wave's b / f at the sphere.
         A beam is not a ray: carried once round, or out by the far mirror and back, a Gaussian beam's field on the axis is
@@ -355,6 +355,8 @@ class Cavity:
         together; and the laser's beam (its waist W0_LASER at the origin) and every round trip of it, summed, come back
         from the far mirror with the bench's b / f phase, which fixes the far mirror's. (Until November 2026 the bench's
         b / f was given to the ray's half trip as it was, and the round trip taken from JEKray already turned.)
+        Where the bench solves the particle in the cavity's modes it gives b / f for TEM00 alone (bf_mode): then the
+        mode's own Gouy phase is what the half trip carries.
         Returns the axial ray's half trip and round trip (A to A) so set"""
         for j in (0, 1):
             self.m[j].psi = 0.0
@@ -386,6 +388,9 @@ class Cavity:
             q = (RT[0, 0] * q + RT[0, 1]) / (RT[1, 0] * q + RT[1, 1])
             if abs(amp) < 1e-10:
                 break
+        if bf_mode:
+            # (bf is the cavity's TEM00 alone, its backward wave over its forward one: the mode's own Gouy phase)
+            sb, sf = -1 / (Hf[0, 0] + Hf[0, 1] / qm), 1.0
         self.m[1].psi = float(np.angle(bf) - np.angle(a2 * sb / sf))
         self.m[0].psi = psi - self.m[1].psi
         self.lam = arnd
@@ -606,12 +611,12 @@ def main():
     for name, B0 in bench['cases'].items():
         if only and name not in only:
             continue
-        cav = Cavity(B0['kind'], delta=B0.get('delta_m', 0.0), rp=B0.get('rp_m', (0, 0, 0)), Rp=B0.get('Rp', 0.9))
+        cav = Cavity(B0['kind'], delta=B0.get('delta_m', 0.0), rp=B0.get('rp_m', (0, 0, 0)), Rp=B0.get('Rp', 0.9), a=B0.get('a_m', 2.5e-3))
         cav.trips = B0.get('trips', 400)
         h2 = complex(*B0['h2']) if B0.get('h2') else None
         lam = complex(*B0['lam'])
         if B0.get('lam_how') == 'mode':
-            a2, lam = cav.lock_mode(h2, complex(*B0['ritz']))
+            a2, lam = cav.lock_mode(h2, complex(*B0['ritz']), bf_mode=bool(B0.get('bf_mode')))
             print('%s: the ray\'s half trip by the far mirror %.5f rad (the bench\'s b/f %.5f), its round trip %.5f rad (JEKray\'s %.5f)'
                   % (name, np.angle(a2), np.angle(h2), np.angle(lam), np.angle(complex(*B0['lam']))), flush=True)
         else:
@@ -619,7 +624,10 @@ def main():
         f, b = complex(*B0['f']), complex(*B0['b'])
         res = dict(kind=B0['kind'], theta=cav.theta)
         # (the through beam's number is kept only for the sphere at the middle of an exact cavity, where a check reads it)
+        # (a case the bench solves in the cavity's modes gives no standing wave: its powers are not kept, only the change of |E|^2)
         res['dipole'] = dipole_case(cav, alpha, f, b, pol, through=not B0.get('delta_m') and not np.any(np.array(B0.get('rp_m', (0, 0, 0)), float)))
+        if B0.get('bf_mode'):
+            res['dipole'] = dict(E2_ratio=res['dipole']['E2_ratio'])
         res['lock'] = dict(lam_phase=float(np.angle(lam)), power_lock_phase=float(cav.power_lock) if hasattr(cav, 'power_lock') else None)
         if B0.get('lam_how') == 'mode':
             # the Gouy phase the mode takes in the half trip by the far mirror and in the round trip, and the light's own in the half trip

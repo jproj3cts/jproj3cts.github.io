@@ -8,6 +8,7 @@
 # CI, this file, and the working notes every Claude session reads
 /.github/                                   @jproj3cts
 /CLAUDE.md                                  @jproj3cts
+/CONTRIBUTING.md                            @jproj3cts
 
 # legal pages
 /jek/terms.html                             @jproj3cts

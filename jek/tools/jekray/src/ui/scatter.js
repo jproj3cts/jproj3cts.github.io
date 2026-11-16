@@ -554,7 +554,7 @@ export function scatterSection(el) {
   for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { vs(el).scatView = key; draw(); } }, text));
   // under the figure: its scale, and the lens the Collected figure is for (a notional lens: the particle is lit by every
   // beam through it whatever these say, and its light reaches every part that sees it)
-  const scale = h('div', { class: 'rt-rows', style: 'margin-top:0.3rem' }, selectField('Scale', SCAT_SCALES.map(q => [q[0], q[1]]).concat(el.scatScale === 'log' ? [['log', 'Logarithmic, 40 dB (as saved)']] : []), () => el.scatScale, v => { el.scatScale = v; }, { rebuild: false }),
+  const scale = h('div', { class: 'rt-rows', style: 'margin-top:0.3rem' }, selectField('Scale', SCAT_SCALES.map(q => [q[0], q[1]]), () => el.scatScale, v => { el.scatScale = v; }, { rebuild: false }),
     param('Collection lens NA', el, 'scatNA'),
     selectField('Collection lens faces', [['fwd', 'Ahead (the beam’s way)'], ['back', 'Behind (back along it)'], ['side', 'The side, in the plane'], ['up', 'Above'], ['angle', 'A direction on the bench']], () => el.scatDir, v => { el.scatDir = v; }));
   if (el.scatDir === 'angle') scale.append(param('Direction (°)', el, 'scatAng'));

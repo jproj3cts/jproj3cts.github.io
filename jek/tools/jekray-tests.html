@@ -13262,7 +13262,7 @@ const TESTS = [
       const Mon = blue(on.past), Moff = blue(off.past), Mnone = blue(none.past);
       const through = Mon - Moff > 2000 && Moff <= Mnone + 200 && diff(on.up, off.up) === 0;
       // the Scale, as the Scattering tab sets it: Linear, 30, 60 and 90 dB, each its own picture, and back to an older bench's
-      // 'log' (40 dB, offered only as that bench's own), with no trace run
+      // 'log' (40 dB, the default), with no trace run
       load(true, true); J.select('P'); await frame();
       [...doc.querySelectorAll('#panel .rt-tab')].find(b => b.textContent === 'Scattering').click(); await frame(); await frame();
       const sel = () => [...doc.querySelectorAll('#panel select')].find(q => [...q.options].some(o => o.value === 'lin'));
@@ -13279,7 +13279,7 @@ const TESTS = [
       const Lold = box(-4, -1.5, -1, 1.5);
       J.set('P', { scatScale: 'log' }); await frame(); await frame();
       const Llog = box(-4, -1.5, -1, 1.5);
-      const scale = offered === 'lin,log30,log60,log90,log' && apart && diff(L0, L2) === 0 && diff(Lold, Llog) === 0 && n1 === n0;
+      const scale = offered === 'lin,log30,log,log60,log90' && apart && diff(L0, L2) === 0 && diff(Lold, Llog) === 0 && n1 === n0;
       let three = false, K = null;
       try {
         load(true, true); J.select('P'); await frame();

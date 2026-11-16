@@ -136,8 +136,61 @@ test('the Scale: linear from nought to the top, or logarithmic over 30, 60 or 90
     assert.ok(Math.abs(SF.scatReach(G, db) - 0.3 * 10 ** (db / 20)) < 1e-9);
   }
   assert.ok(Math.abs(SF.scatReach(G, 40) - 30) < 1e-9 && SF.scatReach(G, 0) === 30);
-  assert.deepEqual(SF.SCAT_SCALES.map(q => q[0]), ['lin', 'log30', 'log60', 'log90']);
+  assert.deepEqual(SF.SCAT_SCALES.map(q => q[0]), ['lin', 'log30', 'log', 'log60', 'log90']);
   assert.deepEqual(['lin', 'log30', 'log60', 'log90', 'log'].map(SF.scatDbOf), [0, 30, 60, 90, 40]);
   // the part keeps an older bench's 'log', and what it does not know is that
   for (const [v, want] of [['log', 'log'], ['log60', 'log60'], ['lin', 'lin'], [undefined, 'log'], ['log45', 'log']]) assert.equal(PARTS.particle.norm({ type: 'particle', scatScale: v }, {}).scatScale, want);
+});
+
+/* two glass lenses facing each other with the particle between them, as a trap is built: each face reflects a few per
+   cent, so the trace keeps each scattered ray as pieces split at the faces; the light past each lens is drawn all the
+   same, forward as backward: as far out from the axis, the faces taking the same share (the forward cone is in two, a
+   patch about the beam's way and the rest about it) */
+for (const screen of [false, true]) test('a symmetric pair of glass lenses: the light past each is drawn, forward as backward' + (screen ? ', with a screen at the particle' : ''), async () => {
+  const lens = (id, x, angle) => ({ id, type: 'lens', name: id, x, y: 0, angle, length: 4.7, surfaces: [{ R: 4 }, { R: -4 }], gaps: [2], materials: [{ glass: 'N-BK7' }] });
+  await open([Object.assign(laser(), { x: -40, w0: 0.6, z0: 40, pol: 'p' }), lens('A', -4.2, 0), lens('B', 4.2, 180), particle({ x: 0, scatFan: false }),
+    ...(screen ? [{ id: 'scr', type: 'screen', name: 'Screen', x: 0, y: 0, angle: 0, length: 3, absorb: false }] : []),
+    det({ id: 'dF', x: 30, length: 20 }), det({ id: 'dB', x: -30, angle: 0, length: 20 })]);
+  const F = TR.lastTrace.scat.fans.find(f => f.part === 'p'), rows = TR.lastTrace.scat.parts.p.rows;
+  // each lens's cones (forward, the patch about the beam's way too): the rays that go on past the lens, how far out from
+  // the axis they go (the widest launch angle among them), and the share of their power that comes out of the glass (the
+  // power their tubes carry where they leave it, the start of their second stretch, against where they enter)
+  const side = sg => {
+    const cs = F.through.filter(q => Math.sign(q.rays[0].s[0]) === sg);
+    assert.ok(cs.length, (sg > 0 ? 'forward' : 'backward') + ': the light past the lens is drawn');
+    let Pin = 0, Pout = 0, wide = 0, far = 0, n = 0;
+    for (const c of cs) for (const r of c.rays) {
+      const s = r.s, o = 5 * 9;
+      if (s.length <= o + 5) continue;
+      n++;
+      Pin += s[3] * Math.PI * s[4] ** 2 / 4; Pout += s[o + 3] * Math.PI * s[o + 4] ** 2 / 4;
+      wide = Math.max(wide, Math.atan2(Math.hypot(s[1] - F.pos[1], s[2] - F.pos[2]), Math.abs(s[0] - F.pos[0])) * 180 / Math.PI);
+      far = Math.max(far, sg * s[s.length - 5]);
+    }
+    assert.ok(far > 29, 'on to the detector: ' + far);
+    return { T: Pout / Pin, wide, n };
+  };
+  const f = side(1), b = side(-1);
+  if (process.env.SHOW) console.log('# forward', f, 'backward', b);
+  assert.ok(f.n > 50 && b.n > 50, 'each cone goes on: ' + f.n + ', ' + b.n);
+  assert.ok(Math.abs(f.wide - b.wide) < 1, 'as far out each way: ' + f.wide + '°, ' + b.wide + '°');
+  assert.ok(f.T > 0.85 && f.T < 1 && rel(f.T, b.T) < 0.03, 'the faces take the same share each way: ' + f.T + ', ' + b.T);
+});
+
+/* the same glass lens at 90° to the beam, under the particle, with a detector beyond: its light goes on too */
+test('a glass lens to the side of the particle, at 90° to the beam: the light past it is drawn', async () => {
+  const lens = (id, x, y, angle) => ({ id, type: 'lens', name: id, x, y, angle, length: 4.7, surfaces: [{ R: 4 }, { R: -4 }], gaps: [2], materials: [{ glass: 'N-BK7' }] });
+  await open([Object.assign(laser(), { x: -40, w0: 0.6, z0: 40, pol: 's' }), lens('A', -4.2, 0, 0), lens('B', 4.2, 0, 180), lens('S', 0, -4.2, 90), particle({ x: 0, scatFan: false }),
+    det({ id: 'dF', x: 30, length: 20 }), det({ id: 'dS', x: 0, y: -30, angle: 90, length: 20 })]);
+  const F = TR.lastTrace.scat.fans.find(f => f.part === 'p');
+  const cs = F.through.filter(q => q.rays[0].s[1] < -2);
+  assert.ok(cs.length, 'the side lens’s light goes on past it');
+  let Pin = 0, Pout = 0, far = 0, n = 0;
+  for (const c of cs) for (const r of c.rays) {
+    const s = r.s, o = 5 * 9;
+    if (s.length <= o + 5) continue;
+    n++; Pin += s[3] * Math.PI * s[4] ** 2 / 4; Pout += s[o + 3] * Math.PI * s[o + 4] ** 2 / 4; far = Math.max(far, -s[s.length - 4]);
+  }
+  assert.ok(n > 50 && far > 29, 'on to its detector: ' + n + ' rays, ' + far + ' mm');
+  assert.ok(Pout / Pin > 0.85 && Pout / Pin < 1, 'the faces take their share: ' + Pout / Pin);
 });

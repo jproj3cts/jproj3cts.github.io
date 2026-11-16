@@ -11,6 +11,32 @@ Changes reach `main`, and so the live site, only through a pull request that the
 3. Start a Claude Code session on `jproj3cts/jproj3cts.github.io`. Claude reads `CLAUDE.md`, the working notes,
    and follows them.
 
+## Running the apps on your own computer
+
+You need Git, Node 22 and Python 3. Clone the repository, then from its top folder:
+
+```sh
+python3 -m http.server 8000
+```
+
+Open one of these in your browser:
+
+| Page | What it is |
+|---|---|
+| http://localhost:8000/jek/tools/jekray-dev.html | JEKray straight from its source files: edit a file under `jek/tools/jekray/src/`, reload, and see the change, with no build |
+| http://localhost:8000/jek/tools/jekray.html | JEKray as it is published (the built page) |
+| `jekion-dev.html`, `jekfilm-dev.html`, `jekcad-dev.html`, `jeksuite-dev.html` | The other apps the same way, from their own `src/` folders |
+
+Use the `-dev` page while you work. Before committing, build the page so the published one matches
+(`node build.mjs` in that app's folder, for example `jek/tools/jekray`), and run its tests.
+
+Run locally, the apps look for the accounts API on your own computer (`localhost:8787`). It is not running, so
+signing in and the cloud do not work, and everything an account would allow is open to you instead: saving, exports,
+the optimiser, scripts. Nothing you do locally reaches the live site or anyone's account.
+
+The site's own pages (the `jek/` pages and the docs) are built by Jekyll and show `{% include %}` tags when served
+this way; the README's "Previewing" section says how to build them.
+
 ## Making a change
 
 1. Ask Claude for the change. It works on its own branch (`claude/…`), never on `main`.

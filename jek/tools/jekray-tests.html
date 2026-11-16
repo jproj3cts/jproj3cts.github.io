@@ -5398,6 +5398,20 @@ const TESTS = [
       .reduce((n, b) => { J.load(b); const r = J.shareRoundTrip(); if (!r.same) { const A = r.before, B = r.after; let i = 0; while (i < A.length && A[i] === B[i]) i++; console.log('share diff', A.slice(Math.max(0, i - 80), i + 80), '||', B.slice(Math.max(0, i - 80), i + 80)); } return n + (r.same ? 1 : 0); }, 0),
   },
   {
+    name: 'A share link keeps how light is drawn, the labels and the bench\'s style',
+    why: 'the Michelson example (its field drawn), then with log scale, glow, wider rays, labels 3 mm high and then fixed at 16 px, a dark bench without holes: each the same project after a link',
+    want: 3, tol: 0, unit: ' of 3',
+    run: J => {
+      const m = () => JSON.parse(getDemo('michelson')), b2 = m(), b3 = m();
+      b2.light = Object.assign({}, b2.light, { scale: 'log', glow: true, rayWidth: 2.5, byPower: false }); b2.labelMm = 3; b2.style = { bg: '#202830', holes: false };
+      b3.light = { rays: false, envelope: false, field: true, scale: 'log60' }; b3.labelFixed = true; b3.labelPx = 16;
+      return [m(), b2, b3].reduce((n, b) => { J.load(b); const r = J.shareRoundTrip(), d = JSON.parse(r.after);
+        const kept = b === b2 ? d.light.glow && d.labelMm === 3 && d.style.bg === '#202830' : b === b3 ? d.labelPx === 16 && !d.light.rays : d.light.field === true;
+        if (!r.same || !kept) console.log('share light', r.before.length, r.after.length, JSON.stringify(d.light), d.labelMm, d.labelPx, JSON.stringify(d.style));
+        return n + (r.same && kept ? 1 : 0); }, 0);
+    },
+  },
+  {
     name: 'A link opens on the same panels: selection, pins and their tabs',
     why: 'the levitated trap with its particle pinned on the Trap tab and a collimator selected: shared and opened again, the same element shown, the same one pinned, on the same tab',
     want: 1, tol: 0, unit: '',

@@ -1,6 +1,6 @@
 import { EMBED, FORMAT, LOCKED, VERSION } from '../core/constants.js';
 import { history, project, selectOne, selectedId } from '../state/project.js';
-import { getEl, normElementBase, serialize } from '../state/elements.js';
+import { getEl, normElementBase, normLight, serialize } from '../state/elements.js';
 import { traceScene } from '../engines/trace.js';
 import { requestRender } from '../ui/render.js';
 import { allSweeps, pauseAll, playAll, playing } from '../ui/sweeps.js';
@@ -88,6 +88,11 @@ export function shareData() {
   if (d.maxBounces !== 200) out.maxBounces = d.maxBounces;
   if (d.minPower !== 0.1) out.minPower = d.minPower;
   if (d.ghosts) out.ghosts = true;
+  // how light is drawn, when opening the link would not draw it so anyway (an old part's beamView can turn the field on)
+  if (!same(d.light, normLight(null, d.elements))) out.light = d.light;
+  if (d.labelMm) out.labelMm = d.labelMm;                              // parts' names, mm high
+  if (d.labelFixed) Object.assign(out, { labelFixed: true, labelPx: d.labelPx });   // or px on the screen
+  if (d.style) out.style = d.style;                                    // the bench's colour, its holes
   if (d.library.length) out.library = d.library;
   if (Object.keys(d.cavityLock).length) out.cavityLock = d.cavityLock;
   if (multi) { out.benches = d.benches.map(b => ({ id: b.id, name: b.name, view: b.view })); out.tab = d.tab; }

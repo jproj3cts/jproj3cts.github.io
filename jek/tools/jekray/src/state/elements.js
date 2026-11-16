@@ -92,7 +92,7 @@ export function normElementBase(e) {
     bench: typeof e.bench === 'string' ? e.bench : null,     // the tab it is on (ensureBenches fills it in)
   };
   if (e.locked === true) base.locked = true;                  // held in place: not moved by dragging or the arrow keys
-  if (e.hide3d === true) base.hide3d = true;                  // not drawn in the 3D view (the light still meets it)
+  if (e.hide3d === true) base.hide3d = true;                  // not drawn on the bench, 2D or 3D (the light still meets it)
   // its own colours on the bench and in exported pictures (core/part-colours.js): kept only when set, so a part without them is drawn as ever
   if (e.type !== 'draw') { const lc = partHex(e.lineColour), fc = partHex(e.fillColour); if (lc) base.lineColour = lc; if (fc) base.fillColour = fc; }
   // its height above the breadboard (mm), kept only when not the beam height (see zOf)

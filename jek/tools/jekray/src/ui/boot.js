@@ -24,7 +24,7 @@ import {
   beamPowerShare, benchStyleShown, bez, byPowerOn, fibreSegs, powerFade, powerTop, rayPowerShare, rayTops, handlePos, hornShape, requestRender, resize, segPlanes, selection,
   setSelection, sx, sy, toScr, wireRender, lightLayer
 } from './render.js';
-import { wirePointer } from './pointer.js';
+import { hitTest, wirePointer } from './pointer.js';
 import { getPath, setParam } from '../state/params.js';
 import {
   fieldFrames, fieldHeld, fieldRendered, pauseAll, play, playAll, playing, renderedPeriod, showActivityNow,
@@ -540,6 +540,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // the optical path between two bench points on beams, as the ruler finds it
     oplBetween(a, b) { traceScene(); const v = measureOpl(measureSnap(sx(a[0]), sy(a[1])), measureSnap(sx(b[0]), sy(b[1]))); return v.length === 1 ? v[0] : v; },
     layoutSvg() { return layoutSvg(recordLayout()); },
+    // the part a click at a bench point would pick, by its name (null: none)
+    hitAt(x, y) { const e = hitTest(sx(x), sy(y)); return e ? e.name : null; },
     // a project as someone else wrote it: what opening it changed, as plain text
     aiGuideText,
     docsParams,

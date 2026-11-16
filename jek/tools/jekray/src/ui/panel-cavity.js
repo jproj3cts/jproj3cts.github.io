@@ -275,10 +275,10 @@ export function renderOverview() {
         if (!of.length) continue;
         list.append(h('li', { class: 'rt-plhead' }, title + ' (' + of.length + ')'));
         for (const el of of) {
-          // the eye: shown or hidden in the 3D view, for a part drawn there; hidden, the light still meets it
+          // the eye: shown or hidden on the bench, 2D and 3D, for a part drawn in 3D; hidden, the light still meets it
           const eye = V3D.free(el) ? h('button', { type: 'button', class: 'rt-eye' + (el.hide3d ? ' off' : ''), 'aria-pressed': String(!el.hide3d),
-            title: el.hide3d ? 'Hidden in the 3D view (the light still meets it): show it' : 'Hide it in the 3D view (the light still meets it)',
-            'aria-label': (el.hide3d ? 'Show ' : 'Hide ') + el.name + ' in the 3D view',
+            title: el.hide3d ? 'Hidden on the bench, in 2D and 3D (the light still meets it): show it' : 'Hide it on the bench, in 2D and 3D (the light still meets it)',
+            'aria-label': (el.hide3d ? 'Show ' : 'Hide ') + el.name + ' on the bench',
             onclick: () => { checkpoint(); if (el.hide3d) delete el.hide3d; else el.hide3d = true; changed(true); } }) : null;
           if (eye) eye.innerHTML = el.hide3d ? EYE_SHUT : EYE_OPEN;
           const kind = typeLabel(el);

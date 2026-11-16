@@ -12604,8 +12604,58 @@ const TESTS = [
     },
   },
   {
+    name: 'The particle shrinks with the bench when zoomed out, in 2D and 3D',
+    why: 'close in its sign is 16 px on the bench and 36 px in 3D; zoomed out it is never larger than 1 mm on the bench, down to 6 px in 2D and 10 px in 3D, so it does not dwarf the parts round it (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('particle zoom', [src({ name: 'L', x: -20, wavelength: 1550, rays: 1 }), particleAt({ name: 'P', x: 10, absorb: false, trap: 'sphere' })]));
+      // 2D: the sign's circle in the layout's SVG, its radius in px at three zooms
+      const rad = scale => {
+        J.setView({ cx: 10, cy: 0, scale }); J.redraw();
+        const m = /<path d="([^"]+)" fill="#dff1f7"/i.exec(J.layoutSvg()); if (!m) return null;
+        const xs = (m[1].match(/-?[\d.]+/g) || []).map(Number).filter((v, i) => i % 2 === 0);
+        return (Math.max(...xs) - Math.min(...xs)) / 2;
+      };
+      const near = rad(100), mid = rad(10), far = rad(1);
+      const two = near !== null && Math.abs(near - 8) < 0.01 && Math.abs(mid - 5) < 0.01 && Math.abs(far - 3) < 0.01;
+      let three = false, a = null, b = null;
+      try {
+        await J.view3d.set(true);
+        // the camera far out, then brought in along the same line towards the particle
+        J.view3d.look([10, -2000, 1000], [10, 0, 0]); b = J.view3d.particleOf('P');
+        const c = J.view3d.camera(), at = b.at; J.view3d.look(c.p.map((v, i) => at[i] + (v - c.t[i]) * 1e-3), at); a = J.view3d.particleOf('P');
+        three = !!a && !!b && Math.abs(a.px - 36) < 0.01 && b.px < 36 && Math.abs(b.px - Math.max(10, b.mmPx)) < 0.01;
+      } finally { await J.view3d.set(false); }
+      if (!(two && three)) console.log('particle zoom', JSON.stringify({ near, mid, far, a, b }));
+      return two && three ? 1 : 0;
+    },
+  },
+  {
+    name: 'A part hidden by its eye is hidden on the 2D bench too, its name and clicks with it',
+    why: 'the Michelson: Fixed mirror hidden is not drawn in 2D and its name is not shown, a click where it is does not pick it, the light still meets it (the trace is unchanged); chosen in the list it is drawn faintly; shown again, all is back (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('michelson')));
+      J.select(null); J.redraw();
+      const M = J.byName('Fixed mirror'), n0 = J.traceInfo().rays, svg0 = J.layoutSvg();
+      const name0 = svg0.includes('>Fixed mirror<');
+      J.set('Fixed mirror', { hide3d: true }); J.redraw();
+      const svg1 = J.layoutSvg(), n1 = J.traceInfo().rays;
+      const gone = !svg1.includes('>Fixed mirror<') && svg1.length < svg0.length;
+      const hit = J.hitAt(M.x, M.y), hit0 = (J.set('Fixed mirror', { hide3d: false }), J.redraw(), J.hitAt(M.x, M.y));
+      J.set('Fixed mirror', { hide3d: true }); J.redraw();
+      J.select('Fixed mirror'); J.redraw();
+      const faint = J.layoutSvg().length > svg1.length;
+      J.select(null); J.set('Fixed mirror', { hide3d: false }); J.redraw();
+      const back = J.layoutSvg().includes('>Fixed mirror<');
+      const ok = name0 && gone && n1 === n0 && hit === null && hit0 === 'Fixed mirror' && faint && back;
+      if (!ok) console.log('hidden in 2D', JSON.stringify({ name0, gone, n0, n1, hit, hit0, faint, back }));
+      return ok ? 1 : 0;
+    },
+  },
+  {
     name: 'In 3D the particle is drawn in its shape, enlarged, its axis on the bench as set',
-    why: 'a 1 µm × 200 nm rod is far too small to show on a bench in millimetres: it is drawn as a sign 36 px long with its proportions, where the part is, whatever the zoom. Its axis is set on the bench (30° round, 20° up), and moving the part does not turn it; a sphere is a ball of the same size; with no particle nothing is drawn',
+    why: 'a 1 µm × 200 nm rod is far too small to show on a bench in millimetres: it is drawn as a sign with its proportions, where the part is: 36 px long close in, never longer than 1 mm on the bench zoomed out, down to 10 px. Its axis is set on the bench (30° round, 20° up), and moving the part does not turn it; a sphere is a ball of the same size; with no particle nothing is drawn',
     want: 1, tol: 0, unit: '',
     run: async J => {
       J.load(bench('particle 3d', [src({ name: 'L', x: -20, wavelength: 1550, rays: 1 }),
@@ -12621,7 +12671,7 @@ const TESTS = [
         const c = J.view3d.particleOf('S');
         J.load(bench('particle 3d none', [src({ name: 'L', x: -20, wavelength: 1550, rays: 1 })]));
         const e = J.view3d.particleOf('S');
-        return near(a) && near(b) && a.shape === 'cylinder' && Math.abs(a.L - 1) < 1e-9 && Math.abs(a.r - 0.1) < 1e-9 && Math.abs(a.px - 36) < 0.01 && Math.abs(b.px - 36) < 0.01 && c && c.shape === 'sphere' && Math.abs(c.r - 0.5) < 1e-9 && !e ? 1 : 0;
+        return near(a) && near(b) && a.shape === 'cylinder' && Math.abs(a.L - 1) < 1e-9 && Math.abs(a.r - 0.1) < 1e-9 && Math.abs(a.px - a.want) < 0.01 && Math.abs(b.px - b.want) < 0.01 && c && c.shape === 'sphere' && Math.abs(c.r - 0.5) < 1e-9 && !e ? 1 : 0;
       } finally { await J.view3d.set(false); }
     },
   },
@@ -12784,7 +12834,7 @@ const TESTS = [
         const p = J.view3d.particleOf('P');
         J.set('P', { scatFan: false }); J.redraw();
         V0 = J.view3d.scatLight();
-        three = !!V1 && V1.fan > 100 && V1.cone > 100 && V1.coneUp > 100 && !!V0 && V0.fan === 0 && V0.cone === V1.cone && !!p && p.shape === 'sphere' && Math.abs(p.px - 36) < 0.01;
+        three = !!V1 && V1.fan > 100 && V1.cone > 100 && V1.coneUp > 100 && !!V0 && V0.fan === 0 && V0.cone === V1.cone && !!p && p.shape === 'sphere' && Math.abs(p.px - p.want) < 0.01;
       } finally { await J.view3d.set(false); }
       if (!(two && sign && three)) console.log('particle picture', JSON.stringify({ two, on, off, sign, three, V1, V0 }));
       return two && sign && three ? 1 : 0;

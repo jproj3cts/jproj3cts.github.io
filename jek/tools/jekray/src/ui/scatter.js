@@ -107,15 +107,12 @@ export const particleMats = () => [...Object.keys(GLASS).filter(g => g !== 'Wate
 function particleRows(el) {
   const rows = h('div', { class: 'rt-rows' });
   if (el.type === 'particle') {
-    // a Particle part: what it is made of is on its own tab; here the model, where it is and the cone the Collected figure is for
+    // a Particle part: what it is made of is on its own tab; here the model and where it is (the collection lens is set under the figure)
     const sph = el.trapShape === 'sphere';
     rows.append(selectField('Model', [['auto', 'Auto'], ['rayleigh', 'Rayleigh (one dipole)'], ['mie', 'Mie (a sphere, exact)'], ['dda', 'Dipole array']], () => el.scatModel, v => { el.scatModel = v; }));
     if (el.scatModel === 'dda' || (el.scatModel === 'auto' && !sph)) rows.append(param('Dipoles across (0: chosen)', el, 'scatDip', { noSweep: true }));
     rows.append(selectField('Where it is', [['part', 'Where the part is'], ['trap', 'Where the trap holds it']], () => el.scatAt, v => { el.scatAt = v; }, { wide: true }),
       param('Moved across (µm)', el, 'scatDx'), param('Moved up (µm)', el, 'scatDy'), param('Moved along the beam (µm)', el, 'scatDz'));
-    rows.append(param('Collecting NA', el, 'scatNA'),
-      selectField('Collected from', [['fwd', 'Ahead (the beam’s way)'], ['back', 'Behind (back along it)'], ['side', 'The side, in the plane'], ['up', 'Above'], ['angle', 'A direction on the bench']], () => el.scatDir, v => { el.scatDir = v; }));
-    if (el.scatDir === 'angle') rows.append(param('Direction (°)', el, 'scatAng'));
     return rows;
   }
   return rows;
@@ -335,7 +332,13 @@ export function scatterSection(el) {
   let last = null, sigT = '', sigS = '';
   const draw = () => { const v = vs(el).scatView || el.scatView; if (v === 'map') drawScatMap(cv, el, last); else drawPolar(cv, el, last, v); [...tabs.children].forEach((b, i) => { b.style.fontWeight = views[i][0] === v ? '700' : '600'; b.style.textDecoration = views[i][0] === v ? 'underline' : 'none'; }); };
   for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { vs(el).scatView = key; draw(); } }, text));
-  const scale = h('div', { class: 'rt-rows', style: 'margin-top:0.3rem' }, selectField('Scale', [['log', 'Logarithmic, ' + SCAT_DB + ' dB'], ['lin', 'Linear']], () => el.scatScale, v => { el.scatScale = v; }, { rebuild: false }));
+  // under the figure: its scale, and the lens the Collected figure is for (a notional lens: the particle is lit by every
+  // beam through it whatever these say, and its light reaches every part that sees it)
+  const scale = h('div', { class: 'rt-rows', style: 'margin-top:0.3rem' }, selectField('Scale', [['log', 'Logarithmic, ' + SCAT_DB + ' dB'], ['lin', 'Linear']], () => el.scatScale, v => { el.scatScale = v; }, { rebuild: false }),
+    param('Collection lens NA', el, 'scatNA'),
+    selectField('Collection lens faces', [['fwd', 'Ahead (the beam’s way)'], ['back', 'Behind (back along it)'], ['side', 'The side, in the plane'], ['up', 'Above'], ['angle', 'A direction on the bench']], () => el.scatDir, v => { el.scatDir = v; }));
+  if (el.scatDir === 'angle') scale.append(param('Direction (°)', el, 'scatAng'));
+  scale.append(helpLine('The Collected figure is for this lens alone: the particle is lit by every beam through it whatever is set here.'));
   panel.append(status, box, tabs, h('div', { class: 'rt-plot' }, cv), plotSaveRow(cv, true), scale);
   let drawnW = -1;
   new ResizeObserver(() => requestAnimationFrame(() => { const w = cv.clientWidth; if (w && Math.abs(w - drawnW) > 0.5) { drawnW = w; draw(); } })).observe(cv);

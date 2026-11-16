@@ -46,7 +46,7 @@ export function hitTest(px, py) {
   const rank = e => e.type === 'draw' ? (e.layer === 'over' ? -1 : 9) : PART_UI[e.type] ? PART_UI[e.type].rank : 9;
   const at = new Map(project.elements.map((e, i) => [e, i]));
   // in the Draw palette only drawings are picked on the bench (a part by its name, for moving that)
-  const els = project.elements.filter(e => onTab(e) && (!partsLocked() || e.type === 'draw')).sort((a, b) => rank(a) - rank(b) || (a.type === 'draw' && b.type === 'draw' ? at.get(b) - at.get(a) : 0));
+  const els = project.elements.filter(e => onTab(e) && !e.hide3d && (!partsLocked() || e.type === 'draw')).sort((a, b) => rank(a) - rank(b) || (a.type === 'draw' && b.type === 'draw' ? at.get(b) - at.get(a) : 0));
   for (const el of els) {
     const f = frame(el);
     const [lx, ly] = toLocal(f, x, y);

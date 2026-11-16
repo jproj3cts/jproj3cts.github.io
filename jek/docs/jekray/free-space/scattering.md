@@ -19,9 +19,9 @@ Add a Particle from the parts list (Active and atomic) and put it where the ligh
 - **Medium**: the bench's where the light is, vacuum, air or water.
 - **Send its scattered light to the parts** and **Draw the scattered light in every direction**, described [below](#scattered-light-on-the-bench).
 
-The Scattering tab has the **Model** (Auto, Rayleigh, Mie or Dipole array), **Where it is** (where the part is, or where the Trap tab finds the particle held) with three offsets across the beam, up and along it, and the **Collecting NA** and **Collected from** of the Collected figure.
+The Scattering tab has the **Model** (Auto, Rayleigh, Mie or Dipole array), **Where it is** (where the part is, or where the Trap tab finds the particle held) with three offsets across the beam, up and along it. Under the figure are its **Scale** and the **Collection lens NA** and **Collection lens faces** of the Collected figure: a notional lens, which changes that figure alone. The particle is lit by every beam through it whatever they are set to.
 
-On the bench the particle is drawn as a sign 16 pixels long, and in the 3D view 36 pixels long, in its shape and at its orientation however far the view is zoomed. At its true size it would not show on a bench measured in millimetres.
+On the bench the particle is drawn as a sign 16 pixels long, and in the 3D view 36 pixels long, in its shape and at its orientation. Zoomed out it shrinks with the bench, never larger than 1 mm there, down to 6 pixels (10 in 3D). At its true size it would not show on a bench measured in millimetres.
 
 The **Trap** tab reads the optical trap the same light makes for the particle, as a [screen's Trap tab](/jek/docs/jekray/free-space/screen/) does. It takes a shape that is not a sphere as the sphere of the same volume.
 

@@ -943,7 +943,7 @@ function drawLabels() {
     // does a line cross a box, or another line (so a name's line is not led through a part, a name or another's line)
     const segSeg = (a, b) => { const d = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]), A = [a[0], a[1]], B = [a[2], a[3]], C = [b[0], b[1]], D = [b[2], b[3]]; return d(A, B, C) * d(A, B, D) < 0 && d(C, D, A) * d(C, D, B) < 0; };
     const segBox = (l, o) => { const inb = (x, y) => x > o.x && x < o.x + o.w && y > o.y && y < o.y + o.h; if (inb(l[0], l[1]) || inb(l[2], l[3])) return true; const x0 = o.x, y0 = o.y, x1 = o.x + o.w, y1 = o.y + o.h; return [[x0, y0, x1, y0], [x1, y0, x1, y1], [x1, y1, x0, y1], [x0, y1, x0, y0]].some(e => segSeg(l, e)); };
-    const list = project.elements.filter(e => onTab(e) && e.type !== 'draw' && !(e.type === 'elec' && e.kind === 'node')).map(el => { const b = worldBox(el); return { el, w: ctx.measureText(nameOf(el)).width, bx: { x: sx(b.x0), y: sy(b.y1), w: sx(b.x1) - sx(b.x0), h: sy(b.y0) - sy(b.y1) } }; });
+    const list = project.elements.filter(e => onTab(e) && !benchHidden(e) && e.type !== 'draw' && !(e.type === 'elec' && e.kind === 'node')).map(el => { const b = worldBox(el); return { el, w: ctx.measureText(nameOf(el)).width, bx: { x: sx(b.x0), y: sy(b.y1), w: sx(b.x1) - sx(b.x0), h: sy(b.y0) - sy(b.y1) } }; });
     // every name first tried beside its own part (where it was put on the bench, if that is clear at this size), so one
     // name's detour never takes the place beside another part; then those left over, further out
     /* one setting of every name. released: names put somewhere by hand on the bench that are set as the rest are */
@@ -991,7 +991,7 @@ function drawLabels() {
     figure.placed = { n: list.length, far, clash };              // how it went: a crowded figure is given numbers and a key (io/figure.js)
   }
   for (const el of project.elements) {
-    if (!onTab(el) || el.type === 'draw') continue;                   // a drawing has no label
+    if (!onTab(el) || el.type === 'draw' || benchHidden(el)) continue;                   // a drawing has no label; a hidden part none shown
     if (el.type === 'elec' && el.kind === 'node' && !(el.id === selectedId || extraSel.has(el.id))) continue;   // ELEC hook: a node's name only when selected
     // its size on the bench, in mm, as everything drawn there: a figure looks the same at any
     // zoom; on the screen, kept readable (never tiny, never a banner) while the view is worked in
@@ -1205,11 +1205,14 @@ export function render() {
   try { renderAll(stale); } finally { if (ctx.fillText === inkedText) delete ctx.fillText; lightLayer = false; inBench = false; }
   updateReadouts();
 }
+/* a part hidden (the eye in the parts list, hide3d): not drawn on the bench, 2D or 3D, and its name not shown; the light
+   still meets it. Chosen in the list, it is drawn faintly, so the choice can be seen. */
+export const benchHidden = e => !!e.hide3d && !(e.id === selectedId || extraSel.has(e.id));
 function renderAll(stale) {
   drawBench();
   const order = { lens: 0, prism: 0, cube: 0, crystal: 0, mirror: 1, grating: 1, screen: 2, stop: 2, waveplate: 2, polariser: 2,
     mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, cell: 1, nlc: 1, link: 2, fcomp: 2, pic: 2, aom: 2, eom: 2, chopper: 2, elec: 2, source: 3, stl: 0, draw: 0, particle: 2 };
-  const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
+  const els = project.elements.filter(e => onTab(e) && !benchHidden(e)).sort((a, b) => order[a.type] - order[b.type]);
   for (const el of els) if (el.type === 'draw' && el.layer === 'under') draw(el);
   drawFibres();
   for (const el of els) if (el.type !== 'source' && el.type !== 'draw' && el.type !== 'particle') draw(el);
@@ -1804,7 +1807,8 @@ export function draw(el) {
 }
 function drawBody(el) {
   const sel = el.id === selectedId || extraSel.has(el.id), U = PART_UI[el.type];
-  if (U) U.draw(el, sel);
+  if (!U) return;
+  if (el.hide3d) { ctx.save(); ctx.globalAlpha *= 0.35; try { U.draw(el, sel); } finally { ctx.restore(); } } else U.draw(el, sel);
 }
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */

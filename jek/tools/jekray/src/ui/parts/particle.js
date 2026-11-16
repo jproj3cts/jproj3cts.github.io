@@ -14,14 +14,17 @@ import { PARTICLE_SHAPES, particleMats } from '../scatter.js';
 /* It is nanometres across on a bench of millimetres, so it is drawn as a sign that keeps its size on the page: its shape and
    proportions, its axis along the part's angle (a rod tilted up out of the plane is seen shortened), in its material's
    colour, with four ticks round it so that a dot on a beam can be found */
-export const PARTICLE_PX = 16;             // its longest side on the page
+export const PARTICLE_PX = 16;             // its longest side on the page, close in
+/* zoomed out it shrinks with the bench, so it is never drawn larger than PARTICLE_MM, down to PARTICLE_MIN_PX */
+export const PARTICLE_MM = 1, PARTICLE_MIN_PX = 6;
+export const particlePx = () => Math.min(PARTICLE_PX, Math.max(PARTICLE_MIN_PX, PARTICLE_MM * V().scale));
 const PARTICLE_INK = { Au: '#d8a650', Ag: '#dfe3e6', Al: '#c9ced3' };
 /* the sign's half-length along its axis and half-width across it, px */
 export function particleSign(el) {
   const sphere = !['cylinder', 'capsule', 'spheroid'].includes(el.trapShape), D = Math.max(1, 2 * el.trapR), L = sphere ? D : Math.max(el.trapShape === 'capsule' ? D : 1, el.trapLen || D);
-  const k = PARTICLE_PX / Math.max(D, L), across = Math.max(2.5, D * k / 2), tl = (el.trapTilt || 0) * deg;
+  const k = particlePx() / Math.max(D, L), across = Math.max(1.5, D * k / 2), tl = (el.trapTilt || 0) * deg;
   // along its axis as the bench plane shows it: a rod tilted up is seen end on
-  const along = sphere ? across : Math.max(2.5, Math.hypot(L * k / 2 * Math.cos(tl), D * k / 2 * Math.sin(tl)));
+  const along = sphere ? across : Math.max(1.5, Math.hypot(L * k / 2 * Math.cos(tl), D * k / 2 * Math.sin(tl)));
   return { along, across, shape: sphere ? 'sphere' : el.trapShape };
 }
 function drawParticle(el, sel) {
@@ -41,7 +44,7 @@ function drawParticle(el, sel) {
   ctx.stroke();
   ctx.restore();
   // the ticks, level and upright whatever the axis
-  const r0 = Math.max(S.along, S.across) + 4, r1 = r0 + 5;
+  const sm = particlePx() / PARTICLE_PX, r0 = Math.max(S.along, S.across) + 2 + 2 * sm, r1 = r0 + 3 + 2 * sm;
   ctx.beginPath();
   for (const [ux, uy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { ctx.moveTo(cx + ux * r0, cy + uy * r0); ctx.lineTo(cx + ux * r1, cy + uy * r1); }
   ctx.strokeStyle = sel ? selInk() : getCss('--rt-screen');
@@ -49,7 +52,7 @@ function drawParticle(el, sel) {
   ctx.stroke();
 }
 /* picked within its ticks: a disc that keeps its size on the page */
-const hitParticle = (el, lx, ly, tol) => Math.hypot(lx, ly) <= tol + (PARTICLE_PX / 2 + 9) / V().scale;
+const hitParticle = (el, lx, ly, tol) => Math.hypot(lx, ly) <= tol + (particlePx() / 2 + 9) / V().scale;
 
 function particleParams(el) {
   const rows = h('div', { class: 'rt-rows' }), sph = el.trapShape === 'sphere';

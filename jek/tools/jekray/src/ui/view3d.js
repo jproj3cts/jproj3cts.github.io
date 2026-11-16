@@ -745,10 +745,10 @@ export const V3D = (() => {
   }
   /* A screen's particle (the Trap and Scattering tabs'), where the light meets the screen: its shape, its proportions
      and its axis as set, in its material's colour, and far larger than life: nanometres would not show on a bench in
-     millimetres, so it is a sign that keeps its size on the page, its longest side PARTICLE_PX long however near
-     the view is (particleSizes, each frame). Its axis is given on the bench, not on the screen: the model is turned
+     millimetres, so it is a sign that keeps its size on the page, its longest side PARTICLE_PX long close in; zoomed
+     out it is never larger than PARTICLE_MM3 on the bench, down to PARTICLE_MIN3 px (particleSizes, each frame). Its axis is given on the bench, not on the screen: the model is turned
      back by the screen's own pose each time the screen is placed (benchAxis). */
-  const PARTICLE_PX = 36;
+  const PARTICLE_PX = 36, PARTICLE_MM3 = 1, PARTICLE_MIN3 = 10;      // close in 36 px; never larger than 1 mm on the bench, down to 10 px
   const PARTICLE_COL = { Au: 0xd8a650, Ag: 0xdfe3e6, Al: 0xc9ced3 };
   function particle3(el) {
     const shape = ['cylinder', 'capsule', 'spheroid'].includes(el.trapShape) ? el.trapShape : 'sphere';
@@ -770,7 +770,7 @@ export const V3D = (() => {
   }
   function particleSizes(camera) {
     const k = 2 * Math.tan(camera.fov * deg / 2) / Math.max(1, R.h) * PARTICLE_PX, v = new T.Vector3();
-    for (const p of R.groups.parts.children) for (const o of p.children) if (o.userData.particle) { const d = v.copy(p.position).sub(camera.position).dot(camera.getWorldDirection(new T.Vector3())); o.scale.setScalar(Math.max(1e-4, k * Math.abs(d))); }
+    for (const p of R.groups.parts.children) for (const o of p.children) if (o.userData.particle) { const d = v.copy(p.position).sub(camera.position).dot(camera.getWorldDirection(new T.Vector3())); { const s = k * Math.abs(d); o.scale.setScalar(Math.max(1e-4, Math.max(Math.min(s, PARTICLE_MM3), s * PARTICLE_MIN3 / PARTICLE_PX))); } }
   }
   /* the pieces of a placed part that keep to the bench's directions, turned back by the part's own turn */
   const benchAxes = p => { for (const o of p.children) if (o.userData.benchAxis) { const [az, tl] = o.userData.benchAxis; o.quaternion.copy(p.quaternion).invert().multiply(new T.Quaternion().setFromEuler(new T.Euler(0, -tl, az, 'ZYX'))); } };
@@ -2086,7 +2086,7 @@ export const V3D = (() => {
       // a network part's body in 3D: its size (mm) and the picture on its top, as a data URL
       netBody(name) { const el = project.elements.find(e => e.name === name); if (!el || !NET_3D.has(el.type)) return null; const B = netBox(el); return { hx: B.hx, hy: B.hy, h: B.h, ports: B.P.length, top: symbolCanvas(el, B.hx, B.hy, 14).toDataURL() }; },
       // a screen's particle as drawn: its shape, its drawn half-width and length (mm), and its axis on the bench
-      particleOf(name) { const el = project.elements.find(e => e.name === name), c = el && R && (sync(), R.partCache && R.partCache.get(el.id)); const o = c && c.obj.children.find(x => x.userData.particle); if (!o) return null; o.updateWorldMatrix(true, false); const v = new T.Vector3(1, 0, 0).transformDirection(o.matrixWorld); particleSizes(R.camera); return Object.assign({ axis: [v.x, v.y, v.z], px: o.scale.x * R.h / (2 * Math.tan(R.camera.fov * deg / 2) * o.getWorldPosition(new T.Vector3()).sub(R.camera.position).dot(R.camera.getWorldDirection(new T.Vector3()))) }, o.userData.particle); },
+      particleOf(name) { const el = project.elements.find(e => e.name === name), c = el && R && (sync(), R.partCache && R.partCache.get(el.id)); const o = c && c.obj.children.find(x => x.userData.particle); if (!o) return null; o.updateWorldMatrix(true, false); const v = new T.Vector3(1, 0, 0).transformDirection(o.matrixWorld); particleSizes(R.camera); const mmPx = R.h / (2 * Math.tan(R.camera.fov * deg / 2) * o.getWorldPosition(new T.Vector3()).sub(R.camera.position).dot(R.camera.getWorldDirection(new T.Vector3()))); return Object.assign({ axis: [v.x, v.y, v.z], at: o.getWorldPosition(new T.Vector3()).toArray(), px: o.scale.x * mmPx, mmPx, want: Math.min(PARTICLE_PX, Math.max(PARTICLE_MIN3, PARTICLE_MM3 * mmPx)) }, o.userData.particle); },
       // a particle's scattered light as drawn: the fan's rays, and the cones' (how many leave the bench plane)
       scatLight() { if (!R) return null; sync(); const rs = (lastTrace.rays || []).filter(r => r.sc && r.bench === project.tab); return { fan: R.nFan || 0, cone: rs.length, coneUp: rs.filter(r => r.zs && r.zs.some(z => Math.abs(z - r.zs[0]) > 1e-6)).length, lines: R.nRays }; },
       screenOf(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const v = new T.Vector3(el.x, el.y, z3(el)).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },

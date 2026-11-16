@@ -11794,7 +11794,7 @@ function normElementBase(e) {
     bench: typeof e.bench === 'string' ? e.bench : null,     // the tab it is on (ensureBenches fills it in)
   };
   if (e.locked === true) base.locked = true;                  // held in place: not moved by dragging or the arrow keys
-  if (e.hide3d === true) base.hide3d = true;                  // not drawn in the 3D view (the light still meets it)
+  if (e.hide3d === true) base.hide3d = true;                  // not drawn on the bench, 2D or 3D (the light still meets it)
   // its own colours on the bench and in exported pictures (core/part-colours.js): kept only when set, so a part without them is drawn as ever
   if (e.type !== 'draw') { const lc = partHex(e.lineColour), fc = partHex(e.fillColour); if (lc) base.lineColour = lc; if (fc) base.fillColour = fc; }
   // its height above the breadboard (mm), kept only when not the beam height (see zOf)
@@ -17122,7 +17122,7 @@ function drawLabels() {
     // does a line cross a box, or another line (so a name's line is not led through a part, a name or another's line)
     const segSeg = (a, b) => { const d = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]), A = [a[0], a[1]], B = [a[2], a[3]], C = [b[0], b[1]], D = [b[2], b[3]]; return d(A, B, C) * d(A, B, D) < 0 && d(C, D, A) * d(C, D, B) < 0; };
     const segBox = (l, o) => { const inb = (x, y) => x > o.x && x < o.x + o.w && y > o.y && y < o.y + o.h; if (inb(l[0], l[1]) || inb(l[2], l[3])) return true; const x0 = o.x, y0 = o.y, x1 = o.x + o.w, y1 = o.y + o.h; return [[x0, y0, x1, y0], [x1, y0, x1, y1], [x1, y1, x0, y1], [x0, y1, x0, y0]].some(e => segSeg(l, e)); };
-    const list = project.elements.filter(e => onTab(e) && e.type !== 'draw' && !(e.type === 'elec' && e.kind === 'node')).map(el => { const b = worldBox(el); return { el, w: ctx.measureText(nameOf(el)).width, bx: { x: sx(b.x0), y: sy(b.y1), w: sx(b.x1) - sx(b.x0), h: sy(b.y0) - sy(b.y1) } }; });
+    const list = project.elements.filter(e => onTab(e) && !benchHidden(e) && e.type !== 'draw' && !(e.type === 'elec' && e.kind === 'node')).map(el => { const b = worldBox(el); return { el, w: ctx.measureText(nameOf(el)).width, bx: { x: sx(b.x0), y: sy(b.y1), w: sx(b.x1) - sx(b.x0), h: sy(b.y0) - sy(b.y1) } }; });
     // every name first tried beside its own part (where it was put on the bench, if that is clear at this size), so one
     // name's detour never takes the place beside another part; then those left over, further out
     /* one setting of every name. released: names put somewhere by hand on the bench that are set as the rest are */
@@ -17170,7 +17170,7 @@ function drawLabels() {
     figure.placed = { n: list.length, far, clash };              // how it went: a crowded figure is given numbers and a key (io/figure.js)
   }
   for (const el of project.elements) {
-    if (!onTab(el) || el.type === 'draw') continue;                   // a drawing has no label
+    if (!onTab(el) || el.type === 'draw' || benchHidden(el)) continue;                   // a drawing has no label; a hidden part none shown
     if (el.type === 'elec' && el.kind === 'node' && !(el.id === selectedId || extraSel.has(el.id))) continue;   // ELEC hook: a node's name only when selected
     // its size on the bench, in mm, as everything drawn there: a figure looks the same at any
     // zoom; on the screen, kept readable (never tiny, never a banner) while the view is worked in
@@ -17384,11 +17384,14 @@ function render() {
   try { renderAll(stale); } finally { if (ctx.fillText === inkedText) delete ctx.fillText; lightLayer = false; inBench = false; }
   updateReadouts();
 }
+/* a part hidden (the eye in the parts list, hide3d): not drawn on the bench, 2D or 3D, and its name not shown; the light
+   still meets it. Chosen in the list, it is drawn faintly, so the choice can be seen. */
+const benchHidden = e => !!e.hide3d && !(e.id === selectedId || extraSel.has(e.id));
 function renderAll(stale) {
   drawBench();
   const order = { lens: 0, prism: 0, cube: 0, crystal: 0, mirror: 1, grating: 1, screen: 2, stop: 2, waveplate: 2, polariser: 2,
     mask: 2, fibre: 2, detector: 2, faraday: 2, isolator: 2, filter: 2, gain: 2, cell: 1, nlc: 1, link: 2, fcomp: 2, pic: 2, aom: 2, eom: 2, chopper: 2, elec: 2, source: 3, stl: 0, draw: 0, particle: 2 };
-  const els = project.elements.filter(onTab).sort((a, b) => order[a.type] - order[b.type]);
+  const els = project.elements.filter(e => onTab(e) && !benchHidden(e)).sort((a, b) => order[a.type] - order[b.type]);
   for (const el of els) if (el.type === 'draw' && el.layer === 'under') draw(el);
   drawFibres();
   for (const el of els) if (el.type !== 'source' && el.type !== 'draw' && el.type !== 'particle') draw(el);
@@ -17983,7 +17986,8 @@ function draw(el) {
 }
 function drawBody(el) {
   const sel = el.id === selectedId || extraSel.has(el.id), U = PART_UI[el.type];
-  if (U) U.draw(el, sel);
+  if (!U) return;
+  if (el.hide3d) { ctx.save(); ctx.globalAlpha *= 0.35; try { U.draw(el, sel); } finally { ctx.restore(); } } else U.draw(el, sel);
 }
 
 /* the page's wiring for this module: done once, from boot.js, after every module is loaded */
@@ -19029,7 +19033,7 @@ function hitTest(px, py) {
   const rank = e => e.type === 'draw' ? (e.layer === 'over' ? -1 : 9) : PART_UI[e.type] ? PART_UI[e.type].rank : 9;
   const at = new Map(project.elements.map((e, i) => [e, i]));
   // in the Draw palette only drawings are picked on the bench (a part by its name, for moving that)
-  const els = project.elements.filter(e => onTab(e) && (!partsLocked() || e.type === 'draw')).sort((a, b) => rank(a) - rank(b) || (a.type === 'draw' && b.type === 'draw' ? at.get(b) - at.get(a) : 0));
+  const els = project.elements.filter(e => onTab(e) && !e.hide3d && (!partsLocked() || e.type === 'draw')).sort((a, b) => rank(a) - rank(b) || (a.type === 'draw' && b.type === 'draw' ? at.get(b) - at.get(a) : 0));
   for (const el of els) {
     const f = frame(el);
     const [lx, ly] = toLocal(f, x, y);
@@ -24598,10 +24602,10 @@ const V3D = (() => {
   }
   /* A screen's particle (the Trap and Scattering tabs'), where the light meets the screen: its shape, its proportions
      and its axis as set, in its material's colour, and far larger than life: nanometres would not show on a bench in
-     millimetres, so it is a sign that keeps its size on the page, its longest side PARTICLE_PX long however near
-     the view is (particleSizes, each frame). Its axis is given on the bench, not on the screen: the model is turned
+     millimetres, so it is a sign that keeps its size on the page, its longest side PARTICLE_PX long close in; zoomed
+     out it is never larger than PARTICLE_MM3 on the bench, down to PARTICLE_MIN3 px (particleSizes, each frame). Its axis is given on the bench, not on the screen: the model is turned
      back by the screen's own pose each time the screen is placed (benchAxis). */
-  const PARTICLE_PX = 36;
+  const PARTICLE_PX = 36, PARTICLE_MM3 = 1, PARTICLE_MIN3 = 10;      // close in 36 px; never larger than 1 mm on the bench, down to 10 px
   const PARTICLE_COL = { Au: 0xd8a650, Ag: 0xdfe3e6, Al: 0xc9ced3 };
   function particle3(el) {
     const shape = ['cylinder', 'capsule', 'spheroid'].includes(el.trapShape) ? el.trapShape : 'sphere';
@@ -24623,7 +24627,7 @@ const V3D = (() => {
   }
   function particleSizes(camera) {
     const k = 2 * Math.tan(camera.fov * deg / 2) / Math.max(1, R.h) * PARTICLE_PX, v = new T.Vector3();
-    for (const p of R.groups.parts.children) for (const o of p.children) if (o.userData.particle) { const d = v.copy(p.position).sub(camera.position).dot(camera.getWorldDirection(new T.Vector3())); o.scale.setScalar(Math.max(1e-4, k * Math.abs(d))); }
+    for (const p of R.groups.parts.children) for (const o of p.children) if (o.userData.particle) { const d = v.copy(p.position).sub(camera.position).dot(camera.getWorldDirection(new T.Vector3())); { const s = k * Math.abs(d); o.scale.setScalar(Math.max(1e-4, Math.max(Math.min(s, PARTICLE_MM3), s * PARTICLE_MIN3 / PARTICLE_PX))); } }
   }
   /* the pieces of a placed part that keep to the bench's directions, turned back by the part's own turn */
   const benchAxes = p => { for (const o of p.children) if (o.userData.benchAxis) { const [az, tl] = o.userData.benchAxis; o.quaternion.copy(p.quaternion).invert().multiply(new T.Quaternion().setFromEuler(new T.Euler(0, -tl, az, 'ZYX'))); } };
@@ -25939,7 +25943,7 @@ const V3D = (() => {
       // a network part's body in 3D: its size (mm) and the picture on its top, as a data URL
       netBody(name) { const el = project.elements.find(e => e.name === name); if (!el || !NET_3D.has(el.type)) return null; const B = netBox(el); return { hx: B.hx, hy: B.hy, h: B.h, ports: B.P.length, top: symbolCanvas(el, B.hx, B.hy, 14).toDataURL() }; },
       // a screen's particle as drawn: its shape, its drawn half-width and length (mm), and its axis on the bench
-      particleOf(name) { const el = project.elements.find(e => e.name === name), c = el && R && (sync(), R.partCache && R.partCache.get(el.id)); const o = c && c.obj.children.find(x => x.userData.particle); if (!o) return null; o.updateWorldMatrix(true, false); const v = new T.Vector3(1, 0, 0).transformDirection(o.matrixWorld); particleSizes(R.camera); return Object.assign({ axis: [v.x, v.y, v.z], px: o.scale.x * R.h / (2 * Math.tan(R.camera.fov * deg / 2) * o.getWorldPosition(new T.Vector3()).sub(R.camera.position).dot(R.camera.getWorldDirection(new T.Vector3()))) }, o.userData.particle); },
+      particleOf(name) { const el = project.elements.find(e => e.name === name), c = el && R && (sync(), R.partCache && R.partCache.get(el.id)); const o = c && c.obj.children.find(x => x.userData.particle); if (!o) return null; o.updateWorldMatrix(true, false); const v = new T.Vector3(1, 0, 0).transformDirection(o.matrixWorld); particleSizes(R.camera); const mmPx = R.h / (2 * Math.tan(R.camera.fov * deg / 2) * o.getWorldPosition(new T.Vector3()).sub(R.camera.position).dot(R.camera.getWorldDirection(new T.Vector3()))); return Object.assign({ axis: [v.x, v.y, v.z], at: o.getWorldPosition(new T.Vector3()).toArray(), px: o.scale.x * mmPx, mmPx, want: Math.min(PARTICLE_PX, Math.max(PARTICLE_MIN3, PARTICLE_MM3 * mmPx)) }, o.userData.particle); },
       // a particle's scattered light as drawn: the fan's rays, and the cones' (how many leave the bench plane)
       scatLight() { if (!R) return null; sync(); const rs = (lastTrace.rays || []).filter(r => r.sc && r.bench === project.tab); return { fan: R.nFan || 0, cone: rs.length, coneUp: rs.filter(r => r.zs && r.zs.some(z => Math.abs(z - r.zs[0]) > 1e-6)).length, lines: R.nRays }; },
       screenOf(name) { const el = project.elements.find(e => e.name === name); if (!el || !R) return null; sync(); const v = new T.Vector3(el.x, el.y, z3(el)).project(R.camera); return { x: (v.x + 1) / 2 * R.w, y: (1 - v.y) / 2 * R.h }; },
@@ -28890,14 +28894,17 @@ const NLC_UI = {
 /* It is nanometres across on a bench of millimetres, so it is drawn as a sign that keeps its size on the page: its shape and
    proportions, its axis along the part's angle (a rod tilted up out of the plane is seen shortened), in its material's
    colour, with four ticks round it so that a dot on a beam can be found */
-const PARTICLE_PX = 16;             // its longest side on the page
+const PARTICLE_PX = 16;             // its longest side on the page, close in
+/* zoomed out it shrinks with the bench, so it is never drawn larger than PARTICLE_MM, down to PARTICLE_MIN_PX */
+const PARTICLE_MM = 1, PARTICLE_MIN_PX = 6;
+const particlePx = () => Math.min(PARTICLE_PX, Math.max(PARTICLE_MIN_PX, PARTICLE_MM * V().scale));
 const PARTICLE_INK = { Au: '#d8a650', Ag: '#dfe3e6', Al: '#c9ced3' };
 /* the sign's half-length along its axis and half-width across it, px */
 function particleSign(el) {
   const sphere = !['cylinder', 'capsule', 'spheroid'].includes(el.trapShape), D = Math.max(1, 2 * el.trapR), L = sphere ? D : Math.max(el.trapShape === 'capsule' ? D : 1, el.trapLen || D);
-  const k = PARTICLE_PX / Math.max(D, L), across = Math.max(2.5, D * k / 2), tl = (el.trapTilt || 0) * deg;
+  const k = particlePx() / Math.max(D, L), across = Math.max(1.5, D * k / 2), tl = (el.trapTilt || 0) * deg;
   // along its axis as the bench plane shows it: a rod tilted up is seen end on
-  const along = sphere ? across : Math.max(2.5, Math.hypot(L * k / 2 * Math.cos(tl), D * k / 2 * Math.sin(tl)));
+  const along = sphere ? across : Math.max(1.5, Math.hypot(L * k / 2 * Math.cos(tl), D * k / 2 * Math.sin(tl)));
   return { along, across, shape: sphere ? 'sphere' : el.trapShape };
 }
 function drawParticle(el, sel) {
@@ -28917,7 +28924,7 @@ function drawParticle(el, sel) {
   ctx.stroke();
   ctx.restore();
   // the ticks, level and upright whatever the axis
-  const r0 = Math.max(S.along, S.across) + 4, r1 = r0 + 5;
+  const sm = particlePx() / PARTICLE_PX, r0 = Math.max(S.along, S.across) + 2 + 2 * sm, r1 = r0 + 3 + 2 * sm;
   ctx.beginPath();
   for (const [ux, uy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { ctx.moveTo(cx + ux * r0, cy + uy * r0); ctx.lineTo(cx + ux * r1, cy + uy * r1); }
   ctx.strokeStyle = sel ? selInk() : getCss('--rt-screen');
@@ -28925,7 +28932,7 @@ function drawParticle(el, sel) {
   ctx.stroke();
 }
 /* picked within its ticks: a disc that keeps its size on the page */
-const hitParticle = (el, lx, ly, tol) => Math.hypot(lx, ly) <= tol + (PARTICLE_PX / 2 + 9) / V().scale;
+const hitParticle = (el, lx, ly, tol) => Math.hypot(lx, ly) <= tol + (particlePx() / 2 + 9) / V().scale;
 
 function particleParams(el) {
   const rows = h('div', { class: 'rt-rows' }), sph = el.trapShape === 'sphere';
@@ -37927,15 +37934,12 @@ const particleMats = () => [...Object.keys(GLASS).filter(g => g !== 'Water').map
 function particleRows(el) {
   const rows = h('div', { class: 'rt-rows' });
   if (el.type === 'particle') {
-    // a Particle part: what it is made of is on its own tab; here the model, where it is and the cone the Collected figure is for
+    // a Particle part: what it is made of is on its own tab; here the model and where it is (the collection lens is set under the figure)
     const sph = el.trapShape === 'sphere';
     rows.append(selectField('Model', [['auto', 'Auto'], ['rayleigh', 'Rayleigh (one dipole)'], ['mie', 'Mie (a sphere, exact)'], ['dda', 'Dipole array']], () => el.scatModel, v => { el.scatModel = v; }));
     if (el.scatModel === 'dda' || (el.scatModel === 'auto' && !sph)) rows.append(param('Dipoles across (0: chosen)', el, 'scatDip', { noSweep: true }));
     rows.append(selectField('Where it is', [['part', 'Where the part is'], ['trap', 'Where the trap holds it']], () => el.scatAt, v => { el.scatAt = v; }, { wide: true }),
       param('Moved across (µm)', el, 'scatDx'), param('Moved up (µm)', el, 'scatDy'), param('Moved along the beam (µm)', el, 'scatDz'));
-    rows.append(param('Collecting NA', el, 'scatNA'),
-      selectField('Collected from', [['fwd', 'Ahead (the beam’s way)'], ['back', 'Behind (back along it)'], ['side', 'The side, in the plane'], ['up', 'Above'], ['angle', 'A direction on the bench']], () => el.scatDir, v => { el.scatDir = v; }));
-    if (el.scatDir === 'angle') rows.append(param('Direction (°)', el, 'scatAng'));
     return rows;
   }
   return rows;
@@ -38155,7 +38159,13 @@ function scatterSection(el) {
   let last = null, sigT = '', sigS = '';
   const draw = () => { const v = vs(el).scatView || el.scatView; if (v === 'map') drawScatMap(cv, el, last); else drawPolar(cv, el, last, v); [...tabs.children].forEach((b, i) => { b.style.fontWeight = views[i][0] === v ? '700' : '600'; b.style.textDecoration = views[i][0] === v ? 'underline' : 'none'; }); };
   for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { vs(el).scatView = key; draw(); } }, text));
-  const scale = h('div', { class: 'rt-rows', style: 'margin-top:0.3rem' }, selectField('Scale', [['log', 'Logarithmic, ' + SCAT_DB + ' dB'], ['lin', 'Linear']], () => el.scatScale, v => { el.scatScale = v; }, { rebuild: false }));
+  // under the figure: its scale, and the lens the Collected figure is for (a notional lens: the particle is lit by every
+  // beam through it whatever these say, and its light reaches every part that sees it)
+  const scale = h('div', { class: 'rt-rows', style: 'margin-top:0.3rem' }, selectField('Scale', [['log', 'Logarithmic, ' + SCAT_DB + ' dB'], ['lin', 'Linear']], () => el.scatScale, v => { el.scatScale = v; }, { rebuild: false }),
+    param('Collection lens NA', el, 'scatNA'),
+    selectField('Collection lens faces', [['fwd', 'Ahead (the beam’s way)'], ['back', 'Behind (back along it)'], ['side', 'The side, in the plane'], ['up', 'Above'], ['angle', 'A direction on the bench']], () => el.scatDir, v => { el.scatDir = v; }));
+  if (el.scatDir === 'angle') scale.append(param('Direction (°)', el, 'scatAng'));
+  scale.append(helpLine('The Collected figure is for this lens alone: the particle is lit by every beam through it whatever is set here.'));
   panel.append(status, box, tabs, h('div', { class: 'rt-plot' }, cv), plotSaveRow(cv, true), scale);
   let drawnW = -1;
   new ResizeObserver(() => requestAnimationFrame(() => { const w = cv.clientWidth; if (w && Math.abs(w - drawnW) > 0.5) { drawnW = w; draw(); } })).observe(cv);
@@ -38453,10 +38463,10 @@ function renderOverview() {
         if (!of.length) continue;
         list.append(h('li', { class: 'rt-plhead' }, title + ' (' + of.length + ')'));
         for (const el of of) {
-          // the eye: shown or hidden in the 3D view, for a part drawn there; hidden, the light still meets it
+          // the eye: shown or hidden on the bench, 2D and 3D, for a part drawn in 3D; hidden, the light still meets it
           const eye = V3D.free(el) ? h('button', { type: 'button', class: 'rt-eye' + (el.hide3d ? ' off' : ''), 'aria-pressed': String(!el.hide3d),
-            title: el.hide3d ? 'Hidden in the 3D view (the light still meets it): show it' : 'Hide it in the 3D view (the light still meets it)',
-            'aria-label': (el.hide3d ? 'Show ' : 'Hide ') + el.name + ' in the 3D view',
+            title: el.hide3d ? 'Hidden on the bench, in 2D and 3D (the light still meets it): show it' : 'Hide it on the bench, in 2D and 3D (the light still meets it)',
+            'aria-label': (el.hide3d ? 'Show ' : 'Hide ') + el.name + ' on the bench',
             onclick: () => { checkpoint(); if (el.hide3d) delete el.hide3d; else el.hide3d = true; changed(true); } }) : null;
           if (eye) eye.innerHTML = el.hide3d ? EYE_SHUT : EYE_OPEN;
           const kind = typeLabel(el);
@@ -59800,6 +59810,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'A part hidden by its eye in the bench list is hidden on the 2D bench as well as in 3D, its name with it, and a click there no longer picks it; the light still meets it, and chosen in the list it is drawn faintly. A <b>Particle</b>\u2019s sign shrinks with the bench when zoomed out (never larger than 1 mm there), so it no longer dwarfs the parts round it.',
     'A <b>Particle</b> inside a two-mirror cavity is solved in the cavity\u2019s own Hermite-Gauss modes: its light that goes round and comes back drives it again, every round trip at once, by Mie, the dipole array or the single dipole. The Scattering tab gives how far it moves the cavity\u2019s resonance and how much it widens it, and the detectors behind either mirror read the cavity with the particle in it. A ring, or a cavity clipped or out of line, keeps the warning.',
     'A <b>Particle</b> in a concentric or confocal cavity, or one near them, is solved too: the mirrors bring its light back re-imaged, so it is solved over the directions it sends onto them, each traced round the cavity by the bench\u2019s tracer (the mirrors\u2019 shape, rims, coatings and placing), every return of it followed until it fades. The detectors read the cavity with the particle in it. A cavity of small Fresnel number gets a note that the rims are taken as hard edges. A cavity just outside that range, solved in its modes, takes the same returns for the modes past the solve\u2019s list where the mirrors re-image the particle\u2019s light (checked for 90% mirrors 2 mm across, 0.5 to 1.1 mm short of concentric); elsewhere near it the tab says what is not to be trusted.',
     'A <b>Particle</b> in a retro-reflected beam is driven by its own scattered light coming back as well, scattered again until it settles (second scattering), whether it is a sphere, a rod or spheroid (the dipole array is solved again each pass) or a single dipole: the scattered power moves by up to 2.5% in the validation case, and its energy balances. Inside a cavity, where the light would come back again and again, the Scattering tab says it is not modelled.',
@@ -63837,6 +63848,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // the optical path between two bench points on beams, as the ruler finds it
     oplBetween(a, b) { traceScene(); const v = measureOpl(measureSnap(sx(a[0]), sy(a[1])), measureSnap(sx(b[0]), sy(b[1]))); return v.length === 1 ? v[0] : v; },
     layoutSvg() { return layoutSvg(recordLayout()); },
+    // the part a click at a bench point would pick, by its name (null: none)
+    hitAt(x, y) { const e = hitTest(sx(x), sy(y)); return e ? e.name : null; },
     // a project as someone else wrote it: what opening it changed, as plain text
     aiGuideText,
     docsParams,

@@ -80,7 +80,7 @@ $$
 
 - **Polarisability.** $$\alpha$$ is that of the lattice dispersion relation (Draine and Goodman 1993): the Clausius–Mossotti value corrected to order $$(kd)^2$$, so that an infinite lattice carries a wave of the material's own index, with the radiative reaction.
 - **Solver.** BiCGStab, to a residual of $$10^{-5}$$. Each product is the direct one, every pair of dipoles, so the time grows as the square of the number of dipoles.
-- **Lattice.** The spacing is the smaller of $$0.5/(|m|k)$$ and a tenth of the particle's smallest dimension (set **Dipoles across** for more). The spacing is then adjusted so the dipoles hold the shape's true volume. A run has at most 12,000 dipoles, or 24,000 when you set the dipoles across.
+- **Lattice.** The spacing is the smaller of $$0.5/(|m|k)$$ and a tenth of the particle's smallest dimension (**Dipoles across**: 0 is automatic; a number sets how many across, coarser and faster below 10, finer and slower above). The spacing is then adjusted so the dipoles hold the shape's true volume. A run has at most 12,000 dipoles, or 24,000 when you set the dipoles across.
 - **Incident field.** In a tight focus each dipole is driven by the sum of the focus's plane waves at its own position.
 - **Output.** The far field $$\mathbf F(\hat r) = k^2\sum_j \left(\mathbf p_j - \hat r(\hat r\cdot\mathbf p_j)\right)e^{-ik\hat r\cdot\mathbf r_j}$$, extinction from the optical theorem and absorption from the dipoles themselves.
 

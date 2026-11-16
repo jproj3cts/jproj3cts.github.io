@@ -6,7 +6,7 @@ import { particleOf } from '../core/traps.js';
 import { V, deg } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { modDelta } from '../engines/mods.js';
-import { SCAT_NMAX, particleTrapNow, scatCache, scatFind, scatKeep, scatStore, scatterNow, scatterPrep, scatterRun, setScatMode, trapKeep, trapKeyOf, trapKept } from '../engines/scatter.js';
+import { SCAT_NHARD, SCAT_NMAX, particleTrapNow, scatCache, scatFind, scatKeep, scatStore, scatterNow, scatterPrep, scatterRun, setScatMode, trapKeep, trapKeyOf, trapKept } from '../engines/scatter.js';
 import { popRun } from '../engines/beam-tree.js';
 import { lastTrace } from '../engines/trace.js';
 import { trapReport } from '../engines/screen-stats.js';
@@ -275,7 +275,8 @@ function particleRows(el) {
     // a Particle part: what it is made of is on its own tab; here the model and where it is (the collection lens is set under the figure)
     const sph = el.trapShape === 'sphere';
     rows.append(selectField('Model', [['auto', 'Auto'], ['rayleigh', 'Rayleigh (one dipole)'], ['mie', 'Mie (a sphere, exact)'], ['dda', 'Dipole array']], () => el.scatModel, v => { el.scatModel = v; }));
-    if (el.scatModel === 'dda' || (el.scatModel === 'auto' && !sph)) rows.append(param('Dipoles across (0: chosen)', el, 'scatDip', { noSweep: true }));
+    if (el.scatModel === 'dda' || (el.scatModel === 'auto' && !sph)) rows.append(param('Dipoles across (0: automatic)', el, 'scatDip', { noSweep: true }),
+      helpLine('Automatic: at least 10 across its narrowest width, fine enough that the light\u2019s phase changes by under 0.5 rad across one dipole in the material, up to ' + SCAT_NMAX.toLocaleString('en-GB') + ' dipoles. A number sets how many across: fewer is faster and coarser, more is finer and slower (up to ' + SCAT_NHARD.toLocaleString('en-GB') + ').'));
     rows.append(selectField('Where it is', [['part', 'Where the part is'], ['trap', 'Where the trap holds it']], () => el.scatAt, v => { el.scatAt = v; }, { wide: true }),
       param('Moved across (µm)', el, 'scatDx'), param('Moved up (µm)', el, 'scatDy'), param('Moved along the beam (µm)', el, 'scatDz'));
     return rows;

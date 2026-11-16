@@ -95,3 +95,12 @@ Helvetica, lines as lines). `ui/drawing.js` draws the sheet on the overlay canva
 dimension tool, dragging of views and dimensions, and the side panel. The PDF is an export behind `accountGate`
 (`exportPdf` in `io/files.js`). Docs `jek/docs/jekcad/drawings.md`; tests `test/node/drawing.test.mjs` and the browser suite.
 
+Threads (`core/threads.js`: ISO metric sizes, tap drills, clearance holes) are cosmetic. A tapped Hole is drilled at the
+tap size and the kernel keeps a note of it (`S.threads`, by the hole's name and its radius, so patterns and mirrors of
+it are tapped too); the Thread feature notes a thread on faces by name. `threadsOf` gives each part's threads with its
+mesh (where each starts, which way it runs, how far), which the measure readout and drawings read. A drawing's
+section views are cut by the kernel (`drawingViews`: the half of space on the eye's side taken away, the faces left on
+the plane returned to be hatched), details are drawn from their parent's lines (`withDetails`), and the sheet is
+written as a DXF as well as a PDF (`dxfOfSheet`, AutoCAD R12). A modelled helical thread was tried: the sweep is valid
+but booleans with it fail in this OpenCascade build.
+

@@ -2243,7 +2243,8 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         <button type="button" class="rt-btn quiet cad-fbtn" data-feature="fillet" data-icon="fillet" title="Round edges">Fillet</button>
         <button type="button" class="rt-btn quiet cad-fbtn" data-feature="chamfer" data-icon="chamfer" title="Bevel edges">Chamfer</button>
         <button type="button" class="rt-btn quiet cad-fbtn" data-feature="shell" data-icon="shell" title="Hollow a part, faces removed">Shell</button>
-        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="hole" data-icon="hole" title="Holes at a sketch’s points">Hole</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="hole" data-icon="hole" title="Holes at a sketch’s points: simple, tapped, clearance, counterbored, countersunk">Hole</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="thread" data-icon="thread" title="A thread on a round face: a hole at a tap drill size, or a shaft">Thread</button>
         <span class="rt-qsep" aria-hidden="true"></span>
         <button type="button" class="rt-btn quiet cad-fbtn" data-feature="lpattern" data-icon="lpattern" title="Linear pattern">Linear</button>
         <button type="button" class="rt-btn quiet cad-fbtn" data-feature="cpattern" data-icon="cpattern" title="Circular pattern">Circular</button>
@@ -2268,11 +2269,16 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
       </div>
       <div class="rt-row cad-fbar" id="drwBar" role="group" aria-label="Drawing" hidden>
         <button type="button" class="rt-btn quiet cad-fbtn on" data-drw="select" data-icon="select" title="Select: drag a view or a dimension to move it (Esc)">Select</button>
-        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="dim" data-icon="dim" title="Dimension (D): click two corners of a view, then where it goes; or click a circle for its diameter">Dimension</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="dim" data-icon="dim" title="Dimension (D): click two corners of a view, then where it goes; or click a circle for its diameter, an arc for its radius">Dimension</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="ang" data-icon="angle" title="Angle: click two straight lines of a view, then where it goes">Angle</button>
         <button type="button" class="rt-btn quiet cad-fbtn" data-drw="overall" data-icon="measure" title="Add each view’s overall width and height">Overall sizes</button>
+        <span class="rt-qsep" aria-hidden="true"></span>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="section" data-icon="section" title="Section: click in a view where it cuts, up the view (Shift: across it)">Section</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="detail" data-icon="detail" title="Detail: click the middle of what to enlarge, then how far round it">Detail</button>
         <span class="rt-qsep" aria-hidden="true"></span>
         <button type="button" class="rt-btn quiet cad-fbtn" data-drw="fit" data-icon="fit" title="Fit the sheet in the window (F)">Fit sheet</button>
         <button type="button" class="rt-btn quiet cad-fbtn" data-drw="pdf" data-icon="export" data-need="account" data-what="export a PDF" title="Export the sheet as a PDF, at its true size">Export PDF</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="dxf" data-icon="export" data-need="account" data-what="export a DXF" title="Export the sheet as a DXF (AutoCAD R12, millimetres) for other CAD programs">Export DXF</button>
       </div>
       <div class="rt-row cad-fbar cad-skbar" id="sketchBar" role="group" aria-label="Sketch tools" hidden></div>
     </div>
@@ -2643,6 +2649,24 @@ const fmtAng = v => fmtNum(v, 3) + '°';
 const exprText = v => (typeof v === 'number' ? fmtNum(v, 6) : String(v == null ? '' : v));
 /* does it name a variable, or calculate: worth showing its value beside it */
 const exprIsFormula = v => typeof v === 'string' && /[#()*/^+]|[a-z]{2,}\(/.test(v.replace(/^\s*-/, '').replace(/\d(e[+-]?)\d/gi, ''));
+/* ==========================================================================
+   Screw threads: ISO metric, coarse pitch (ISO 261 and 262) with three fine ones in common use. Each size: its major
+   diameter, its pitch, the drill for a tapped hole (major less one pitch, as tap makers give it), and the clearance
+   hole for a screw of that size, close and normal fit (ISO 273). Threads in JEKcad are cosmetic, as most CAD's are:
+   the hole is drilled at the tap size and the thread is noted on its wall, shown on drawings and in the measure
+   readout, and not modelled as a helix.
+   ========================================================================== */
+const THREADS = [
+  ['M1.6', 1.6, 0.35, 1.25, 1.7, 1.8], ['M2', 2, 0.4, 1.6, 2.2, 2.4], ['M2.5', 2.5, 0.45, 2.05, 2.7, 2.9], ['M3', 3, 0.5, 2.5, 3.2, 3.4],
+  ['M4', 4, 0.7, 3.3, 4.3, 4.5], ['M5', 5, 0.8, 4.2, 5.3, 5.5], ['M6', 6, 1, 5, 6.4, 6.6], ['M8', 8, 1.25, 6.8, 8.4, 9],
+  ['M8x1', 8, 1, 7, 8.4, 9], ['M10', 10, 1.5, 8.5, 10.5, 11], ['M10x1.25', 10, 1.25, 8.75, 10.5, 11], ['M12', 12, 1.75, 10.2, 13, 13.5],
+  ['M12x1.5', 12, 1.5, 10.5, 13, 13.5], ['M14', 14, 2, 12, 15, 15.5], ['M16', 16, 2, 14, 17, 17.5], ['M20', 20, 2.5, 17.5, 21, 22], ['M24', 24, 3, 21, 25, 26],
+].map(([size, major, pitch, tap, close, normal]) => ({ size, major, pitch, tap, close, normal }));
+const threadOf = size => THREADS.find(t => t.size === size) || null;
+/* how a thread is written on a drawing: M6×1, and its depth when it does not go right through */
+const threadLabel = (t, depth) => (t ? t.size.replace(/x[\d.]+$/, '') + '×' + t.pitch : '') + (depth ? ' ▾' + String(+(+depth).toFixed(2)) : '');
+/* the minor diameter of an external thread (ISO 68: major less 1.22687 pitches) */
+const extMinor = t => t.major - 1.22687 * t.pitch;
 /* ==========================================================================
    A sketch: its shapes, the constraints between them, and its dimensions (begun as JEKray's Model-mode sketch,
    core/sketch.js there, and owned here since). The shapes are lines (a, b), arcs (centre c, radius r, from angle
@@ -4075,7 +4099,7 @@ const itemName = it => (it.kind === 'part' ? it.name || 'Part' : it.kind === 'fa
 function ownRows(it) {
   const R = [];
   if (it.kind === 'part') R.push(['Volume', fmtNum(it.volume, 3) + ' mm³', it.volume], ['Surface area', mm2(it.area), it.area], ['Mass', it.mass !== null && it.mass !== undefined ? fmtNum(it.mass, 3) + ' g (' + it.density + ' g/cm³)' : 'choose a material', it.mass], ['Centre of mass', it.centroid.map(v => fmtNum(v, 3)).join(', ')]);
-  else if (it.kind === 'face') { R.push(['Area', mm2(it.area), it.area]); if (it.radius) R.push(['Diameter', mm(2 * it.radius), 2 * it.radius], ['Radius', mm(it.radius), it.radius]); }
+  else if (it.kind === 'face') { if (it.thread) R.push(['Thread', it.thread.label.replace(/ ▾.*/, '') + (it.thread.internal ? ', tapped' : ', external'), null], ['Thread length', mm(it.thread.length), it.thread.length]); R.push(['Area', mm2(it.area), it.area]); if (it.radius) R.push(['Diameter', mm(2 * it.radius), 2 * it.radius], ['Radius', mm(it.radius), it.radius]); }
   else if (it.kind === 'edge') { R.push(['Length', mm(it.length), it.length]); if (it.radius) R.push(['Diameter', mm(2 * it.radius), 2 * it.radius], ['Radius', mm(it.radius), it.radius]); if (it.axis) R.push(['Centre', it.axis.p.map(v => fmtNum(v, 3)).join(', ')]); }
   else if (it.pt) R.push(['X', mm(it.pt[0]), it.pt[0]], ['Y', mm(it.pt[1]), it.pt[1]], ['Z', mm(it.pt[2]), it.pt[2]]);
   return R;
@@ -4087,7 +4111,7 @@ function measureReadout(m) {
   if (items.length === 1) {
     const it = items[0], own = ownRows(it);
     // of one thing: a round one's diameter, an edge's length, a face's area, a part's volume, a corner's place
-    head = it.radius ? own.find(r => r[0] === 'Diameter') : it.kind === 'vertex' ? ['Point', it.pt.map(v => fmtNum(v, 3)).join(', ')] : own[0];
+    head = it.thread ? own[0] : it.radius ? own.find(r => r[0] === 'Diameter') : it.kind === 'vertex' ? ['Point', it.pt.map(v => fmtNum(v, 3)).join(', ')] : own[0];
     rows.push([itemName(it)], ...own);
     return { head, rows };
   }
@@ -4347,14 +4371,16 @@ function solveMatesOnce(asm, hold) {
 /* ==========================================================================
    A drawing: a tab that shows a Part Studio's parts, or an Assembly, as views on a sheet of paper, with dimensions
    and a title block. Pure: the document's drawing checked, where each view sits on the sheet, each dimension's
-   lines, the whole sheet drawn through a pen (the page's canvas, or a PDF), and the PDF written with no library.
-   The sheet is in millimetres, x across and y down from its top left corner. A view is the model seen square on
-   (the kernel takes the hidden lines out); its own coordinates are the model's millimetres, X across and Y up.
-   Third angle: the top view above the front, the right view to its right.
+   lines, the whole sheet drawn through a pen (the page's canvas, a PDF or a DXF), and both files written with no
+   library. The sheet is in millimetres, x across and y down from its top left corner. A view is the model seen
+   square on (the kernel takes the hidden lines out); its own coordinates are the model's millimetres, X across and Y
+   up. Third angle: the top view above the front, the right view to its right.
+   Besides the principal views a drawing has section views (a parent view cut along a line across it, seen from one
+   side, the cut faces hatched) and detail views (a circle of a parent view drawn larger).
    ========================================================================== */
 const SHEETS = { A4: [297, 210], A3: [420, 297], A2: [594, 420] };
 const R2 = Math.SQRT1_2, R3 = 1 / Math.sqrt(3);
-/* each view: n towards the eye, x across the paper */
+/* each principal view: n towards the eye, x across the paper */
 const VIEW_DIRS = {
   front: { name: 'Front', n: [0, -1, 0], x: [1, 0, 0] }, top: { name: 'Top', n: [0, 0, 1], x: [1, 0, 0] }, right: { name: 'Right', n: [1, 0, 0], x: [0, 1, 0] },
   back: { name: 'Back', n: [0, 1, 0], x: [-1, 0, 0] }, left: { name: 'Left', n: [-1, 0, 0], x: [0, -1, 0] }, bottom: { name: 'Bottom', n: [0, 0, -1], x: [1, 0, 0] },
@@ -4364,10 +4390,33 @@ const SCALES = [50, 20, 10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02, 0.01, 0.005, 0.0
 const dstr = (v, n) => typeof v === 'string' && v.length <= n;
 const dcross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 const ddot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-/* a model point as a view sees it: [X across, Y up] */
+const dneg = a => [-a[0], -a[1], -a[2]];
+/* a model point as a view sees it: [X across, Y up] (by a principal view's name, or by a view's frame) */
 function viewPoint(dir, p) { const V = VIEW_DIRS[dir] || VIEW_DIRS.front, y = dcross(V.n, V.x); return [ddot(p, V.x), ddot(p, y)]; }
+const framePoint = (F, p) => [ddot(p, F.x), ddot(p, F.up)];
 const scaleText = s => (s >= 1 ? +s.toFixed(3) + ':1' : '1:' + +(1 / s).toFixed(3));
 const drwText = v => String(+(+v).toFixed(2));
+const LETTERS = 'ABCDEFGHJKLMNPRSTUVWXYZ';
+
+/* ---------- a view's frame: which way it looks, and for a section where it cuts ----------
+   { n (towards the eye), x (across), up, k (its scale against the sheet's), cut: { o, n } (the half of space on
+   the eye's side of the plane through o is taken away) } */
+function frameOf(D, v) {
+  if (VIEW_DIRS[v.dir]) { const V = VIEW_DIRS[v.dir]; return { n: V.n, x: V.x, up: dcross(V.n, V.x), k: 1 }; }
+  const P = D.views.find(x => x.id === v.of);
+  if (!P) return null;
+  const PF = frameOf(D, P);
+  if (!PF) return null;
+  if (v.dir === 'detail') return Object.assign({}, PF, { k: (PF.k || 1) * (v.k || 2), cut: PF.cut });
+  // a section: a line across its parent (up the parent at X = pos, or across it at Y = pos), seen from one side
+  let n, up;
+  if (v.axis === 'v') { n = v.flip ? PF.x : dneg(PF.x); up = PF.up; }
+  else { n = v.flip ? dneg(PF.up) : PF.up; up = dneg(PF.n); }
+  const x = dcross(up, n), o = v.axis === 'v' ? PF.x.map(c => c * v.pos) : PF.up.map(c => c * v.pos);
+  return { n, x, up, k: 1, cut: { o, n } };
+}
+/* the views the kernel is asked for: every one but a detail (drawn from its parent's lines) */
+const kernelViews = D => D.views.filter(v => v.dir !== 'detail').map(v => { const F = frameOf(D, v); return F && Object.assign({ id: v.id, n: F.n, x: F.x }, F.cut ? { cut: F.cut } : {}); }).filter(Boolean);
 
 /* ---------- the document's drawing, checked ---------- */
 function normRef(r) {
@@ -4376,21 +4425,28 @@ function normRef(r) {
   if (!okS(ref.part, 80) || !Array.isArray(ref.faces) || ref.faces.length < 1 || ref.faces.length > 6 || !ref.faces.every(x => okS(x, 120)) || !Array.isArray(ref.pt) || ref.pt.length !== 3 || !ref.pt.every(Number.isFinite)) return null;
   return Object.assign({ ref: { kind: ref.kind, part: ref.part, faces: ref.faces.slice(), pt: ref.pt.slice() } }, okS(r.inst, 40) ? { inst: r.inst } : {});
 }
+const dfin = (v, d) => (Number.isFinite(v) ? +v : d);
 function normDrawing(d, n) {
   d = d && typeof d === 'object' ? d : {};
-  const vids = new Set(), views = [];
-  for (const v of (Array.isArray(d.views) ? d.views : []).slice(0, 12)) {
-    if (!v || !VIEW_DIRS[v.dir]) continue;
-    const id = dstr(v.id, 40) && v.id && !vids.has(v.id) ? v.id : sketchId('v'); vids.add(id);
-    views.push(Object.assign({ id, dir: v.dir }, Array.isArray(v.at) && v.at.length === 2 && v.at.every(Number.isFinite) ? { at: v.at.map(Number) } : {}));
-  }
-  const dims = [], dids = new Set();
+  const vids = new Set(), views = [], src = (Array.isArray(d.views) ? d.views : []).slice(0, 24), used = new Set();
+  const at = v => (Array.isArray(v.at) && v.at.length === 2 && v.at.every(Number.isFinite) ? { at: v.at.map(Number) } : {});
+  const idOf = v => { const id = dstr(v.id, 40) && v.id && !vids.has(v.id) ? v.id : sketchId('v'); vids.add(id); return id; };
+  for (const v of src) if (v && VIEW_DIRS[v.dir]) views.push(Object.assign({ id: idOf(v), dir: v.dir }, at(v)));
+  const principal = new Set(views.filter(v => v.dir !== 'iso').map(v => v.id));
+  const letter = v => { let L = dstr(v.label, 2) && /^[A-Z]{1,2}$/.test(v.label) && !used.has(v.label) ? v.label : [...LETTERS].find(c => !used.has(c)) || 'Z'; used.add(L); return L; };
+  // a section of a principal view (not the isometric one); a detail of any view but a detail
+  for (const v of src) if (v && v.dir === 'section' && principal.has(v.of)) views.push(Object.assign({ id: idOf(v), dir: 'section', of: v.of, axis: v.axis === 'h' ? 'h' : 'v', pos: dfin(v.pos, 0), label: letter(v) }, v.flip ? { flip: true } : {}, at(v)));
+  const parents = new Set(views.map(v => v.id));
+  for (const v of src) if (v && v.dir === 'detail' && parents.has(v.of) && Array.isArray(v.c) && v.c.length === 2 && v.c.every(Number.isFinite) && dfin(v.r, 0) > 0)
+    views.push(Object.assign({ id: idOf(v), dir: 'detail', of: v.of, c: v.c.map(Number), r: +v.r, k: [1.5, 2, 3, 4, 5, 10].includes(+v.k) ? +v.k : 2, label: letter(v) }, at(v)));
+  const dims = [], dids = new Set(), live = new Set(views.map(v => v.id));
   for (const m of (Array.isArray(d.dims) ? d.dims : []).slice(0, 400)) {
-    if (!m || !vids.has(m.view) || !['lin', 'dia', 'ext'].includes(m.t)) continue;
+    if (!m || !live.has(m.view) || !['lin', 'dia', 'rad', 'ang', 'ext'].includes(m.t)) continue;
     const id = dstr(m.id, 40) && m.id && !dids.has(m.id) ? m.id : sketchId('q'); dids.add(id);
-    const o = { id, view: m.view, t: m.t, off: Number.isFinite(m.off) ? +m.off : 10 };
+    const o = { id, view: m.view, t: m.t, off: dfin(m.off, m.t === 'ang' ? 15 : 10) };
     if (m.t === 'lin') { const a = normRef(m.a), b = normRef(m.b); if (!a || !b) continue; Object.assign(o, { a, b, dir: ['h', 'v', 'a'].includes(m.dir) ? m.dir : 'h' }); }
-    else if (m.t === 'dia') { const a = normRef(m.a); if (!a || a.ref.kind !== 'edge') continue; Object.assign(o, { a, ang: Number.isFinite(m.ang) ? +m.ang : 45 }); }
+    else if (m.t === 'dia' || m.t === 'rad') { const a = normRef(m.a); if (!a || a.ref.kind !== 'edge') continue; Object.assign(o, { a, ang: dfin(m.ang, 45) }); }
+    else if (m.t === 'ang') { const r = ['a', 'b', 'c', 'd'].map(k => normRef(m[k])); if (r.some(x => !x)) continue; Object.assign(o, { a: r[0], b: r[1], c: r[2], d: r[3] }); }
     else o.axis = m.axis === 'y' ? 'y' : 'x';
     dims.push(o);
   }
@@ -4398,75 +4454,152 @@ function normDrawing(d, n) {
   for (const k of ['title', 'by', 'material', 'note', 'number']) if (dstr(t[k], 120) && t[k]) title[k] = t[k];
   return { id: dstr(d.id, 40) && d.id ? d.id : sketchId('t'), kind: 'drawing', name: dstr(d.name, 120) && d.name.trim() ? d.name : 'Drawing ' + (n || 1),
     of: dstr(d.of, 40) ? d.of : '', part: dstr(d.part, 80) && d.part ? d.part : null, sheet: SHEETS[d.sheet] ? d.sheet : 'A4',
-    scale: Number.isFinite(d.scale) && d.scale > 0 ? +d.scale : 0, hidden: !!d.hidden, views, dims, title };
+    scale: Number.isFinite(d.scale) && d.scale > 0 ? +d.scale : 0, hidden: !!d.hidden, marks: d.marks !== false, views, dims, title };
 }
 /* a new drawing of a tab: the three views and the isometric one */
 const newDrawing = (of, n) => normDrawing({ of, views: [{ dir: 'front' }, { dir: 'top' }, { dir: 'right' }, { dir: 'iso' }] }, n);
+/* the next letter free for a section or a detail */
+const nextLetter = D => [...LETTERS].find(c => !D.views.some(v => v.label === c)) || 'Z';
+
+/* ---------- a detail view's lines: its parent's, cut to its circle ---------- */
+function clipRun(run, c, r) {
+  const out = [], inside = (x, y) => Math.hypot(x - c[0], y - c[1]) <= r;
+  let cur = null;
+  const push = (x, y) => { if (!cur) { cur = []; out.push(cur); } cur.push(x, y); };
+  for (let i = 0; i + 3 < run.length; i += 2) {
+    const ax = run[i], ay = run[i + 1], bx = run[i + 2], by = run[i + 3], ia = inside(ax, ay), ib = inside(bx, by);
+    // where the segment crosses the circle: t along it
+    const dx = bx - ax, dy = by - ay, fx = ax - c[0], fy = ay - c[1], A = dx * dx + dy * dy, B = 2 * (fx * dx + fy * dy), C = fx * fx + fy * fy - r * r, disc = B * B - 4 * A * C;
+    const ts = A > 1e-18 && disc > 0 ? [(-B - Math.sqrt(disc)) / (2 * A), (-B + Math.sqrt(disc)) / (2 * A)].filter(t => t > 0 && t < 1) : [];
+    if (ia) { if (!cur) push(ax, ay); }
+    const pts = ts.map(t => [ax + dx * t, ay + dy * t]);
+    let state = ia;
+    for (const p of pts) { if (state) { push(p[0], p[1]); cur = null; } else push(p[0], p[1]); state = !state; }
+    if (ib) push(bx, by); else if (state) { cur = null; }
+    if (!ib) cur = null;
+  }
+  return out.filter(r2 => r2.length >= 4);
+}
+function withDetails(D, data) {
+  if (!data || !data.views) return data;
+  const views = Object.assign({}, data.views);
+  for (const v of D.views) {
+    if (v.dir !== 'detail') continue;
+    const P = views[v.of];
+    if (!P) continue;
+    const clip = L => (L || []).flatMap(run => clipRun(run, v.c, v.r));
+    views[v.id] = { id: v.id, vis: clip(P.vis), hid: clip(P.hid), cut: (P.cut || []).map(ring => ring.slice()), clipC: v.c, clipR: v.r,
+      circles: (P.circles || []).filter(k => Math.hypot(k.c[0] - v.c[0], k.c[1] - v.c[1]) + k.r <= v.r + 1e-9),
+      threads: (P.threads || []).filter(t => t.kind === 'end' ? Math.hypot(t.c[0] - v.c[0], t.c[1] - v.c[1]) + t.r <= v.r + 1e-9 : Math.hypot(t.a[0] - v.c[0], t.a[1] - v.c[1]) <= v.r && Math.hypot(t.b[0] - v.c[0], t.b[1] - v.c[1]) <= v.r) };
+  }
+  return Object.assign({}, data, { views });
+}
 
 /* ---------- where everything sits on the sheet ----------
-   data: { views: { [id]: { vis, hid } } } as the kernel gives them (runs of x, y in the view's millimetres).
-   { W, H, s, m (the margin), views: [{ id, dir, box, c, at }] }, and toSheet(view, [X, Y]) */
+   data: { views: { [id]: { vis, hid, cut, circles, threads } } } as the kernel gives them (runs of x, y in the view's
+   millimetres). { W, H, s, m (the margin), views: [{ id, dir, box, c, at, s (its scale), F }], data, toSheet(view, [X, Y]) } */
 function viewBox(v) {
   let lo = [Infinity, Infinity], hi = [-Infinity, -Infinity];
   for (const L of [v && v.vis, v && v.hid]) for (const run of L || []) for (let i = 0; i + 1 < run.length; i += 2) { lo = [Math.min(lo[0], run[i]), Math.min(lo[1], run[i + 1])]; hi = [Math.max(hi[0], run[i]), Math.max(hi[1], run[i + 1])]; }
   return lo[0] === Infinity ? null : [lo[0], lo[1], hi[0], hi[1]];
 }
 const TITLE_W = 150, TITLE_H = 36;
-function layoutOf(D, data) {
+function layoutOf(D, data0) {
+  const data = withDetails(D, data0);
   const [W, H] = SHEETS[D.sheet] || SHEETS.A4, m = 10, gap = 18;
-  const vs = D.views.map(v => { const box = viewBox(data && data.views && data.views[v.id]); return { id: v.id, dir: v.dir, box, at: v.at || null, c: box ? [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2] : [0, 0], w: box ? box[2] - box[0] : 0, h: box ? box[3] - box[1] : 0 }; });
-  const by = d => vs.find(v => v.dir === d), F = by('front') || vs[0], T = by('top'), Rv = by('right'), I = by('iso');
+  const vs = D.views.map(v => {
+    const F = frameOf(D, v) || { n: [0, 0, 1], x: [1, 0, 0], up: [0, 1, 0], k: 1 };
+    let box = viewBox(data && data.views && data.views[v.id]);
+    if (v.dir === 'detail') box = [v.c[0] - v.r, v.c[1] - v.r, v.c[0] + v.r, v.c[1] + v.r];
+    return Object.assign({ id: v.id, dir: v.dir, box, at: v.at || null, c: box ? [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2] : [0, 0], w: box ? box[2] - box[0] : 0, h: box ? box[3] - box[1] : 0, F, k: F.k || 1 }, v.label ? { label: v.label } : {}, v.of ? { of: v.of } : {});
+  });
+  const by = d => vs.find(v => v.dir === d), Fv = by('front') || vs.find(v => VIEW_DIRS[v.dir]) || vs[0], T = by('top'), Rv = by('right'), I = by('iso');
   // the scale: the largest of the usual ones at which the front, top and right views sit together above the title block
-  const needW = (F ? F.w : 0) + (Rv ? Rv.w : 0) + (I && !Rv ? I.w : 0), needH = (F ? F.h : 0) + (T ? T.h : 0);
+  const needW = (Fv ? Fv.w : 0) + (Rv ? Rv.w : 0) + (I && !Rv ? I.w : 0), needH = (Fv ? Fv.h : 0) + (T ? T.h : 0);
   const roomW = W - 2 * m - gap * 4, roomH = H - 2 * m - TITLE_H - gap * 3;
   let s = D.scale;
   if (!s) { s = SCALES[SCALES.length - 1]; for (const k of SCALES) if (needW * k <= roomW * 0.86 && needH * k <= roomH * 0.92) { s = k; break; } }
+  for (const v of vs) v.s = s * v.k;
   // third angle: the front view low on the left, the top above it, the right beside it, the isometric at the top right
-  if (F) {
-    const fx = m + gap + 8 + (F.w * s) / 2 + (by('left') ? by('left').w * s + gap : 0), fy = H - m - TITLE_H - gap - (F.h * s) / 2 - (by('bottom') ? by('bottom').h * s + gap : 0);
+  if (Fv && VIEW_DIRS[Fv.dir]) {
+    const fx = m + gap + 8 + (Fv.w * s) / 2 + (by('left') ? by('left').w * s + gap : 0), fy = H - m - TITLE_H - gap - (Fv.h * s) / 2 - (by('bottom') ? by('bottom').h * s + gap : 0);
     const auto = { front: [fx, fy] };
-    if (T) auto.top = [fx, fy - (F.h * s) / 2 - gap - (T.h * s) / 2];
-    if (Rv) auto.right = [fx + (F.w * s) / 2 + gap + (Rv.w * s) / 2, fy];
-    if (by('left')) auto.left = [fx - (F.w * s) / 2 - gap - (by('left').w * s) / 2, fy];
-    if (by('bottom')) auto.bottom = [fx, fy + (F.h * s) / 2 + gap + (by('bottom').h * s) / 2];
-    if (by('back')) auto.back = [(auto.right ? auto.right[0] + (Rv.w * s) / 2 : fx + (F.w * s) / 2) + gap + (by('back').w * s) / 2, fy];
+    if (T) auto.top = [fx, fy - (Fv.h * s) / 2 - gap - (T.h * s) / 2];
+    if (Rv) auto.right = [fx + (Fv.w * s) / 2 + gap + (Rv.w * s) / 2, fy];
+    if (by('left')) auto.left = [fx - (Fv.w * s) / 2 - gap - (by('left').w * s) / 2, fy];
+    if (by('bottom')) auto.bottom = [fx, fy + (Fv.h * s) / 2 + gap + (by('bottom').h * s) / 2];
+    if (by('back')) auto.back = [(auto.right ? auto.right[0] + (Rv.w * s) / 2 : fx + (Fv.w * s) / 2) + gap + (by('back').w * s) / 2, fy];
     if (I) auto.iso = [W - m - gap - (I.w * s) / 2, m + gap + (I.h * s) / 2];
-    for (const v of vs) if (!v.at) v.at = auto[v.dir] || [W / 2, H / 2];
+    for (const v of vs) if (!v.at && auto[v.dir]) v.at = auto[v.dir];
   }
-  for (const v of vs) if (!v.at) v.at = [W / 2, H / 2];
-  const toSheet = (v, q) => [v.at[0] + s * (q[0] - v.c[0]), v.at[1] - s * (q[1] - v.c[1])];
-  return { W, H, s, m, views: vs, toSheet };
+  // a section or a detail with no place of its own: the spot on the sheet nearest its parent that covers least of
+  // the other views (each with room round it for its dimensions and its name), the title block and the sheet's edge
+  const placedViews = () => vs.filter(o => o.at && o.box);
+  for (const v of vs) {
+    if (v.at) continue;
+    const P = vs.find(x => x.id === v.of), want = P && P.at ? P.at : [W / 2, H / 2], hw = v.w * v.s / 2 + 4, hh = v.h * v.s / 2 + 4;
+    const boxes = placedViews().filter(o => o !== v).map(o => [o.at[0] - o.w * o.s / 2 - 14, o.at[1] - o.h * o.s / 2 - 8, o.at[0] + o.w * o.s / 2 + 8, o.at[1] + o.h * o.s / 2 + 18]);
+    boxes.push([W - m - TITLE_W, H - m - TITLE_H - 4, W - m, H - m]);
+    const cover = (x, y) => { let a = 0; for (const b of boxes) { const ox = Math.min(x + hw, b[2]) - Math.max(x - hw, b[0]), oy = Math.min(y + hh + 8, b[3]) - Math.max(y - hh, b[1]); if (ox > 0 && oy > 0) a += ox * oy; } return a; };
+    let best = [W / 2, H / 2], bs = Infinity;
+    for (let x = m + hw; x <= W - m - hw + 1e-9; x += 3) for (let y = m + hh; y <= H - m - hh - 8 + 1e-9; y += 3) {
+      const sc = cover(x, y) * 50 + Math.hypot(x - want[0], y - want[1]);
+      if (sc < bs) { bs = sc; best = [x, y]; }
+    }
+    v.at = best;
+  }
+  const toSheet = (v, q) => [v.at[0] + v.s * (q[0] - v.c[0]), v.at[1] - v.s * (q[1] - v.c[1])];
+  return { W, H, s, m, views: vs, toSheet, data };
 }
 
 /* ---------- a dimension's lines ----------
-   L: the layout; got: what the dimension holds to, found on the model ({ pt } for a corner, { c, r, n } for a round
-   edge), or nothing for one of the view's whole size. { lines: [[x1, y1, x2, y2]], arrows: [[tip, from]], text,
+   L: the layout; got: what the dimension holds to, found on the model ({ pt } for a corner, { c, r, n, label } for a
+   round edge), or nothing for one of the view's whole size. { lines: [[x1, y1, x2, y2]], arrows: [[tip, from]], text,
    at: [x, y] (the text's middle), value, hit: [x0, y0, x1, y1] } in sheet millimetres, or null if it cannot be drawn */
 function dimGeom(L, d, got) {
   const v = L.views.find(x => x.id === d.view);
   if (!v || !v.box) return null;
-  const S = q => L.toSheet(v, q), s = L.s, G = 1.5;
+  const S = q => L.toSheet(v, q), s = v.s, G = 1.5, VP = p => framePoint(v.F, p);
   let P, Q, dir = d.dir;
   if (d.t === 'ext') {
     // the view's whole size across, under it; or up, to its left
     if (d.axis === 'x') { P = S([v.box[0], v.box[1]]); Q = S([v.box[2], v.box[1]]); dir = 'h'; } else { P = S([v.box[0], v.box[1]]); Q = S([v.box[0], v.box[3]]); dir = 'v'; }
-  } else if (d.t === 'dia') {
+  } else if (d.t === 'dia' || d.t === 'rad') {
     const g = got && got.a;
     if (!g || !g.c || !(g.r > 0)) return null;
-    const C = S(viewPoint(v.dir, g.c)), r = g.r * s, a = (d.ang || 0) * Math.PI / 180, u = [Math.cos(a), -Math.sin(a)], len = Math.max(4, d.off || 8);
+    const C = S(VP(g.c)), r = g.r * s, a = (d.ang || 0) * Math.PI / 180, u = [Math.cos(a), -Math.sin(a)], len = Math.max(4, d.off || 8);
     const p0 = [C[0] - u[0] * r, C[1] - u[1] * r], p1 = [C[0] + u[0] * r, C[1] + u[1] * r], p2 = [C[0] + u[0] * (r + len), C[1] + u[1] * (r + len)];
-    const text = 'Ø' + drwText(2 * g.r), tx = p2[0] + (u[0] >= 0 ? 1 : -1) * (text.length * 1.0 + 1.5);
-    return { lines: [[p0[0], p0[1], p2[0], p2[1]]], arrows: [[p0, p1], [p1, p0]], text, at: [tx, p2[1]], value: 2 * g.r, hit: [Math.min(tx, p2[0]) - 6, p2[1] - 3, Math.max(tx, p2[0]) + 6, p2[1] + 3], centre: C, r };
+    const text = d.t === 'rad' ? 'R' + drwText(g.r) : g.label || 'Ø' + drwText(2 * g.r), tx = p2[0] + (u[0] >= 0 ? 1 : -1) * (text.length * 0.95 + 1.5);
+    const lines = d.t === 'rad' ? [[C[0], C[1], p2[0], p2[1]]] : [[p0[0], p0[1], p2[0], p2[1]]];
+    return { lines, arrows: d.t === 'rad' ? [[p1, C]] : [[p0, p1], [p1, p0]], text, at: [tx, p2[1]], value: d.t === 'rad' ? g.r : 2 * g.r, hit: [Math.min(tx - text.length, p2[0]) - 3, p2[1] - 3, Math.max(tx + text.length, p2[0]) + 3, p2[1] + 3], centre: C, r };
+  } else if (d.t === 'ang') {
+    // two lines, each by two corners: the angle between them, an arc about where they meet
+    const k = ['a', 'b', 'c', 'd'].map(x => got && got[x] && got[x].pt ? S(VP(got[x].pt)) : null);
+    if (k.some(p => !p)) return null;
+    const [A1, A2, B1, B2] = k, r1 = [A2[0] - A1[0], A2[1] - A1[1]], r2 = [B2[0] - B1[0], B2[1] - B1[1]], den = r1[0] * r2[1] - r1[1] * r2[0];
+    if (Math.abs(den) < 1e-9 * Math.hypot(...r1) * Math.hypot(...r2)) return null;
+    const t = ((B1[0] - A1[0]) * r2[1] - (B1[1] - A1[1]) * r2[0]) / den, X = [A1[0] + r1[0] * t, A1[1] + r1[1] * t];
+    const far = (p, q) => (Math.hypot(p[0] - X[0], p[1] - X[1]) >= Math.hypot(q[0] - X[0], q[1] - X[1]) ? p : q);
+    const ua = far(A1, A2), ub = far(B1, B2), aa = Math.atan2(ua[1] - X[1], ua[0] - X[0]);
+    let ab = Math.atan2(ub[1] - X[1], ub[0] - X[0]), sweep = ab - aa;
+    while (sweep > Math.PI) sweep -= 2 * Math.PI; while (sweep < -Math.PI) sweep += 2 * Math.PI;
+    const value = Math.abs(sweep) * 180 / Math.PI, R = Math.max(4, d.off || 15), N = 24, pts = [];
+    for (let i = 0; i <= N; i++) { const q = aa + sweep * i / N; pts.push([X[0] + R * Math.cos(q), X[1] + R * Math.sin(q)]); }
+    const lines = []; for (let i = 0; i < N; i++) lines.push([pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]]);
+    // extension lines from the corners on each line out to the arc, where the arc is past them
+    for (const [p, ang] of [[ua, aa], [ub, ab]]) { const dist = Math.hypot(p[0] - X[0], p[1] - X[1]); if (R > dist + 0.5) lines.push([p[0] + Math.cos(ang) * G, p[1] + Math.sin(ang) * G, X[0] + Math.cos(ang) * (R + G), X[1] + Math.sin(ang) * (R + G)]); }
+    const mid = aa + sweep / 2, text = drwText(value) + '°', at = [X[0] + (R + 3.5) * Math.cos(mid), X[1] + (R + 3.5) * Math.sin(mid)];
+    return { lines, arrows: [[pts[0], pts[2]], [pts[N], pts[N - 2]]], text, at, value, hit: [at[0] - text.length - 1, at[1] - 2.5, at[0] + text.length + 1, at[1] + 2.5], X, R };
   } else {
     const a = got && got.a, b = got && got.b;
     if (!a || !b || !a.pt || !b.pt) return null;
-    P = S(viewPoint(v.dir, a.pt)); Q = S(viewPoint(v.dir, b.pt));
+    P = S(VP(a.pt)); Q = S(VP(b.pt));
   }
   const off = d.off;
-  let A, B, value, n;
+  let A, B, value;
   if (dir === 'h') { const y = (d.t === 'ext' ? Math.max(P[1], Q[1]) : (P[1] + Q[1]) / 2) + off; A = [P[0], y]; B = [Q[0], y]; value = Math.abs(Q[0] - P[0]) / s; }
   else if (dir === 'v') { const x = (d.t === 'ext' ? Math.min(P[0], Q[0]) : (P[0] + Q[0]) / 2) + off; A = [x, P[1]]; B = [x, Q[1]]; value = Math.abs(Q[1] - P[1]) / s; }
-  else { const dx = Q[0] - P[0], dy = Q[1] - P[1], len = Math.hypot(dx, dy) || 1; n = [-dy / len, dx / len]; A = [P[0] + n[0] * off, P[1] + n[1] * off]; B = [Q[0] + n[0] * off, Q[1] + n[1] * off]; value = len / s; }
+  else { const dx = Q[0] - P[0], dy = Q[1] - P[1], len = Math.hypot(dx, dy) || 1, nn = [-dy / len, dx / len]; A = [P[0] + nn[0] * off, P[1] + nn[1] * off]; B = [Q[0] + nn[0] * off, Q[1] + nn[1] * off]; value = len / s; }
   if (!(value > 1e-9)) return null;
   // each extension line from a little off its point to a little past the dimension line
   const ext = (p, q) => { const dx = q[0] - p[0], dy = q[1] - p[1], len = Math.hypot(dx, dy); if (len < 1e-6) return null; const u = [dx / len, dy / len]; return [p[0] + u[0] * Math.min(G, len), p[1] + u[1] * Math.min(G, len), q[0] + u[0] * G, q[1] + u[1] * G]; };
@@ -4476,13 +4609,31 @@ function dimGeom(L, d, got) {
   return { lines, arrows: [[A, B], [B, A]], text, at, value, hit: [at[0] - text.length * 1.1 - 1, at[1] - 2.5, at[0] + text.length * 1.1 + 1, at[1] + 2.5], P, Q, A, B };
 }
 
+/* ---------- hatching: lines at 45° across closed outlines (inside by the even-odd rule) ---------- */
+function hatchLines(rings, gap) {
+  // turned by −45°, the hatch lines are level: each one cut where the outlines cross it, and the pieces inside kept
+  const c = Math.SQRT1_2, rot = (x, y) => [c * x + c * y, -c * x + c * y], back = (u, v) => [c * u - c * v, c * u + c * v];
+  const R = rings.map(r => { const o = []; for (let i = 0; i + 1 < r.length; i += 2) o.push(rot(r[i], r[i + 1])); return o; }).filter(r => r.length >= 3);
+  if (!R.length) return [];
+  let lo = Infinity, hi = -Infinity;
+  for (const r of R) for (const p of r) { lo = Math.min(lo, p[1]); hi = Math.max(hi, p[1]); }
+  const out = [];
+  for (let y = Math.ceil(lo / gap) * gap; y < hi; y += gap) {
+    const xs = [];
+    for (const r of R) for (let i = 0; i < r.length; i++) { const a = r[i], b = r[(i + 1) % r.length]; if ((a[1] <= y) !== (b[1] <= y)) xs.push(a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1])); }
+    xs.sort((p, q) => p - q);
+    for (let i = 0; i + 1 < xs.length; i += 2) if (xs[i + 1] - xs[i] > 1e-6) { const p = back(xs[i], y), q = back(xs[i + 1], y); out.push([p[0], p[1], q[0], q[1]]); }
+  }
+  return out;
+}
+
 /* ---------- the sheet, drawn through a pen ----------
    pen: line(x1, y1, x2, y2, w, dash), poly(run, w, dash) (run: x, y, x, y… in sheet mm), fill(pts), text(x, y, str,
-   size, align, bold). opts: { located: { [dimId]: { a, b } }, date, scale text, source (its name), picked (a
-   dimension's id), hot } */
+   size, align, bold). opts: { located: { [dimId]: { a, b } }, date, source (its name), picked (a dimension's id) } */
+const CHAIN = [6, 1.5, 1, 1.5], HIDDEN = [1.2, 0.9];
 function drawSheet(pen, D, data, opts) {
   opts = opts || {};
-  const L = layoutOf(D, data), { W, H, m, s } = L;
+  const L = layoutOf(D, data), { W, H, m } = L, dat = L.data;
   // the border, and the title block at the bottom right
   pen.poly([m, m, W - m, m, W - m, H - m, m, H - m, m, m], 0.5);
   const tx = W - m - TITLE_W, ty = H - m - TITLE_H, T = D.title || {};
@@ -4490,20 +4641,59 @@ function drawSheet(pen, D, data, opts) {
   pen.line(tx, ty + 14, W - m, ty + 14, 0.25); pen.line(tx, ty + 25, W - m, ty + 25, 0.25); pen.line(tx + 60, ty + 14, tx + 60, H - m, 0.25); pen.line(tx + 105, ty + 14, tx + 105, H - m, 0.25);
   const cell = (x, y, label, value, big) => { pen.text(x + 1.5, y + 3.2, label, 2, 'l'); if (value) pen.text(x + 1.5, y + (big ? 10.5 : 8.6), String(value).slice(0, big ? 60 : 40), big ? 5 : 3.2, 'l', big); };
   cell(tx, ty, 'TITLE', T.title || D.name, true);
-  cell(tx, ty + 14, 'DRAWN BY', T.by || ''); cell(tx + 60, ty + 14, 'DATE', opts.date || ''); cell(tx + 105, ty + 14, 'SCALE', scaleText(s));
+  cell(tx, ty + 14, 'DRAWN BY', T.by || ''); cell(tx + 60, ty + 14, 'DATE', opts.date || ''); cell(tx + 105, ty + 14, 'SCALE', scaleText(L.s));
   cell(tx, ty + 25, 'MATERIAL', T.material || ''); cell(tx + 60, ty + 25, 'DRAWING NO.', T.number || ''); cell(tx + 105, ty + 25, 'SHEET', D.sheet + ' · mm · third angle');
   if (T.note) pen.text(m + 3, H - m - 3, T.note.slice(0, 120), 2.6, 'l');
   if (opts.source) pen.text(W - m - 1.5, ty - 1.5, opts.source + ' · JEKcad', 2, 'r');
-  // the views: what shows, then (if asked) what is behind, dashed
+  // the views
   for (const v of L.views) {
-    const dat = data && data.views && data.views[v.id];
-    if (!dat || !v.box) { pen.text(v.at[0], v.at[1], 'Nothing to show in the ' + VIEW_DIRS[v.dir].name.toLowerCase() + ' view yet', 3, 'c'); continue; }
-    const run = (r, w, dash) => { const out = new Array(r.length); for (let i = 0; i + 1 < r.length; i += 2) { out[i] = v.at[0] + s * (r[i] - v.c[0]); out[i + 1] = v.at[1] - s * (r[i + 1] - v.c[1]); } pen.poly(out, w, dash); };
-    if (D.hidden) for (const r of dat.hid) run(r, 0.18, [1.2, 0.9]);
-    for (const r of dat.vis) run(r, v.dir === 'iso' ? 0.3 : 0.4);
-    if (opts.labels !== false) pen.text(v.at[0], v.at[1] + (v.h * s) / 2 + (D.dims.some(d => d.view === v.id && d.t === 'ext' && d.axis === 'x') ? 17 : 6), VIEW_DIRS[v.dir].name.toUpperCase(), 2.4, 'c');
+    const dv = dat && dat.views && dat.views[v.id];
+    if (!dv || !v.box) { pen.text(v.at[0], v.at[1], 'Nothing to show in this view yet', 3, 'c'); continue; }
+    const sx = q => v.at[0] + v.s * (q[0] - v.c[0]), sy = q => v.at[1] - v.s * (q[1] - v.c[1]);
+    const run = (r, w, dash) => { const out = new Array(r.length); for (let i = 0; i + 1 < r.length; i += 2) { out[i] = v.at[0] + v.s * (r[i] - v.c[0]); out[i + 1] = v.at[1] - v.s * (r[i + 1] - v.c[1]); } pen.poly(out, w, dash); };
+    // the cut faces of a section, hatched
+    if (dv.cut && dv.cut.length) { const rings = dv.cut.map(r => { const o = []; for (let i = 0; i + 1 < r.length; i += 2) o.push(sx([r[i], r[i + 1]]), sy([r[i], r[i + 1]])); return o; }); for (const l of hatchLines(rings, 2.5)) pen.line(l[0], l[1], l[2], l[3], 0.13); }
+    if (D.hidden) for (const r of dv.hid) run(r, 0.18, HIDDEN);
+    for (const r of dv.vis) run(r, v.dir === 'iso' ? 0.3 : 0.4);
+    // centre marks on round edges seen end on, and threads (ISO 6410: a thin three-quarter circle; thin lines along)
+    if (D.marks && v.dir !== 'iso') for (const k of dv.circles || []) { const C = [sx(k.c), sy(k.c)], e = k.r * v.s + 2.2; pen.line(C[0] - e, C[1], C[0] + e, C[1], 0.13, CHAIN); pen.line(C[0], C[1] - e, C[0], C[1] + e, 0.13, CHAIN); }
+    for (const t of dv.threads || []) {
+      if (t.kind === 'end') { const C = [sx(t.c), sy(t.c)], r = t.r * v.s, pts = []; for (let i = 0; i <= 27; i++) { const a = Math.PI / 2 + i / 27 * 1.5 * Math.PI; pts.push(C[0] + r * Math.cos(a), C[1] - r * Math.sin(a)); } pen.poly(pts, 0.18); }
+      else { const ax = t.b[0] - t.a[0], ay = t.b[1] - t.a[1], L2 = Math.hypot(ax, ay) || 1, nx = -ay / L2 * t.half, ny = ax / L2 * t.half; for (const sg of [1, -1]) pen.line(sx([t.a[0] + sg * nx, t.a[1] + sg * ny]), sy([t.a[0] + sg * nx, t.a[1] + sg * ny]), sx([t.b[0] + sg * nx, t.b[1] + sg * ny]), sy([t.b[0] + sg * nx, t.b[1] + sg * ny]), 0.18, t.seen ? null : HIDDEN); }
+    }
+    // a detail's own circle
+    if (v.dir === 'detail') { const pts = []; for (let i = 0; i <= 48; i++) { const a = i / 48 * 2 * Math.PI; pts.push(v.at[0] + v.w / 2 * v.s * Math.cos(a), v.at[1] + v.h / 2 * v.s * Math.sin(a)); } pen.poly(pts, 0.25); }
+    // where sections cut this view, and where details are taken from it
+    for (const c of L.views) {
+      if (c.of !== v.id) continue;
+      const Dc = D.views.find(x => x.id === c.id);
+      if (c.dir === 'section') {
+        const ext = 4 / v.s, a = Dc.axis === 'v' ? [Dc.pos, v.box[1] - ext] : [v.box[0] - ext, Dc.pos], b = Dc.axis === 'v' ? [Dc.pos, v.box[3] + ext] : [v.box[2] + ext, Dc.pos];
+        const A = [sx(a), sy(a)], B = [sx(b), sy(b)];
+        pen.line(A[0], A[1], B[0], B[1], 0.25, CHAIN);
+        // the arrows at each end, the way the section looks (its line of sight, as this view sees it)
+        const look = framePoint(v.F, dneg(c.F.n)), ln = Math.hypot(look[0], look[1]) || 1, u = [look[0] / ln, -look[1] / ln];
+        for (const E of [A, B]) {
+          const tip = [E[0] + u[0] * 6, E[1] + u[1] * 6];
+          pen.line(E[0], E[1], tip[0], tip[1], 0.35);
+          pen.fill([tip[0], tip[1], tip[0] - u[0] * 2.4 - u[1] * 0.8, tip[1] - u[1] * 2.4 + u[0] * 0.8, tip[0] - u[0] * 2.4 + u[1] * 0.8, tip[1] - u[1] * 2.4 - u[0] * 0.8]);
+          pen.text(E[0] + u[0] * 3 - (Dc.axis === 'v' ? 0 : 3), E[1] + u[1] * 3 + (Dc.axis === 'v' ? (E === A ? 4.5 : -2) : 1), c.label, 3.5, 'c', true);
+        }
+      } else if (c.dir === 'detail') {
+        const C = [sx(Dc.c), sy(Dc.c)], r = Dc.r * v.s, pts = [];
+        for (let i = 0; i <= 48; i++) { const a = i / 48 * 2 * Math.PI; pts.push(C[0] + r * Math.cos(a), C[1] + r * Math.sin(a)); }
+        pen.poly(pts, 0.25, [3, 1.2]);
+        pen.text(C[0] + r * 0.75 + 1.5, C[1] - r * 0.75 - 1, c.label, 3.5, 'l', true);
+      }
+    }
+    if (opts.labels !== false) {
+      const below = v.at[1] + (v.h * v.s) / 2 + (D.dims.some(d => d.view === v.id && ((d.t === 'ext' && d.axis === 'x') || (d.t === 'lin' && d.dir === 'h' && d.off > 0))) ? 17 : 6);
+      const name = v.dir === 'section' ? 'SECTION ' + v.label + '-' + v.label : v.dir === 'detail' ? 'DETAIL ' + v.label + ' (' + scaleText(v.s) + ')' : VIEW_DIRS[v.dir].name.toUpperCase();
+      pen.text(v.at[0], below, name, v.dir === 'section' || v.dir === 'detail' ? 3 : 2.4, 'c', v.dir === 'section' || v.dir === 'detail');
+    }
   }
-  // the dimensions
+  // the dimensions (a pen that sorts its lines by what they are is told they begin)
+  if (pen.phase) pen.phase('dims');
   const out = { layout: L, dims: [] };
   for (const d of D.dims) {
     const g = dimGeom(L, d, opts.located && opts.located[d.id]);
@@ -4549,6 +4739,34 @@ function pdfOfSheet(D, data, opts) {
   for (let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 255;
   return bytes;
 }
+
+/* ---------- a DXF of the sheet, written here ----------
+   AutoCAD R12 text, in millimetres, the sheet's corner at the origin and y up: lines as LINEs on layers by what they
+   are (VISIBLE, THIN, HIDDEN, CENTRE, DIMENSIONS, TEXT), dashed by the HIDDEN and CENTER line types, arrowheads as
+   SOLIDs, text as TEXT (Ø as %%c, ° as %%d). Every CAD program reads R12. */
+function dxfOfSheet(D, data, opts) {
+  const [, H] = SHEETS[D.sheet] || SHEETS.A4, f = v => String(+(+v).toFixed(4)), E = [];
+  const pair = (c, v) => E.push(String(c), String(v));
+  const layerOf = (w, dash, dim) => (dim ? 'DIMENSIONS' : dash === HIDDEN ? 'HIDDEN' : dash === CHAIN ? 'CENTRE' : w >= 0.3 ? 'VISIBLE' : 'THIN');
+  const ltypeOf = dash => (dash === HIDDEN ? 'HIDDEN' : dash === CHAIN ? 'CENTER' : dash ? 'DASHED' : 'CONTINUOUS');
+  let dimMode = false;
+  const line = (x1, y1, x2, y2, w, dash) => { pair(0, 'LINE'); pair(8, layerOf(w, dash, dimMode)); pair(6, ltypeOf(dash)); pair(10, f(x1)); pair(20, f(H - y1)); pair(30, 0); pair(11, f(x2)); pair(21, f(H - y2)); pair(31, 0); };
+  const txt = s => { let o = ''; for (const ch of s) o += ch === 'Ø' ? '%%c' : ch === '°' ? '%%d' : ch === '×' ? 'x' : ch === '·' ? '-' : ch.charCodeAt(0) < 127 ? ch : '?'; return o; };
+  const pen = {
+    line, poly(run, w, dash) { for (let i = 0; i + 3 < run.length; i += 2) line(run[i], run[i + 1], run[i + 2], run[i + 3], w, dash); },
+    fill(p) { const q = p.length >= 8 ? p : p.concat(p.slice(-2)); pair(0, 'SOLID'); pair(8, 'DIMENSIONS'); for (let i = 0; i < 4; i++) { pair(10 + i, f(q[2 * i])); pair(20 + i, f(H - q[2 * i + 1])); pair(30 + i, 0); } },
+    text(x, y, s, size, align) { const h = size * 0.72, al = align === 'c' ? 1 : align === 'r' ? 2 : 0; pair(0, 'TEXT'); pair(8, 'TEXT'); pair(10, f(x)); pair(20, f(H - y)); pair(30, 0); pair(40, f(h)); pair(1, txt(s)); if (al) { pair(72, al); pair(11, f(x)); pair(21, f(H - y)); pair(31, 0); } },
+  };
+  pen.phase = ph => { dimMode = ph === 'dims'; };
+  drawSheet(pen, D, data, Object.assign({}, opts, { picked: null }));
+  const head = ['0', 'SECTION', '2', 'HEADER', '9', '$ACADVER', '1', 'AC1009', '9', '$INSUNITS', '70', '4', '9', '$EXTMIN', '10', '0', '20', '0', '9', '$EXTMAX', '10', f((SHEETS[D.sheet] || SHEETS.A4)[0]), '20', f(H), '0', 'ENDSEC'];
+  const ltype = (name, desc, pat) => ['0', 'LTYPE', '2', name, '70', '0', '3', desc, '72', '65', '73', String(pat.length), '40', f(pat.reduce((s, x) => s + Math.abs(x), 0)), ...pat.flatMap(x => ['49', f(x)])];
+  const layer = (name, col, lt) => ['0', 'LAYER', '2', name, '70', '0', '62', String(col), '6', lt];
+  const tables = ['0', 'SECTION', '2', 'TABLES', '0', 'TABLE', '2', 'LTYPE', '70', '4', ...ltype('CONTINUOUS', 'Solid line', []), ...ltype('HIDDEN', 'Hidden __ __ __', [3, -1.5]), ...ltype('CENTER', 'Center ____ _ ____', [12, -3, 2, -3]), ...ltype('DASHED', 'Dashed __ __', [6, -2]), '0', 'ENDTAB',
+    '0', 'TABLE', '2', 'LAYER', '70', '6', ...layer('VISIBLE', 7, 'CONTINUOUS'), ...layer('THIN', 7, 'CONTINUOUS'), ...layer('HIDDEN', 8, 'HIDDEN'), ...layer('CENTRE', 1, 'CENTER'), ...layer('DIMENSIONS', 3, 'CONTINUOUS'), ...layer('TEXT', 7, 'CONTINUOUS'), '0', 'ENDTAB', '0', 'ENDSEC'];
+  const text = [...head, ...tables, '0', 'SECTION', '2', 'ENTITIES', ...E, '0', 'ENDSEC', '0', 'EOF'].join('\n') + '\n';
+  return new TextEncoder().encode(text);
+}
 /* ==========================================================================
    A Part Studio as a file (.jekcad, JSON): its Variables table, its feature list in order, the rollback bar, and its
    parts' names, colours and materials. There are no format migrations: every field has its default here (normDoc),
@@ -4583,13 +4801,14 @@ const FEATURE_KINDS = {
   fillet: { label: 'Fillet', defaults: { edges: [], radius: '2 mm' } },
   chamfer: { label: 'Chamfer', defaults: { edges: [], distance: '1 mm' } },
   shell: { label: 'Shell', defaults: { faces: [], thickness: '1 mm', outward: false } },
-  hole: { label: 'Hole', defaults: { sketch: null, kind: 'simple', dia: '5 mm', end: 'through', depth: '10 mm', tip: true, cbDia: '9 mm', cbDepth: '3 mm', csDia: '10 mm', csAngle: '90 deg', targets: [] } },
+  hole: { label: 'Hole', defaults: { sketch: null, kind: 'simple', size: 'M6', fit: 'normal', threadDepth: '12 mm', dia: '5 mm', end: 'through', depth: '10 mm', tip: true, cbDia: '9 mm', cbDepth: '3 mm', csDia: '10 mm', csAngle: '90 deg', targets: [] } },
   lpattern: { label: 'Linear pattern', defaults: { of: 'features', items: [], dir: 'x', dirRef: null, flip: false, count: '3', spacing: '20 mm' } },
   cpattern: { label: 'Circular pattern', defaults: { of: 'features', items: [], axis: 'z', axisRef: null, count: '6', angle: '360 deg' } },
   mirror: { label: 'Mirror', defaults: { of: 'features', items: [], plane: { std: 'right' } } },
   boolean: { label: 'Boolean', defaults: { op: 'union', targets: [], tools: [], keep: false } },
   // whole parts taken away (a feature like any other: undone, suppressed, rolled before, edited)
   delete: { label: 'Delete part', defaults: { targets: [] } },
+  thread: { label: 'Thread', defaults: { faces: [], size: 'M6', full: true, length: '10 mm' } },
   import: { label: 'Import', defaults: { file: '', format: 'step', data: '' } },
 };
 const featureLabel = t => (FEATURE_KINDS[t] ? FEATURE_KINDS[t].label : t);
@@ -4611,7 +4830,7 @@ function normFeature(f, i) {
   for (const [k, dv] of Object.entries(D)) {
     const v = f[k];
     if (typeof dv === 'boolean') o[k] = typeof v === 'boolean' ? v : dv;
-    else if (typeof dv === 'string' && /^(op|end|end2|kind|of|dir|axis|format)$/.test(k)) o[k] = isStr(v, 40) ? v : dv;
+    else if (typeof dv === 'string' && /^(op|end|end2|kind|of|dir|axis|format|size|fit)$/.test(k)) o[k] = isStr(v, 40) ? v : dv;
     else if (typeof dv === 'string' && (k === 'file' || k === 'data')) o[k] = typeof v === 'string' ? v : dv;
     else if (typeof dv === 'string') o[k] = exprOr(v, dv);
     else if (k === 'regions') o[k] = ptsOk(v);
@@ -4869,6 +5088,15 @@ function makeKernel(oc) {
     b.edgeFaces = b.edges.map(() => []);
     b.faces.forEach((f, i) => { for (const e of subShapes(f, TA.TopAbs_EDGE)) { const j = eix(e); if (j >= 0 && !b.edgeFaces[j].includes(i)) b.edgeFaces[j].push(i); e.delete(); } });
     return b.edges;
+  }
+  /* a face's normal out of the material, at the middle of its parameters */
+  function faceNormalMid(face) {
+    const s = T(new oc.BRepAdaptor_Surface(face, true)), u = (s.FirstUParameter() + s.LastUParameter()) / 2, v = (s.FirstVParameter() + s.LastVParameter()) / 2;
+    const p = T(new oc.gp_Pnt()), du = T(new oc.gp_Vec()), dv = T(new oc.gp_Vec());
+    s.D1(u, v, p, du, dv);
+    let n = v3.cross([du.X(), du.Y(), du.Z()], [dv.X(), dv.Y(), dv.Z()]);
+    if (face.Orientation() === oc.TopAbs_Orientation.TopAbs_REVERSED) n = v3.mul(n, -1);
+    return n;
   }
   const centreOf = (b, i) => { b.cent = b.cent || []; if (!b.cent[i]) { const p = props(b.faces[i], 'a'); b.cent[i] = p.c; } return b.cent[i]; };
   function edgeMid(e) { const c = T(new oc.BRepAdaptor_Curve(e)); return xyz(T(c.Value((c.FirstParameter() + c.LastParameter()) / 2))); }
@@ -5248,7 +5476,7 @@ function makeKernel(oc) {
     }
     return { parts: out, made: [] };
   }
-  const nextState = S => ({ parts: S.parts.slice(), frames: Object.assign({}, S.frames), tools: Object.assign({}, S.tools), sketches: Object.assign({}, S.sketches) });
+  const nextState = S => ({ parts: S.parts.slice(), frames: Object.assign({}, S.frames), tools: Object.assign({}, S.tools), sketches: Object.assign({}, S.sketches), threads: Object.assign({}, S.threads) });
 
   /* a sketch's shapes that came from edges of the model (src: the edge's ref) follow those edges: each is found
      again in the model as it is now and flattened onto the sketch's plane; if any has moved, the sketch is solved
@@ -5487,7 +5715,11 @@ function makeKernel(oc) {
     hole(S, f, V) {
       const sk = sketchOf(S, f.sketch), pts = sk.ents.filter(e => e.t === 'point' && !e.k);
       if (!pts.length) throw new Error('the sketch has no points: put a point where each hole goes');
-      const d = fieldValue(f, 'dia', V, 'len'), r = d / 2;
+      // a tapped hole is drilled at its size's tap drill and its wall carries the thread; a clearance hole is the
+      // size its screw passes through (close or normal fit)
+      const thr = f.kind === 'tapped' || f.kind === 'clear' ? threadOf(f.size) : null;
+      if ((f.kind === 'tapped' || f.kind === 'clear') && !thr) throw new Error('choose a thread size');
+      const d = f.kind === 'tapped' ? thr.tap : f.kind === 'clear' ? (f.fit === 'close' ? thr.close : thr.normal) : fieldValue(f, 'dia', V, 'len'), r = d / 2;
       if (!(r > 1e-9)) throw new Error('the diameter must be more than 0');
       const w = v3.mul(sk.frame.n, -1), u = sk.frame.x, L = bigLength(S, sk.frame);
       const D = f.end === 'through' ? L : fieldValue(f, 'depth', V, 'len'), z0 = -Math.max(0.5, d * 0.2);
@@ -5525,7 +5757,44 @@ function makeKernel(oc) {
       S.tools[f.id] = { tool, op: 'remove', targets: f.targets };
       const r2 = applyTool(S, f.id, tool, 'remove', f.targets);
       S.parts = r2.parts;
+      if (f.kind === 'tapped') {
+        const td = f.end === 'through' ? null : fieldValue(f, 'threadDepth', V, 'len');
+        if (td !== null && !(td > 0)) throw new Error('the thread depth must be more than 0');
+        if (td !== null && td > D + 1e-9) throw new Error('the thread is deeper than the hole: drill deeper, or make the thread shorter');
+        // (the walls are known by the hole's name and their radius: so a pattern's or a mirror's copies are threaded too)
+        S.threads[f.id] = { size: f.size, internal: true, prefix: f.id + '.', r, length: td };
+      }
       return { holes: pts.length };
+    },
+    /* a cosmetic thread on round faces of the model: inside a hole drilled at the size's tap drill, or outside on a
+       shaft at its major diameter */
+    thread(S, f, V) {
+      if (!f.faces.length) throw new Error('choose the round faces to thread');
+      const t = threadOf(f.size);
+      if (!t) throw new Error('choose a thread size');
+      const names = [];
+      let internal = null;
+      for (const ref of f.faces) {
+        const hit = findFace(S, ref);
+        if (!hit) throw new Error('a face to thread is not there any more');
+        const face = hit.b.faces[hit.i];
+        if (surfType(face) !== 'cylinder') throw new Error('only a round face can be threaded');
+        const R = T(T(new oc.BRepAdaptor_Surface(face, true)).Cylinder()).Radius(), dia = 2 * R;
+        // inside or out: the face's normal points to its axis (a hole) or away (a shaft)
+        const sr = T(new oc.BRepAdaptor_Surface(face, true)), ax = T(T(sr.Cylinder()).Axis()), p0 = xyz(T(ax.Location())), dd = xyz(T(ax.Direction()));
+        const um = (sr.FirstUParameter() + sr.LastUParameter()) / 2, vm = (sr.FirstVParameter() + sr.LastVParameter()) / 2, c = xyz(T(sr.Value(um, vm)));
+        const along = v3.dot(v3.sub(c, p0), dd), foot = v3.add(p0, v3.mul(dd, along)), out = v3.sub(c, foot);
+        const nrm = faceNormalMid(face), isHole = v3.dot(nrm, out) < 0;
+        const want = isHole ? t.tap : t.major;
+        if (Math.abs(dia - want) > Math.max(0.05, 0.03 * want)) throw new Error('this face is Ø' + +dia.toFixed(3) + ': ' + t.size + ' needs ' + (isHole ? 'a Ø' + t.tap + ' tapping drill' : 'a Ø' + t.major + ' shaft'));
+        if (internal !== null && internal !== isHole) throw new Error('thread holes and shafts in separate features');
+        internal = isHole;
+        names.push(hit.b.names[hit.i][0]);
+      }
+      const len = f.full ? null : fieldValue(f, 'length', V, 'len');
+      if (len !== null && !(len > 0)) throw new Error('the length must be more than 0');
+      S.threads[f.id] = { size: f.size, internal, names, length: len, near: f.faces.map(r => r.pt) };
+      return { threads: names.length };
     },
     lpattern(S, f, V) {
       const n = Math.round(fieldValue(f, 'count', V, 'num')), s = fieldValue(f, 'spacing', V, 'len');
@@ -5732,7 +6001,7 @@ function makeKernel(oc) {
   // an assembly of several, does not make any of them again)
   const caches = new Map();
   const hashText = (h, s) => { let a = h[0], b = h[1]; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b + c, 2246822519) >>> 0; } return [a, b]; };
-  const EMPTY = () => ({ parts: [], frames: {}, tools: {}, sketches: {} });
+  const EMPTY = () => ({ parts: [], frames: {}, tools: {}, sketches: {}, threads: {} });
   let last = { S: EMPTY(), doc: null, vars: {} };
   function runFeature(S0, f, vars) {
     const S = nextState(S0);
@@ -5787,7 +6056,7 @@ function makeKernel(oc) {
     }
     const frames = {};
     for (const [k, F] of Object.entries(S.frames)) frames[k] = F;
-    return { features: reports, parts: S.parts.map((b, i) => Object.assign(meshBody(b, b.id), { look: partLook(doc, b.id, i) })), frames, preview, vars, errors };
+    return { features: reports, parts: S.parts.map((b, i) => Object.assign(meshBody(b, b.id), { look: partLook(doc, b.id, i), threads: threadsOf(S, b) })), frames, preview, vars, errors };
   }
   /* ---------- meshes for the page: triangles grouped by face, edges by edge, the vertices ---------- */
   const meshes = new WeakMap();
@@ -5883,7 +6152,7 @@ function makeKernel(oc) {
       for (const it of items) {
         const D = byDoc.get(it.doc.id), b = D.S.parts.find(x => x.id === it.part);
         if (!b) throw new Error('a part of the assembly is not in its Part Studio any more');
-        out.push({ b, it, t: trsfOf(it.p, it.q), look: Object.assign({}, partLook(D.doc, b.id, D.S.parts.indexOf(b)), it.name ? { name: it.name } : {}) });
+        out.push({ b, it, S: D.S, t: trsfOf(it.p, it.q), look: Object.assign({}, partLook(D.doc, b.id, D.S.parts.indexOf(b)), it.name ? { name: it.name } : {}) });
       }
     } finally { last = keepLast; }
     return out;
@@ -5915,12 +6184,45 @@ function makeKernel(oc) {
   function drawingViews(items, views) {
     const out = [];
     try {
-      const shapes = asmBodies(items).map(x => moved(x.b.shape, x.t));
+      const bodies = asmBodies(items), shapes = bodies.map(x => moved(x.b.shape, x.t));
+      // each part's threads, where the drawing has it
+      const turnQ = (q, v) => { const [x, y, z, w] = q, ux = [x, y, z], t = v3.mul(v3.cross(ux, v), 2), c = v3.cross(ux, t); return [v[0] + w * t[0] + c[0], v[1] + w * t[1] + c[1], v[2] + w * t[2] + c[2]]; };
+      const threads = bodies.flatMap(x => { let ts = []; try { ts = threadsOf(x.S, x.b); } catch (err) { ts = []; } const q = x.it.q || [0, 0, 0, 1], p = x.it.p || [0, 0, 0]; return ts.map(t => Object.assign({}, t, { from: v3.add(turnQ(q, t.from), p), dir: turnQ(q, t.dir) })); });
       for (const v of views) {
-        const res = { id: v.id, vis: [], hid: [] };
-        if (shapes.length) {
+        const res = { id: v.id, vis: [], hid: [], cut: [], circles: [], threads: [] };
+        const up = v3.cross(v.n, v.x), P2 = p => [+v3.dot(p, v.x).toFixed(6), +v3.dot(p, up).toFixed(6)];
+        let shown = shapes;
+        if (v.cut) {
+          // a section: the half of space on the eye's side of the plane taken away, and the faces left on the plane hatched
+          const big = Math.max(1000, ...shapes.map(sh => { const bb = bbox(sh); return bb ? near(bb[0], bb[1]) * 4 : 0; }));
+          const pf = T(new oc.BRepBuilderAPI_MakeFace(T(new oc.gp_Pln(pnt(v.cut.o), gdir(v.cut.n))), -big, big, -big, big)).Face();
+          const hs = T(new oc.BRepPrimAPI_MakeHalfSpace(pf, pnt(v3.add(v.cut.o, v3.mul(v.cut.n, big))))).Solid();
+          shown = [];
+          for (const sh of shapes) {
+            try { const op = T(new oc.BRepAlgoAPI_Cut()); op.SetArguments(listFrom([sh])); op.SetTools(listFrom([hs])); op.Build(prog()); if (op.IsDone() && solidsOf(op.Shape()).length) shown.push(op.Shape()); } catch (err) { /* that part is left out */ }
+          }
+          const h0 = v3.dot(v.cut.o, v.cut.n);
+          for (const sh of shown) for (const fc of subShapes(sh, TA.TopAbs_FACE)) {
+            if (surfType(fc) !== 'plane') continue;
+            const vs = subShapes(fc, TA.TopAbs_VERTEX).map(x => xyz(T(oc.BRep_Tool.Pnt(oc.TopoDS.Vertex(x)))));
+            if (!vs.length || !vs.every(p => Math.abs(v3.dot(p, v.cut.n) - h0) < 1e-6)) continue;
+            // each of its loops as a ring of points: its edges stepped along and joined end to end
+            for (const wr of subShapes(fc, TA.TopAbs_WIRE)) {
+              const segs = subShapes(wr, TA.TopAbs_EDGE).map(e => { const c = T(new oc.BRepAdaptor_Curve(e)), t0 = c.FirstParameter(), t1 = c.LastParameter(), n = c.GetType() === oc.GeomAbs_CurveType.GeomAbs_Line ? 1 : 24, pts = []; for (let k = 0; k <= n; k++) pts.push(P2(xyz(T(c.Value(t0 + (t1 - t0) * k / n))))); return pts; });
+              if (!segs.length) continue;
+              const ring = segs.shift().slice(), same = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 1e-5;
+              for (let guard = 0; segs.length && guard < 10000; guard++) {
+                const end = ring[ring.length - 1], k = segs.findIndex(sg => same(sg[0], end) || same(sg[sg.length - 1], end));
+                if (k < 0) break;
+                const sg = segs.splice(k, 1)[0]; ring.push(...(same(sg[0], end) ? sg.slice(1) : sg.slice().reverse().slice(1)));
+              }
+              if (ring.length >= 3) res.cut.push(ring.flat());
+            }
+          }
+        }
+        if (shown.length) {
           const hlr = T(new oc.HLRBRep_Algo());
-          for (const s of shapes) hlr.Add(s, 0);
+          for (const s of shown) hlr.Add(s, 0);
           hlr.Projector(T(new oc.HLRAlgo_Projector(T(new oc.gp_Ax2(pnt([0, 0, 0]), gdir(v.n), gdir(v.x))))));
           hlr.Update(); hlr.Hide();
           const hs = T(new oc.HLRBRep_HLRToShape(hlr));
@@ -5939,6 +6241,27 @@ function makeKernel(oc) {
           };
           take(hs.VCompound(), res.vis); take(hs.OutLineVCompound(), res.vis);
           take(hs.HCompound(), res.hid); take(hs.OutLineHCompound(), res.hid);
+          // round edges seen end on (each centre once, at its size): where the centre marks go
+          for (const sh of shown) for (const e of subShapes(sh, TA.TopAbs_EDGE)) {
+            try {
+              const c = T(new oc.BRepAdaptor_Curve(e));
+              if (c.GetType() !== oc.GeomAbs_CurveType.GeomAbs_Circle || Math.abs(c.LastParameter() - c.FirstParameter() - 2 * Math.PI) > 1e-6) continue;
+              const ci = T(c.Circle()), d = xyz(T(T(ci.Axis()).Direction()));
+              if (Math.abs(Math.abs(v3.dot(d, v.n)) - 1) > 1e-6) continue;
+              const k = P2(xyz(T(ci.Location()))), r = ci.Radius();
+              if (!res.circles.some(o => Math.hypot(o.c[0] - k[0], o.c[1] - k[1]) < 1e-6 && Math.abs(o.r - r) < 1e-6)) res.circles.push({ c: k, r });
+            } catch (err) { /* left out */ }
+          }
+        }
+        // the threads: seen down their axis a three-quarter circle (from the open end, or right through); from the side
+        // two lines along them
+        for (const t of threads) {
+          const along = v3.dot(t.dir, v.n);
+          if (Math.abs(along) > 0.999) { if (along < 0 || t.length >= t.wall - 1e-6) res.threads.push({ kind: 'end', c: P2(t.from), r: (t.internal ? t.major : t.minor) / 2, label: t.label }); }
+          else if (Math.abs(along) < 1e-3) {
+            if (v.cut && v3.dot(v3.sub(t.from, v.cut.o), v.cut.n) > 1e-6 && v3.dot(v3.sub(v3.add(t.from, v3.mul(t.dir, t.length)), v.cut.o), v.cut.n) > 1e-6) continue;
+            res.threads.push({ kind: 'side', a: P2(t.from), b: P2(v3.add(t.from, v3.mul(t.dir, t.length))), half: (t.internal ? t.major : t.minor) / 2, seen: !t.internal || !!v.cut });
+          }
         }
         out.push(res);
       }
@@ -5983,6 +6306,36 @@ function makeKernel(oc) {
         if (v > 1e-6) out.push({ a: a.id, b: b.id, volume: v });
       }
     } finally { flush(); }
+    return out;
+  }
+  /* the threads on a part, found by its faces' names (a pattern's copy of a threaded hole is threaded too: its names
+     end with the hole's own): each the face, the size, its axis, where it starts (the open end) and how far it goes */
+  function threadsOf(S, b) {
+    const specs = Object.values(S.threads || {});
+    if (!specs.length) return [];
+    const out = [];
+    edgesOf(b);
+    b.faces.forEach((face, i) => {
+      const base = b.names[i].map(nm => String(nm).split('~').pop());
+      if (surfType(face) !== 'cylinder') return;
+      const cy = T(T(new oc.BRepAdaptor_Surface(face, true)).Cylinder()), R = cy.Radius();
+      const spec = specs.find(s => (s.names && s.names.some(n => base.includes(n))) || (s.prefix && Math.abs(R - s.r) < 1e-6 && base.some(n => n.startsWith(s.prefix))));
+      if (!spec) return;
+      try {
+        // the face's two rims: the open one is where the thread starts (a rim shared with a face of the same hole is its bottom)
+        const rims = [];
+        b.edgeFaces.forEach((fs, j) => { if (!fs.includes(i) || curveType(b.edges[j]) !== 'circle') return; const ln = lineOfEdge(b.edges[j]), other = fs.find(x => x !== i); rims.push({ c: ln.p, other: other === undefined ? null : b.names[other].map(nm => String(nm).split('~').pop()) }); });
+        if (rims.length < 2) { const ax = T(cy.Axis()); rims.length = 0; const p0 = xyz(T(ax.Location())), dd = xyz(T(ax.Direction())); const hs = []; for (const v of subShapes(face, TA.TopAbs_VERTEX)) hs.push(v3.dot(v3.sub(xyz(T(oc.BRep_Tool.Pnt(oc.TopoDS.Vertex(v)))), p0), dd)); if (!hs.length) return; rims.push({ c: v3.add(p0, v3.mul(dd, Math.min(...hs))), other: null }, { c: v3.add(p0, v3.mul(dd, Math.max(...hs))), other: null }); }
+        rims.sort((p, q) => v3.dot(p.c, [1e-3, 1e-2, 1]) - v3.dot(q.c, [1e-3, 1e-2, 1]));
+        const a = rims[0], z = rims[rims.length - 1], own = r => !!(spec.prefix && r.other && r.other.some(n => n.startsWith(spec.prefix))), ownA = own(a), ownZ = own(z);
+        // (the start: the open rim; else, for a thread laid on a face, the rim nearest where it was picked)
+        let from = ownA && !ownZ ? z : a, to = from === a ? z : a;
+        if (spec.near && !(ownA !== ownZ)) { const q = spec.near[0], dA = v3.len ? 0 : 0; void dA; const dist = r => Math.hypot(r.c[0] - q[0], r.c[1] - q[1], r.c[2] - q[2]); if (dist(z) < dist(a)) { from = z; to = a; } }
+        const span = v3.sub(to.c, from.c), L = Math.hypot(span[0], span[1], span[2]) || 1;
+        const t = threadOf(spec.size);
+        out.push({ face: i, size: spec.size, label: threadLabel(t, spec.length !== null && spec.length < L - 1e-6 ? spec.length : null), internal: spec.internal, major: t.major, minor: spec.internal ? t.tap : extMinor(t), pitch: t.pitch, r: R, from: from.c, dir: span.map(v => v / L), length: Math.min(L, spec.length === null ? L : spec.length), wall: L });
+      } catch (err) { /* that face's thread is left unsaid */ }
+    });
     return out;
   }
   /* the parts as one STEP file (each part a solid of it), or as STL */
@@ -6671,6 +7024,8 @@ function wireMenus() {
 const CAD_ICONS = {
   new: 'M4 1.5h5.5L12.5 4.5V14.5H4Z M9.5 1.5V4.5H12.5', open: 'M1.5 4.5V13.5H13L14.5 7.5H4L2.5 13 M1.5 4.5V2.5H6L7.5 4H12.5V7.5', save: 'M2.5 2.5H11L13.5 5V13.5H2.5Z M5 2.5V6H10V2.5 M5 13.5V9.5H11V13.5',
   export: 'M8 1.5V10 M5 7L8 10L11 7 M2.5 11V14H13.5V11', import: 'M8 10V1.5 M5 4.5L8 1.5L11 4.5 M2.5 11V14H13.5V11', undo: 'M5.5 3.5L2.5 6.5L5.5 9.5 M2.5 6.5H10Q13.5 6.5 13.5 10Q13.5 13.5 10 13.5H6', redo: 'M10.5 3.5L13.5 6.5L10.5 9.5 M13.5 6.5H6Q2.5 6.5 2.5 10Q2.5 13.5 6 13.5H10',
+  angle: 'M2 14H14 M2 14L11 3 M8 14A6 6 0 0 0 6.2 9.6', detail: 'M6.5 6.5m-4.5 0a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0 -9 0 M10 10L14 14', section: 'M2 2H14V14H2Z M8 1V15 M4 4L8 8 M4 8L8 12 M4 12L6 14',
+  thread: 'M5 2V14 M11 2V14 M5 3L11 5 M5 6L11 8 M5 9L11 11 M5 12L11 14',
   drawing: 'M2 2H14V14H2Z M9 10H14 M9 10V14 M4 5H9V8H4Z M4 5V4 M9 5V4 M4 4H9',
   assembly: 'M2 6L6 4L10 6L6 8Z M2 6V10L6 12V8 M10 6V10L6 12 M9 9L12 7.5L15 9L12 10.5Z M9 9V12L12 13.5V10.5 M15 9V12L12 13.5', mate: 'M2 5H8V11H2Z M8 6.5H10 M8 9.5H10 M10 4H14V12H10Z', pin: 'M8 2V9 M5 9H11 M8 9V14 M5.5 2H10.5', flip: 'M3 5H13L10.5 2.5 M13 11H3L5.5 13.5', slider: 'M2 8H14 M5 5H11V11H5Z M2 8L4 6.5 M2 8L4 9.5 M14 8L12 6.5 M14 8L12 9.5',
   trash: 'M2.5 4H13.5 M5.5 4V2.5H10.5V4 M4 4L4.5 14H11.5L12 4', fit: 'M2 6V2H6 M10 2H14V6 M14 10V14H10 M6 14H2V10', check: 'M3 8.5L6.5 12L13 4', cube: 'M8 1.5L14 5V11L8 14.5L2 11V5Z M8 8L14 5 M8 8V14.5 M8 8L2 5',
@@ -8760,8 +9115,10 @@ const FEATURE_FORMS = {
   fillet: [['edges', 'Edges or faces to round (tangent edges follow)', 'sel', { pick: 'edges' }], ['radius', 'Radius', 'expr', { unit: 'len' }]],
   chamfer: [['edges', 'Edges or faces to bevel (tangent edges follow)', 'sel', { pick: 'edges' }], ['distance', 'Distance', 'expr', { unit: 'len' }]],
   shell: [['faces', 'Faces to remove', 'sel', { pick: 'faces' }], ['thickness', 'Thickness', 'expr', { unit: 'len' }], ['outward', 'Thicken outward', 'check']],
-  hole: [['sketch', 'Sketch with points (each a hole)', 'sel', { pick: 'sketch' }], ['kind', 'Hole', 'select', { options: [['simple', 'Simple'], ['cbore', 'Counterbore'], ['csink', 'Countersink']] }], ['dia', 'Diameter', 'expr', { unit: 'len' }],
-    ['end', 'End', 'select', { options: [['blind', 'Blind'], ['through', 'Through all']] }], ['depth', 'Depth', 'expr', { unit: 'len', show: f => f.end === 'blind' }], ['tip', 'Drill tip (118°)', 'check', { show: f => f.end === 'blind' }],
+  hole: [['sketch', 'Sketch with points (each a hole)', 'sel', { pick: 'sketch' }], ['kind', 'Hole', 'select', { options: [['simple', 'Simple'], ['tapped', 'Tapped'], ['clear', 'Clearance for a screw'], ['cbore', 'Counterbore'], ['csink', 'Countersink']] }],
+    ['size', 'Thread', 'select', { options: THREADS.map(t => [t.size, t.size.replace('x', ' × ') + (t.size.includes('x') ? ' fine' : '')]), show: f => f.kind === 'tapped' || f.kind === 'clear' }], ['fit', 'Fit', 'select', { options: [['close', 'Close'], ['normal', 'Normal']], show: f => f.kind === 'clear' }],
+    ['dia', 'Diameter', 'expr', { unit: 'len', show: f => f.kind !== 'tapped' && f.kind !== 'clear' }],
+    ['end', 'End', 'select', { options: [['blind', 'Blind'], ['through', 'Through all']] }], ['depth', 'Depth', 'expr', { unit: 'len', show: f => f.end === 'blind' }], ['threadDepth', 'Thread depth', 'expr', { unit: 'len', show: f => f.kind === 'tapped' && f.end === 'blind' }], ['tip', 'Drill tip (118°)', 'check', { show: f => f.end === 'blind' }],
     ['cbDia', 'Counterbore diameter', 'expr', { unit: 'len', show: f => f.kind === 'cbore' }], ['cbDepth', 'Counterbore depth', 'expr', { unit: 'len', show: f => f.kind === 'cbore' }],
     ['csDia', 'Countersink diameter', 'expr', { unit: 'len', show: f => f.kind === 'csink' }], ['csAngle', 'Countersink angle', 'expr', { unit: 'ang', show: f => f.kind === 'csink' }], ['targets', 'Parts to cut (none: all)', 'sel', { pick: 'parts' }]],
   lpattern: [['of', 'Pattern', 'seg', { options: [['features', 'Features'], ['parts', 'Parts']] }], ['items', 'What to pattern', 'sel', { pick: f => (f.of === 'parts' ? 'parts' : 'features') }],
@@ -8769,10 +9126,29 @@ const FEATURE_FORMS = {
   cpattern: [['of', 'Pattern', 'seg', { options: [['features', 'Features'], ['parts', 'Parts']] }], ['items', 'What to pattern', 'sel', { pick: f => (f.of === 'parts' ? 'parts' : 'features') }],
     ['axis', 'Axis', 'select', { options: [['x', 'x'], ['y', 'y'], ['z', 'z']], show: f => !f.axisRef }], ['axisRef', 'Or about an edge (straight or round)', 'sel', { pick: 'edge' }], ['count', 'Instances', 'expr', { unit: 'num' }], ['angle', 'Angle (360°: equally round)', 'expr', { unit: 'ang' }]],
   mirror: [['of', 'Mirror', 'seg', { options: [['features', 'Features'], ['parts', 'Parts']] }], ['items', 'What to mirror', 'sel', { pick: f => (f.of === 'parts' ? 'parts' : 'features') }], ['plane', 'Mirror plane', 'sel', { pick: 'plane' }]],
+  thread: [['faces', 'Round faces to thread (a hole at the tap drill, or a shaft)', 'sel', { pick: 'faces' }], ['size', 'Thread', 'select', { options: THREADS.map(t => [t.size, t.size.replace('x', ' × ') + (t.size.includes('x') ? ' fine' : '')]) }], ['full', 'The whole length of the face', 'check'], ['length', 'Length', 'expr', { unit: 'len', show: f => !f.full }]],
   delete: [['targets', 'Parts to delete', 'sel', { pick: 'parts' }]],
   boolean: [['op', '', 'seg', { options: [['union', 'Union'], ['subtract', 'Subtract'], ['intersect', 'Intersect']] }], ['targets', 'Parts', 'sel', { pick: 'parts' }], ['tools', 'Tools', 'sel', { pick: 'parts', show: f => f.op !== 'union' }], ['keep', 'Keep the tools', 'check', { show: f => f.op !== 'union' }]],
   import: [['file', 'STEP file', 'file']],
 };
+/* a thread's size from the round face it is put on: the size whose tap drill (a hole) or major diameter (a shaft) it is */
+function threadSizeFor(f, picks) {
+  const face = picks.find(p => p.kind === 'face');
+  if (!face) return;
+  kernelAsk('measure', { picks: [face], doc: app.doc }).then(m => {
+    const it = m && m.items[0];
+    if (!it || !it.radius || !app.editing || app.editing.f !== f) return;
+    const d = 2 * it.radius, t = THREADS.find(x => Math.abs(x.major - d) < 0.05) || THREADS.find(x => Math.abs(x.tap - d) < 0.05);
+    if (t && t.size !== f.size) { f.size = t.size; showDialog(); regenSoon(0); }
+  }).catch(() => {});
+}
+/* a tapped hole's sizes as a thread size is chosen: the thread two diameters deep, the drill a few pitches deeper */
+function holeSizeDefaults(f) {
+  const t = threadOf(f.size);
+  if (!t || f.kind !== 'tapped') return;
+  const mm = v => String(+v.toFixed(2)) + ' mm';
+  f.threadDepth = mm(2 * t.major); f.depth = mm(2 * t.major + 4 * t.pitch);
+}
 const pickOf = (fd, f) => (typeof fd[3].pick === 'function' ? fd[3].pick(f) : fd[3].pick);
 /* ---------- opening ---------- */
 function openFeature(type, opts) {
@@ -8865,10 +9241,11 @@ function prefill(f, at) {
   if (f.type === 'plane' && plane) f.ref = plane.std ? { std: plane.std } : { feature: plane.feature };
   if (f.type === 'mirror' && plane) f.plane = plane.std ? { std: plane.std } : { feature: plane.feature };
   const model = sel.filter(s => s.kind === 'edge' || s.kind === 'face');
-  if (model.length && (f.type === 'fillet' || f.type === 'chamfer' || f.type === 'shell' || (f.type === 'plane' && !plane))) {
+  if (model.length && (f.type === 'fillet' || f.type === 'chamfer' || f.type === 'shell' || f.type === 'thread' || (f.type === 'plane' && !plane))) {
     kernelAsk('refs', { picks: model }).then(rs => {
       if (!app.editing || app.editing.f !== f) return;
       if (f.type === 'shell') f.faces = rs.filter(r => r.kind === 'face');
+      else if (f.type === 'thread') { f.faces = rs.filter(r => r.kind === 'face' && r.type === 'cylinder'); threadSizeFor(f, model); }
       else if (f.type === 'plane') { const r = rs.find(x => x.kind === 'face' && x.type === 'plane'); if (r) f.ref = r; }
       else f.edges = rs;
       showDialog(); regenSoon(0);
@@ -9002,7 +9379,7 @@ function showDialog() {
     if (kind === 'expr') rows.push(exprField(f, key, label, more.unit));
     else if (kind === 'sel') rows.push(selField(E, fd));
     else if (kind === 'check') rows.push(h('label', { class: 'cad-frow check' }, h('input', { type: 'checkbox', 'data-key': key, id: 'fd-' + key, checked: f[key] ? true : null, onchange: e => { f[key] = e.target.checked; showDialog(); regenSoon(0); } }), label));
-    else if (kind === 'select') { const s = h('select', { 'data-key': key, id: 'fd-' + key, onchange: e => { f[key] = e.target.value; showDialog(); regenSoon(0); } }, ...more.options.map(([v, t]) => h('option', { value: v, selected: f[key] === v ? true : null }, t))); rows.push(h('div', { class: 'cad-frow' }, h('label', { for: 'fd-' + key }, label), s)); }
+    else if (kind === 'select') { const s = h('select', { 'data-key': key, id: 'fd-' + key, onchange: e => { f[key] = e.target.value; if (f.type === 'hole' && (key === 'size' || key === 'kind')) holeSizeDefaults(f); showDialog(); regenSoon(0); } }, ...more.options.map(([v, t]) => h('option', { value: v, selected: f[key] === v ? true : null }, t))); rows.push(h('div', { class: 'cad-frow' }, h('label', { for: 'fd-' + key }, label), s)); }
     else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; if (key === 'op' && E.auto) { const sk = app.doc.features.find(x => x.id === f.sketch); if (sk) f.regions = f.split ? splitDefaultPts(sk, f.type === 'extrude' && v === 'remove') : defaultRegionPts(sk.ents, v === 'remove'); } if (E.field) activate(E.field.key); else showDialog(); regenSoon(0); } }, t))));
     else if (kind === 'file') rows.push(h('div', { class: 'cad-frow' }, h('label', null, label), h('div', null, f.file || 'No file', ' ', h('button', { type: 'button', class: 'rt-btn', onclick: () => { const inp = h('input', { type: 'file', accept: '.step,.stp' }); inp.addEventListener('change', async () => { const fl = inp.files[0]; if (!fl) return; f.file = fl.name; f.data = await fl.text(); f.name = 'Import ' + fl.name.replace(/\.(step|stp)$/i, ''); showDialog(); regenSoon(0); }); inp.click(); } }, 'Choose…'))));
   }
@@ -9081,7 +9458,7 @@ function wireDialog() {
    it to reorder (where what it uses allows). A failed feature is red, its reason in its row. And the measure box
    in the view's corner: what the selection measures.
    ========================================================================== */
-const ICON_OF = { sketch: 'sketch', plane: 'plane', extrude: 'extrude', revolve: 'revolve', sweep: 'sweep', loft: 'loft', fillet: 'fillet', chamfer: 'chamfer', shell: 'shell', hole: 'hole', lpattern: 'lpattern', cpattern: 'cpattern', mirror: 'mirror', boolean: 'boolean', import: 'import', delete: 'trash' };
+const ICON_OF = { sketch: 'sketch', plane: 'plane', extrude: 'extrude', revolve: 'revolve', sweep: 'sweep', loft: 'loft', fillet: 'fillet', chamfer: 'chamfer', shell: 'shell', hole: 'hole', thread: 'thread', lpattern: 'lpattern', cpattern: 'cpattern', mirror: 'mirror', boolean: 'boolean', import: 'import', delete: 'trash' };
 let menuEl = null;
 function closeRowMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
 function rowMenu(x, y, items) {
@@ -9258,6 +9635,8 @@ async function measureShown() {
   if (seq !== measureSeq) return;
   // the readout: a tab at the foot of the view with the one value most likely wanted (between two parallel faces,
   // how far apart), opened to every value; a value clicked is copied
+  // (a threaded face says so: its thread from the part's list of them)
+  if (!app.asm) m.items.forEach((it, k) => { const s = picks[k]; if (it.kind === 'face' && s && s.kind === 'face') { const part = app.result && app.result.parts.find(x => x.id === s.part), t = part && (part.threads || []).find(x => x.face === s.index); if (t) it.thread = t; } });
   const R = measureReadout(m);
   if (!R) { box.hidden = true; return; }
   const open = measureOpen();
@@ -9785,13 +10164,15 @@ function wireAssembly() {
 }
 /* ==========================================================================
    A Drawing tab: a Part Studio's parts, or an Assembly, as views on a sheet with dimensions and a title block. The
-   kernel projects each view with its hidden lines taken out (kept here until the model or the views change); the
-   sheet is drawn on the view's overlay canvas, and written as a PDF from the same drawing. A dimension holds to
+   kernel projects each view with its hidden lines taken out (a section's cut first, its cut faces returned to be
+   hatched), kept here until the model or the views change; a detail is drawn from its parent's lines. The sheet is
+   drawn on the view's overlay canvas, and written as a PDF or a DXF from the same drawing. A dimension holds to
    corners and round edges of the model by the kernel's references, so it follows the model when it changes.
+   Tools: Dimension (two corners and a place; a circle for its diameter, an arc for its radius, a tapped hole for
+   its thread), Angle (two straight lines and a place), Section (a line across a view), Detail (a circle on a view).
    ========================================================================== */
-const DR = { tool: 'select', data: null, key: '', located: {}, snaps: [], pick: null, pick2: null, hover: null, sel: null, cam: null, drag: null, mouse: null, drawn: null };
+const DR = { tool: 'select', data: null, key: '', located: {}, snaps: [], threads: [], pick: null, pick2: null, lines: [], hover: null, sel: null, cam: null, drag: null, mouse: null, drawn: null, detailC: null };
 const drwTab = id => app.file.tabs.find(t => t.id === id);
-const drwViews = D => D.views.map(v => ({ id: v.id, n: VIEW_DIRS[v.dir].n, x: VIEW_DIRS[v.dir].x }));
 /* what the drawing is of, as the kernel is asked: each part with its place */
 async function drwItems(D) {
   const src = drwTab(D.of);
@@ -9810,6 +10191,16 @@ async function drwItems(D) {
   }
   return out;
 }
+const dcr = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+/* the thread on a round edge, if it is the rim of a threaded face: its label */
+function threadAt(g) {
+  if (!g || !g.c || !g.n) return null;
+  for (const t of DR.threads) {
+    const cr = dcr(t.dir, g.n), d = [g.c[0] - t.from[0], g.c[1] - t.from[1], g.c[2] - t.from[2]], off = dcr(d, t.dir);
+    if (Math.hypot(...cr) < 1e-4 && Math.hypot(...off) < 1e-4 && Math.abs(g.r - t.r) < 1e-4) return t.label;
+  }
+  return null;
+}
 /* the drawing made: its views from the kernel (when what they show has changed), what its dimensions hold to found
    on the model, and the corners and round edges a new dimension can be put on */
 async function drwRegen() {
@@ -9819,16 +10210,16 @@ async function drwRegen() {
   try {
     const items = await drwItems(D);
     if (!items || app.drw !== D) return null;
-    const key = JSON.stringify([items.map(i => [JSON.stringify(i.doc), i.part, i.p, i.q]), D.views.map(v => v.dir + v.id)]);
+    const kv = kernelViews(D), key = JSON.stringify([items.map(i => [JSON.stringify(i.doc), i.part, i.p, i.q]), kv]);
     if (key !== DR.key) {
-      const got = await kernelAsk('drawing', { items, views: drwViews(D) }, 'regen');
+      const got = await kernelAsk('drawing', { items, views: kv }, 'regen');
       if (!got) return null;
       if (app.drw !== D) return null;
       DR.data = { views: Object.fromEntries(got.map(g => [g.id, g])) }; DR.key = key;
     }
     DR.items = items;
-    // the corners and round edges of every part, where the drawing has them
-    DR.snaps = [];
+    // the corners and round edges of every part, and its threads, where the drawing has them
+    DR.snaps = []; DR.threads = [];
     for (const it of items) {
       const M = studioMesh(it.doc.id, it.part);
       if (!M) continue;
@@ -9837,13 +10228,15 @@ async function drwRegen() {
         if (!M.edgeKinds || M.edgeKinds[j] !== 'circle') continue;
         const c = edgeConnector(M, j);
         if (!c || !c.round) continue;
-        const k = M.edgeGroups[2 * j] * 6, r = Math.hypot(M.seg[k] - c.o[0], M.seg[k + 1] - c.o[1], M.seg[k + 2] - c.o[2]);
-        DR.snaps.push({ kind: 'edge', item: it, index: j, w: placed(it, c.o), n: turned3(it, c.z), r });
+        const k0 = M.edgeGroups[2 * j] * 6, k1 = (M.edgeGroups[2 * j] + M.edgeGroups[2 * j + 1] - 1) * 6 + 3, r = Math.hypot(M.seg[k0] - c.o[0], M.seg[k0 + 1] - c.o[1], M.seg[k0 + 2] - c.o[2]);
+        const full = Math.hypot(M.seg[k0] - M.seg[k1], M.seg[k0 + 1] - M.seg[k1 + 1], M.seg[k0 + 2] - M.seg[k1 + 2]) < 1e-6;
+        DR.snaps.push({ kind: 'edge', item: it, index: j, w: placed(it, c.o), n: turned3(it, c.z), r, full });
       }
+      for (const t of M.threads || []) DR.threads.push(Object.assign({}, t, { from: placed(it, t.from), dir: turned3(it, t.dir) }));
     }
     // what each dimension holds to
     const reqs = [], slots = [];
-    for (const d of D.dims) for (const k of ['a', 'b']) {
+    for (const d of D.dims) for (const k of ['a', 'b', 'c', 'd']) {
       if (!d[k]) continue;
       const it = items.find(x => (d[k].inst ? x.inst === d[k].inst : x.part === d[k].ref.part));
       if (!it) continue;
@@ -9852,6 +10245,8 @@ async function drwRegen() {
     const located = {};
     if (reqs.length) { const got = await kernelAsk('drawLocate', { reqs }); got.forEach((g, i) => { const [id, k] = slots[i]; (located[id] || (located[id] = {}))[k] = g; }); }
     if (app.drw !== D) return null;
+    // (a diameter on a tapped hole reads as its thread)
+    for (const d of D.dims) if (d.t === 'dia' && located[d.id] && located[d.id].a) { const lab = threadAt(located[d.id].a); if (lab) located[d.id].a = Object.assign({}, located[d.id].a, { label: lab }); }
     DR.located = located;
     app.result = { features: [], parts: [], frames: {}, vars: {}, errors: [], drw: true };
     app.sel = [];
@@ -9873,6 +10268,8 @@ const drwMm = (sx, sy) => [(sx - DR.cam.x) / DR.cam.z, (sy - DR.cam.y) / DR.cam.
 const drwToday = () => new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const drwSource = D => { const t = drwTab(D.of); return t ? t.name : ''; };
 const drwOpts = D => ({ located: DR.located, date: drwToday(), source: drwSource(D), picked: DR.sel });
+/* a view's own coordinates of a point on the sheet */
+const sheetToView = (v, q) => [v.c[0] + (q[0] - v.at[0]) / v.s, v.c[1] - (q[1] - v.at[1]) / v.s];
 function drawDrw(c) {
   const D = app.drw; if (!D) return;
   if (!DR.cam) fitSheet();
@@ -9881,7 +10278,7 @@ function drawDrw(c) {
   c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(X(0) + 4, Y(0) + 4, W * z, H * z);
   c.fillStyle = '#fdfdfb'; c.fillRect(X(0), Y(0), W * z, H * z);
   c.lineCap = 'round'; c.lineJoin = 'round';
-  const ink = '#141414', hot = '#d2691e';
+  const ink = '#141414', hot = '#d2691e', blue = '#3b82d6';
   const pen = {
     line(x1, y1, x2, y2, w, dash, on2) { c.beginPath(); c.setLineDash(dash ? dash.map(v => v * z) : []); c.lineWidth = Math.max(0.6, (w || 0.2) * z); c.strokeStyle = on2 ? hot : ink; c.moveTo(X(x1), Y(y1)); c.lineTo(X(x2), Y(y2)); c.stroke(); },
     poly(run, w, dash) { if (run.length < 4) return; c.beginPath(); c.setLineDash(dash ? dash.map(v => v * z) : []); c.lineWidth = Math.max(0.6, (w || 0.2) * z); c.strokeStyle = ink; c.moveTo(X(run[0]), Y(run[1])); for (let i = 2; i + 1 < run.length; i += 2) c.lineTo(X(run[i]), Y(run[i + 1])); c.stroke(); },
@@ -9890,36 +10287,82 @@ function drawDrw(c) {
   };
   DR.drawn = drawSheet(pen, D, DR.data, drwOpts(D));
   c.setLineDash([]);
-  // the dimension being made: its first point, the point under the pointer, and how it would lie
-  const L = DR.drawn.layout, mark = (s, col) => { const v = L.views.find(x => x.id === s.view); if (!v) return; const p = drwScr(L.toSheet(v, viewPoint(v.dir, s.w))); c.beginPath(); if (s.kind === 'edge') c.arc(p[0], p[1], Math.max(3, s.r * L.s * z), 0, 2 * Math.PI); else c.rect(p[0] - 4, p[1] - 4, 8, 8); c.strokeStyle = col; c.lineWidth = 2; c.stroke(); };
-  if (DR.tool === 'dim') { if (DR.hover) mark(DR.hover, '#3b82d6'); if (DR.pick) mark(DR.pick, hot); if (DR.pick2) mark(DR.pick2, hot); }
+  const L = DR.drawn.layout;
+  const mark = (s, col) => { const v = L.views.find(x => x.id === s.view); if (!v) return; const p = drwScr(L.toSheet(v, framePoint(v.F, s.w))); c.beginPath(); if (s.kind === 'edge') c.arc(p[0], p[1], Math.max(3, s.r * v.s * z), 0, 2 * Math.PI); else c.rect(p[0] - 4, p[1] - 4, 8, 8); c.strokeStyle = col; c.lineWidth = 2; c.stroke(); };
+  const seg = (l, col) => { c.beginPath(); c.moveTo(X(l[0]), Y(l[1])); c.lineTo(X(l[2]), Y(l[3])); c.strokeStyle = col; c.lineWidth = 3; c.stroke(); };
+  if (DR.tool === 'dim') { if (DR.hover) mark(DR.hover, blue); if (DR.pick) mark(DR.pick, hot); if (DR.pick2) mark(DR.pick2, hot); }
   if (DR.tool === 'dim' && DR.pick && DR.pick2 && DR.mouse) {
     const d = drwPlacing(DR.mouse), g = d && dimGeom(L, d, { a: { pt: DR.pick.w }, b: { pt: DR.pick2.w } });
     if (g) { c.strokeStyle = hot; c.fillStyle = hot; c.lineWidth = 1; for (const l of g.lines) { c.beginPath(); c.moveTo(X(l[0]), Y(l[1])); c.lineTo(X(l[2]), Y(l[3])); c.stroke(); } c.font = Math.max(5, 3 * z) + 'px Helvetica, Arial, sans-serif'; c.textAlign = 'center'; c.fillText(g.text, X(g.at[0]), Y(g.at[1] + 1.1)); }
   }
+  if (DR.tool === 'ang') { if (DR.hover && DR.hover.line) seg(DR.hover.line, blue); for (const l of DR.lines) seg(l.line, hot); }
+  // a section's line, or a detail's circle, as it would go
+  if ((DR.tool === 'section' || DR.tool === 'detail') && DR.mouse) {
+    const q = drwMm(DR.mouse.sx, DR.mouse.sy), v = DR.detailC ? L.views.find(x => x.id === DR.detailC.view) : drwViewAt(DR.mouse.sx, DR.mouse.sy, DR.tool === 'section');
+    c.setLineDash([8, 3, 2, 3]); c.strokeStyle = hot; c.lineWidth = 1.5;
+    if (v && DR.tool === 'section') { const sq = drwSectionSnap(v, q, DR.mouse.shift), ext = 6, a = DR.mouse.shift ? [v.at[0] - v.w * v.s / 2 - ext, sq[1]] : [sq[0], v.at[1] - v.h * v.s / 2 - ext], b = DR.mouse.shift ? [v.at[0] + v.w * v.s / 2 + ext, sq[1]] : [sq[0], v.at[1] + v.h * v.s / 2 + ext]; c.beginPath(); c.moveTo(X(a[0]), Y(a[1])); c.lineTo(X(b[0]), Y(b[1])); c.stroke(); }
+    if (v && DR.tool === 'detail' && DR.detailC) { const C = DR.detailC.sheet; c.beginPath(); c.arc(X(C[0]), Y(C[1]), Math.hypot(q[0] - C[0], q[1] - C[1]) * z, 0, 2 * Math.PI); c.stroke(); }
+    c.setLineDash([]);
+  }
   c.restore();
 }
-/* the corner or round edge of a view nearest a screen point */
+/* the corner or round edge of a view nearest a screen point (in a section, only what is left after the cut; in a
+   detail, only what is inside its circle) */
 function drwSnap(sx, sy) {
   const L = DR.drawn && DR.drawn.layout; if (!L) return null;
   let best = null, bd = 10;
   for (const v of L.views) {
     if (!v.box || v.dir === 'iso') continue;
-    const n = VIEW_DIRS[v.dir].n;
+    const n = v.F.n, Dv = app.drw.views.find(x => x.id === v.id);
     for (const s of DR.snaps) {
-      const p = drwScr(L.toSheet(v, viewPoint(v.dir, s.w)));
+      if (v.F.cut && (s.w[0] - v.F.cut.o[0]) * v.F.cut.n[0] + (s.w[1] - v.F.cut.o[1]) * v.F.cut.n[1] + (s.w[2] - v.F.cut.o[2]) * v.F.cut.n[2] > 1e-6) continue;
+      const q2 = framePoint(v.F, s.w);
+      if (Dv && Dv.dir === 'detail' && Math.hypot(q2[0] - Dv.c[0], q2[1] - Dv.c[1]) > Dv.r) continue;
+      const p = drwScr(L.toSheet(v, q2));
       if (s.kind === 'vertex') { const d = Math.hypot(p[0] - sx, p[1] - sy); if (d < bd) { bd = d; best = Object.assign({ view: v.id }, s); } }
       // a round edge seen end on: by its rim
-      else if (Math.abs(Math.abs(s.n[0] * n[0] + s.n[1] * n[1] + s.n[2] * n[2]) - 1) < 1e-6) { const d = Math.abs(Math.hypot(p[0] - sx, p[1] - sy) - s.r * L.s * DR.cam.z); if (d < Math.min(bd, 7)) { bd = d; best = Object.assign({ view: v.id }, s); } }
+      else if (Math.abs(Math.abs(s.n[0] * n[0] + s.n[1] * n[1] + s.n[2] * n[2]) - 1) < 1e-6) { const d = Math.abs(Math.hypot(p[0] - sx, p[1] - sy) - s.r * v.s * DR.cam.z); if (d < Math.min(bd, 7)) { bd = d; best = Object.assign({ view: v.id }, s); } }
     }
   }
   return best;
+}
+/* the straight line of a view nearest a screen point, with the corners at its ends (for an angle) */
+function drwLineAt(sx, sy) {
+  const L = DR.drawn && DR.drawn.layout; if (!L) return null;
+  const dat = L.data && L.data.views;
+  let best = null, bd = 7;
+  for (const v of L.views) {
+    if (!v.box || v.dir === 'iso' || !dat || !dat[v.id]) continue;
+    for (const r of dat[v.id].vis) {
+      if (r.length !== 4) continue;
+      const A = drwScr(L.toSheet(v, [r[0], r[1]])), B = drwScr(L.toSheet(v, [r[2], r[3]])), dx = B[0] - A[0], dy = B[1] - A[1], L2 = dx * dx + dy * dy;
+      if (L2 < 4) continue;
+      const t = Math.max(0, Math.min(1, ((sx - A[0]) * dx + (sy - A[1]) * dy) / L2)), d = Math.hypot(A[0] + dx * t - sx, A[1] + dy * t - sy);
+      if (d < bd) { bd = d; best = { view: v.id, ends: [[r[0], r[1]], [r[2], r[3]]], line: [...L.toSheet(v, [r[0], r[1]]), ...L.toSheet(v, [r[2], r[3]])] }; }
+    }
+  }
+  if (!best) return null;
+  // its ends as corners of the model (so the angle follows the model)
+  const v = L.views.find(x => x.id === best.view), cornerAt = q => { let s0 = null, d0 = 1e-3; for (const s of DR.snaps) if (s.kind === 'vertex') { const p = framePoint(v.F, s.w), d = Math.hypot(p[0] - q[0], p[1] - q[1]); if (d < d0) { d0 = d; s0 = Object.assign({ view: v.id }, s); } } return s0; };
+  best.corners = best.ends.map(cornerAt);
+  return best;
+}
+/* where a section line through a point of a view goes: up the view (Shift: across it), held to a hole's centre or a
+   corner within a few pixels */
+function drwSectionSnap(v, q, across) {
+  const p = sheetToView(v, q), tol = 6 / (DR.cam.z * v.s), k = across ? 1 : 0;
+  let pos = p[k], bd = tol;
+  // a hole's or a round edge's centre first (seen end on or from the side), then a corner
+  for (const s of DR.snaps) if (s.kind === 'edge') { const w = framePoint(v.F, s.w)[k], d = Math.abs(w - p[k]); if (d < bd) { bd = d; pos = w; } }
+  if (bd === tol) for (const s of DR.snaps) if (s.kind === 'vertex') { const w = framePoint(v.F, s.w)[k], d = Math.abs(w - p[k]); if (d < bd) { bd = d; pos = w; } }
+  const pv = across ? [p[0], pos] : [pos, p[1]];
+  return DR.drawn.layout.toSheet(v, pv).concat([pos]);
 }
 /* the dimension two picked corners would make, placed where the pointer is: across if the pointer is above or below
    them, up if it is beside them, along them with Shift */
 function drwPlacing(m) {
   const L = DR.drawn.layout, v = L.views.find(x => x.id === DR.pick.view); if (!v) return null;
-  const P = L.toSheet(v, viewPoint(v.dir, DR.pick.w)), Q = L.toSheet(v, viewPoint(v.dir, DR.pick2.w)), mid = [(P[0] + Q[0]) / 2, (P[1] + Q[1]) / 2], q = drwMm(m.sx, m.sy);
+  const P = L.toSheet(v, framePoint(v.F, DR.pick.w)), Q = L.toSheet(v, framePoint(v.F, DR.pick2.w)), mid = [(P[0] + Q[0]) / 2, (P[1] + Q[1]) / 2], q = drwMm(m.sx, m.sy);
   const dx = Math.abs(Q[0] - P[0]), dy = Math.abs(Q[1] - P[1]);
   let dir = m.shift ? 'a' : Math.abs(q[1] - mid[1]) >= Math.abs(q[0] - mid[0]) ? 'h' : 'v';
   if (dir === 'h' && dx < 1e-6) dir = 'v'; if (dir === 'v' && dy < 1e-6) dir = 'h';
@@ -9933,12 +10376,15 @@ async function drwRefs(snaps) {
   return got.map((g, i) => (g && g.ref ? Object.assign({ ref: g.ref }, snaps[i].item.inst ? { inst: snaps[i].item.inst } : {}) : null));
 }
 const drwDimAt = (sx, sy) => { const q = drwMm(sx, sy); return ((DR.drawn && DR.drawn.dims) || []).find(d => q[0] >= d.g.hit[0] && q[0] <= d.g.hit[2] && q[1] >= d.g.hit[1] && q[1] <= d.g.hit[3]) || null; };
-const drwViewAt = (sx, sy) => { const L = DR.drawn && DR.drawn.layout, q = drwMm(sx, sy); return L ? L.views.find(v => v.box && Math.abs(q[0] - v.at[0]) <= v.w * L.s / 2 + 2 && Math.abs(q[1] - v.at[1]) <= v.h * L.s / 2 + 2) : null; };
+function drwViewAt(sx, sy, principalOnly) {
+  const L = DR.drawn && DR.drawn.layout, q = drwMm(sx, sy);
+  return L ? L.views.find(v => v.box && (!principalOnly || (VIEW_DIRS[v.dir] && v.dir !== 'iso')) && Math.abs(q[0] - v.at[0]) <= v.w * v.s / 2 + 2 && Math.abs(q[1] - v.at[1]) <= v.h * v.s / 2 + 2) : null;
+}
 /* ---------- the pointer on the sheet ---------- */
 function drwDown(e, sx, sy) {
   const D = app.drw; if (!D || !DR.cam) return;
   if (e.button === 1 || e.button === 2) { DR.drag = { kind: 'pan', x: sx, y: sy }; return; }
-  if (DR.tool === 'dim') return;                       // (a dimension is made on the click's release)
+  if (DR.tool !== 'select') return;                    // (the tools act on the click's release)
   const d = drwDimAt(sx, sy), v = d ? null : drwViewAt(sx, sy);
   DR.sel = d ? d.id : null;
   if (d) DR.drag = { kind: 'dim', id: d.id, x: sx, y: sy, moved: false };
@@ -9957,20 +10403,61 @@ function drwMove(e, sx, sy) {
     else {
       const d = D.dims.find(x => x.id === g.id), geo = DR.drawn.dims.find(x => x.id === g.id);
       if (d && geo) {
-        if (d.t === 'dia') { const q = drwMm(sx, sy), C = geo.g.centre; d.ang = Math.atan2(-(q[1] - C[1]), q[0] - C[0]) * 180 / Math.PI; d.off = Math.max(4, Math.hypot(q[0] - C[0], q[1] - C[1]) - geo.g.r); }
+        if (d.t === 'dia' || d.t === 'rad') { const q = drwMm(sx, sy), C = geo.g.centre; d.ang = Math.atan2(-(q[1] - C[1]), q[0] - C[0]) * 180 / Math.PI; d.off = Math.max(4, Math.hypot(q[0] - C[0], q[1] - C[1]) - geo.g.r); }
+        else if (d.t === 'ang') { const q = drwMm(sx, sy); d.off = Math.max(4, Math.hypot(q[0] - geo.g.X[0], q[1] - geo.g.X[1])); }
         else { const dir = d.t === 'ext' ? (d.axis === 'x' ? 'h' : 'v') : d.dir; if (dir === 'h') d.off += dy; else if (dir === 'v') d.off += dx; else { const P = geo.g.P, Q = geo.g.Q, len = Math.hypot(Q[0] - P[0], Q[1] - P[1]) || 1; d.off += dx * (-(Q[1] - P[1]) / len) + dy * ((Q[0] - P[0]) / len); } g.x = sx; g.y = sy; }
       }
     }
     emit('view'); return;
   }
   if (DR.tool === 'dim') { DR.hover = DR.pick && DR.pick2 ? null : drwSnap(sx, sy); emit('view'); }
+  else if (DR.tool === 'ang') { DR.hover = DR.lines.length < 2 ? drwLineAt(sx, sy) : null; emit('view'); }
+  else if (DR.tool === 'section' || DR.tool === 'detail') emit('view');
 }
 async function drwUp(e, sx, sy) {
   const D = app.drw, g = DR.drag; DR.drag = null;
   if (!D) return;
   if (g && g.kind !== 'pan' && g.moved) { changed(); return; }
   if (g) return;
-  if (DR.tool !== 'dim' || e.button !== 0) return;
+  if (e.button !== 0) return;
+  const L = DR.drawn && DR.drawn.layout;
+  if (DR.tool === 'section') {
+    const v = drwViewAt(sx, sy, true);
+    if (!v) { toast('Click in the front, top or right view (or another square-on view) where the section cuts it: up the view, or across it with Shift'); return; }
+    if (!editGate()) return;
+    const sq = drwSectionSnap(v, drwMm(sx, sy), e.shiftKey);
+    checkpoint();
+    D.views.push({ id: sketchId('v'), dir: 'section', of: v.id, axis: e.shiftKey ? 'h' : 'v', pos: +sq[2].toFixed(6), label: nextLetter(D) });
+    setDrwTool('select'); DR.key = ''; changed(); return;
+  }
+  if (DR.tool === 'detail') {
+    const q = drwMm(sx, sy);
+    if (!DR.detailC) { const v = drwViewAt(sx, sy); if (!v || v.dir === 'detail') { toast('Click in a view where the detail’s middle goes'); return; } DR.detailC = { view: v.id, sheet: q }; emit('view'); return; }
+    const v = L.views.find(x => x.id === DR.detailC.view), C = sheetToView(v, DR.detailC.sheet), r = Math.hypot(q[0] - DR.detailC.sheet[0], q[1] - DR.detailC.sheet[1]) / v.s;
+    DR.detailC = null;
+    if (!(r > 0.05) || !editGate()) { emit('view'); return; }
+    checkpoint();
+    D.views.push({ id: sketchId('v'), dir: 'detail', of: v.id, c: C.map(x => +x.toFixed(6)), r: +r.toFixed(6), k: 2, label: nextLetter(D) });
+    setDrwTool('select'); changed(); return;
+  }
+  if (DR.tool === 'ang') {
+    if (DR.lines.length < 2) {
+      const l = drwLineAt(sx, sy);
+      if (!l) { toast('Click a straight line of a view'); return; }
+      if (!l.corners[0] || !l.corners[1]) { toast('That line does not end at corners of the model: choose one that does'); return; }
+      if (DR.lines.length && l.view !== DR.lines[0].view) { toast('Both lines are in one view'); return; }
+      DR.lines.push(l); emit('view'); return;
+    }
+    if (!editGate()) return;
+    const refs = await drwRefs([...DR.lines[0].corners, ...DR.lines[1].corners]);
+    if (refs.some(r => !r)) { toast('Those lines could not be held to', true); DR.lines = []; emit('view'); return; }
+    const dim = { id: sketchId('q'), view: DR.lines[0].view, t: 'ang', off: 15, a: refs[0], b: refs[1], c: refs[2], d: refs[3] };
+    const got = { a: { pt: DR.lines[0].corners[0].w }, b: { pt: DR.lines[0].corners[1].w }, c: { pt: DR.lines[1].corners[0].w }, d: { pt: DR.lines[1].corners[1].w } }, g0 = dimGeom(L, dim, got);
+    if (!g0) { toast('The two lines are parallel: there is no angle between them', true); DR.lines = []; emit('view'); return; }
+    const q = drwMm(sx, sy); dim.off = Math.max(4, Math.hypot(q[0] - g0.X[0], q[1] - g0.X[1]));
+    checkpoint(); D.dims.push(dim); DR.lines = []; changed(); return;
+  }
+  if (DR.tool !== 'dim') return;
   if (DR.pick && DR.pick2) {
     // the third click places it
     const d = drwPlacing({ sx, sy, shift: e.shiftKey });
@@ -9982,14 +10469,14 @@ async function drwUp(e, sx, sy) {
     DR.pick = DR.pick2 = null; changed(); return;
   }
   const s = drwSnap(sx, sy);
-  if (!s) { if (!DR.pick) toast('Click a corner of a view, then another, then where the dimension goes; or click a circle for its diameter'); return; }
+  if (!s) { if (!DR.pick) toast('Click a corner of a view, then another, then where the dimension goes; or click a circle for its diameter, an arc for its radius'); return; }
   if (s.kind === 'edge' && !DR.pick) {
     if (!editGate()) return;
     const refs = await drwRefs([s]);
     if (!refs[0]) { toast('That circle could not be held to', true); return; }
-    const L = DR.drawn.layout, v = L.views.find(x => x.id === s.view), C = L.toSheet(v, viewPoint(v.dir, s.w)), q = drwMm(sx, sy);
+    const v = L.views.find(x => x.id === s.view), C = L.toSheet(v, framePoint(v.F, s.w)), q = drwMm(sx, sy);
     checkpoint();
-    D.dims.push({ id: sketchId('q'), view: s.view, t: 'dia', ang: Math.atan2(-(q[1] - C[1]), q[0] - C[0]) * 180 / Math.PI, off: 8, a: refs[0] });
+    D.dims.push({ id: sketchId('q'), view: s.view, t: s.full ? 'dia' : 'rad', ang: Math.atan2(-(q[1] - C[1]), q[0] - C[0]) * 180 / Math.PI, off: 8, a: refs[0] });
     changed(); return;
   }
   if (s.kind !== 'vertex') return;
@@ -10001,14 +10488,21 @@ async function drwUp(e, sx, sy) {
 function drwWheel(sx, sy, f) { if (!DR.cam) return; const z = Math.max(0.3, Math.min(40, DR.cam.z / f)), q = drwMm(sx, sy); DR.cam.z = z; DR.cam.x = sx - q[0] * z; DR.cam.y = sy - q[1] * z; emit('view'); }
 function drwKey(k) {
   const D = app.drw; if (!D) return false;
-  if (k === 'escape') { if (DR.pick || DR.pick2) { DR.pick = DR.pick2 = null; } else if (DR.tool !== 'select') setDrwTool('select'); else DR.sel = null; emit('view'); renderDrw(); return true; }
+  if (k === 'escape') { if (DR.pick || DR.pick2 || DR.lines.length || DR.detailC) { DR.pick = DR.pick2 = DR.detailC = null; DR.lines = []; } else if (DR.tool !== 'select') setDrwTool('select'); else DR.sel = null; emit('view'); renderDrw(); return true; }
   if ((k === 'delete' || k === 'backspace') && DR.sel) { deleteDim(DR.sel); return true; }
   if (k === 'd') { setDrwTool('dim'); return true; }
   if (k === 'f') { fitSheet(); emit('view'); return true; }
   return false;
 }
-function setDrwTool(t) { DR.tool = t; DR.pick = DR.pick2 = DR.hover = null; for (const b of document.querySelectorAll('#drwBar [data-drw]')) b.classList.toggle('on', b.dataset.drw === t); emit('view'); }
+function setDrwTool(t) { DR.tool = t; DR.pick = DR.pick2 = DR.hover = DR.detailC = null; DR.lines = []; for (const b of document.querySelectorAll('#drwBar [data-drw]')) b.classList.toggle('on', b.dataset.drw === t); emit('view'); }
 function deleteDim(id) { const D = app.drw; if (!D || !editGate()) return; checkpoint(); D.dims = D.dims.filter(d => d.id !== id); if (DR.sel === id) DR.sel = null; changed(); }
+/* a view taken off the sheet: with its sections and details, and the dimensions on any of them */
+function removeView(id) {
+  const D = app.drw; if (!D) return;
+  const gone = new Set([id]);
+  for (let k = 0; k < 3; k++) for (const v of D.views) if (gone.has(v.of)) gone.add(v.id);
+  D.views = D.views.filter(v => !gone.has(v.id)); D.dims = D.dims.filter(d => !gone.has(d.view));
+}
 /* the view's whole size across and up, on the front, top and right views that have none */
 function addOverall() {
   const D = app.drw; if (!D || !editGate()) return;
@@ -10019,40 +10513,51 @@ function addOverall() {
   changed();
 }
 /* ---------- the drawing's side panel ---------- */
+const DIM_KIND = { lin: '', ext: ', overall', dia: '', rad: '', ang: '' };
 function renderDrw() {
   const D = app.drw, box = document.getElementById('drwSide');
   if (!D || !box) return;
   const set = (fn, quiet) => { if (!editGate()) { renderDrw(); return; } checkpoint(); fn(); if (!quiet) { DR.key = ''; } changed(); };
   const sel = (id, label, options, value, onPick) => h('div', { class: 'cad-frow' }, h('label', { for: id }, label), h('select', { id, onchange: e => onPick(e.target.value) }, ...options.map(([v, t]) => h('option', Object.assign({ value: v }, String(v) === String(value) ? { selected: '' } : {}), t))));
   const txt = (key, label) => h('div', { class: 'cad-frow' }, h('label', { for: 'drw-' + key }, label), h('input', { type: 'text', id: 'drw-' + key, value: (D.title && D.title[key]) || '', spellcheck: 'false', maxlength: '120', onkeydown: e => e.stopPropagation(), onchange: e => set(() => { D.title = Object.assign({}, D.title); if (e.target.value.trim()) D.title[key] = e.target.value.trim(); else delete D.title[key]; }, true) }));
+  const check = (id, label, on2, fn) => h('label', { class: 'cad-check' }, h('input', Object.assign({ type: 'checkbox', id, onchange: e => set(() => fn(e.target.checked), true) }, on2 ? { checked: '' } : {})), ' ' + label);
   const src = drwTab(D.of), sources = app.file.tabs.filter(t => t.kind !== 'drawing').map(t => [t.id, (t.kind === 'assembly' ? 'Assembly: ' : 'Part Studio: ') + t.name]);
   const parts = src && src.kind === 'studio' ? ((DR.partsOf && DR.partsOf.id === src.id ? DR.partsOf.list : []) || []) : [];
   const L = DR.drawn && DR.drawn.layout;
+  const vname = v => (v.dir === 'section' ? 'Section ' + v.label + '-' + v.label : v.dir === 'detail' ? 'Detail ' + v.label : VIEW_DIRS[v.dir].name);
+  const derived = D.views.filter(v => v.dir === 'section' || v.dir === 'detail');
   const rows = [h('h2', { class: 'cad-shead' }, 'This drawing'),
     sel('drw-of', 'Of', sources, D.of, v => set(() => { D.of = v; D.part = null; D.dims = D.dims.filter(d => d.t === 'ext'); })),
     src && src.kind === 'studio' ? sel('drw-part', 'Part', [['', 'All its parts'], ...parts], D.part || '', v => set(() => { D.part = v || null; D.dims = D.dims.filter(d => d.t === 'ext' || !v || d.a.ref.part === v); })) : null,
     sel('drw-sheet', 'Sheet', Object.keys(SHEETS).map(k => [k, k + ' (' + SHEETS[k][0] + ' × ' + SHEETS[k][1] + ' mm)']), D.sheet, v => set(() => { D.sheet = v; for (const x of D.views) delete x.at; DR.cam = null; }, true)),
     sel('drw-scale', 'Scale', [[0, 'To fit' + (L && !D.scale ? ' (' + scaleText(L.s) + ')' : '')], ...[10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02].map(k => [k, scaleText(k)])], D.scale || 0, v => set(() => { D.scale = +v || 0; for (const x of D.views) delete x.at; }, true)),
-    h('label', { class: 'cad-check' }, h('input', Object.assign({ type: 'checkbox', id: 'drw-hidden', onchange: e => set(() => { D.hidden = e.target.checked; }, true) }, D.hidden ? { checked: '' } : {})), ' Show hidden lines, dashed'),
+    check('drw-hidden', 'Show hidden lines, dashed', D.hidden, v => { D.hidden = v; }),
+    check('drw-marks', 'Centre marks on holes and round edges', D.marks, v => { D.marks = v; }),
     h('h2', { class: 'cad-shead' }, 'Views'),
-    h('div', { class: 'cad-drwviews' }, ...Object.keys(VIEW_DIRS).map(k => h('label', { class: 'cad-check' }, h('input', Object.assign({ type: 'checkbox', 'data-view': k, onchange: e => set(() => { if (e.target.checked) D.views.push({ id: sketchId('v'), dir: k }); else { const gone = D.views.filter(v => v.dir === k).map(v => v.id); D.views = D.views.filter(v => v.dir !== k); D.dims = D.dims.filter(d => !gone.includes(d.view)); } for (const x of D.views) delete x.at; }) }, D.views.some(v => v.dir === k) ? { checked: '' } : {})), ' ' + VIEW_DIRS[k].name))),
+    h('div', { class: 'cad-drwviews' }, ...Object.keys(VIEW_DIRS).map(k => h('label', { class: 'cad-check' }, h('input', Object.assign({ type: 'checkbox', 'data-view': k, onchange: e => set(() => { if (e.target.checked) D.views.push({ id: sketchId('v'), dir: k }); else for (const v of D.views.filter(x => x.dir === k)) removeView(v.id); for (const x of D.views) if (VIEW_DIRS[x.dir]) delete x.at; }) }, D.views.some(v => v.dir === k) ? { checked: '' } : {})), ' ' + VIEW_DIRS[k].name))),
+    derived.length ? h('ul', { class: 'cad-plist', id: 'drwDerived' }, ...derived.map(v => { const P = D.views.find(x => x.id === v.of); return h('li', { class: 'cad-irow', 'data-dview': v.id },
+      h('span', { class: 'nm' }, vname(v) + ' · of the ' + (P ? vname(P).toLowerCase() : '?') + ' view'),
+      v.dir === 'section' ? h('button', { type: 'button', class: 'cad-eye', title: 'Look from the other side', 'aria-label': 'Flip ' + vname(v), 'data-icon': 'flip', onclick: () => set(() => { if (v.flip) delete v.flip; else v.flip = true; }) }) : null,
+      v.dir === 'detail' ? h('select', { class: 'cad-dk', 'aria-label': 'Scale of ' + vname(v) + ' against the sheet', onchange: e => set(() => { v.k = +e.target.value; delete v.at; }, true) }, ...[1.5, 2, 3, 4, 5, 10].map(k => h('option', Object.assign({ value: k }, k === v.k ? { selected: '' } : {}), '×' + k))) : null,
+      h('button', { type: 'button', class: 'cad-eye', title: 'Take ' + vname(v) + ' off the sheet', 'aria-label': 'Delete ' + vname(v), 'data-icon': 'trash', onclick: () => set(() => removeView(v.id)) })); })) : h('p', { class: 'cad-empty' }, 'Section cuts a view along a line; Detail draws a circle of a view larger.'),
     h('h2', { class: 'cad-shead' }, 'Title block'), txt('title', 'Title'), txt('by', 'Drawn by'), txt('material', 'Material'), txt('number', 'Drawing no.'), txt('note', 'Note'),
     h('h2', { class: 'cad-shead' }, 'Dimensions (' + D.dims.length + ')'),
     D.dims.length ? h('ul', { class: 'cad-plist', id: 'drwDims' }, ...D.dims.map(d => { const g = DR.drawn && DR.drawn.dims.find(x => x.id === d.id), v = D.views.find(x => x.id === d.view); return h('li', { class: 'cad-irow' + (DR.sel === d.id ? ' picked' : '') + (g ? '' : ' hid'), 'data-dim': d.id, title: g ? 'Click to select; drag it on the sheet to move it' : 'What this held to is no longer on the model', onclick: e => { if (e.target.closest('button')) return; DR.sel = d.id; emit('view'); renderDrw(); } },
-      h('span', { class: 'nm' }, (g ? g.g.text + ' mm' : 'lost') + ' · ' + (v ? VIEW_DIRS[v.dir].name : '?') + (d.t === 'ext' ? ', overall' : '')), h('button', { type: 'button', class: 'cad-eye', title: 'Delete this dimension', 'aria-label': 'Delete this dimension', 'data-icon': 'trash', onclick: () => deleteDim(d.id) })); }))
-      : h('p', { class: 'cad-empty' }, 'None yet. Click Dimension, then two corners of a view and where it goes, or a circle. Overall sizes adds each view’s width and height.')];
+      h('span', { class: 'nm' }, (g ? g.g.text + (d.t === 'ang' || /^M/.test(g.g.text) ? '' : ' mm') : 'lost') + ' · ' + (v ? vname(v) : '?') + DIM_KIND[d.t]), h('button', { type: 'button', class: 'cad-eye', title: 'Delete this dimension', 'aria-label': 'Delete this dimension', 'data-icon': 'trash', onclick: () => deleteDim(d.id) })); }))
+      : h('p', { class: 'cad-empty' }, 'None yet. Click Dimension, then two corners of a view and where it goes, or a circle or an arc. Overall sizes adds each view’s width and height.')];
   box.replaceChildren(...rows.filter(Boolean));
   emit('icons', box);
 }
-/* the sheet as a PDF's bytes and its name (io/files.js makes the file, behind its gate) */
+/* the sheet as a PDF's or a DXF's bytes and its name (io/files.js makes the file, behind its gate) */
 function drwPdf() { const D = app.drw; return D && DR.data ? { name: D.name, bytes: pdfOfSheet(D, DR.data, drwOpts(D)) } : null; }
+function drwDxf() { const D = app.drw; return D && DR.data ? { name: D.name, bytes: dxfOfSheet(D, DR.data, drwOpts(D)) } : null; }
 function wireDrawing() {
   hooks.cadDrwRegen = drwRegen;
   hooks.cadSheet = c => drawDrw(c);
-  on('tab', () => { DR.cam = null; DR.sel = null; DR.pick = DR.pick2 = null; DR.tool = 'select'; if (app.drw) { DR.key = ''; setDrwTool('select'); } });
+  on('tab', () => { DR.cam = null; DR.sel = null; DR.pick = DR.pick2 = DR.detailC = null; DR.lines = []; DR.tool = 'select'; if (app.drw) { DR.key = ''; setDrwTool('select'); } });
   on('model', () => { if (app.drw) { const src = drwTab(app.drw.of); if (src && src.kind === 'studio') studioParts(src).then(ps => { if (!ps) return; const list = ps.map((p, i) => [p.id, partLook(src, p.id, i).name]); if (!DR.partsOf || DR.partsOf.id !== src.id || JSON.stringify(DR.partsOf.list) !== JSON.stringify(list)) { DR.partsOf = { id: src.id, list }; renderDrw(); } }); } });
   const bar = document.getElementById('drwBar');
-  if (bar) bar.addEventListener('click', e => { const b = e.target.closest('[data-drw]'); if (!b) return; const k = b.dataset.drw; if (k === 'overall') addOverall(); else if (k === 'fit') { fitSheet(); emit('view'); } else if (k === 'pdf') { if (hooks.cadExportPdf) hooks.cadExportPdf(); } else setDrwTool(k); });
+  if (bar) bar.addEventListener('click', e => { const b = e.target.closest('[data-drw]'); if (!b) return; const k = b.dataset.drw; if (k === 'overall') addOverall(); else if (k === 'fit') { fitSheet(); emit('view'); } else if (k === 'pdf') { if (hooks.cadExportPdf) hooks.cadExportPdf(); } else if (k === 'dxf') { if (hooks.cadExportDxf) hooks.cadExportDxf(); } else setDrwTool(k); });
 }
 /* ==========================================================================
    The pointer and the keys on the view. Right-drag orbits (in a sketch too: N looks straight at it again), middle-drag (or Shift with the right button) pans, the
@@ -10219,8 +10724,13 @@ async function normalToSel() {
 /* ==========================================================================
    The version, and what is new in it (Help › What’s new)
    ========================================================================== */
-const APP_VERSION = '0.9.0';
+const APP_VERSION = '0.10.0';
 const NEWS = [
+  { v: '0.10.0', date: '16 Nov 2026', items: [
+    '<b>Tapped and clearance holes</b>: pick an ISO metric size (M1.6 to M24) and the hole is drilled to suit. <b>Thread</b> notes a thread on a hole or a shaft that is already there.',
+    '<b>Section and detail views</b> on drawings: a section is hatched where it cuts, a detail draws part of a view larger.',
+    'Drawings gain radius and angle dimensions, centre marks, threads drawn to ISO 6410 and named in their diameter dimension, and <b>Export DXF</b>.',
+  ] },
   { v: '0.9.0', date: '12 Nov 2026', items: [
     '<b>Drawings</b>: a new kind of tab. Front, top, right and isometric views of a Part Studio or an Assembly on a sheet, with hidden lines removed.',
     'Dimensions on a drawing follow the model: overall sizes in one click, or click two corners and a place, or a circle for its diameter.',
@@ -10414,8 +10924,19 @@ function exportPdf() {
   toast('Exported ' + safeName(out.name) + '.pdf');
   return true;
 }
+/* a drawing's sheet as a DXF, for other CAD programs */
+function exportDxf() {
+  if (!accountGate('export a DXF')) return false;
+  const out = drwDxf();
+  if (!out) { toast('Open a Drawing tab first: the + at the foot of the view adds one', true); return false; }
+  downloadFile(safeName(out.name) + '.dxf', out.bytes, 'application/dxf');
+  track('export', 'cad-dxf');
+  toast('Exported ' + safeName(out.name) + '.dxf');
+  return true;
+}
 function wireFiles() {
   hooks.cadExportPdf = exportPdf;
+  hooks.cadExportDxf = exportDxf;
   hooks.cadSaveLater = scheduleSave;
   on('exportPart', x => exportParts(x.fmt, [x.id]));
   const stage = document.getElementById('stage');
@@ -11811,7 +12332,7 @@ window.JEKcad = {
   deleteFeature, moveFeature, setRollback, exportParts, importStep, saveFile, kernel: kernelAsk, cloudPush,
   pickAt, pickHere, overlayPick, selectPick, project, toScreen, fit, viewFrom, setMode, png: viewPng, sketchOn: () => !!app.sketch,
   share: cadShare, shareHash: cadShareHash, readShare: cadReadShare, openShare: cadOpenShare,
-  dr: DR, addOverall, deleteDim, drwPdf, fitSheet, setDrwTool, exportPdf,
+  dr: DR, addOverall, deleteDim, drwPdf, drwDxf, fitSheet, removeView, setDrwTool, exportPdf, exportDxf,
   as: AS, addTab, switchTab, renameTab, deleteTab, addInstance, poseInstance, mateOpen, matePick, mateApply, mateEdit, checkClash, triadPoints,
   flyStart, flyStop, flyTurn, cubePart, turnStep, deletePart, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
 };

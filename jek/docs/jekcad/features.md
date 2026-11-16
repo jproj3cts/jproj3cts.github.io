@@ -37,7 +37,13 @@ Where the radius does not fit every edge chosen, the edges it fits are rounded a
 
 **Shell** hollows a part. Choose the faces to remove and the wall thickness, inward unless you choose Thicken outward.
 
-**Hole** puts a hole at each point of a sketch, drilled against the sketch's normal: Simple, Counterbore or Countersink, blind or through all. A blind hole can end in a 118° drill tip.
+**Hole** puts a hole at each point of a sketch, drilled against the sketch's normal: Simple, Tapped, Clearance, Counterbore or Countersink, blind or through all. A blind hole can end in a 118° drill tip.
+
+A **Tapped** hole takes an ISO metric thread size, from M1.6 to M24 with three common fine pitches. It is drilled at the size's tapping drill (Ø5 for M6) and its wall carries the thread. A blind tapped hole has a thread depth as well as a drill depth; picking a size sets both to usual values. A **Clearance** hole is the hole a screw of the size passes through, with a close or normal fit (ISO 273: Ø6.4 or Ø6.6 for M6).
+
+**Thread** puts a thread on round faces that are already there: a hole drilled at a size's tapping drill, or a shaft at its major diameter. The face's size must match the thread chosen, and selecting the face first picks the size for you. A thread runs the whole length of the face, or a length from the face's open end.
+
+Threads are cosmetic, as in most CAD programs. The hole is not cut as a helix. The thread shows in the measure readout when you select its face, as a three-quarter circle and thin lines on drawings, and in a diameter dimension's text (M6×1). Patterns and mirrors of a tapped hole are tapped too.
 
 ## Patterns and copies
 

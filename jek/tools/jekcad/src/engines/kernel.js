@@ -1,6 +1,7 @@
 import { STD_PLANES, TOOL_FEATURES, appliedCount, fieldValue, normDoc, partLook, prepareDoc } from '../core/doc.js';
 import { WELD, arcSweep, carryPt, distToEnt, entCross, regionAt, regionsOf, silhouetteOf, weldEnts } from '../core/sketch-tools.js';
 import { curveIsClosed, curvePts, entKeys, hpt, inside, solveSketch } from '../core/sketch.js';
+import { extMinor, threadLabel, threadOf } from '../core/threads.js';
 
 /* ==========================================================================
    The kernel: the feature list regenerated with OpenCascade (the vendored replicad-opencascadejs build), in the
@@ -126,6 +127,15 @@ export function makeKernel(oc) {
     b.edgeFaces = b.edges.map(() => []);
     b.faces.forEach((f, i) => { for (const e of subShapes(f, TA.TopAbs_EDGE)) { const j = eix(e); if (j >= 0 && !b.edgeFaces[j].includes(i)) b.edgeFaces[j].push(i); e.delete(); } });
     return b.edges;
+  }
+  /* a face's normal out of the material, at the middle of its parameters */
+  function faceNormalMid(face) {
+    const s = T(new oc.BRepAdaptor_Surface(face, true)), u = (s.FirstUParameter() + s.LastUParameter()) / 2, v = (s.FirstVParameter() + s.LastVParameter()) / 2;
+    const p = T(new oc.gp_Pnt()), du = T(new oc.gp_Vec()), dv = T(new oc.gp_Vec());
+    s.D1(u, v, p, du, dv);
+    let n = v3.cross([du.X(), du.Y(), du.Z()], [dv.X(), dv.Y(), dv.Z()]);
+    if (face.Orientation() === oc.TopAbs_Orientation.TopAbs_REVERSED) n = v3.mul(n, -1);
+    return n;
   }
   const centreOf = (b, i) => { b.cent = b.cent || []; if (!b.cent[i]) { const p = props(b.faces[i], 'a'); b.cent[i] = p.c; } return b.cent[i]; };
   function edgeMid(e) { const c = T(new oc.BRepAdaptor_Curve(e)); return xyz(T(c.Value((c.FirstParameter() + c.LastParameter()) / 2))); }
@@ -505,7 +515,7 @@ export function makeKernel(oc) {
     }
     return { parts: out, made: [] };
   }
-  const nextState = S => ({ parts: S.parts.slice(), frames: Object.assign({}, S.frames), tools: Object.assign({}, S.tools), sketches: Object.assign({}, S.sketches) });
+  const nextState = S => ({ parts: S.parts.slice(), frames: Object.assign({}, S.frames), tools: Object.assign({}, S.tools), sketches: Object.assign({}, S.sketches), threads: Object.assign({}, S.threads) });
 
   /* a sketch's shapes that came from edges of the model (src: the edge's ref) follow those edges: each is found
      again in the model as it is now and flattened onto the sketch's plane; if any has moved, the sketch is solved
@@ -744,7 +754,11 @@ export function makeKernel(oc) {
     hole(S, f, V) {
       const sk = sketchOf(S, f.sketch), pts = sk.ents.filter(e => e.t === 'point' && !e.k);
       if (!pts.length) throw new Error('the sketch has no points: put a point where each hole goes');
-      const d = fieldValue(f, 'dia', V, 'len'), r = d / 2;
+      // a tapped hole is drilled at its size's tap drill and its wall carries the thread; a clearance hole is the
+      // size its screw passes through (close or normal fit)
+      const thr = f.kind === 'tapped' || f.kind === 'clear' ? threadOf(f.size) : null;
+      if ((f.kind === 'tapped' || f.kind === 'clear') && !thr) throw new Error('choose a thread size');
+      const d = f.kind === 'tapped' ? thr.tap : f.kind === 'clear' ? (f.fit === 'close' ? thr.close : thr.normal) : fieldValue(f, 'dia', V, 'len'), r = d / 2;
       if (!(r > 1e-9)) throw new Error('the diameter must be more than 0');
       const w = v3.mul(sk.frame.n, -1), u = sk.frame.x, L = bigLength(S, sk.frame);
       const D = f.end === 'through' ? L : fieldValue(f, 'depth', V, 'len'), z0 = -Math.max(0.5, d * 0.2);
@@ -782,7 +796,44 @@ export function makeKernel(oc) {
       S.tools[f.id] = { tool, op: 'remove', targets: f.targets };
       const r2 = applyTool(S, f.id, tool, 'remove', f.targets);
       S.parts = r2.parts;
+      if (f.kind === 'tapped') {
+        const td = f.end === 'through' ? null : fieldValue(f, 'threadDepth', V, 'len');
+        if (td !== null && !(td > 0)) throw new Error('the thread depth must be more than 0');
+        if (td !== null && td > D + 1e-9) throw new Error('the thread is deeper than the hole: drill deeper, or make the thread shorter');
+        // (the walls are known by the hole's name and their radius: so a pattern's or a mirror's copies are threaded too)
+        S.threads[f.id] = { size: f.size, internal: true, prefix: f.id + '.', r, length: td };
+      }
       return { holes: pts.length };
+    },
+    /* a cosmetic thread on round faces of the model: inside a hole drilled at the size's tap drill, or outside on a
+       shaft at its major diameter */
+    thread(S, f, V) {
+      if (!f.faces.length) throw new Error('choose the round faces to thread');
+      const t = threadOf(f.size);
+      if (!t) throw new Error('choose a thread size');
+      const names = [];
+      let internal = null;
+      for (const ref of f.faces) {
+        const hit = findFace(S, ref);
+        if (!hit) throw new Error('a face to thread is not there any more');
+        const face = hit.b.faces[hit.i];
+        if (surfType(face) !== 'cylinder') throw new Error('only a round face can be threaded');
+        const R = T(T(new oc.BRepAdaptor_Surface(face, true)).Cylinder()).Radius(), dia = 2 * R;
+        // inside or out: the face's normal points to its axis (a hole) or away (a shaft)
+        const sr = T(new oc.BRepAdaptor_Surface(face, true)), ax = T(T(sr.Cylinder()).Axis()), p0 = xyz(T(ax.Location())), dd = xyz(T(ax.Direction()));
+        const um = (sr.FirstUParameter() + sr.LastUParameter()) / 2, vm = (sr.FirstVParameter() + sr.LastVParameter()) / 2, c = xyz(T(sr.Value(um, vm)));
+        const along = v3.dot(v3.sub(c, p0), dd), foot = v3.add(p0, v3.mul(dd, along)), out = v3.sub(c, foot);
+        const nrm = faceNormalMid(face), isHole = v3.dot(nrm, out) < 0;
+        const want = isHole ? t.tap : t.major;
+        if (Math.abs(dia - want) > Math.max(0.05, 0.03 * want)) throw new Error('this face is Ø' + +dia.toFixed(3) + ': ' + t.size + ' needs ' + (isHole ? 'a Ø' + t.tap + ' tapping drill' : 'a Ø' + t.major + ' shaft'));
+        if (internal !== null && internal !== isHole) throw new Error('thread holes and shafts in separate features');
+        internal = isHole;
+        names.push(hit.b.names[hit.i][0]);
+      }
+      const len = f.full ? null : fieldValue(f, 'length', V, 'len');
+      if (len !== null && !(len > 0)) throw new Error('the length must be more than 0');
+      S.threads[f.id] = { size: f.size, internal, names, length: len, near: f.faces.map(r => r.pt) };
+      return { threads: names.length };
     },
     lpattern(S, f, V) {
       const n = Math.round(fieldValue(f, 'count', V, 'num')), s = fieldValue(f, 'spacing', V, 'len');
@@ -989,7 +1040,7 @@ export function makeKernel(oc) {
   // an assembly of several, does not make any of them again)
   const caches = new Map();
   const hashText = (h, s) => { let a = h[0], b = h[1]; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b + c, 2246822519) >>> 0; } return [a, b]; };
-  const EMPTY = () => ({ parts: [], frames: {}, tools: {}, sketches: {} });
+  const EMPTY = () => ({ parts: [], frames: {}, tools: {}, sketches: {}, threads: {} });
   let last = { S: EMPTY(), doc: null, vars: {} };
   function runFeature(S0, f, vars) {
     const S = nextState(S0);
@@ -1044,7 +1095,7 @@ export function makeKernel(oc) {
     }
     const frames = {};
     for (const [k, F] of Object.entries(S.frames)) frames[k] = F;
-    return { features: reports, parts: S.parts.map((b, i) => Object.assign(meshBody(b, b.id), { look: partLook(doc, b.id, i) })), frames, preview, vars, errors };
+    return { features: reports, parts: S.parts.map((b, i) => Object.assign(meshBody(b, b.id), { look: partLook(doc, b.id, i), threads: threadsOf(S, b) })), frames, preview, vars, errors };
   }
   /* ---------- meshes for the page: triangles grouped by face, edges by edge, the vertices ---------- */
   const meshes = new WeakMap();
@@ -1140,7 +1191,7 @@ export function makeKernel(oc) {
       for (const it of items) {
         const D = byDoc.get(it.doc.id), b = D.S.parts.find(x => x.id === it.part);
         if (!b) throw new Error('a part of the assembly is not in its Part Studio any more');
-        out.push({ b, it, t: trsfOf(it.p, it.q), look: Object.assign({}, partLook(D.doc, b.id, D.S.parts.indexOf(b)), it.name ? { name: it.name } : {}) });
+        out.push({ b, it, S: D.S, t: trsfOf(it.p, it.q), look: Object.assign({}, partLook(D.doc, b.id, D.S.parts.indexOf(b)), it.name ? { name: it.name } : {}) });
       }
     } finally { last = keepLast; }
     return out;
@@ -1172,12 +1223,45 @@ export function makeKernel(oc) {
   function drawingViews(items, views) {
     const out = [];
     try {
-      const shapes = asmBodies(items).map(x => moved(x.b.shape, x.t));
+      const bodies = asmBodies(items), shapes = bodies.map(x => moved(x.b.shape, x.t));
+      // each part's threads, where the drawing has it
+      const turnQ = (q, v) => { const [x, y, z, w] = q, ux = [x, y, z], t = v3.mul(v3.cross(ux, v), 2), c = v3.cross(ux, t); return [v[0] + w * t[0] + c[0], v[1] + w * t[1] + c[1], v[2] + w * t[2] + c[2]]; };
+      const threads = bodies.flatMap(x => { let ts = []; try { ts = threadsOf(x.S, x.b); } catch (err) { ts = []; } const q = x.it.q || [0, 0, 0, 1], p = x.it.p || [0, 0, 0]; return ts.map(t => Object.assign({}, t, { from: v3.add(turnQ(q, t.from), p), dir: turnQ(q, t.dir) })); });
       for (const v of views) {
-        const res = { id: v.id, vis: [], hid: [] };
-        if (shapes.length) {
+        const res = { id: v.id, vis: [], hid: [], cut: [], circles: [], threads: [] };
+        const up = v3.cross(v.n, v.x), P2 = p => [+v3.dot(p, v.x).toFixed(6), +v3.dot(p, up).toFixed(6)];
+        let shown = shapes;
+        if (v.cut) {
+          // a section: the half of space on the eye's side of the plane taken away, and the faces left on the plane hatched
+          const big = Math.max(1000, ...shapes.map(sh => { const bb = bbox(sh); return bb ? near(bb[0], bb[1]) * 4 : 0; }));
+          const pf = T(new oc.BRepBuilderAPI_MakeFace(T(new oc.gp_Pln(pnt(v.cut.o), gdir(v.cut.n))), -big, big, -big, big)).Face();
+          const hs = T(new oc.BRepPrimAPI_MakeHalfSpace(pf, pnt(v3.add(v.cut.o, v3.mul(v.cut.n, big))))).Solid();
+          shown = [];
+          for (const sh of shapes) {
+            try { const op = T(new oc.BRepAlgoAPI_Cut()); op.SetArguments(listFrom([sh])); op.SetTools(listFrom([hs])); op.Build(prog()); if (op.IsDone() && solidsOf(op.Shape()).length) shown.push(op.Shape()); } catch (err) { /* that part is left out */ }
+          }
+          const h0 = v3.dot(v.cut.o, v.cut.n);
+          for (const sh of shown) for (const fc of subShapes(sh, TA.TopAbs_FACE)) {
+            if (surfType(fc) !== 'plane') continue;
+            const vs = subShapes(fc, TA.TopAbs_VERTEX).map(x => xyz(T(oc.BRep_Tool.Pnt(oc.TopoDS.Vertex(x)))));
+            if (!vs.length || !vs.every(p => Math.abs(v3.dot(p, v.cut.n) - h0) < 1e-6)) continue;
+            // each of its loops as a ring of points: its edges stepped along and joined end to end
+            for (const wr of subShapes(fc, TA.TopAbs_WIRE)) {
+              const segs = subShapes(wr, TA.TopAbs_EDGE).map(e => { const c = T(new oc.BRepAdaptor_Curve(e)), t0 = c.FirstParameter(), t1 = c.LastParameter(), n = c.GetType() === oc.GeomAbs_CurveType.GeomAbs_Line ? 1 : 24, pts = []; for (let k = 0; k <= n; k++) pts.push(P2(xyz(T(c.Value(t0 + (t1 - t0) * k / n))))); return pts; });
+              if (!segs.length) continue;
+              const ring = segs.shift().slice(), same = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 1e-5;
+              for (let guard = 0; segs.length && guard < 10000; guard++) {
+                const end = ring[ring.length - 1], k = segs.findIndex(sg => same(sg[0], end) || same(sg[sg.length - 1], end));
+                if (k < 0) break;
+                const sg = segs.splice(k, 1)[0]; ring.push(...(same(sg[0], end) ? sg.slice(1) : sg.slice().reverse().slice(1)));
+              }
+              if (ring.length >= 3) res.cut.push(ring.flat());
+            }
+          }
+        }
+        if (shown.length) {
           const hlr = T(new oc.HLRBRep_Algo());
-          for (const s of shapes) hlr.Add(s, 0);
+          for (const s of shown) hlr.Add(s, 0);
           hlr.Projector(T(new oc.HLRAlgo_Projector(T(new oc.gp_Ax2(pnt([0, 0, 0]), gdir(v.n), gdir(v.x))))));
           hlr.Update(); hlr.Hide();
           const hs = T(new oc.HLRBRep_HLRToShape(hlr));
@@ -1196,6 +1280,27 @@ export function makeKernel(oc) {
           };
           take(hs.VCompound(), res.vis); take(hs.OutLineVCompound(), res.vis);
           take(hs.HCompound(), res.hid); take(hs.OutLineHCompound(), res.hid);
+          // round edges seen end on (each centre once, at its size): where the centre marks go
+          for (const sh of shown) for (const e of subShapes(sh, TA.TopAbs_EDGE)) {
+            try {
+              const c = T(new oc.BRepAdaptor_Curve(e));
+              if (c.GetType() !== oc.GeomAbs_CurveType.GeomAbs_Circle || Math.abs(c.LastParameter() - c.FirstParameter() - 2 * Math.PI) > 1e-6) continue;
+              const ci = T(c.Circle()), d = xyz(T(T(ci.Axis()).Direction()));
+              if (Math.abs(Math.abs(v3.dot(d, v.n)) - 1) > 1e-6) continue;
+              const k = P2(xyz(T(ci.Location()))), r = ci.Radius();
+              if (!res.circles.some(o => Math.hypot(o.c[0] - k[0], o.c[1] - k[1]) < 1e-6 && Math.abs(o.r - r) < 1e-6)) res.circles.push({ c: k, r });
+            } catch (err) { /* left out */ }
+          }
+        }
+        // the threads: seen down their axis a three-quarter circle (from the open end, or right through); from the side
+        // two lines along them
+        for (const t of threads) {
+          const along = v3.dot(t.dir, v.n);
+          if (Math.abs(along) > 0.999) { if (along < 0 || t.length >= t.wall - 1e-6) res.threads.push({ kind: 'end', c: P2(t.from), r: (t.internal ? t.major : t.minor) / 2, label: t.label }); }
+          else if (Math.abs(along) < 1e-3) {
+            if (v.cut && v3.dot(v3.sub(t.from, v.cut.o), v.cut.n) > 1e-6 && v3.dot(v3.sub(v3.add(t.from, v3.mul(t.dir, t.length)), v.cut.o), v.cut.n) > 1e-6) continue;
+            res.threads.push({ kind: 'side', a: P2(t.from), b: P2(v3.add(t.from, v3.mul(t.dir, t.length))), half: (t.internal ? t.major : t.minor) / 2, seen: !t.internal || !!v.cut });
+          }
         }
         out.push(res);
       }
@@ -1240,6 +1345,36 @@ export function makeKernel(oc) {
         if (v > 1e-6) out.push({ a: a.id, b: b.id, volume: v });
       }
     } finally { flush(); }
+    return out;
+  }
+  /* the threads on a part, found by its faces' names (a pattern's copy of a threaded hole is threaded too: its names
+     end with the hole's own): each the face, the size, its axis, where it starts (the open end) and how far it goes */
+  function threadsOf(S, b) {
+    const specs = Object.values(S.threads || {});
+    if (!specs.length) return [];
+    const out = [];
+    edgesOf(b);
+    b.faces.forEach((face, i) => {
+      const base = b.names[i].map(nm => String(nm).split('~').pop());
+      if (surfType(face) !== 'cylinder') return;
+      const cy = T(T(new oc.BRepAdaptor_Surface(face, true)).Cylinder()), R = cy.Radius();
+      const spec = specs.find(s => (s.names && s.names.some(n => base.includes(n))) || (s.prefix && Math.abs(R - s.r) < 1e-6 && base.some(n => n.startsWith(s.prefix))));
+      if (!spec) return;
+      try {
+        // the face's two rims: the open one is where the thread starts (a rim shared with a face of the same hole is its bottom)
+        const rims = [];
+        b.edgeFaces.forEach((fs, j) => { if (!fs.includes(i) || curveType(b.edges[j]) !== 'circle') return; const ln = lineOfEdge(b.edges[j]), other = fs.find(x => x !== i); rims.push({ c: ln.p, other: other === undefined ? null : b.names[other].map(nm => String(nm).split('~').pop()) }); });
+        if (rims.length < 2) { const ax = T(cy.Axis()); rims.length = 0; const p0 = xyz(T(ax.Location())), dd = xyz(T(ax.Direction())); const hs = []; for (const v of subShapes(face, TA.TopAbs_VERTEX)) hs.push(v3.dot(v3.sub(xyz(T(oc.BRep_Tool.Pnt(oc.TopoDS.Vertex(v)))), p0), dd)); if (!hs.length) return; rims.push({ c: v3.add(p0, v3.mul(dd, Math.min(...hs))), other: null }, { c: v3.add(p0, v3.mul(dd, Math.max(...hs))), other: null }); }
+        rims.sort((p, q) => v3.dot(p.c, [1e-3, 1e-2, 1]) - v3.dot(q.c, [1e-3, 1e-2, 1]));
+        const a = rims[0], z = rims[rims.length - 1], own = r => !!(spec.prefix && r.other && r.other.some(n => n.startsWith(spec.prefix))), ownA = own(a), ownZ = own(z);
+        // (the start: the open rim; else, for a thread laid on a face, the rim nearest where it was picked)
+        let from = ownA && !ownZ ? z : a, to = from === a ? z : a;
+        if (spec.near && !(ownA !== ownZ)) { const q = spec.near[0], dA = v3.len ? 0 : 0; void dA; const dist = r => Math.hypot(r.c[0] - q[0], r.c[1] - q[1], r.c[2] - q[2]); if (dist(z) < dist(a)) { from = z; to = a; } }
+        const span = v3.sub(to.c, from.c), L = Math.hypot(span[0], span[1], span[2]) || 1;
+        const t = threadOf(spec.size);
+        out.push({ face: i, size: spec.size, label: threadLabel(t, spec.length !== null && spec.length < L - 1e-6 ? spec.length : null), internal: spec.internal, major: t.major, minor: spec.internal ? t.tap : extMinor(t), pitch: t.pitch, r: R, from: from.c, dir: span.map(v => v / L), length: Math.min(L, spec.length === null ? L : spec.length), wall: L });
+      } catch (err) { /* that face's thread is left unsaid */ }
+    });
     return out;
   }
   /* the parts as one STEP file (each part a solid of it), or as STL */

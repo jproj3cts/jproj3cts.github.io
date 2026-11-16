@@ -28,7 +28,7 @@ const itemName = it => (it.kind === 'part' ? it.name || 'Part' : it.kind === 'fa
 function ownRows(it) {
   const R = [];
   if (it.kind === 'part') R.push(['Volume', fmtNum(it.volume, 3) + ' mm³', it.volume], ['Surface area', mm2(it.area), it.area], ['Mass', it.mass !== null && it.mass !== undefined ? fmtNum(it.mass, 3) + ' g (' + it.density + ' g/cm³)' : 'choose a material', it.mass], ['Centre of mass', it.centroid.map(v => fmtNum(v, 3)).join(', ')]);
-  else if (it.kind === 'face') { R.push(['Area', mm2(it.area), it.area]); if (it.radius) R.push(['Diameter', mm(2 * it.radius), 2 * it.radius], ['Radius', mm(it.radius), it.radius]); }
+  else if (it.kind === 'face') { if (it.thread) R.push(['Thread', it.thread.label.replace(/ ▾.*/, '') + (it.thread.internal ? ', tapped' : ', external'), null], ['Thread length', mm(it.thread.length), it.thread.length]); R.push(['Area', mm2(it.area), it.area]); if (it.radius) R.push(['Diameter', mm(2 * it.radius), 2 * it.radius], ['Radius', mm(it.radius), it.radius]); }
   else if (it.kind === 'edge') { R.push(['Length', mm(it.length), it.length]); if (it.radius) R.push(['Diameter', mm(2 * it.radius), 2 * it.radius], ['Radius', mm(it.radius), it.radius]); if (it.axis) R.push(['Centre', it.axis.p.map(v => fmtNum(v, 3)).join(', ')]); }
   else if (it.pt) R.push(['X', mm(it.pt[0]), it.pt[0]], ['Y', mm(it.pt[1]), it.pt[1]], ['Z', mm(it.pt[2]), it.pt[2]]);
   return R;
@@ -40,7 +40,7 @@ export function measureReadout(m) {
   if (items.length === 1) {
     const it = items[0], own = ownRows(it);
     // of one thing: a round one's diameter, an edge's length, a face's area, a part's volume, a corner's place
-    head = it.radius ? own.find(r => r[0] === 'Diameter') : it.kind === 'vertex' ? ['Point', it.pt.map(v => fmtNum(v, 3)).join(', ')] : own[0];
+    head = it.thread ? own[0] : it.radius ? own.find(r => r[0] === 'Diameter') : it.kind === 'vertex' ? ['Point', it.pt.map(v => fmtNum(v, 3)).join(', ')] : own[0];
     rows.push([itemName(it)], ...own);
     return { head, rows };
   }

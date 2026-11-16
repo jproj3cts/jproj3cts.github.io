@@ -3,18 +3,69 @@ import { fmtLen } from '../core/format.js';
 import { GLASS } from '../core/glass.js';
 import { METAL_NAMES } from '../core/metals.js';
 import { particleOf } from '../core/traps.js';
-import { deg } from '../state/project.js';
+import { V, deg } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { modDelta } from '../engines/mods.js';
 import { SCAT_NMAX, scatCache, scatKeep, scatterNow, scatterPrep, setScatMode } from '../engines/scatter.js';
 import { lastTrace } from '../engines/trace.js';
 import { trapReport } from '../engines/screen-stats.js';
 import { project } from '../state/project.js';
-import { getCss, inkA, requestRender } from './render.js';
+import { DPR, H, W, ctx, getCss, glowA, glowOp, inkA, lightInk, lightLayer, requestRender, sx, sy } from './render.js';
+import { scatFieldLevel, scatPlaneAt } from '../engines/scatter-field.js';
+import { cssColour } from '../io/pdf.js';
 import { bindSync, helpLine, panel, param, selectField, syncPanel, vs } from './panel.js';
 import { h } from './dom.js';
 import { axisFont, drawAxes, magma, plotArea, plotCsv, plotSaveRow } from './plots.js';
 import { WORKERS_OK, fwProject, midDrag, newAppWorker } from '../page/workers.js';
+import { changed } from './actions.js';
+import { checkpoint } from './tabs.js';
+
+/* ---------- A particle's scattered field on the 2D bench ----------
+   The estimate engines/scatter-field.js makes (a particle with scatField on: lastTrace.scat.fans[].field), drawn as the
+   diffracted field is: in the light's colour, as bright as the irradiance is on its own log scale, added to what is
+   under it. An image in the bench's own millimetres over what of the field's square is in view (and a quarter of a view
+   more each way), at about two of the screen's pixels to its own, kept while the view stays inside it at about that scale:
+   a pan or a zoom draws the same image moved. A particle without it costs nothing here. */
+const SF_IMG = new WeakMap();                   // a field -> { key, x0, y0, x1, y1, mmpp, cv }
+export function drawScatField() {
+  const SC = lastTrace.scat;
+  if (!SC || !SC.fans) return;
+  for (const F of SC.fans) {
+    const G = F.field;
+    if (!G || F.bench !== project.tab || !(G.top > 0)) continue;
+    const v = V(), k = v.scale, P = F.pos, hw = W / 2 / k, hh = H / 2 / k;
+    // in view: the field's square cut to the view
+    const vx0 = Math.max(P[0] - G.R, v.cx - hw), vx1 = Math.min(P[0] + G.R, v.cx + hw), vy0 = Math.max(P[1] - G.R, v.cy - hh), vy1 = Math.min(P[1] + G.R, v.cy + hh);
+    if (!(vx1 > vx0 && vy1 > vy0)) continue;
+    const want = 2 / (k * DPR), key = [lightLayer, F.colour].join('|');
+    let C = SF_IMG.get(G);
+    if (!C || C.key !== key || C.mmpp > 1.5 * want || C.mmpp < want / 1.5 || C.x0 > vx0 || C.x1 < vx1 || C.y0 > vy0 || C.y1 < vy1) {
+      const x0 = Math.max(P[0] - G.R, v.cx - 1.5 * hw), x1 = Math.min(P[0] + G.R, v.cx + 1.5 * hw), y0 = Math.max(P[1] - G.R, v.cy - 1.5 * hh), y1 = Math.min(P[1] + G.R, v.cy + 1.5 * hh);
+      // (at most about 250 thousand pixels: past that, coarser)
+      const mmpp = Math.max(want, Math.sqrt((x1 - x0) * (y1 - y0) / 2.5e5)), nx = Math.max(1, Math.ceil((x1 - x0) / mmpp)), ny = Math.max(1, Math.ceil((y1 - y0) / mmpp));
+      const q = cssColour(lightLayer ? lightInk(F.colour) : F.colour), cv = C && C.cv && C.cv.width === nx && C.cv.height === ny ? C.cv : document.createElement('canvas');
+      cv.width = nx; cv.height = ny;
+      const g = cv.getContext('2d'), img = g.createImageData(nx, ny), d = img.data, px = (x1 - x0) / nx, py = (y1 - y0) / ny;
+      for (let j = 0; j < ny; j++) {
+        const dy = y1 - (j + 0.5) * py - P[1];
+        for (let i = 0; i < nx; i++) {
+          const a = scatFieldLevel(G, scatPlaneAt(G, x0 + (i + 0.5) * px - P[0], dy));
+          if (!(a > 0)) continue;
+          const o = 4 * (j * nx + i);
+          d[o] = q.r; d[o + 1] = q.g; d[o + 2] = q.b; d[o + 3] = Math.round(255 * glowA(0.95 * a));
+        }
+      }
+      g.putImageData(img, 0, 0);
+      C = { key, x0, y0, x1, y1, mmpp: px, cv };
+      SF_IMG.set(G, C);
+    }
+    ctx.save();
+    ctx.globalCompositeOperation = glowOp();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(C.cv, sx(C.x0), sy(C.y1), (C.x1 - C.x0) * k, (C.y1 - C.y0) * k);
+    ctx.restore();
+  }
+}
 
 /* ---------- The Scattering tab ----------
    A screen's particle (the one its Trap tab holds) and the light it scatters: the settings,
@@ -339,6 +390,21 @@ export function scatterSection(el) {
     selectField('Collection lens faces', [['fwd', 'Ahead (the beam’s way)'], ['back', 'Behind (back along it)'], ['side', 'The side, in the plane'], ['up', 'Above'], ['angle', 'A direction on the bench']], () => el.scatDir, v => { el.scatDir = v; }));
   if (el.scatDir === 'angle') scale.append(param('Direction (°)', el, 'scatAng'));
   scale.append(helpLine('The Collected figure is for this lens alone: the particle is lit by every beam through it whatever is set here.'));
+  if (isPart) {
+    // the scattered field's picture (engines/scatter-field.js): off unless asked for, its scale its own
+    const c = h('input', { type: 'checkbox' }), sfLine = h('div', { class: 'rt-note', style: 'font-size:0.75rem;color:var(--jek-ink-soft);margin-top:0.15rem' });
+    c.checked = !!el.scatField;
+    c.onchange = () => { checkpoint(); el.scatField = c.checked; changed(true); };
+    scale.append(h('label', { class: 'rt-check wide' }, c, 'Draw an estimate of its scattered field'), sfLine,
+      helpLine('The far-field pattern falling off as 1/r², drawn as the diffracted field is, on a scale of its own.', ['Drawn on the bench and in 3D as the diffracted field is, from the pattern the plots show: the irradiance along each direction is the power scattered into a unit solid angle over the distance squared, and it stops at the first part that direction meets, as the rays do. ',
+        'It is the intensity alone, with no fringes against the beam (they are a wavelength apart), and the far field alone, which holds from a few micrometres out. The scattered light is a millionth of the beam or less, so it has a log scale of its own (40 dB on the bench, 20 dB in 3D, where the light is added along each line of sight), which changes nothing of how the beam is drawn. A picture: no reading takes it.'], 'note'));
+    bindSync(sfLine, () => {
+      const G = el.scatField && lastTrace.scat && ((lastTrace.scat.fans || []).find(F => F.part === el.id) || {}).field;
+      const t = G ? 'Its scale: ' + scatSig(G.top, 3) + ' W/mm² at the top (' + fmtLen(G.rTop) + ' out along the brightest direction), to ' + G.dec * 10 + ' dB below, out to ' + fmtLen(G.R) + '.' : '';
+      if (sfLine.textContent !== t) sfLine.textContent = t;
+      sfLine.hidden = !t;
+    });
+  }
   panel.append(status, box, tabs, h('div', { class: 'rt-plot' }, cv), plotSaveRow(cv, true), scale);
   let drawnW = -1;
   new ResizeObserver(() => requestAnimationFrame(() => { const w = cv.clientWidth; if (w && Math.abs(w - drawnW) > 0.5) { drawnW = w; draw(); } })).observe(cv);

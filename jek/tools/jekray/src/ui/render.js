@@ -37,7 +37,7 @@ import { cssColour } from '../io/pdf.js';
 import { scheduleSave } from '../io/autosave.js';
 import { updateEmpty } from './tours.js';
 import { TW, traceLater } from '../page/workers.js';
-import { scatterKeepUp } from './scatter.js';
+import { drawScatField, scatterKeepUp } from './scatter.js';
 
 /* ==========================================================================
    Rendering
@@ -1217,7 +1217,7 @@ function renderAll(stale) {
   drawFibres();
   for (const el of els) if (el.type !== 'source' && el.type !== 'draw' && el.type !== 'particle') draw(el);
   if (lightOf().rays) { if (lightOf().trail && !exporting) drawTrail(); drawRays(stale); }
-  if (!stale) drawScatFans();
+  if (!stale) { drawScatField(); drawScatFans(); }
   // (a particle is a dot on a beam: drawn over the light, where it can be seen)
   for (const el of els) if (el.type === 'particle') draw(el);
   if (!stale) {

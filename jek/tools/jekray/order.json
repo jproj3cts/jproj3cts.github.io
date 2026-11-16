@@ -181,6 +181,7 @@
   "engines/scatter-pupil-map.js",
   "engines/scatter-pupil.js",
   "engines/scatter.js",
+  "engines/scatter-field.js",
   "engines/scatter-light.js",
   "engines/antenna-field.js",
   "engines/lens-engine.js",

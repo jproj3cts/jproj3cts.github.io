@@ -160,6 +160,22 @@ A [fibre tip](/jek/docs/jekray/free-space/fibre-tip/) takes in the overlap of th
 
 **Draw the scattered light in every direction** shows the fan: 48 rays in the bench plane, and in the 3D view 84 more above and below it. Each is as bright as the pattern is along it, so the forward and back lobes show, and light polarised in the bench plane shows the gap along its polarisation. The fan is a picture. No reading uses it.
 
+### The scattered field
+
+**Draw an estimate of its scattered field**, on the Scattering tab, draws the scattered light as the [diffracted field](/jek/docs/jekray/getting-started/) is drawn: on the 2D bench in the light's colour, and in the 3D view as glowing light in the field's colour map. It is off unless you turn it on, and it is saved with the bench.
+
+It is worked out from the pattern the plots show. Along each direction the irradiance at a distance $$r$$ is the power scattered into a unit solid angle there, $$dP/d\Omega$$, over $$r^2$$. Each direction stops at the first part it meets, found by probe rays traced one step as for the cones: 720 directions in the bench plane, half a degree apart, and a grid over the sphere every 5 degrees for the 3D view. The 3D view adds the irradiance up along each line of sight and stops where the line meets a solid part.
+
+The scattered light is a millionth of the beam or less, so it has a log scale of its own, and the beam is drawn as it would be without it. On the bench the scale spans 40 dB. The top is the strongest direction's irradiance at a hundredth of the field's reach, so that direction fades to the bottom of the scale at the reach. The reach is twice the distance to the farthest part that catches light, between 25 and 250 mm. In 3D the light along a line of sight falls as $$1/b$$ with its distance $$b$$ from the particle, so the scale spans 20 dB and the light reaches as far. The tab gives the scale's top in W/mm².
+
+It is an estimate:
+
+- It is the intensity alone. The scattered light's fringes with the beam are a wavelength apart, too fine to see at any zoom of the bench.
+- It is the far field alone. It holds from a few wavelengths out, a few micrometres, and is wrong closer to the particle than that.
+- A direction's stop is that of the nearest probed direction, so a part's edge is drawn to within half a degree on the bench and 5 degrees in 3D.
+- Light that a part passes on is not drawn past it. The cones carry that light, as rays.
+- It is a picture. No reading uses it.
+
 The cones are drawn as rays. With **Draw light by its power** on they are drawn at the faintest step that shows, because by power they would not show beside the beam at all. The 2D bench draws the two spokes of each cone nearest the bench plane, and the 3D view draws every ray.
 
 ## Inside a cavity

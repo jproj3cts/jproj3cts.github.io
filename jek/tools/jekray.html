@@ -30844,7 +30844,15 @@ function tick(t) {
     // showing them half worked out (a step the renderer missed is worked out live, waited for)
     const n = fieldRendered.n, want = Math.round(clockT * n / P);
     if (playStep === null) { setPlayStep(want); setStepSince(t); }
-    if (want !== playStep && (sampleShown() || t - stepSince > 4000)) { setPlayStep(playStep + (Math.sign(want - playStep))); setStepSince(t); }
+    // the step the clock is at, once the one on show is drawn in full: steps the screen cannot keep up with are skipped, so
+    // the cycle keeps its time (a step still being worked out holds the clock, up to 4 s, as before). The rate it manages
+    // is kept on fieldRendered.rate, for the sweep's panel to say so.
+    if (want !== playStep && (sampleShown() || t - stepSince > 4000)) {
+      const R = fieldRendered.rate || (fieldRendered.rate = { t0: t, shown: 0, asked: n / P, achieved: null });
+      R.shown++; R.asked = n / P;
+      if (t - R.t0 > 1000) { R.achieved = R.shown * 1000 / (t - R.t0); R.t0 = t; R.shown = 0; }
+      setPlayStep(want); setStepSince(t);
+    }
     if (want !== playStep) setClockT((playStep + 0.49 * Math.sign(want - playStep)) * P / n);
     // the very sample the renderer took (same arithmetic, same cycle), so the keys match exactly;
     // while the render is still filling in, the nearest step before it that is there
@@ -31138,6 +31146,8 @@ function sweepControls(el, path, sw, label) {
     const status = h('p', { class: 'rt-hint', style: 'margin:0.2rem 0 0' }), pfill = h('i'), pbar = h('div', { class: 'rt-pbar', role: 'progressbar', 'aria-label': 'Rendering the field', style: 'margin:0.25rem 0 0.1rem' }, pfill);
     bindSync(status, () => {
       status.textContent = rendering() ? 'Rendering the field: ' + (sweepJob.i + 1) + ' of ' + sweepJob.n + (sweepEta(sweepJob) ? ', ' + sweepEta(sweepJob) : '') + '\u2026'
+        : sw.field && isPlaying(el, path) && fieldRendered && fieldRendered.rate && fieldRendered.rate.achieved !== null && fieldRendered.rate.achieved < 0.85 * fieldRendered.rate.asked
+          ? 'Playing at about ' + Math.max(1, Math.round(fieldRendered.rate.achieved)) + ' of the ' + Math.round(fieldRendered.rate.asked) + ' steps a second it asks for: this computer draws no more, so steps are skipped and the cycle keeps its time.'
         : sw.field ? 'Play renders the field at ' + fieldFramesOf(sw) + ' points of the cycle (enough to play smoothly at its rate, unless Steps is set), on the bench and on every screen it reaches, then plays through them.'
         : '';
       status.hidden = !status.textContent;

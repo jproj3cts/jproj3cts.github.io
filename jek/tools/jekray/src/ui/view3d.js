@@ -18,7 +18,7 @@ import { lensSurfaces, polyVerts, rawSag, sagFn, lensStacks } from '../core/geom
 import { crystalGeom, elementSurfaces, meshOf } from '../core/stl.js';
 import { stopBlades } from '../core/mask.js';
 import { lastTrace, setRoll, setTip, setZ, tippable, traceKeyNow, traceStore, traceStoreOn, zOf } from '../engines/trace.js';
-import { SF_DEC, scatFieldAt } from '../engines/scatter-field.js';
+import { scatDbOf, scatFieldAt, scatReach } from '../engines/scatter-field.js';
 import {
   beamPowerShare, benchBg, benchHoles, benchLight, bez, byPowerOn, draw, fibreLight, fibreSegs, fibreSplit, filterColour, halfSize, hornShape, moveGrip, powerFade, powerTop, rayPowerShare, symbolCanvas, rayAlpha, rayDensity, rayTops,
   requestRender, resize, segPlanes, selFibre, selection, setSelFibreId, setSelection, surfPoints
@@ -1238,11 +1238,11 @@ export const V3D = (() => {
      a particle's scattered field (scatVolMeshes) on its own */
   function volQuad(G) {
     const dec = fieldDec(lightOf().scale), q = new T.Mesh(new T.PlaneGeometry(2, 2), new T.ShaderMaterial({ vertexShader: VOLQ_VS, fragmentShader: VOLQ_FS, transparent: true, depthTest: false, depthWrite: false,
-      uniforms: { uAcc: { value: null }, uMap: { value: magmaMap() }, uDec: { value: dec }, uScat: { value: null }, uMapS: { value: scatMap(benchLight()) }, uDecS: { value: SF_DEC / 2 }, uS: { value: 0 } } }));
+      uniforms: { uAcc: { value: null }, uMap: { value: magmaMap() }, uDec: { value: dec }, uScat: { value: null }, uMapS: { value: scatMap(benchLight()) }, uDecS: { value: 2 }, uS: { value: 0 } } }));
     q.frustumCulled = false; q.renderOrder = 2; q.userData.volQuad = true;
     q.onBeforeRender = () => {
       const u = q.material.uniforms, sc = R.scatVols && R.scatVols.length && R.scatRT;
-      u.uDecS.value = sc && scatLin(R.scatVols[0].userData.scatVol) ? 0 : SF_DEC / 2;
+      u.uDecS.value = sc ? scatDb(R.scatVols[0].userData.scatVol) / 20 : 2;    // (decades: half the Scale's dB, a tenth each)
       u.uAcc.value = R.volRT ? R.volRT.texture : null; u.uScat.value = sc ? R.scatRT.texture : u.uAcc.value; u.uS.value = sc ? 1 : 0;
     };
     G.add(q);
@@ -1283,10 +1283,10 @@ export const V3D = (() => {
       gl_FragColor = vec4(sum / b * uK, 0.0, 0.0, 1.0);
     }`;
   const SVOL_VS = 'varying vec3 vP; void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
-  const scatVolKey = () => ((lastTrace.scat && lastTrace.scat.fans) || []).map(F => F.field ? F.part + ':' + F.field.top + ':' + scatLin(F) : '').join();
-  // a particle's Scale (the Scattering tab's, scatScale): linear, or logarithmic over half the bench's decades (the light
-  // along a line of sight falls as 1/b where the irradiance falls as 1/b², so the glow reaches as far as on the bench)
-  const scatLin = F => (getEl(F.part) || {}).scatScale === 'lin';
+  const scatVolKey = () => ((lastTrace.scat && lastTrace.scat.fans) || []).map(F => F.field ? F.part + ':' + F.field.top + ':' + scatDb(F) : '').join();
+  // a particle's Scale (the Scattering tab's, scatScale), in dB on the bench (0: linear); in 3D logarithmic over half of
+  // them (the light along a line of sight falls as 1/b where the irradiance falls as 1/b², so the glow reaches as far)
+  const scatDb = F => scatDbOf((getEl(F.part) || {}).scatScale);
   function scatVolMeshes(G) {
     for (const F of (lastTrace.scat && lastTrace.scat.fans) || []) {
       const S = F.field;
@@ -1294,13 +1294,15 @@ export const V3D = (() => {
       // the pattern against its strongest direction (half floats hold no less than about 6e-8), and each direction's stop
       // as a share of the reach; theta down the rows, phi along them (wrapped round)
       const n = S.nT * S.nP, I = new Float32Array(n), Tt = new Float32Array(n);
-      for (let i = 0; i < n; i++) { I[i] = S.grid[i] / S.Imax; Tt[i] = Math.min(2, S.gridT[i] / S.R); }
+      // (as far out as the Scale draws it: a deeper one, further)
+      const Rd = scatReach(S, scatDb(F));
+      for (let i = 0; i < n; i++) { I[i] = S.grid[i] / S.Imax; Tt[i] = Math.min(1, S.gridT[i] / Rd); }
       const tex = (d, lin) => { const t = new T.DataTexture(d, S.nP, S.nT, T.RedFormat, T.FloatType); t.internalFormat = lin ? 'R16F' : 'R32F'; t.magFilter = t.minFilter = lin ? T.LinearFilter : T.NearestFilter; t.wrapS = T.RepeatWrapping; t.needsUpdate = true; return t; };
-      const tI = tex(I, true), tT = tex(Tt, false), geo = new T.BoxGeometry(2 * S.R, 2 * S.R, 2 * S.R);
+      const tI = tex(I, true), tT = tex(Tt, false), geo = new T.BoxGeometry(2 * Rd, 2 * Rd, 2 * Rd);
       // (the light along a line of sight against the top of its scale: the brightest direction's, passing rTop from the particle)
       const m = new T.ShaderMaterial({ vertexShader: SVOL_VS, fragmentShader: SVOL_FS, transparent: true, depthWrite: false, depthTest: false, side: T.BackSide,
         blending: T.CustomBlending, blendEquation: T.AddEquation, blendSrc: T.OneFactor, blendDst: T.OneFactor,
-        uniforms: { uI: { value: tI }, uT: { value: tT }, uDepth: { value: null }, uR: { value: S.R }, uRmin: { value: S.rTop / 3 }, uK: { value: S.rTop / Math.PI }, uNT: { value: S.nT }, uNP: { value: S.nP },
+        uniforms: { uI: { value: tI }, uT: { value: tT }, uDepth: { value: null }, uR: { value: Rd }, uRmin: { value: S.rTop / 3 }, uK: { value: S.rTop / Math.PI }, uNT: { value: S.nT }, uNP: { value: S.nP },
           uRes: { value: new T.Vector2(1, 1) }, uCam: { value: new T.Vector3() }, uMVP: { value: new T.Matrix4() } } });
       const o = new T.Mesh(geo, m);
       o.position.set(F.pos[0], F.pos[1], F.pos[2]);
@@ -1420,7 +1422,7 @@ export const V3D = (() => {
     // a particle's scattered field (scatVolMeshes): its own colours and scale, the light along a line of sight in W/mm as its
     // pass adds it up; its top the strongest direction's, seen passing rTop from the particle (the field's `line`)
     if (sv) {
-      const F = sv[0].userData.scatVol, G = F.field, el = getEl(F.part), d3 = G.dec3, lin = scatLin(F);
+      const F = sv[0].userData.scatVol, G = F.field, el = getEl(F.part), db = scatDb(F), d3 = db / 20, lin = !db;
       parts.push(h('b', { class: 'sc', title: 'An estimate of the light the particle scatters (its far-field pattern over r\u00b2, stopped at the first part each direction meets), added up along each line of sight, on a log scale of its own: the scattered light is far fainter than the beam' + (sv.length > 1 ? '. The scale is the first particle\u2019s; each has its own' : '') },
         'Scattered by ' + (el ? el.name : 'the particle') + ', along the line of sight, ' + (lin ? 'linear' : 'log (' + d3 * 10 + ' dB)')), bar(v => scatRamp(v, benchLight())),
         tks(lin ? [[0, 0], [0.5, G.line / 2], [1, G.line]] : [[0, G.line * 10 ** -d3], [0.5, G.line * 10 ** (-d3 / 2)], [1, G.line]]));
@@ -1436,15 +1438,15 @@ export const V3D = (() => {
     const rc = new T.Raycaster(); rc.setFromCamera(ndc(e), R.camera);
     let best = null;
     for (const o of R.scatVols) {
-      const F = o.userData.scatVol, G = F.field, ro = rc.ray.origin.clone().sub(o.position), rd = rc.ray.direction;
-      const sc = -ro.dot(rd), b2 = ro.lengthSq() - sc * sc, h2 = G.R * G.R - b2;
+      const F = o.userData.scatVol, G = F.field, Rd = scatReach(G, scatDb(F)), ro = rc.ray.origin.clone().sub(o.position), rd = rc.ray.direction;
+      const sc = -ro.dot(rd), b2 = ro.lengthSq() - sc * sc, h2 = Rd * Rd - b2;
       if (h2 <= 0) continue;
       const hh = Math.sqrt(h2), sN = Math.max(sc - hh, 0), sF = sc + hh;
       if (sF <= sN) continue;
       const b = Math.max(Math.sqrt(Math.max(b2, 0)), G.rTop / 3), a0 = Math.atan((sN - sc) / b), a1 = Math.atan((sF - sc) / b), n = 200, da = (a1 - a0) / n;
       let L = 0, top = null;
       for (let i = 0; i < n; i++) {
-        const s = sc + b * Math.tan(a0 + (i + 0.5) * da), p = ro.clone().addScaledVector(rd, s), I = scatFieldAt(G, p.x, p.y, p.z);
+        const s = sc + b * Math.tan(a0 + (i + 0.5) * da), p = ro.clone().addScaledVector(rd, s), I = scatFieldAt(G, p.x, p.y, p.z, Rd);
         L += I * p.lengthSq() / b * da;               // (I r^2 ds / r^2 = I r^2 da / b)
         if (I > 0 && (!top || I > top.I)) top = { I, p: p.add(o.position).toArray() };
       }

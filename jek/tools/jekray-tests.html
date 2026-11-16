@@ -13105,7 +13105,7 @@ const TESTS = [
   },
   {
     name: 'The scattered field goes on through a lens as a glow from its cone’s rays, and follows the particle’s Scale',
-    why: 'a particle in a wide beam polarised out of the bench plane (so its light goes evenly round it in the plane), a lens 5 mm to the side that collimates its cone onto a detector 11 mm out, the fan off. Past the lens, where the 1/r² picture stops, the bench is bluer with the field on (its own ramp, the sum of blue less red over the pixels between the lens and the detector up by more than 2000) and not with it off (no bluer than with no scattered light at all); upstream of the field’s reach the beam’s pixels are the same on and off. The Scale set to Linear changes the picture past the particle and the 3D key says linear; set back to Logarithmic the pixels are as they were; and no trace is run by either (1 when all hold)',
+    why: 'a particle in a wide beam polarised out of the bench plane (so its light goes evenly round it in the plane), a lens 5 mm to the side that collimates its cone onto a detector 11 mm out, the fan off. Past the lens, where the 1/r² picture stops, the bench is bluer with the field on (its own ramp, the sum of blue less red over the pixels between the lens and the detector up by more than 2000) and not with it off (no bluer than with no scattered light at all); upstream of the field’s reach the beam’s pixels are the same on and off. The Scale offers Linear and 30, 60 and 90 dB (and an older bench’s own 40 dB, as saved); each changes the picture about the particle, each differently, and the 3D key says linear or half the dB along a line of sight (15, 30, 45; 20 for the older 40); set back to the older bench’s scale the pixels are as they were, and a bench saved before (no Scale) opens on it; no trace is run by any of it (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r))), doc = rigDoc(), cv = doc.getElementById('bench');
@@ -13125,27 +13125,35 @@ const TESTS = [
       const diff = (a, b) => a.reduce((s2, v, i) => s2 + (i % 4 === 3 ? 0 : Math.abs(v - b[i])), 0);
       const Mon = blue(on.past), Moff = blue(off.past), Mnone = blue(none.past);
       const through = Mon - Moff > 2000 && Moff <= Mnone + 200 && diff(on.up, off.up) === 0;
-      // the Scale, as the Scattering tab sets it: linear and back, with no trace run
+      // the Scale, as the Scattering tab sets it: Linear, 30, 60 and 90 dB, each its own picture, and back to an older bench's
+      // 'log' (40 dB, offered only as that bench's own), with no trace run
       load(true, true); J.select('P'); await frame();
       [...doc.querySelectorAll('#panel .rt-tab')].find(b => b.textContent === 'Scattering').click(); await frame(); await frame();
-      const setScale = v => { const sel = [...doc.querySelectorAll('#panel select')].find(q => [...q.options].some(o => o.value === 'lin')); sel.value = v; sel.dispatchEvent(new Event('change')); };
+      const sel = () => [...doc.querySelectorAll('#panel select')].find(q => [...q.options].some(o => o.value === 'lin'));
+      const offered = [...sel().options].map(o => o.value).join();
+      const setScale = v => { const q = sel(); q.value = v; q.dispatchEvent(new Event('change')); };
       await frame();
-      const n0 = J.traceInfo().count, L0 = box(-4, -1.5, -1, 1.5);
-      setScale('lin'); await frame(); await frame();
-      const L1 = box(-4, -1.5, -1, 1.5);
+      const n0 = J.traceInfo().count, L0 = box(-4, -1.5, -1, 1.5), Ls = {};
+      for (const v of ['lin', 'log30', 'log60', 'log90']) { setScale(v); await frame(); await frame(); Ls[v] = box(-4, -1.5, -1, 1.5); }
       setScale('log'); await frame(); await frame();
-      const L2 = box(-4, -1.5, -1, 1.5), n1 = J.traceInfo().count;
-      const scale = diff(L0, L1) > 2000 && diff(L0, L2) === 0 && n1 === n0;
+      const L2 = box(-4, -1.5, -1, 1.5), n1 = J.traceInfo().count, vs3 = ['lin', 'log30', 'log60', 'log90'];
+      const apart = vs3.every((v, i) => diff(L0, Ls[v]) > 2000 && vs3.every((w, j) => j <= i || diff(Ls[v], Ls[w]) > 2000));
+      // an older bench with no Scale opens as one saved with 'log' (40 dB)
+      load(true, true); J.select(null); await frame(); await frame();
+      const Lold = box(-4, -1.5, -1, 1.5);
+      J.set('P', { scatScale: 'log' }); await frame(); await frame();
+      const Llog = box(-4, -1.5, -1, 1.5);
+      const scale = offered === 'lin,log30,log60,log90,log' && apart && diff(L0, L2) === 0 && diff(Lold, Llog) === 0 && n1 === n0;
       let three = false, K = null;
       try {
+        load(true, true); J.select('P'); await frame();
+        [...doc.querySelectorAll('#panel .rt-tab')].find(b => b.textContent === 'Scattering').click(); await frame();
         await J.view3d.set(true);
-        setScale('lin'); J.redraw(); await frame();
-        K = [J.view3d.scatField().key];
-        setScale('log'); J.redraw(); await frame();
-        K.push(J.view3d.scatField().key);
-        three = /linear/.test(K[0] || '') && /log \(20 dB\)/.test(K[1] || '');
+        K = [];
+        for (const v of ['lin', 'log30', 'log60', 'log90', 'log']) { setScale(v); J.redraw(); await frame(); K.push(J.view3d.scatField().key); }
+        three = /linear/.test(K[0] || '') && /log \(15 dB\)/.test(K[1] || '') && /log \(30 dB\)/.test(K[2] || '') && /log \(45 dB\)/.test(K[3] || '') && /log \(20 dB\)/.test(K[4] || '');
       } finally { await J.view3d.set(false); }
-      if (!(through && scale && three)) console.log('particle through', JSON.stringify({ through, Mon, Moff, Mnone, up: diff(on.up, off.up), scale, d1: diff(L0, L1), d2: diff(L0, L2), n0, n1, three, K }));
+      if (!(through && scale && three)) console.log('particle through', JSON.stringify({ through, Mon, Moff, Mnone, up: diff(on.up, off.up), scale, offered, apart, d2: diff(L0, L2), dOld: diff(Lold, Llog), n0, n1, three, K }));
       return through && scale && three ? 1 : 0;
     },
   },

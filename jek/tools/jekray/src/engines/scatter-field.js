@@ -50,9 +50,9 @@ export function scatFieldBuild(Fs, nMed, met, reach) {
 }
 /* the irradiance (W/mm²) at (dx, dy) mm from the particle in the bench plane: the ring's intensity between its two
    nearest directions over r², nothing past the stop of the nearest one or the reach */
-export function scatPlaneAt(G, dx, dy) {
+export function scatPlaneAt(G, dx, dy, R = G.R) {
   const r = Math.hypot(dx, dy), N = G.nRing;
-  if (!(r > 0) || r > G.R) return 0;
+  if (!(r > 0) || r > R) return 0;
   let p = Math.atan2(dy, dx) / (2 * Math.PI) * N;
   if (p < 0) p += N;
   const j = Math.floor(p), f = p - j, j0 = j % N, j1 = (j + 1) % N;
@@ -61,9 +61,9 @@ export function scatPlaneAt(G, dx, dy) {
 }
 /* the same anywhere about the particle (dz up), from the sphere's grid: its intensity between the four nearest nodes, its
    stop the nearest node's (what the 3D view's shader does) */
-export function scatFieldAt(G, dx, dy, dz) {
+export function scatFieldAt(G, dx, dy, dz, R = G.R) {
   const r = Math.hypot(dx, dy, dz);
-  if (!(r > 0) || r > G.R) return 0;
+  if (!(r > 0) || r > R) return 0;
   const t = Math.acos(Math.max(-1, Math.min(1, dz / r))) / Math.PI * (G.nT - 1);
   let p = Math.atan2(dy, dx) / (2 * Math.PI) * G.nP;
   if (p < 0) p += G.nP;
@@ -73,9 +73,16 @@ export function scatFieldAt(G, dx, dy, dz) {
   const a = G.grid[i * G.nP + j0] * (1 - fp) + G.grid[i * G.nP + j1] * fp, b = G.grid[(i + 1) * G.nP + j0] * (1 - fp) + G.grid[(i + 1) * G.nP + j1] * fp;
   return (a * (1 - ft) + b * ft) / (r * r);
 }
-/* an irradiance on the 2D scale: 0 (the floor) to 1 (the top and above); logarithmic over G.dec decades, or with lin
-   (the particle's scatScale 'lin', the Scattering tab's Scale) linear from nought to the top */
-export const scatFieldLevel = (G, v, lin) => !(v > 0 && G.top > 0) ? 0 : lin ? Math.min(1, v / G.top) : Math.max(0, Math.min(1, 1 + Math.log10(v / G.top) / G.dec));
+/* The Scale a particle's figure and pictures are drawn on (its scatScale, the Scattering tab's Scale): dB below the top for a
+   log scale, 0 for linear. 'log' is what benches before the choice of depth saved: 40 dB, still drawn so, no longer offered. */
+export const SCAT_SCALES = [['lin', 'Linear', 0], ['log30', 'Logarithmic, 30 dB', 30], ['log60', 'Logarithmic, 60 dB', 60], ['log90', 'Logarithmic, 90 dB', 90]];
+export const scatDbOf = sc => sc === 'log' ? 40 : (SCAT_SCALES.find(q => q[0] === sc) || [0, 0, 40])[2];
+/* an irradiance on the 2D scale: 0 (the floor) to 1 (the top and above); logarithmic over db dB (the field's own 40 when
+   not given), or linear from nought to the top with db 0 */
+export const scatFieldLevel = (G, v, db = 10 * G.dec) => !(v > 0 && G.top > 0) ? 0 : !db ? Math.min(1, v / G.top) : Math.max(0, Math.min(1, 1 + 10 * Math.log10(v / G.top) / db));
+/* how far out the picture is drawn on a scale: on a log one, where the strongest direction meets the floor (the field's
+   reach R at 40 dB, further on a deeper scale, nearer on a shallower one); linear, the reach */
+export const scatReach = (G, db) => db > 0 ? G.rTop * 10 ** (db / 20) : G.R;
 
 /* ---------- Past the first part: the light the cones carry on ----------
    The 1/r² picture ends at the first part each direction meets. A part that passes the light on (a lens, a window, a

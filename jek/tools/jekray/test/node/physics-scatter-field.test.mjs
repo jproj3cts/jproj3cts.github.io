@@ -123,10 +123,21 @@ test('past a lens: the light the cone carries on, from its rays as tubes, joins 
   assert.equal(TR.lastTrace.scat.fans.find(f => f.part === 'p').through, undefined);
 });
 
-test('the Scale: linear from nought to the top, or logarithmic over its decades', () => {
-  const G = { top: 2, dec: 4 };
-  assert.equal(SF.scatFieldLevel(G, 1, true), 0.5);
-  assert.equal(SF.scatFieldLevel(G, 4, true), 1);
-  assert.equal(SF.scatFieldLevel(G, 2e-2, false), 0.5);
-  assert.equal(SF.scatFieldLevel(G, 0, true), 0);
+test('the Scale: linear from nought to the top, or logarithmic over 30, 60 or 90 dB, and older benches’ log at 40', () => {
+  const G = { top: 2, dec: 4, rTop: 0.3, R: 30 };
+  assert.equal(SF.scatFieldLevel(G, 1, 0), 0.5);
+  assert.equal(SF.scatFieldLevel(G, 4, 0), 1);
+  assert.equal(SF.scatFieldLevel(G, 0, 0), 0);
+  assert.equal(SF.scatFieldLevel(G, 2e-2), 0.5);                       // the field's own 40 dB
+  for (const db of [30, 60, 90]) {
+    assert.ok(Math.abs(SF.scatFieldLevel(G, 2 * 10 ** (-db / 20), db) - 0.5) < 1e-12, db + ' dB: half way down is half the scale');
+    assert.equal(SF.scatFieldLevel(G, 2 * 10 ** (-db / 10), db), 0);
+    // the strongest direction (top at rTop) meets the floor at the reach the scale gives
+    assert.ok(Math.abs(SF.scatReach(G, db) - 0.3 * 10 ** (db / 20)) < 1e-9);
+  }
+  assert.ok(Math.abs(SF.scatReach(G, 40) - 30) < 1e-9 && SF.scatReach(G, 0) === 30);
+  assert.deepEqual(SF.SCAT_SCALES.map(q => q[0]), ['lin', 'log30', 'log60', 'log90']);
+  assert.deepEqual(['lin', 'log30', 'log60', 'log90', 'log'].map(SF.scatDbOf), [0, 30, 60, 90, 40]);
+  // the part keeps an older bench's 'log', and what it does not know is that
+  for (const [v, want] of [['log', 'log'], ['log60', 'log60'], ['lin', 'lin'], [undefined, 'log'], ['log45', 'log']]) assert.equal(PARTS.particle.norm({ type: 'particle', scatScale: v }, {}).scatScale, want);
 });

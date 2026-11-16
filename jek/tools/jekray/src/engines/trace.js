@@ -464,10 +464,11 @@ export function setLastTraceKey(v) { return (lastTraceKey = v); }
 /* RF parts met past their model (a grid or mesh with its pitch over the wavelength: a grating), by id, from the last trace */
 export const rfNotes = new Set();
 // (the bench's Show the rays among it: with it off, a Gaussian beam's rays are not traced at all, so ticking it traces again)
-export const traceKeyNow = () => scatRevNow() + '|' + traceKeyBase();
+export const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + scatRevNow() + '|' + traceKeyRest();
 /* the bench's key without the particles' answers' count: what a kept trace is filed under (traceStore), whose particles'
    answers are looked up again when it is taken */
-const traceKeyBase = () => loadGen + '|' + MODS.rev + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + (lightOf().rays !== false ? 'R' : '-') + '|' + project.benches.map(b => b.id).join(',') + '|' +
+const traceKeyBase = () => loadGen + '|' + MODS.rev + '|' + traceKeyRest();
+const traceKeyRest = () => project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + (lightOf().rays !== false ? 'R' : '-') + '|' + project.benches.map(b => b.id).join(',') + '|' +
   JSON.stringify(project.elements.filter(e => e.type !== 'elec' && e.type !== 'draw'), keyCut) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire), keyCut);
 // what changes nothing in the light: a part's name and where it is written, its import notes, drawings; where a
 // fibre component or a chip part sits (their networks are solved by what joins what: a fibre's length is its own

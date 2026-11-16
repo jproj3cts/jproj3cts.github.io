@@ -75,7 +75,7 @@ export function scatFieldAt(G, dx, dy, dz, R = G.R) {
 }
 /* The Scale a particle's figure and pictures are drawn on (its scatScale, the Scattering tab's Scale): dB below the top for a
    log scale, 0 for linear. 'log' is what benches before the choice of depth saved: 40 dB, still drawn so, no longer offered. */
-export const SCAT_SCALES = [['lin', 'Linear', 0], ['log30', 'Logarithmic, 30 dB', 30], ['log60', 'Logarithmic, 60 dB', 60], ['log90', 'Logarithmic, 90 dB', 90]];
+export const SCAT_SCALES = [['lin', 'Linear', 0], ['log30', 'Logarithmic, 30 dB', 30], ['log', 'Logarithmic, 40 dB', 40], ['log60', 'Logarithmic, 60 dB', 60], ['log90', 'Logarithmic, 90 dB', 90]];
 export const scatDbOf = sc => sc === 'log' ? 40 : (SCAT_SCALES.find(q => q[0] === sc) || [0, 0, 40])[2];
 /* an irradiance on the 2D scale: 0 (the floor) to 1 (the top and above); logarithmic over db dB (the field's own 40 when
    not given), or linear from nought to the top with db 0 */

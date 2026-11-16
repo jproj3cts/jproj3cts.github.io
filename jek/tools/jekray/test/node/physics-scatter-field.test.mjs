@@ -136,7 +136,7 @@ test('the Scale: linear from nought to the top, or logarithmic over 30, 60 or 90
     assert.ok(Math.abs(SF.scatReach(G, db) - 0.3 * 10 ** (db / 20)) < 1e-9);
   }
   assert.ok(Math.abs(SF.scatReach(G, 40) - 30) < 1e-9 && SF.scatReach(G, 0) === 30);
-  assert.deepEqual(SF.SCAT_SCALES.map(q => q[0]), ['lin', 'log30', 'log60', 'log90']);
+  assert.deepEqual(SF.SCAT_SCALES.map(q => q[0]), ['lin', 'log30', 'log', 'log60', 'log90']);
   assert.deepEqual(['lin', 'log30', 'log60', 'log90', 'log'].map(SF.scatDbOf), [0, 30, 60, 90, 40]);
   // the part keeps an older bench's 'log', and what it does not know is that
   for (const [v, want] of [['log', 'log'], ['log60', 'log60'], ['lin', 'lin'], [undefined, 'log'], ['log45', 'log']]) assert.equal(PARTS.particle.norm({ type: 'particle', scatScale: v }, {}).scatScale, want);

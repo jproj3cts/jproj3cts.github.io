@@ -1168,7 +1168,7 @@
     {
      "k": "scatScale",
      "def": "\"log\"",
-     "meaning": "\"lin\", \"log30\", \"log60\" or \"log90\" (logarithmic over 30, 60 or 90 dB; \"log\", from older benches, is 40 dB): the pattern plots’ scale, and the scattered field picture’s (scatField) on the bench, where in 3D the light along a line of sight is on half the dB."
+     "meaning": "\"lin\", \"log30\", \"log\" (the default), \"log60\" or \"log90\" (logarithmic over 30, 40, 60 or 90 dB): the pattern plots’ scale, and the scattered field picture’s (scatField) on the bench, where in 3D the light along a line of sight is on half the dB."
     },
     {
      "k": "scatView",

@@ -34,8 +34,80 @@ export const DOVE_RATIO = 4.224;              // a Dove prism's length over its 
 export const typeLabel = el => el.mod ? modName(el) : el.type === 'source' && el.lamp ? (el.lampFlat ? 'Circular lamp' : 'Lamp') : el.type === 'lens' && el.mmw ? 'RF lens' : el.grin ? 'GRIN lens' : el.mmw && !el.mmw.part ? (el.type === 'source' ? 'Feed horn' : 'Receiving horn') : el.type === 'draw' ? DRAW_SHAPES[el.shape] : el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.balanced ? 'Balanced photodetector' : el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : el.kind === 'amp' && el.soa ? 'Semiconductor optical amplifier' : el.kind === 'split' ? (el.combine ? 'Combiner, ' + el.ways + '\u00d71' : 'Splitter, 1\u00d7' + el.ways) : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
 
+/* ---------- Suppressed parts ----------
+   A part suppressed, as a CAD feature is, is out of the bench until it is unsuppressed: not drawn, in 2D or 3D, not
+   picked, and nothing meets it, the light, the fibres, the circuits or any engine. It is kept apart for that:
+   project.elements holds the parts in play, project.suppressed the suppressed ones (each with suppressed: true), and
+   the fibres, wires and waveguides plugged into one wait in project.parked as they were (so the port it leaves is
+   open). Everything that traces, draws, picks or reads the bench (every engine, the workers, the readouts, the 3D
+   view) reads project.elements and project.fibres as ever and never sees them. What keeps the bench whole (the file,
+   share links, Undo, the parts list, names) reads allParts() and allFibres(), which give them back in their places:
+   _at, never saved, is where each stood among all the parts. */
+const atOf = e => (typeof e._at === 'number' ? e._at : 1e9);
+const placeAt = (e, i) => Object.defineProperty(e, '_at', { value: i, writable: true, configurable: true, enumerable: false });
+function mergeAt(live, apart) {
+  if (!apart || !apart.length) return live;
+  const out = live.slice();
+  for (const e of apart.slice().sort((a, b) => atOf(a) - atOf(b))) out.splice(Math.min(atOf(e), out.length), 0, e);
+  return out;
+}
+export const allParts = (p = project) => (p ? mergeAt(p.elements, p.suppressed) : []);
+export const allFibres = (p = project) => mergeAt(p.fibres || [], p.parked);
+export const suppressedPart = id => (id && project && project.suppressed && project.suppressed.find(e => e.id === id)) || null;
+/* a bench whose p.elements and p.fibres hold all of its parts and fibres, split as above. Of the fibres that were
+   waiting (waited), one whose part is gone goes, and so does one whose port was taken while it waited (a fibre plugged
+   in there since keeps it); the rest are as they were */
+export function partitionParts(p = project, waited = null) {
+  const all = p.elements || [], live = [], sup = [];
+  all.forEach((e, i) => {
+    if (e.suppressed === true) { placeAt(e, i); sup.push(e); }
+    else { if ('suppressed' in e) delete e.suppressed; live.push(e); }
+  });
+  p.elements = live; p.suppressed = sup;
+  const F = p.fibres || [];
+  if (!sup.length && !(waited && waited.size)) { p.parked = []; return p; }
+  const off = new Set(sup.map(e => e.id)), ids = new Set(all.map(e => e.id)), used = new Set(), park = [], back = new Set();
+  const port = q => q[0] + ':' + q[1], ends = f => (f.wire ? [port(f.b)] : [port(f.a), port(f.b)]);
+  const ok = f => f && Array.isArray(f.a) && Array.isArray(f.b);
+  // the ports held by the fibres that stayed plugged in first, then those that come back, in their order
+  for (const f of F) if (ok(f) && !(waited && waited.has(f)) && !off.has(f.a[0]) && !off.has(f.b[0])) for (const k of ends(f)) used.add(k);
+  for (const f of F) {
+    if (!ok(f) || !(waited && waited.has(f))) continue;
+    if (!ids.has(f.a[0]) || !ids.has(f.b[0])) continue;                     // its part is gone
+    if (off.has(f.a[0]) || off.has(f.b[0])) continue;                       // still waiting (below)
+    if (ends(f).some(k => used.has(k))) continue;                           // its port taken
+    for (const k of ends(f)) used.add(k);
+    back.add(f);
+  }
+  const keep = [];
+  F.forEach((f, i) => {
+    if (!ok(f)) return;
+    const w = waited && waited.has(f);
+    if (off.has(f.a[0]) || off.has(f.b[0])) { if (ids.has(f.a[0]) && ids.has(f.b[0])) park.push(placeAt(f, i)); return; }
+    if (w && !back.has(f)) return;
+    keep.push(f);
+  });
+  p.fibres = keep; p.parked = park;
+  return p;
+}
+/* parts suppressed (on) or unsuppressed, the fibres plugged into them parked or plugged in again; with none given, the
+   bench split again after a part's suppressed was set directly (a script's J.set) */
+export function setSuppressed(list, on, p = project) {
+  const all = allParts(p), F = allFibres(p), waited = new Set(p.parked || []);
+  for (const e of list || []) { if (on) e.suppressed = true; else delete e.suppressed; }
+  p.elements = all === p.elements ? all.slice() : all; p.fibres = F === p.fibres ? F.slice() : F; p.suppressed = []; p.parked = [];
+  return partitionParts(p, waited);
+}
+/* parts deleted, suppressed or not, and the fibres plugged into them */
+export function dropParts(ids) {
+  project.elements = project.elements.filter(e => !ids.has(e.id));
+  if (project.suppressed) project.suppressed = project.suppressed.filter(e => !ids.has(e.id));
+  project.fibres = (project.fibres || []).filter(F => !ids.has(F.a[0]) && !ids.has(F.b[0]));
+  if (project.parked) project.parked = project.parked.filter(F => !ids.has(F.a[0]) && !ids.has(F.b[0]));
+}
+
 export function nextName(prefix) {
-  const used = new Set(project.elements.map(e => e.name));
+  const used = new Set(allParts().map(e => e.name));
   let i = 1;
   while (used.has(prefix + ' ' + i)) i++;
   return prefix + ' ' + i;

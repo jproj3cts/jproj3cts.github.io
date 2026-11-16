@@ -1,7 +1,7 @@
 import { TEST_MODE, clamp } from '../core/constants.js';
 import { fmtHz, fmtLen, fmtW } from '../core/format.js';
 import { cavLine } from '../core/beams-hom.js';
-import { deg, project, selectOne, typeLabel } from '../state/project.js';
+import { allParts, deg, project, selectOne, selectedId, suppressedPart, typeLabel } from '../state/project.js';
 import { allSources, getEl, lightOf } from '../state/elements.js';
 import { curBench } from '../state/tabs.js';
 import { lastTrace } from '../engines/trace.js';
@@ -18,7 +18,7 @@ import { popRadii, popStats, qdht } from '../engines/field.js';
 import { cavModes, cavRunCache, cavSolved, findCavities, laserState } from '../engines/cavity.js';
 import { interp2, popStats2 } from '../engines/field2d.js';
 import { popRunGen } from '../engines/beam-tree.js';
-import { changed } from './actions.js';
+import { changed, partsListMenu } from './actions.js';
 import { checkpoint, selectEl } from './tabs.js';
 import { scheduleSave } from '../io/autosave.js';
 import { fieldWorker, fwRequest } from '../page/workers.js';
@@ -250,7 +250,8 @@ export function renderOverview() {
     panel.append(tabs);
     if (benchTab === 'cavity') { for (const c of cavs) panel.append(cavityCard(c)); return; }
   }
-  if (project.elements.length) {
+  const every = allParts();                    // the suppressed parts too, struck through, to be chosen and unsuppressed
+  if (every.length) {
     const list = h('ul', { class: 'rt-plist' });
     const col = { source: null, lens: '#73b9ca', cube: '#73b9ca', prism: '#73b9ca', mirror: '#b9c2c9',
       screen: '#ffb347', stop: '#9aa4ab', waveplate: '#73b9ca', polariser: '#b79bff', mask: '#d8b35a',
@@ -263,12 +264,13 @@ export function renderOverview() {
     if (multi) panel.append(h('div', { class: 'rt-tabs rt-listtabs', role: 'tablist', 'aria-label': 'Parts on each bench' },
       ...[curBench(), ...project.benches.filter(b2 => b2 !== curBench())].map(b => h('button', { class: 'rt-tab' + (b.id === listTab ? ' on' : ''), type: 'button', role: 'tab', 'aria-selected': String(b.id === listTab),
         title: b === curBench() ? 'The parts on this bench (on show)' : 'The parts on the bench ' + b.name, onclick: () => { listTab = b.id; renderPanel(); } },
-        b.name + ' (' + project.elements.filter(e => e.bench === b.id).length + ')'))));
+        b.name + ' (' + every.filter(e => e.bench === b.id).length + ')'))));
     // as a CAD feature list: a heading for each kind of part with its count, a row each, one line, its kind small at the
     // end; the eye only on hover (or while hidden); the selected parts marked
     const chosen = new Set(selection().map(e => e.id));
+    if (suppressedPart(selectedId)) chosen.add(selectedId);
     for (const b of project.benches.filter(b2 => !multi || b2.id === listTab)) {
-      const mine = project.elements.filter(e => e.bench === b.id);
+      const mine = every.filter(e => e.bench === b.id);
       if (multi && !mine.length) list.append(h('li', { class: 'tabhead' }, 'No parts on ' + b.name + ' yet'));
       for (const [key, title] of LIST_KINDS) {
         const of = mine.filter(e => listKind(e) === key);
@@ -276,14 +278,16 @@ export function renderOverview() {
         list.append(h('li', { class: 'rt-plhead' }, title + ' (' + of.length + ')'));
         for (const el of of) {
           // the eye: shown or hidden on the bench, 2D and 3D, for a part drawn in 3D; hidden, the light still meets it
-          const eye = V3D.free(el) ? h('button', { type: 'button', class: 'rt-eye' + (el.hide3d ? ' off' : ''), 'aria-pressed': String(!el.hide3d),
+          const eye = V3D.free(el) && !el.suppressed ? h('button', { type: 'button', class: 'rt-eye' + (el.hide3d ? ' off' : ''), 'aria-pressed': String(!el.hide3d),
             title: el.hide3d ? 'Hidden on the bench, in 2D and 3D (the light still meets it): show it' : 'Hide it on the bench, in 2D and 3D (the light still meets it)',
             'aria-label': (el.hide3d ? 'Show ' : 'Hide ') + el.name + ' on the bench',
             onclick: () => { checkpoint(); if (el.hide3d) delete el.hide3d; else el.hide3d = true; changed(true); } }) : null;
           if (eye) eye.innerHTML = el.hide3d ? EYE_SHUT : EYE_OPEN;
           const kind = typeLabel(el);
-          list.append(h('li', { class: 'rt-plrow' + (chosen.has(el.id) ? ' on' : '') + (el.hide3d ? ' hid' : '') },
-            h('button', { type: 'button', class: 'rt-plname', title: el.name + ' (' + kind + ')', onclick: () => selectEl(el) },
+          // suppressed: struck through, its menu's Unsuppress bringing it back (the bench's menu for the rest)
+          list.append(h('li', { class: 'rt-plrow' + (chosen.has(el.id) ? ' on' : '') + (el.hide3d ? ' hid' : '') + (el.suppressed ? ' sup' : ''),
+            oncontextmenu: ev => { ev.preventDefault(); partsListMenu(ev.clientX, ev.clientY, el); } },
+            h('button', { type: 'button', class: 'rt-plname', title: el.name + ' (' + kind + ')' + (el.suppressed ? ', suppressed: right-click to unsuppress' : ''), onclick: () => selectEl(el) },
               h('span', { class: 'swatch', style: 'background:' + (col[el.type] || (el.type === 'draw' ? (el.stroke !== 'none' ? el.stroke : el.fill !== 'none' ? el.fill : '#9aa4ab') : el.colour)) }),
               h('span', { class: 'nm' }, el.name), h('span', { class: 't' }, kind)), ...(eye ? [eye] : [])));
         }

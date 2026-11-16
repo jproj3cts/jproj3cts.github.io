@@ -136,6 +136,8 @@ Every element has "type", "id" (any unique string), "name", "x", "y" (mm) and "a
 
 Any element but a drawing may also have "lineColour" and "fillColour", each "#rrggbb": its own colours on the bench and in exported pictures. Every line of the part is drawn in the line colour and its body in the fill colour, as see-through as the tool draws it. Leave them out and the part is drawn in the tool’s own colours. They change nothing about the light.
 
+Any element may also have "suppressed": true: it is kept in the file but taken out of the bench, as a suppressed CAD feature is, until the person unsuppresses it (right-click › Unsuppress in the Bench panel’s list). It is not drawn and nothing meets it: the light passes where it stands, and fibres or wires plugged into it count as unplugged at its end. Leave it out for a part in use.
+
 ### "source": Source
 
 A light source: a fan of rays and, its field starting from a Gaussian beam ("gauss": true, a new source’s) or from even illumination across the fan, a diffracted field that can be shown; the bench’s light turns the rays or the beams off.

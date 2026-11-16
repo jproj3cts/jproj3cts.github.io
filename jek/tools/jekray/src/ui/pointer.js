@@ -1,5 +1,5 @@
 import { EMBED, LOCKED, ZOOM_MAX, clamp } from '../core/constants.js';
-import { V, deg, extraSel, project, selectOne, selectedId, uid } from '../state/project.js';
+import { V, deg, extraSel, project, selectOne, selectedId, suppressedPart, uid } from '../state/project.js';
 import { selected } from '../state/elements.js';
 import { onTab } from '../state/tabs.js';
 import { frame, toLocal } from '../core/mask.js';
@@ -491,7 +491,9 @@ export function wirePointer() {
     }
     const el = selected();
     if (!el) {
-      const F = selFibre();
+      const F = selFibre(), S = suppressedPart(selectedId);       // (a suppressed part chosen in the parts list)
+      if (S && (e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); removeEls([S]); return; }
+      if (S && e.key === 'Escape') { selectOne(null); renderPanel(); requestRender(); return; }
       if (F && (e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); removeFibre(F); }
       if (F && e.key === 'Escape') { setSelFibreId(null); renderPanel(); requestRender(); }
       return;

@@ -12,7 +12,7 @@ import { beamAt, lgComps } from '../core/beams-hom.js';
 import { lensAntenna } from '../core/antenna.js';
 import { grinDesign, normGrin } from '../core/grin.js';
 import { TYPE_LABEL } from '../parts/registry.js';
-import { V, project, selectOne, setFuture, setHistory, setProject, uid } from '../state/project.js';
+import { V, allParts, project, selectOne, setFuture, setHistory, setProject, uid } from '../state/project.js';
 import { PACKS } from '../state/packs.js';
 import { stackAmp } from '../core/coatings.js';
 import { VSRC, allSources, demoProject, getEl, loadProject, selected, serialize } from '../state/elements.js';
@@ -166,7 +166,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // a share link opened with nothing kept here: an empty bench while the link's own is fetched, not the example first
   const blankFirst = !project && !!(shared || short);
   if (!project) demoProject();
-  if (blankFirst) { project.elements = []; project.name = 'Opening the shared bench\u2026'; }
+  if (blankFirst) { project.elements = []; project.suppressed = []; project.parked = []; project.name = 'Opening the shared bench\u2026'; }
   nameInput.value = project.name;
   renderBenchTabs();
   setStatus(restored ? 'Restored your last session' : '');
@@ -174,7 +174,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   if (shared || short) {
     if (!EMBED) window.history.replaceState(null, '', location.pathname);
     // (the link could not be opened: the example after all, rather than an empty bench)
-    Promise.resolve(short ? openShortLink(short[1]) : openShareHash(shared[1])).then(() => { if (blankFirst && !project.elements.length) { demoProject(); nameInput.value = project.name; renderBenchTabs(); changed(true); } });
+    Promise.resolve(short ? openShortLink(short[1]) : openShareHash(shared[1])).then(() => { if (blankFirst && !allParts().length) { demoProject(); nameInput.value = project.name; renderBenchTabs(); changed(true); } });
   }
   else if (exArr) {
     if (/[?&]ex=/.test(location.search)) { const u = new URL(location.href); u.searchParams.delete('ex'); window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash); }

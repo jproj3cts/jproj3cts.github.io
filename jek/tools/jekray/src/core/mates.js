@@ -1,5 +1,5 @@
 import { clamp } from './constants.js';
-import { deg, num, project, uid } from '../state/project.js';
+import { allParts, deg, num, project, uid } from '../state/project.js';
 import { NET_3D, getEl } from '../state/elements.js';
 import { meshOf } from './stl.js';
 import { cross3, dot3, unit3 } from './numeric.js';
@@ -350,6 +350,13 @@ export function normMates(list, els) {
 export function liveMates() {
   const M = project && project.mates; if (!M || !M.length) return [];
   return M.filter(m => { const a = getEl(m.a.el), b = getEl(m.b.el); return a && b && a.bench === b.bench && project.elements.includes(a) && project.elements.includes(b); });
+}
+/* the mates the file keeps: those that hold, and those to a suppressed part, which hold again when it is unsuppressed */
+export function keptMates() {
+  const M = project && project.mates; if (!M || !M.length) return [];
+  if (!(project.suppressed && project.suppressed.length)) return liveMates();
+  const by = new Map(allParts().map(e => [e.id, e]));
+  return M.filter(m => { const a = by.get(m.a.el), b = by.get(m.b.el); return a && b && a.bench === b.bench; });
 }
 export const matesOf = el => liveMates().filter(m => m.a.el === el.id || m.b.el === el.id);
 /* the parts that move with these: their mates, the mates' groups, and on (skip: a mate left out) */

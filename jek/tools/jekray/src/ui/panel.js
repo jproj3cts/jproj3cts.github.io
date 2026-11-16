@@ -4,7 +4,7 @@ import { asmOf, asmOfSelection } from '../core/assembly.js';
 import { assemblyPanel, designOneRow } from './assembly.js';
 import { fmtHz, fmtLen, fmtNum } from '../core/format.js';
 import { syncLine } from '../core/pulses.js';
-import { V, extraSel, project, selectOne, typeLabel } from '../state/project.js';
+import { V, extraSel, project, selectOne, selectedId, suppressedPart, typeLabel } from '../state/project.js';
 import { getEl, selected, NET_3D } from '../state/elements.js';
 import { mateFollow, mateHold, matesOf } from '../core/mates.js';
 import { matesPanel } from './mate3d.js';
@@ -25,7 +25,7 @@ import { coloursRows, fibreLinkPanel, groupPanel, rfHornPanel } from './panels.j
 import { assumedBox } from './plots.js';
 import { renderOverview, setBenchTab } from './panel-cavity.js';
 import { cavitiesOf } from '../engines/cavity.js';
-import { changed, duplicate, removeEl } from './actions.js';
+import { changed, duplicate, removeEl, suppressEls } from './actions.js';
 import { checkpoint, selectEl, switchTab } from './tabs.js';
 import { modPanel } from '../io/mods.js';
 import { h } from './dom.js';
@@ -461,7 +461,8 @@ export function renderPanel() {
   // page, even to go straight back, comes back scrolled to the top
   const scrolls = new Map([...pinBoxes].map(([id, box]) => [id, box._hold != null ? box._hold : box.scrollTop]));
   const benchScroll = benchBox.scrollTop;
-  const sel = selected(), picked = !!(sel || selFibre()), phone = phoneSheet();
+  // (a suppressed part chosen in the parts list: its panel says so, with Unsuppress)
+  const sel = selected() || suppressedPart(selectedId), picked = !!(sel || selFibre()), phone = phoneSheet();
   // On a wide screen the Bench panel is a column of its own on the left, brought out and put away by the tab on the
   // bench's left edge alone; a selection's panel opens on the right, and closes when it is put down. On a phone one
   // sheet from below shows either: the selection's, or (nothing selected, the tab pulled) the bench's
@@ -627,6 +628,15 @@ export function showAboutPart() {
   const name = sel.name || typeLabel(sel);
   infoDialog('About ' + name, mainAbout ? [mainAbout.cloneNode(true)] : [h('p', null, 'Its panel says all there is to say about it.')]);
 }
+/* a suppressed part's panel: what it is, that it is out of the bench, and the way back. Nothing of it is read while it
+   is suppressed, so none of its readouts are shown */
+function suppressedPanel(el) {
+  panel.append(h('h2', null, h('span', null, el.name), h('span', { class: 'kind' }, typeLabel(el))),
+    h('p', { class: 'rt-locknote rt-supnote' }, 'Suppressed: it is not on the bench, in 2D or 3D, and nothing meets it. The light passes where it stands, and the fibres and wires plugged into it wait, unplugged at its end, until it is unsuppressed. Its settings are kept.'),
+    h('div', { class: 'rt-actions' },
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => suppressEls([el], false) }, 'Unsuppress'),
+      h('button', { class: 'rt-btn danger', type: 'button', onclick: () => removeEl(el) }, 'Delete')));
+}
 function renderPanelBody(el) {
   const scroll = panel.scrollTop;
   panel.replaceChildren();
@@ -642,6 +652,7 @@ function renderPanelBody(el) {
     return;
   }
 
+  if (el.suppressed) { suppressedPanel(el); return; }
   const title = h('h2', null, h('span', null, el.name), h('span', { class: 'kind' }, typeLabel(el)));
   // a part of a designed assembly: locked against a stray edit, the padlock beside the title opening it
   const des = asmOf(el), designed = !!(des && des.design), locked = designed && des.lock === true;

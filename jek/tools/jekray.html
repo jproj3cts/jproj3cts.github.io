@@ -756,6 +756,8 @@
   .rt-plrow .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rt-plrow .t { flex: none; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.7rem; color: var(--jek-ink-soft); }
   .rt-plrow.hid .nm { opacity: 0.5; }
+  .rt-plrow.sup .nm { opacity: 0.6; text-decoration: line-through; }
+  .rt-plrow.sup .swatch { opacity: 0.4; }
   .rt-plrow .rt-eye { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 1.6rem; height: 1.4rem; padding: 0; border: 0; background: none; color: var(--jek-ink-soft); cursor: pointer; opacity: 0; }
   .rt-plrow:hover .rt-eye, .rt-plrow:focus-within .rt-eye, .rt-plrow .rt-eye.off, .rt-plrow .rt-eye:focus-visible { opacity: 1; }
   .rt-plrow .rt-eye:hover { color: var(--jek-ink); }
@@ -9036,6 +9038,8 @@ function remapDesign(d, map) {
 }
 
 const assemblies = () => (project.assemblies || []).filter(a => project.elements.some(e => e.group === a.id));
+/* and those the file keeps: an assembly whose parts are all suppressed too */
+const keptAssemblies = () => { const all = allParts(); return (project.assemblies || []).filter(a => all.some(e => e.group === a.id)); };
 const asmOf = el => (el && el.group ? (project.assemblies || []).find(a => a.id === el.group) || null : null);
 const asmMembers = asm => project.elements.filter(e => e.group === asm.id);
 /* the assembly a selection is, whole: every one of its parts and nothing else */
@@ -10804,7 +10808,7 @@ const LINK = {
   picker: [{ key: 'link', short: 'Link plane', long: 'Link plane (to another tab)' }],
   keys: ['link'],
   make(x, y) {
-    const used = new Set(project.elements.filter(e => e.type === 'link').map(e => e.pair));
+    const used = new Set(allParts().filter(e => e.type === 'link').map(e => e.pair));
     let n = 1; while (used.has('Link ' + n)) n++;
     return { type: 'link', name: nextName('Link plane'), x, y, angle: 0, length: 25, pair: 'Link ' + n };
   },
@@ -10871,7 +10875,7 @@ const FCOMP = {
         return { type: 'fcomp', kind: 'amp', soa: true, name: nextName('SOA'), x, y, angle: 0, g0: 25, psat: 10, nf: 8, centre: 1550, bw: 60, iso: 0, pdg: 0.5 };
       case 'pbs': case 'fmir': case 'switch': case 'delay': case 'stretch': case 'tbf': case 'osa': case 'depol': case 'star': case 'fcomp': case 'laser': case 'coupler': case 'wdm': case 'circ': case 'iso': case 'voa': case 'pc': case 'pol': case 'fm': case 'fbg': case 'term': case 'pd': case 'thru': case 'amp': case 'faom': case 'feom':
         if (kind === 'faom') kind = 'aom'; else if (kind === 'feom') kind = 'eom';
-        const k = FC[kind] ? kind : 'coupler', used = new Set(project.elements.filter(e => e.kind === 'thru').map(e => e.pair));
+        const k = FC[kind] ? kind : 'coupler', used = new Set(allParts().filter(e => e.kind === 'thru').map(e => e.pair));
         let n = 1; while (used.has('Feedthrough ' + n)) n++;
         return Object.assign({ type: 'fcomp', kind: k, name: nextName(FC[k].label), x, y, angle: 0, pair: 'Feedthrough ' + n }, k === 'pd' ? { material: 'ingaas' } : {});
     }
@@ -11181,8 +11185,80 @@ const DOVE_RATIO = 4.224;              // a Dove prism's length over its height,
 const typeLabel = el => el.mod ? modName(el) : el.type === 'source' && el.lamp ? (el.lampFlat ? 'Circular lamp' : 'Lamp') : el.type === 'lens' && el.mmw ? 'RF lens' : el.grin ? 'GRIN lens' : el.mmw && !el.mmw.part ? (el.type === 'source' ? 'Feed horn' : 'Receiving horn') : el.type === 'draw' ? DRAW_SHAPES[el.shape] : el.type === 'chopper' ? 'Optical chopper' : el.type === 'fcomp' ? (el.kind === 'pd' && el.balanced ? 'Balanced photodetector' : el.kind === 'pd' && el.diode ? 'Fibre photodiode' : el.led ? 'Fibre-coupled LED' : el.kind === 'amp' && el.soa ? 'Semiconductor optical amplifier' : el.kind === 'split' ? (el.combine ? 'Combiner, ' + el.ways + '\u00d71' : 'Splitter, 1\u00d7' + el.ways) : FC[el.kind].label) : el.type === 'detector' && el.diode ? 'Photodiode' : el.type === 'pic' ? PIC.label(el) : el.type === 'elec' ? ELEC.label(el) : el.type === 'lens' ? lensKind(el) : el.type === 'prism' ? PRISM_SHAPES[el.shape]
   : el.type === 'crystal' ? CRYSTAL_SHAPES[el.shape] : el.type === 'filter' ? FILTER_TYPES[el.ftype] + ' filter' : TYPE_LABEL[el.type];
 
+/* ---------- Suppressed parts ----------
+   A part suppressed, as a CAD feature is, is out of the bench until it is unsuppressed: not drawn, in 2D or 3D, not
+   picked, and nothing meets it, the light, the fibres, the circuits or any engine. It is kept apart for that:
+   project.elements holds the parts in play, project.suppressed the suppressed ones (each with suppressed: true), and
+   the fibres, wires and waveguides plugged into one wait in project.parked as they were (so the port it leaves is
+   open). Everything that traces, draws, picks or reads the bench (every engine, the workers, the readouts, the 3D
+   view) reads project.elements and project.fibres as ever and never sees them. What keeps the bench whole (the file,
+   share links, Undo, the parts list, names) reads allParts() and allFibres(), which give them back in their places:
+   _at, never saved, is where each stood among all the parts. */
+const atOf = e => (typeof e._at === 'number' ? e._at : 1e9);
+const placeAt = (e, i) => Object.defineProperty(e, '_at', { value: i, writable: true, configurable: true, enumerable: false });
+function mergeAt(live, apart) {
+  if (!apart || !apart.length) return live;
+  const out = live.slice();
+  for (const e of apart.slice().sort((a, b) => atOf(a) - atOf(b))) out.splice(Math.min(atOf(e), out.length), 0, e);
+  return out;
+}
+const allParts = (p = project) => (p ? mergeAt(p.elements, p.suppressed) : []);
+const allFibres = (p = project) => mergeAt(p.fibres || [], p.parked);
+const suppressedPart = id => (id && project && project.suppressed && project.suppressed.find(e => e.id === id)) || null;
+/* a bench whose p.elements and p.fibres hold all of its parts and fibres, split as above. Of the fibres that were
+   waiting (waited), one whose part is gone goes, and so does one whose port was taken while it waited (a fibre plugged
+   in there since keeps it); the rest are as they were */
+function partitionParts(p = project, waited = null) {
+  const all = p.elements || [], live = [], sup = [];
+  all.forEach((e, i) => {
+    if (e.suppressed === true) { placeAt(e, i); sup.push(e); }
+    else { if ('suppressed' in e) delete e.suppressed; live.push(e); }
+  });
+  p.elements = live; p.suppressed = sup;
+  const F = p.fibres || [];
+  if (!sup.length && !(waited && waited.size)) { p.parked = []; return p; }
+  const off = new Set(sup.map(e => e.id)), ids = new Set(all.map(e => e.id)), used = new Set(), park = [], back = new Set();
+  const port = q => q[0] + ':' + q[1], ends = f => (f.wire ? [port(f.b)] : [port(f.a), port(f.b)]);
+  const ok = f => f && Array.isArray(f.a) && Array.isArray(f.b);
+  // the ports held by the fibres that stayed plugged in first, then those that come back, in their order
+  for (const f of F) if (ok(f) && !(waited && waited.has(f)) && !off.has(f.a[0]) && !off.has(f.b[0])) for (const k of ends(f)) used.add(k);
+  for (const f of F) {
+    if (!ok(f) || !(waited && waited.has(f))) continue;
+    if (!ids.has(f.a[0]) || !ids.has(f.b[0])) continue;                     // its part is gone
+    if (off.has(f.a[0]) || off.has(f.b[0])) continue;                       // still waiting (below)
+    if (ends(f).some(k => used.has(k))) continue;                           // its port taken
+    for (const k of ends(f)) used.add(k);
+    back.add(f);
+  }
+  const keep = [];
+  F.forEach((f, i) => {
+    if (!ok(f)) return;
+    const w = waited && waited.has(f);
+    if (off.has(f.a[0]) || off.has(f.b[0])) { if (ids.has(f.a[0]) && ids.has(f.b[0])) park.push(placeAt(f, i)); return; }
+    if (w && !back.has(f)) return;
+    keep.push(f);
+  });
+  p.fibres = keep; p.parked = park;
+  return p;
+}
+/* parts suppressed (on) or unsuppressed, the fibres plugged into them parked or plugged in again; with none given, the
+   bench split again after a part's suppressed was set directly (a script's J.set) */
+function setSuppressed(list, on, p = project) {
+  const all = allParts(p), F = allFibres(p), waited = new Set(p.parked || []);
+  for (const e of list || []) { if (on) e.suppressed = true; else delete e.suppressed; }
+  p.elements = all === p.elements ? all.slice() : all; p.fibres = F === p.fibres ? F.slice() : F; p.suppressed = []; p.parked = [];
+  return partitionParts(p, waited);
+}
+/* parts deleted, suppressed or not, and the fibres plugged into them */
+function dropParts(ids) {
+  project.elements = project.elements.filter(e => !ids.has(e.id));
+  if (project.suppressed) project.suppressed = project.suppressed.filter(e => !ids.has(e.id));
+  project.fibres = (project.fibres || []).filter(F => !ids.has(F.a[0]) && !ids.has(F.b[0]));
+  if (project.parked) project.parked = project.parked.filter(F => !ids.has(F.a[0]) && !ids.has(F.b[0]));
+}
+
 function nextName(prefix) {
-  const used = new Set(project.elements.map(e => e.name));
+  const used = new Set(allParts().map(e => e.name));
   let i = 1;
   while (used.has(prefix + ' ' + i)) i++;
   return prefix + ' ' + i;
@@ -11795,6 +11871,7 @@ function normElementBase(e) {
   };
   if (e.locked === true) base.locked = true;                  // held in place: not moved by dragging or the arrow keys
   if (e.hide3d === true) base.hide3d = true;                  // not drawn on the bench, 2D or 3D (the light still meets it)
+  if (e.suppressed === true) base.suppressed = true;          // out of the bench until unsuppressed: not drawn, and nothing meets it (state/project.js allParts)
   // its own colours on the bench and in exported pictures (core/part-colours.js): kept only when set, so a part without them is drawn as ever
   if (e.type !== 'draw') { const lc = partHex(e.lineColour), fc = partHex(e.fillColour); if (lc) base.lineColour = lc; if (fc) base.fillColour = fc; }
   // its height above the breadboard (mm), kept only when not the beam height (see zOf)
@@ -11980,15 +12057,15 @@ function serialize() {
     library: project.library || [],
     cavityLock: project.cavityLock || {},
     benches: project.benches, tab: project.tab,
-    elements: project.elements,
-    fibres: project.fibres || [],
-    ...(assemblies().length ? { assemblies: assemblies() } : {}),
-    ...(liveMates().length ? { mates: liveMates() } : {}),
+    elements: allParts(),                              // the suppressed among them, in their places (state/project.js)
+    fibres: allFibres(),
+    ...(keptAssemblies().length ? { assemblies: keptAssemblies() } : {}),
+    ...(keptMates().length ? { mates: keptMates() } : {}),
     measures: project.measures || [],
     notes: project.notes || '',
     ...(project.labelMm > 0 ? { labelMm: project.labelMm } : {}),
     ...(project.labelFixed ? { labelFixed: true, labelPx: project.labelPx || 12 } : {}),
-    ...(project.elements.some(e => e.mod) ? { mods: modsCarried() } : {}),
+    ...(allParts().some(e => e.mod) ? { mods: modsCarried() } : {}),
     ...(project.style && (project.style.bg || project.style.holes === false) ? { style: project.style } : {}),
   };
 }
@@ -12125,6 +12202,7 @@ function loadProject(data) {
   p.fibres = normFibres(data.fibres, p.elements);
   p.assemblies = normAssemblies(data.assemblies, p.elements);
   p.mates = normMates(data.mates, p.elements);                 // faces of parts held together (core/mates.js)
+  partitionParts(p);                                           // the suppressed parts, and the fibres plugged into them, kept apart
   p.measures = normMeasures(data.measures, p.benches);
   p.notes = typeof data.notes === 'string' ? data.notes.slice(0, 20000) : '';
   if (isFinite(data.labelMm) && data.labelMm > 0) p.labelMm = clamp(+data.labelMm, 1e-6, 1e4);     // parts' names, mm high
@@ -12153,7 +12231,7 @@ function ensureBenches(p) {
   if (!Array.isArray(p.benches) || !p.benches.length) p.benches = [{ id: 'b1', name: 'Bench 1', view: p.view || { cx: 0, cy: 0, scale: 4 } }];
   const ids = new Set(p.benches.map(b => b.id));
   if (!ids.has(p.tab)) p.tab = p.benches[0].id;
-  for (const e of p.elements) if (!ids.has(e.bench)) e.bench = p.benches[0].id;
+  for (const e of allParts(p)) if (!ids.has(e.bench)) e.bench = p.benches[0].id;     // (suppressed parts too)
   p.view = p.benches.find(b => b.id === p.tab).view;
   return p;
 }
@@ -13229,6 +13307,13 @@ function normMates(list, els) {
 function liveMates() {
   const M = project && project.mates; if (!M || !M.length) return [];
   return M.filter(m => { const a = getEl(m.a.el), b = getEl(m.b.el); return a && b && a.bench === b.bench && project.elements.includes(a) && project.elements.includes(b); });
+}
+/* the mates the file keeps: those that hold, and those to a suppressed part, which hold again when it is unsuppressed */
+function keptMates() {
+  const M = project && project.mates; if (!M || !M.length) return [];
+  if (!(project.suppressed && project.suppressed.length)) return liveMates();
+  const by = new Map(allParts().map(e => [e.id, e]));
+  return M.filter(m => { const a = by.get(m.a.el), b = by.get(m.b.el); return a && b && a.bench === b.bench; });
 }
 const matesOf = el => liveMates().filter(m => m.a.el === el.id || m.b.el === el.id);
 /* the parts that move with these: their mates, the mates' groups, and on (skip: a mate left out) */
@@ -19478,7 +19563,9 @@ function wirePointer() {
     }
     const el = selected();
     if (!el) {
-      const F = selFibre();
+      const F = selFibre(), S = suppressedPart(selectedId);       // (a suppressed part chosen in the parts list)
+      if (S && (e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); removeEls([S]); return; }
+      if (S && e.key === 'Escape') { selectOne(null); renderPanel(); requestRender(); return; }
       if (F && (e.key === 'Delete' || e.key === 'Backspace')) { e.preventDefault(); removeFibre(F); }
       if (F && e.key === 'Escape') { setSelFibreId(null); renderPanel(); requestRender(); }
       return;
@@ -23448,7 +23535,7 @@ const MOD_CODE_MAX = 512 * 1024, MOD_KINDS = ['element', 'plate', 'component', '
    someone opening it is asked whether to install each mod not yet installed (or installed in
    another version), with the same prompt as any mod. Until then its parts stand in. */
 function modsCarried() {
-  const ids = new Set(project.elements.filter(e => e.mod).map(e => e.mod.id)), out = [];
+  const ids = new Set(allParts().filter(e => e.mod).map(e => e.mod.id)), out = [];   // (a suppressed part's mod too: the file keeps it)
   for (const id of ids) {
     const pk = MODS.packs.get(id) || PACKS.list.find(p => p.id === id && p.code), was = (project.mods || []).find(m => m.id === id);
     if (pk) out.push(Object.assign({ id, name: pk.name, author: pk.author, packVersion: pk.packVersion, licence: pk.licence, description: pk.description, hash: pk.hash, code: pk.code }, pk.signed ? { signed: pk.signed } : {}));
@@ -30626,7 +30713,8 @@ function renderPanel() {
   // page, even to go straight back, comes back scrolled to the top
   const scrolls = new Map([...pinBoxes].map(([id, box]) => [id, box._hold != null ? box._hold : box.scrollTop]));
   const benchScroll = benchBox.scrollTop;
-  const sel = selected(), picked = !!(sel || selFibre()), phone = phoneSheet();
+  // (a suppressed part chosen in the parts list: its panel says so, with Unsuppress)
+  const sel = selected() || suppressedPart(selectedId), picked = !!(sel || selFibre()), phone = phoneSheet();
   // On a wide screen the Bench panel is a column of its own on the left, brought out and put away by the tab on the
   // bench's left edge alone; a selection's panel opens on the right, and closes when it is put down. On a phone one
   // sheet from below shows either: the selection's, or (nothing selected, the tab pulled) the bench's
@@ -30792,6 +30880,15 @@ function showAboutPart() {
   const name = sel.name || typeLabel(sel);
   infoDialog('About ' + name, mainAbout ? [mainAbout.cloneNode(true)] : [h('p', null, 'Its panel says all there is to say about it.')]);
 }
+/* a suppressed part's panel: what it is, that it is out of the bench, and the way back. Nothing of it is read while it
+   is suppressed, so none of its readouts are shown */
+function suppressedPanel(el) {
+  panel.append(h('h2', null, h('span', null, el.name), h('span', { class: 'kind' }, typeLabel(el))),
+    h('p', { class: 'rt-locknote rt-supnote' }, 'Suppressed: it is not on the bench, in 2D or 3D, and nothing meets it. The light passes where it stands, and the fibres and wires plugged into it wait, unplugged at its end, until it is unsuppressed. Its settings are kept.'),
+    h('div', { class: 'rt-actions' },
+      h('button', { class: 'rt-btn', type: 'button', onclick: () => suppressEls([el], false) }, 'Unsuppress'),
+      h('button', { class: 'rt-btn danger', type: 'button', onclick: () => removeEl(el) }, 'Delete')));
+}
 function renderPanelBody(el) {
   const scroll = panel.scrollTop;
   panel.replaceChildren();
@@ -30807,6 +30904,7 @@ function renderPanelBody(el) {
     return;
   }
 
+  if (el.suppressed) { suppressedPanel(el); return; }
   const title = h('h2', null, h('span', null, el.name), h('span', { class: 'kind' }, typeLabel(el)));
   // a part of a designed assembly: locked against a stray edit, the padlock beside the title opening it
   const des = asmOf(el), designed = !!(des && des.design), locked = designed && des.lock === true;
@@ -38438,7 +38536,8 @@ function renderOverview() {
     panel.append(tabs);
     if (benchTab === 'cavity') { for (const c of cavs) panel.append(cavityCard(c)); return; }
   }
-  if (project.elements.length) {
+  const every = allParts();                    // the suppressed parts too, struck through, to be chosen and unsuppressed
+  if (every.length) {
     const list = h('ul', { class: 'rt-plist' });
     const col = { source: null, lens: '#73b9ca', cube: '#73b9ca', prism: '#73b9ca', mirror: '#b9c2c9',
       screen: '#ffb347', stop: '#9aa4ab', waveplate: '#73b9ca', polariser: '#b79bff', mask: '#d8b35a',
@@ -38451,12 +38550,13 @@ function renderOverview() {
     if (multi) panel.append(h('div', { class: 'rt-tabs rt-listtabs', role: 'tablist', 'aria-label': 'Parts on each bench' },
       ...[curBench(), ...project.benches.filter(b2 => b2 !== curBench())].map(b => h('button', { class: 'rt-tab' + (b.id === listTab ? ' on' : ''), type: 'button', role: 'tab', 'aria-selected': String(b.id === listTab),
         title: b === curBench() ? 'The parts on this bench (on show)' : 'The parts on the bench ' + b.name, onclick: () => { listTab = b.id; renderPanel(); } },
-        b.name + ' (' + project.elements.filter(e => e.bench === b.id).length + ')'))));
+        b.name + ' (' + every.filter(e => e.bench === b.id).length + ')'))));
     // as a CAD feature list: a heading for each kind of part with its count, a row each, one line, its kind small at the
     // end; the eye only on hover (or while hidden); the selected parts marked
     const chosen = new Set(selection().map(e => e.id));
+    if (suppressedPart(selectedId)) chosen.add(selectedId);
     for (const b of project.benches.filter(b2 => !multi || b2.id === listTab)) {
-      const mine = project.elements.filter(e => e.bench === b.id);
+      const mine = every.filter(e => e.bench === b.id);
       if (multi && !mine.length) list.append(h('li', { class: 'tabhead' }, 'No parts on ' + b.name + ' yet'));
       for (const [key, title] of LIST_KINDS) {
         const of = mine.filter(e => listKind(e) === key);
@@ -38464,14 +38564,16 @@ function renderOverview() {
         list.append(h('li', { class: 'rt-plhead' }, title + ' (' + of.length + ')'));
         for (const el of of) {
           // the eye: shown or hidden on the bench, 2D and 3D, for a part drawn in 3D; hidden, the light still meets it
-          const eye = V3D.free(el) ? h('button', { type: 'button', class: 'rt-eye' + (el.hide3d ? ' off' : ''), 'aria-pressed': String(!el.hide3d),
+          const eye = V3D.free(el) && !el.suppressed ? h('button', { type: 'button', class: 'rt-eye' + (el.hide3d ? ' off' : ''), 'aria-pressed': String(!el.hide3d),
             title: el.hide3d ? 'Hidden on the bench, in 2D and 3D (the light still meets it): show it' : 'Hide it on the bench, in 2D and 3D (the light still meets it)',
             'aria-label': (el.hide3d ? 'Show ' : 'Hide ') + el.name + ' on the bench',
             onclick: () => { checkpoint(); if (el.hide3d) delete el.hide3d; else el.hide3d = true; changed(true); } }) : null;
           if (eye) eye.innerHTML = el.hide3d ? EYE_SHUT : EYE_OPEN;
           const kind = typeLabel(el);
-          list.append(h('li', { class: 'rt-plrow' + (chosen.has(el.id) ? ' on' : '') + (el.hide3d ? ' hid' : '') },
-            h('button', { type: 'button', class: 'rt-plname', title: el.name + ' (' + kind + ')', onclick: () => selectEl(el) },
+          // suppressed: struck through, its menu's Unsuppress bringing it back (the bench's menu for the rest)
+          list.append(h('li', { class: 'rt-plrow' + (chosen.has(el.id) ? ' on' : '') + (el.hide3d ? ' hid' : '') + (el.suppressed ? ' sup' : ''),
+            oncontextmenu: ev => { ev.preventDefault(); partsListMenu(ev.clientX, ev.clientY, el); } },
+            h('button', { type: 'button', class: 'rt-plname', title: el.name + ' (' + kind + ')' + (el.suppressed ? ', suppressed: right-click to unsuppress' : ''), onclick: () => selectEl(el) },
               h('span', { class: 'swatch', style: 'background:' + (col[el.type] || (el.type === 'draw' ? (el.stroke !== 'none' ? el.stroke : el.fill !== 'none' ? el.fill : '#9aa4ab') : el.colour)) }),
               h('span', { class: 'nm' }, el.name), h('span', { class: 't' }, kind)), ...(eye ? [eye] : [])));
         }
@@ -52815,10 +52917,30 @@ function removeEls(list) {
   checkpoint();
   const ids = new Set(list.map(e => e.id));
   for (const e of list) stopSweepsFor(e);
-  project.elements = project.elements.filter(e => !ids.has(e.id));
-  project.fibres = (project.fibres || []).filter(F => !ids.has(F.a[0]) && !ids.has(F.b[0]));
+  dropParts(ids);                                        // (a suppressed one too, chosen in the parts list)
   selectOne(null);
   changed(true);
+}
+/* suppressed, as a CAD feature is: out of the bench, in 2D and 3D, and out of every engine, until unsuppressed (the
+   fibres plugged into it wait, as they are: state/project.js setSuppressed). One part suppressed stays chosen, its
+   panel saying so with Unsuppress; several are put down. One step for Undo */
+function suppressEls(list, on) {
+  list = list.filter(e => !!e.suppressed !== !!on);
+  if (!list.length) return;
+  checkpoint();
+  if (on) for (const e of list) stopSweepsFor(e);
+  setSuppressed(list, on);
+  if (on) selectOne(list.length === 1 ? list[0].id : null);
+  else { const here = list.filter(onTab); setSelection(here.length ? here : []); }
+  changed(true);
+}
+/* the parts list's right-click menu for a row: a part in play has the bench's, a suppressed one its own */
+function partsListMenu(X, Y, el) {
+  if (!el.suppressed) { if (!onTab(el)) switchTab(el.bench); benchMenu(X, Y, el, [el.x, el.y]); return; }
+  selectOne(el.id); renderPanel(); requestRender();
+  showCtxMenu(X, Y, [
+    { label: 'Unsuppress', fn: () => suppressEls([el], false) },
+    { label: 'Delete', key: 'Del', fn: () => removeEls([el]) }]);
 }
 function setLocked(list, on) { checkpoint(); for (const e of list) { if (on) e.locked = true; else delete e.locked; } changed(true); }
 function moveToTab(list, id) { checkpoint(); for (const e of list) e.bench = id; switchTab(id); setSelection(list); changed(true); }
@@ -52975,7 +53097,9 @@ function benchMenu(X, Y, hit, at, in3d) {
     ...(one && one.type !== 'draw' && !in3d ? [{ label: 'Edit name', fn: () => editText(one, 'name') }] : []),
     ...(one && one.type === 'draw' && one.shape === 'text' ? [{ label: 'Edit text', fn: () => editText(one, 'text') }] : []),
     ...(one && one.label ? [{ label: 'Put the name back', fn: () => { checkpoint(); delete one.label; changed(true); } }] : []),
-    { label: locked ? 'Unlock' : 'Lock in place', fn: () => setLocked(list, !locked) }, '-',
+    { label: locked ? 'Unlock' : 'Lock in place', fn: () => setLocked(list, !locked) },
+    // out of the bench and the light until unsuppressed: the parts list keeps it, struck through
+    { label: n > 1 ? 'Suppress ' + n + ' parts' : 'Suppress', fn: () => suppressEls(list, true) }, '-',
     ...project.benches.filter(b => !list.every(x => x.bench === b.id)).map(b => ({ label: 'Move to ' + b.name, fn: () => moveToTab(list, b.id) })),
     { label: 'Zoom to selection', key: 'Z', fn: in3d ? () => V3D.zoomSel() : zoomToSelection }]);
 }
@@ -53156,8 +53280,7 @@ function drawMeasures() {
 function removeEl(el) {
   checkpoint();
   stopSweepsFor(el);
-  project.elements = project.elements.filter(e => e.id !== el.id);
-  project.fibres = (project.fibres || []).filter(F => F.a[0] !== el.id && F.b[0] !== el.id);
+  dropParts(new Set([el.id]));
   selectOne(null);
   changed(true);
 }
@@ -53413,11 +53536,11 @@ function addBench() {
 
 function removeBench(id) {
   if (project.benches.length < 2) return;
-  const els = project.elements.filter(e => e.bench === id);
+  const els = allParts().filter(e => e.bench === id);
   if (els.length && !confirm('Delete ' + benchName(id) + ' and the ' + els.length + ' element' + (els.length === 1 ? '' : 's') + ' on it?')) return;
   checkpoint();
   for (const e of els) stopSweepsFor(e);
-  project.elements = project.elements.filter(e => e.bench !== id);
+  dropParts(new Set(els.map(e => e.id)));
   project.benches = project.benches.filter(b => b.id !== id);
   if (project.tab === id) switchTab(project.benches[0].id);
   changed(true);
@@ -53499,12 +53622,13 @@ function renderBenchTabs() {
 }
 
 /* History */
-const snapshot = () => JSON.stringify({ e: project.elements, b: project.benches.map(b => ({ id: b.id, name: b.name })), f: project.fibres || [], m: project.measures || [], a: project.assemblies || [], j: project.mates || [] });
+const snapshot = () => JSON.stringify({ e: allParts(), b: project.benches.map(b => ({ id: b.id, name: b.name })), f: allFibres(), m: project.measures || [], a: project.assemblies || [], j: project.mates || [] });
 
 function restore(str) {
   const S = JSON.parse(str), views = new Map(project.benches.map(b => [b.id, b.view]));
   project.elements = S.e;
   project.fibres = S.f || [];
+  partitionParts(project);                 // the suppressed parts kept apart again (state/project.js)
   project.measures = S.m || [];
   project.assemblies = S.a || [];
   project.mates = S.j || [];
@@ -53534,12 +53658,13 @@ function stepWords(beforeStr, afterStr) {
   try { A = JSON.parse(beforeStr); B = JSON.parse(afterStr); } catch (err) { return ''; }
   const a = new Map((A.e || []).map(e => [e.id, e])), b = new Map((B.e || []).map(e => [e.id, e]));
   const added = [...b.keys()].filter(id => !a.has(id)), gone = [...a.keys()].filter(id => !b.has(id));
-  let moved = [], turned = [], edited = [];
+  let moved = [], turned = [], edited = [], sup = [];
   for (const [id, e] of b) {
     const o = a.get(id);
     if (!o || JSON.stringify(o) === JSON.stringify(e)) continue;
     const keys = new Set([...Object.keys(o), ...Object.keys(e)].filter(k => JSON.stringify(o[k]) !== JSON.stringify(e[k])));
-    if ([...keys].every(k => POSE_KEYS.has(k))) moved.push(id);
+    if (keys.size === 1 && keys.has('suppressed')) sup.push(id);
+    else if ([...keys].every(k => POSE_KEYS.has(k))) moved.push(id);
     else if ([...keys].every(k => k === 'angle' || POSE_KEYS.has(k))) turned.push(id);
     else edited.push(id);
   }
@@ -53547,6 +53672,8 @@ function stepWords(beforeStr, afterStr) {
   if (added.length && !gone.length && !moved.length && !turned.length && !edited.length) return 'add ' + who(added, b);
   if (gone.length && !added.length && !moved.length && !turned.length && !edited.length) return 'delete ' + who(gone, a);
   if (added.length || gone.length) return 'changes to the parts';
+  if (sup.length && !edited.length && !moved.length && !turned.length) return (b.get(sup[0]).suppressed ? 'suppress ' : 'unsuppress ') + who(sup, b);
+  edited = edited.concat(sup);
   if (edited.length) return edited.length + moved.length + turned.length === 1 ? 'change ' + who(edited, b) : 'change ' + (edited.length + moved.length + turned.length) + ' parts';
   if (turned.length) return 'turn ' + who(turned.concat(moved), b);
   if (moved.length) return 'move ' + who(moved, b);
@@ -54415,7 +54542,8 @@ function aiReference() {
   const L = [];
   L.push('## Element reference', '',
     'Every element has "type", "id" (any unique string), "name", "x", "y" (mm) and "angle" (degrees), and "bench" (a tab id) when there are several tabs. The other fields are listed with the value the tool uses if you leave them out. Leave out anything you do not need to change.', '',
-    'Any element but a drawing may also have "lineColour" and "fillColour", each "#rrggbb": its own colours on the bench and in exported pictures. Every line of the part is drawn in the line colour and its body in the fill colour, as see-through as the tool draws it. Leave them out and the part is drawn in the tool\u2019s own colours. They change nothing about the light.', '');
+    'Any element but a drawing may also have "lineColour" and "fillColour", each "#rrggbb": its own colours on the bench and in exported pictures. Every line of the part is drawn in the line colour and its body in the fill colour, as see-through as the tool draws it. Leave them out and the part is drawn in the tool\u2019s own colours. They change nothing about the light.', '',
+    'Any element may also have "suppressed": true: it is kept in the file but taken out of the bench, as a suppressed CAD feature is, until the person unsuppresses it (right-click \u203a Unsuppress in the Bench panel\u2019s list). It is not drawn and nothing meets it: the light passes where it stands, and fibres or wires plugged into it count as unplugged at its end. Leave it out for a part in use.', '');
   for (const t of Object.keys(TYPE_LABEL)) {
     const d = aiDefaults(t), F = AI_FIELDS[t] || {};
     L.push('### "' + t + '": ' + TYPE_LABEL[t], '', AI_WHAT[t] || '', '', '**angle:** ' + (AI_ANGLE[t] || ''), '', '| field | default | meaning |', '|---|---|---|');
@@ -59775,7 +59903,7 @@ function readSnaps() {
   try { const v = JSON.parse(localStorage.getItem(SNAP_KEY)); return Array.isArray(v) ? v : []; } catch (err) { return []; }
 }
 function keepSnapshot(why, now) {
-  if (TEST_MODE || EMBED || !project || !project.elements.length || !keepHere()) return;
+  if (TEST_MODE || EMBED || !project || !allParts().length || !keepHere()) return;
   const list = readSnaps(), json = JSON.stringify(serialize());
   if (list.length && list[0].json === json) return;
   if (!now && list.length && Date.now() - list[0].t < SNAP_EVERY) return;
@@ -59810,6 +59938,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'Right-click a part and choose <b>Suppress</b> to take it out of the bench until it is wanted again, as CAD suppresses a feature: it is not drawn, in 2D or 3D, a click does not pick it, and nothing meets it: the light passes where it stood, and the fibres and wires plugged into it count as unplugged at its end. Several selected suppress together. The Bench panel\u2019s list keeps it, struck through: right-click it for <b>Unsuppress</b>. Undo, the file and share links keep it; in a script, <code>J.suppress(name, on)</code>.',
     'A part hidden by its eye in the bench list is hidden on the 2D bench as well as in 3D, its name with it, and a click there no longer picks it; the light still meets it, and chosen in the list it is drawn faintly. A <b>Particle</b>\u2019s sign shrinks with the bench when zoomed out (never larger than 1 mm there), so it no longer dwarfs the parts round it.',
     'A <b>Particle</b> inside a two-mirror cavity is solved in the cavity\u2019s own Hermite-Gauss modes: its light that goes round and comes back drives it again, every round trip at once, by Mie, the dipole array or the single dipole. The Scattering tab gives how far it moves the cavity\u2019s resonance and how much it widens it, and the detectors behind either mirror read the cavity with the particle in it. A ring, or a cavity clipped or out of line, keeps the warning.',
     'A <b>Particle</b> in a concentric or confocal cavity, or one near them, is solved too: the mirrors bring its light back re-imaged, so it is solved over the directions it sends onto them, each traced round the cavity by the bench\u2019s tracer (the mirrors\u2019 shape, rims, coatings and placing), every return of it followed until it fades. The detectors read the cavity with the particle in it. A cavity of small Fresnel number gets a note that the rims are taken as hard edges. A cavity just outside that range, solved in its modes, takes the same returns for the modes past the solve\u2019s list where the mirrors re-image the particle\u2019s light (checked for 90% mirrors 2 mm across, 0.5 to 1.1 mm short of concentric); elsewhere near it the tab says what is not to be trusted.',
@@ -60793,8 +60922,18 @@ function scriptCalls() {
       const keep = { id: el.id, type: el.type, bench: el.bench }, next = normElement(Object.assign(JSON.parse(JSON.stringify(el)), props || {}, keep));
       for (const k of Object.keys(el)) delete el[k];
       Object.assign(el, next, keep);
+      if (!!el.suppressed !== !project.elements.includes(el)) setSuppressed([], true);    // { suppressed } set: out of the bench, or back
       setLastTraceKey(null); traceScene();
       return el;
+    },
+    /* a part suppressed (on, the default) or unsuppressed, as the bench's right-click Suppress does: out of the bench
+       and every engine, the fibres plugged into it waiting, until unsuppressed */
+    suppress(name, on = true) {
+      const el = typeof name === 'string' ? this.byName(name) : name;
+      if (!el) throw new Error('No part called ' + name);
+      setSuppressed([el], !!on);
+      setLastTraceKey(null); traceScene();
+      return !!el.suppressed;
     },
     /* a fibre, wire or waveguide changed (by its id, or its place in J.project().fibres), checked as J.load does:
        its path's nodes may be { x, y } (handles left out are none) */
@@ -60825,7 +60964,7 @@ function scriptCalls() {
       traceScene(); const A = antennaNow(this.byName(name), 'ant');
       return A && { Gdbi: A.Gdbi, Ddbi: A.Ddbi, hpbw: A.hpbw, hpbwY: A.hpbwY, lobe: A.lobe, eta: A.eta, hornDbi: A.hornDbi, focus: A.focus, farField: A.farField, beam: A.beam, feed: A.feed, round: A.round, eng: A.eng };
     },
-    byName(name) { return project.elements.find(e => e.name === name); },
+    byName(name) { return project.elements.find(e => e.name === name) || allParts().find(e => e.name === name); },   // (a suppressed part too)
     stats(name) { const el = this.byName(name); return el ? screenStats(el) : null; },
     metric(name, key) { return metricRaw(this.byName(name), key); },
     paraxial(name, nm) { return paraxial(this.byName(name), nm); },
@@ -60879,7 +61018,7 @@ const SCRIPT_LANGS = [['js', 'JavaScript'], ['py', 'Python']];
 // the calls a script may make, from the page's own (ui/boot.js): the stable set the documentation lists
 const CALLS = ['load', 'serialize', 'trace', 'select', 'stats', 'detector', 'scatter', 'scattered', 'mie', 'lensAntenna', 'rfSweep', 'linkBudget', 'arrivals', 'asmPrescription', 'asmEfl',
   'exportZmx', 'sweepPlay', 'sweepPause', 'typeLabel', 'benches', 'showTab', 'paraxial', 'metric', 'diffraction', 'getParam', 'setParam',
-  'setFibre', 'rays', 'distance', 'hitsOn', 'bendDbPerTurn', 'setView', 'kiosk', 'renderPNG'];
+  'setFibre', 'suppress', 'rays', 'distance', 'hitsOn', 'bendDbPerTurn', 'setView', 'kiosk', 'renderPNG'];
 
 const EXAMPLE_SCRIPTS = [
   ['Read a screen', `// The spot on the first screen: its rms radius, and the share of the sources' light that reaches it.
@@ -61523,7 +61662,7 @@ function startNewBench() { if (project.elements.length) keepSnapshot('Before New
 function newProject() {
   pauseAll();
   checkpoint();
-  project.elements = []; project.fibres = [];
+  project.elements = []; project.fibres = []; project.suppressed = []; project.parked = [];
   project.benches = [{ id: 'b1', name: 'Bench 1', view: project.view }]; project.tab = 'b1';
   ensureBenches(project); renderBenchTabs();
   project.name = 'Untitled bench';
@@ -61964,6 +62103,8 @@ const exHeld = (o, fields) => { const c = Object.assign({}, o); for (const k of 
 /* what was changed that may not be is put back: parts, their settings, the fibres; parts added go, parts deleted come back */
 function exEnforce() {
   let back = false;
+  // a part suppressed is a part taken away: it comes back
+  if (project.suppressed && project.suppressed.length) { setSuppressed(project.suppressed.slice(), false); back = true; }
   const now = new Map(project.elements.map(e => [e.id, e]));
   const list = [];
   for (const [id, js] of EX.snap) {
@@ -63474,7 +63615,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   // a share link opened with nothing kept here: an empty bench while the link's own is fetched, not the example first
   const blankFirst = !project && !!(shared || short);
   if (!project) demoProject();
-  if (blankFirst) { project.elements = []; project.name = 'Opening the shared bench\u2026'; }
+  if (blankFirst) { project.elements = []; project.suppressed = []; project.parked = []; project.name = 'Opening the shared bench\u2026'; }
   nameInput.value = project.name;
   renderBenchTabs();
   setStatus(restored ? 'Restored your last session' : '');
@@ -63482,7 +63623,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
   if (shared || short) {
     if (!EMBED) window.history.replaceState(null, '', location.pathname);
     // (the link could not be opened: the example after all, rather than an empty bench)
-    Promise.resolve(short ? openShortLink(short[1]) : openShareHash(shared[1])).then(() => { if (blankFirst && !project.elements.length) { demoProject(); nameInput.value = project.name; renderBenchTabs(); changed(true); } });
+    Promise.resolve(short ? openShortLink(short[1]) : openShareHash(shared[1])).then(() => { if (blankFirst && !allParts().length) { demoProject(); nameInput.value = project.name; renderBenchTabs(); changed(true); } });
   }
   else if (exArr) {
     if (/[?&]ex=/.test(location.search)) { const u = new URL(location.href); u.searchParams.delete('ex'); window.history.replaceState(window.history.state, '', u.pathname + u.search + u.hash); }

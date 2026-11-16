@@ -1,6 +1,6 @@
 import { hooks } from '../core/hooks.js';
 import { LOCKED, clamp } from '../core/constants.js';
-import { extraSel, future, history, project, selectOne, selectedId, setFuture } from '../state/project.js';
+import { allFibres, allParts, dropParts, extraSel, future, history, partitionParts, project, selectOne, selectedId, setFuture } from '../state/project.js';
 import { getEl, loadProject, selected } from '../state/elements.js';
 import { normMates } from '../core/mates.js';
 import { benchName, curBench, ensureBenches, onTab } from '../state/tabs.js';
@@ -46,11 +46,11 @@ export function addBench() {
 
 function removeBench(id) {
   if (project.benches.length < 2) return;
-  const els = project.elements.filter(e => e.bench === id);
+  const els = allParts().filter(e => e.bench === id);
   if (els.length && !confirm('Delete ' + benchName(id) + ' and the ' + els.length + ' element' + (els.length === 1 ? '' : 's') + ' on it?')) return;
   checkpoint();
   for (const e of els) stopSweepsFor(e);
-  project.elements = project.elements.filter(e => e.bench !== id);
+  dropParts(new Set(els.map(e => e.id)));
   project.benches = project.benches.filter(b => b.id !== id);
   if (project.tab === id) switchTab(project.benches[0].id);
   changed(true);
@@ -132,12 +132,13 @@ export function renderBenchTabs() {
 }
 
 /* History */
-export const snapshot = () => JSON.stringify({ e: project.elements, b: project.benches.map(b => ({ id: b.id, name: b.name })), f: project.fibres || [], m: project.measures || [], a: project.assemblies || [], j: project.mates || [] });
+export const snapshot = () => JSON.stringify({ e: allParts(), b: project.benches.map(b => ({ id: b.id, name: b.name })), f: allFibres(), m: project.measures || [], a: project.assemblies || [], j: project.mates || [] });
 
 function restore(str) {
   const S = JSON.parse(str), views = new Map(project.benches.map(b => [b.id, b.view]));
   project.elements = S.e;
   project.fibres = S.f || [];
+  partitionParts(project);                 // the suppressed parts kept apart again (state/project.js)
   project.measures = S.m || [];
   project.assemblies = S.a || [];
   project.mates = S.j || [];
@@ -167,12 +168,13 @@ function stepWords(beforeStr, afterStr) {
   try { A = JSON.parse(beforeStr); B = JSON.parse(afterStr); } catch (err) { return ''; }
   const a = new Map((A.e || []).map(e => [e.id, e])), b = new Map((B.e || []).map(e => [e.id, e]));
   const added = [...b.keys()].filter(id => !a.has(id)), gone = [...a.keys()].filter(id => !b.has(id));
-  let moved = [], turned = [], edited = [];
+  let moved = [], turned = [], edited = [], sup = [];
   for (const [id, e] of b) {
     const o = a.get(id);
     if (!o || JSON.stringify(o) === JSON.stringify(e)) continue;
     const keys = new Set([...Object.keys(o), ...Object.keys(e)].filter(k => JSON.stringify(o[k]) !== JSON.stringify(e[k])));
-    if ([...keys].every(k => POSE_KEYS.has(k))) moved.push(id);
+    if (keys.size === 1 && keys.has('suppressed')) sup.push(id);
+    else if ([...keys].every(k => POSE_KEYS.has(k))) moved.push(id);
     else if ([...keys].every(k => k === 'angle' || POSE_KEYS.has(k))) turned.push(id);
     else edited.push(id);
   }
@@ -180,6 +182,8 @@ function stepWords(beforeStr, afterStr) {
   if (added.length && !gone.length && !moved.length && !turned.length && !edited.length) return 'add ' + who(added, b);
   if (gone.length && !added.length && !moved.length && !turned.length && !edited.length) return 'delete ' + who(gone, a);
   if (added.length || gone.length) return 'changes to the parts';
+  if (sup.length && !edited.length && !moved.length && !turned.length) return (b.get(sup[0]).suppressed ? 'suppress ' : 'unsuppress ') + who(sup, b);
+  edited = edited.concat(sup);
   if (edited.length) return edited.length + moved.length + turned.length === 1 ? 'change ' + who(edited, b) : 'change ' + (edited.length + moved.length + turned.length) + ' parts';
   if (turned.length) return 'turn ' + who(turned.concat(moved), b);
   if (moved.length) return 'move ' + who(moved, b);

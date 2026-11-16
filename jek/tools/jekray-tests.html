@@ -5047,6 +5047,68 @@ const TESTS = [
   },
   { group: 'Working with several elements' },
   {
+    name: 'Right-click › Suppress takes a part out of the bench and the light, struck through in the list; Undo and Unsuppress bring it back',
+    why: 'the Michelson: Fixed mirror right-clicked on the bench and suppressed is saved so, not drawn, its name not shown, not picked by a click, and the light no longer meets it (the trace changes); in the Bench panel’s list its name is struck through, its panel says it is suppressed; one Undo puts all back; suppressed again, its row’s right-click › Unsuppress brings it back; two parts selected suppress together, in one step (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const W = rigWin(), D = rigDoc(), cv = D.getElementById('bench');
+      J.load(JSON.parse(getDemo('michelson')));
+      J.select(null); J.redraw(); J.trace();
+      const M = J.byName('Fixed mirror'), rays0 = JSON.stringify(J.rays().map(r => r.points)), svg0 = J.layoutSvg();
+      const menu = (el, X, Y) => { el.dispatchEvent(new W.MouseEvent('contextmenu', { clientX: X, clientY: Y, bubbles: true, cancelable: true })); return [...D.querySelectorAll('#ctxMenu button')]; };
+      const pick = (items, text) => { const b = items.find(x => x.textContent.trim().startsWith(text)); if (b) b.click(); return !!b; };
+      // on the bench: the menu over the mirror
+      J.setView({ cx: M.x, cy: M.y, scale: 4 }); J.redraw();
+      const r = cv.getBoundingClientRect(), menuOk = pick(menu(cv, r.left + r.width / 2, r.top + r.height / 2), 'Suppress');
+      J.trace(); J.redraw();
+      const saved = J.serialize().elements.find(e => e.name === 'Fixed mirror').suppressed === true;
+      const svg1 = J.layoutSvg(), gone = !svg1.includes('>Fixed mirror<') && svg0.includes('>Fixed mirror<') && svg1.length < svg0.length;
+      const lightMoved = JSON.stringify(J.rays().map(r2 => r2.points)) !== rays0, noHit = J.hitAt(M.x, M.y) === null;
+      const panelSays = /Suppressed/.test(D.getElementById('panel').textContent) && [...D.querySelectorAll('#panel button')].some(b => b.textContent === 'Unsuppress');
+      if (D.getElementById('benchPanel').style.display === 'none') D.getElementById('btnSideTab').click();
+      const row = () => [...D.querySelectorAll('#benchPanel .rt-plist li.rt-plrow')].find(l => l.textContent.includes('Fixed mirror'));
+      const struck = !!row() && row().classList.contains('sup') && W.getComputedStyle(row().querySelector('.nm')).textDecorationLine.includes('line-through');
+      J.undo(); J.redraw();
+      const undone = !J.serialize().elements.find(e => e.name === 'Fixed mirror').suppressed && JSON.stringify(J.rays().map(r2 => r2.points)) === rays0 && J.layoutSvg().includes('>Fixed mirror<') && !row().classList.contains('sup');
+      // the list's right-click: Unsuppress
+      J.suppress('Fixed mirror'); J.select('Laser');        // (the list made again)
+      const rr = row().getBoundingClientRect(), un = pick(menu(row(), rr.left + 10, rr.top + 5), 'Unsuppress');
+      J.trace();
+      const back = un && !J.serialize().elements.find(e => e.name === 'Fixed mirror').suppressed && JSON.stringify(J.rays().map(r2 => r2.points)) === rays0 && J.hitAt(M.x, M.y) === 'Fixed mirror';
+      // two at once, one step
+      const two = ['Fixed mirror', 'Moving mirror'].filter(n => J.byName(n));
+      J.selectMany(two); J.setView({ cx: M.x, cy: M.y, scale: 4 }); J.redraw();
+      const both = pick(menu(cv, r.left + r.width / 2, r.top + r.height / 2), 'Suppress 2 parts');
+      const bothOff = J.serialize().elements.filter(e => e.suppressed).length === 2;
+      J.undo();
+      const bothBack = !J.serialize().elements.some(e => e.suppressed);
+      J.suppress('Fixed mirror');
+      // a share link keeps it so: the parts and fibres the same, in their order (a field's place among a part's keys aside)
+      const R = J.shareRoundTrip(), parts = t => { const d = JSON.parse(t); return JSON.stringify([d.elements.map(e => Object.fromEntries(Object.entries(e).sort())), d.fibres]); };
+      const shared = parts(R.before) === parts(R.after) && J.serialize().elements.find(e => e.name === 'Fixed mirror').suppressed === true;
+      const ok = menuOk && saved && gone && lightMoved && noHit && shared && panelSays && struck && undone && back && two.length === 2 && both && bothOff && bothBack;
+      if (!ok) console.log('suppress', JSON.stringify({ menuOk, saved, gone, lightMoved, noHit, shared, panelSays, struck, undone, back, two, both, bothOff, bothBack }));
+      return ok ? 1 : 0;
+    },
+  },
+  {
+    name: 'A suppressed fibre component leaves its network unplugged there; unsuppressed, its fibres are back as they were',
+    why: 'laser, 50:50 coupler and two photodiodes: 0.5 mW at a diode; the coupler suppressed, nothing reaches it, the fibres kept in the file; unsuppressed, 0.5 mW again (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      J.load(fnet([fc('laser', 'L', { power: 1 }), fc('coupler', 'C'), fc('pd', 'P3'), fc('pd', 'P4')], [['L', 0, 'C', 0], ['C', 2, 'P3', 0], ['C', 3, 'P4', 0]]));
+      J.trace();
+      const p0 = J.fibrePd('P3'), F0 = JSON.stringify(J.serialize().fibres);
+      J.suppress('C'); J.trace();
+      const p1 = J.fibrePd('P3'), kept = JSON.stringify(J.serialize().fibres) === F0, live = J.project().fibres.length;
+      J.suppress('C', false); J.trace();
+      const p2 = J.fibrePd('P3'), F2 = JSON.stringify(J.serialize().fibres) === F0;
+      const ok = Math.abs(p0 - 0.5) < 1e-9 && !(p1 > 0) && kept && live === 0 && Math.abs(p2 - 0.5) < 1e-9 && F2;
+      if (!ok) console.log('suppress fibre', JSON.stringify({ p0, p1, kept, live, p2, F2 }));
+      return ok ? 1 : 0;
+    },
+  },
+  {
     name: 'A copied fibre network pastes onto another tab and works there',
     why: 'laser, 50:50 coupler and two photodiodes, copied with the fibres between them into a new tab: 0.5 mW at the pasted diode',
     want: 0.5, tol: 1e-9, unit: ' mW',
@@ -7330,6 +7392,26 @@ const TESTS = [
         V.undo();
         const s2 = V.stats();
         return eye.classList.contains('off') && s1.parts === s0.parts - 1 && n1 === n0 && s1.rays === s0.rays && s1.beams === s0.beams && saved && s2.parts === s0.parts ? 1 : 0;
+      } finally { await V.set(false); }
+    },
+  },
+  {
+    name: 'A part suppressed is gone from the 3D view and from its light',
+    why: 'the Michelson in 3D: Fixed mirror suppressed, the 3D view draws one part fewer and the bench is traced again, its light drawn differently; unsuppressed, as it was (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(JSON.parse(getDemo('michelson')));
+      const V = J.view3d, frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
+      try {
+        await V.set(true); J.select(null);
+        const s0 = V.stats(), n0 = J.traceInfo().count;
+        J.suppress('Fixed mirror'); J.redraw(); await frame(); await frame();
+        const s1 = V.stats(), n1 = J.traceInfo().count;
+        J.suppress('Fixed mirror', false); J.redraw(); await frame(); await frame();
+        const s2 = V.stats();
+        const ok = s1.parts === s0.parts - 1 && n1 > n0 && (s1.rays !== s0.rays || s1.beams !== s0.beams) && s2.parts === s0.parts && s2.rays === s0.rays;
+        if (!ok) console.log('suppress 3d', JSON.stringify({ s0, s1, s2, n0, n1 }));
+        return ok ? 1 : 0;
       } finally { await V.set(false); }
     },
   },

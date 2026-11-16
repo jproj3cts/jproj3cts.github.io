@@ -5,7 +5,7 @@ import { normOrder, normPh } from './diffractive.js';
 import { grH } from './gradient.js';
 import { stackMet } from './sag.js';
 import { applyGrin, grinSlab } from './grin.js';
-import { deg, normCoat, num, project } from '../state/project.js';
+import { allParts, deg, normCoat, num, project } from '../state/project.js';
 
 /* ---------- Assemblies: lenses and stops on one axis, designed together ----------
    An assembly is a group of ordinary parts on the bench (lenses, stops, windows) with a record of
@@ -272,6 +272,8 @@ export function remapDesign(d, map) {
 }
 
 export const assemblies = () => (project.assemblies || []).filter(a => project.elements.some(e => e.group === a.id));
+/* and those the file keeps: an assembly whose parts are all suppressed too */
+export const keptAssemblies = () => { const all = allParts(); return (project.assemblies || []).filter(a => all.some(e => e.group === a.id)); };
 export const asmOf = el => (el && el.group ? (project.assemblies || []).find(a => a.id === el.group) || null : null);
 export const asmMembers = asm => project.elements.filter(e => e.group === asm.id);
 /* the assembly a selection is, whole: every one of its parts and nothing else */

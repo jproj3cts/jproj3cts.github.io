@@ -34,7 +34,7 @@ export const SCRIPT_LANGS = [['js', 'JavaScript'], ['py', 'Python']];
 // the calls a script may make, from the page's own (ui/boot.js): the stable set the documentation lists
 const CALLS = ['load', 'serialize', 'trace', 'select', 'stats', 'detector', 'scatter', 'scattered', 'mie', 'lensAntenna', 'rfSweep', 'linkBudget', 'arrivals', 'asmPrescription', 'asmEfl',
   'exportZmx', 'sweepPlay', 'sweepPause', 'typeLabel', 'benches', 'showTab', 'paraxial', 'metric', 'diffraction', 'getParam', 'setParam',
-  'setFibre', 'rays', 'distance', 'hitsOn', 'bendDbPerTurn', 'setView', 'kiosk', 'renderPNG'];
+  'setFibre', 'suppress', 'rays', 'distance', 'hitsOn', 'bendDbPerTurn', 'setView', 'kiosk', 'renderPNG'];
 
 export const EXAMPLE_SCRIPTS = [
   ['Read a screen', `// The spot on the first screen: its rms radius, and the share of the sources' light that reaches it.

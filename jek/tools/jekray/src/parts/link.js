@@ -1,4 +1,4 @@
-import { nextName, num, project } from '../state/project.js';
+import { allParts, nextName, num } from '../state/project.js';
 
 /* Link plane: One of a pair of link planes joining two tabs: the pair is one plane seen from two benches. */
 export const LINK = {
@@ -6,7 +6,7 @@ export const LINK = {
   picker: [{ key: 'link', short: 'Link plane', long: 'Link plane (to another tab)' }],
   keys: ['link'],
   make(x, y) {
-    const used = new Set(project.elements.filter(e => e.type === 'link').map(e => e.pair));
+    const used = new Set(allParts().filter(e => e.type === 'link').map(e => e.pair));
     let n = 1; while (used.has('Link ' + n)) n++;
     return { type: 'link', name: nextName('Link plane'), x, y, angle: 0, length: 25, pair: 'Link ' + n };
   },

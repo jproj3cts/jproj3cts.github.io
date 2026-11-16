@@ -34,7 +34,7 @@ export async function openBench(data) {
   const E = await engine();
   E.EL.loadProject(JSON.parse(JSON.stringify(data)));
   let traced = false;
-  const byName = name => { const el = E.ST.project.elements.find(e => e.name === name || e.id === name); if (!el) throw new Error('No part called ' + JSON.stringify(name)); return el; };
+  const byName = name => { const el = E.ST.allParts().find(e => e.name === name || e.id === name); if (!el) throw new Error('No part called ' + JSON.stringify(name)); return el; };
   const asmByName = name => { const A = E.ST.project.assemblies || [], a = name ? A.find(x => x.name === name || x.id === name) : A.find(x => x.kind === 'rf') || A[0]; if (!a) throw new Error(name ? 'No assembly called ' + JSON.stringify(name) : 'No assembly on this bench'); return a; };
   const ensure = () => { if (!traced) B.trace(); };
   const B = {
@@ -47,6 +47,8 @@ export async function openBench(data) {
     /* the parts: name, type and place */
     elements() { return E.ST.project.elements.map(e => ({ name: e.name, type: e.type, x: e.x, y: e.y, angle: e.angle })); },
     element(name) { return plain(byName(name)); },
+    /* a part suppressed (on, the default) or unsuppressed: out of the bench and every engine, its fibres waiting, until unsuppressed */
+    suppress(name, on = true) { E.ST.setSuppressed([byName(name)], !!on); traced = false; return this; },
     /* a parameter by its path (as the panels and sweeps name it: "x", "surfaces.0.R", "mmw.ghz"); setting one traces again */
     get(name, path) { return E.PRM.getPath(byName(name), path); },
     set(name, path, v) { E.PRM.setParam(byName(name), path, v); traced = false; return this; },
@@ -141,7 +143,7 @@ export async function openBench(data) {
       return { names: els.map(e => e.name), bodies: res.bodies.length, tris: res.tris, units: res.units, declared: res.declared, pass: res.pass, ms: res.ms };
     },
     /* the bench as a .jekray object */
-    serialize() { return JSON.parse(JSON.stringify(E.ST.project)); },
+    serialize() { return JSON.parse(JSON.stringify(Object.assign({}, E.ST.project, { elements: E.ST.allParts(), fibres: E.ST.allFibres(), suppressed: undefined, parked: undefined }))); },
   };
   return B;
 }

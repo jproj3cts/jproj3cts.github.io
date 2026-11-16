@@ -1,7 +1,7 @@
 import { clamp } from '../core/constants.js';
 import { DETECTOR_MATERIALS } from '../core/rf.js';
 import { CMODES } from '../core/pulses.js';
-import { nextName, num, project } from '../state/project.js';
+import { allParts, nextName, num } from '../state/project.js';
 import { FC, FIBRE_POLS } from '../engines/fibre.js';
 import { FBG_APODS } from '../core/fbg.js';
 
@@ -21,7 +21,7 @@ export const FCOMP = {
         return { type: 'fcomp', kind: 'amp', soa: true, name: nextName('SOA'), x, y, angle: 0, g0: 25, psat: 10, nf: 8, centre: 1550, bw: 60, iso: 0, pdg: 0.5 };
       case 'pbs': case 'fmir': case 'switch': case 'delay': case 'stretch': case 'tbf': case 'osa': case 'depol': case 'star': case 'fcomp': case 'laser': case 'coupler': case 'wdm': case 'circ': case 'iso': case 'voa': case 'pc': case 'pol': case 'fm': case 'fbg': case 'term': case 'pd': case 'thru': case 'amp': case 'faom': case 'feom':
         if (kind === 'faom') kind = 'aom'; else if (kind === 'feom') kind = 'eom';
-        const k = FC[kind] ? kind : 'coupler', used = new Set(project.elements.filter(e => e.kind === 'thru').map(e => e.pair));
+        const k = FC[kind] ? kind : 'coupler', used = new Set(allParts().filter(e => e.kind === 'thru').map(e => e.pair));
         let n = 1; while (used.has('Feedthrough ' + n)) n++;
         return Object.assign({ type: 'fcomp', kind: k, name: nextName(FC[k].label), x, y, angle: 0, pair: 'Feedthrough ' + n }, k === 'pd' ? { material: 'ingaas' } : {});
     }

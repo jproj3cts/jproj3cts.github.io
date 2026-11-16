@@ -242,7 +242,7 @@ export function startNewBench() { if (project.elements.length) keepSnapshot('Bef
 export function newProject() {
   pauseAll();
   checkpoint();
-  project.elements = []; project.fibres = [];
+  project.elements = []; project.fibres = []; project.suppressed = []; project.parked = [];
   project.benches = [{ id: 'b1', name: 'Bench 1', view: project.view }]; project.tab = 'b1';
   ensureBenches(project); renderBenchTabs();
   project.name = 'Untitled bench';

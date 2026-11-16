@@ -1,7 +1,7 @@
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { STD_PLANES, appliedCount } from '../core/doc.js';
 import { curveIsClosed, definedEnts, dimMeasure, inside, entKeys, hpt, lineDir, sketchId, solveNear, solveSketch } from '../core/sketch.js';
-import { alignedRectEnts, arc3, arcSweep, carryRegions, defaultRegionPts, centreArc, chamferCorner, circularPattern, distToEnt, dxfEnts, entOutline, extendEnt, filletCorner, imageCorners, linearPattern, mirrorEnts, offsetEnts, polygonEnts, rectEnts, regionAt, regionsOf, slotEnts, silhouetteOf, splitEnt, tangentArc, textFonts, textRings, transformEnts, trimEnt } from '../core/sketch-tools.js';
+import { alignedRectEnts, arc3, arcSweep, carryRegions, defaultRegionPts, centreArc, chamferCorner, circularPattern, distToEnt, entCross, dxfEnts, entOutline, extendEnt, filletCorner, imageCorners, linearPattern, mirrorEnts, offsetEnts, polygonEnts, rectEnts, regionAt, regionsOf, slotEnts, silhouetteOf, splitEnt, tangentArc, textFonts, textRings, transformEnts, trimEnt } from '../core/sketch-tools.js';
 import { evalExpr, fmtNum } from '../core/units.js';
 import { toWorld } from '../engines/kernel.js';
 import { app, changed, checkpoint, editGate, emit, isDark, on, regenDone, regenNow, toast } from './app.js';
@@ -155,6 +155,25 @@ export function modelGeom() {
   }
   return (SK.model = { n: app.regenCount, parts: V.parts.size, pts, edges });
 }
+/* the crossing of two shapes nearest a screen point, within max pixels: the shapes near the pointer (the sketch's own,
+   and the model's edges), each pair crossed. { p, on: [two of { e } (a shape of the sketch) or { g } (a model edge)] } */
+function crossAt(uv, sx, sy, skip, M, max) {
+  const reach = (max + 2) * pxToMm(1), near = [];
+  for (const e of ents()) { if (skip.has(e.id) || e.t === 'point' || e.t === 'text' || e.t === 'image') continue; if (distToEnt(e, uv) < reach) near.push({ s: e, on: { e: e.id } }); }
+  for (const g of M.edges) {
+    if (nearOnEdge(g, uv).d >= reach) continue;
+    if (g.t === 'poly') { for (let i = 1; i < g.pts.length; i++) near.push({ s: { t: 'line', a: g.pts[i - 1], b: g.pts[i] }, on: { poly: true } }); }
+    else near.push({ s: g, on: { g } });
+  }
+  let best = null, bd = max;
+  for (let i = 0; i < near.length; i++) for (let j = i + 1; j < near.length; j++) {
+    if (near[i].on.poly && near[j].on.poly) continue;
+    let ps = [];
+    try { ps = entCross(near[i].s, near[j].s); } catch (err) { ps = []; }
+    for (const p of ps) { const s = toScreen(p), d = Math.hypot(s[0] - sx, s[1] - sy); if (d < bd) { bd = d; best = { p: p.slice(), on: [near[i].on, near[j].on] }; } }
+  }
+  return best;
+}
 /* the nearest point of a model edge to q, and how far it is */
 function nearOnEdge(g, q) {
   const onSeg = (a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((q[0] - a[0]) * dx + (q[1] - a[1]) * dy) / L2)); return [a[0] + dx * t, a[1] + dy * t]; };
@@ -201,6 +220,9 @@ function snap(sx, sy, from, skipIds) {
   let mp = null;
   for (const q of M.pts) { const s = toScreen(q), d = Math.hypot(s[0] - sx, s[1] - sy); if (d < bd) { bd = d; mp = q; } }
   if (mp) return { p: mp.slice(), ref: null, mref: { t: 'point', c: mp.slice(), from: mp.from }, glyph: '●', kind: 'coincident', hv: hvOf(mp) };
+  // where two shapes cross (of the sketch, or edges of the model in its plane, or one of each)
+  const ix = crossAt(uv, sx, sy, skip, M, bd);
+  if (ix) return { p: ix.p, ref: null, ix: ix.on, glyph: '✕', kind: 'intersection', hv: hvOf(ix.p) };
   // the middle of a straight edge of the model, or the centre of a round one
   let mm = null;
   for (const g of M.edges) { const q = g.t === 'line' ? [(g.a[0] + g.b[0]) / 2, (g.a[1] + g.b[1]) / 2] : g.t === 'circle' || g.t === 'arc' ? g.c : null; if (!q) continue; const s = toScreen(q), d = Math.hypot(s[0] - sx, s[1] - sy); if (d < bd) { bd = d; mm = { g, q }; } }
@@ -258,6 +280,8 @@ const mkCon = (t, ...r) => ({ id: sketchId('c'), t, r });
 /* the constraints a snapped point brings to a shape's point (e, k) */
 function snapCons(sn, e, k) {
   if (!sn) return [];
+  // (a crossing: on both shapes; a model edge brought into the sketch to be held to)
+  if (sn.ix) return sn.ix.filter(o => !o.poly).map(o => mkCon('oncurve', { e, k }, { e: o.e || refEnt(o.g) }));
   if (sn.ref) return [sn.kind === 'midpoint' ? mkCon('midpoint', { e, k }, { e: sn.ref.e }) : mkCon('coincident', { e, k }, sn.ref)];
   if (sn.on) return [mkCon('oncurve', { e, k }, { e: sn.on })];
   if (sn.mref) return [mkCon('coincident', { e, k }, { e: refEnt(sn.mref), k: 'c' })];

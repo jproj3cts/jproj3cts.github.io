@@ -46,6 +46,8 @@ As you draw, JEKcad infers constraints and shows each one as a glyph by the poin
 
 The same inference reaches the model. Move the pointer within a few pixels of a corner or an edge of a part and the point snaps to it. It also snaps to the middle of a straight edge (**M**) and the centre of a round one (**◎**). Click, and the point is held there: the edge comes into the sketch as a fixed construction line, circle or arc, and the point is constrained to it. A corner comes in as a fixed point. When the model changes and that edge or corner moves, the sketch moves with it.
 
+The point also locks to where two shapes cross (**✕**): two shapes of the sketch, a shape and an edge of the model, or two edges of the model. It is held on both, so it stays at the crossing when either moves.
+
 A first point placed level with the origin, or straight above or below it, is held level or in line with it (**H** or **V** by the pointer). A polygon whose first corner is level with its centre is held that way up.
 
 A line drawn to a circle or an arc, nearly touching it, ends where it touches and is held tangent (**T**). A point placed level with another point, or straight above or below one, is held so; a dashed line runs to the point it is level with. Hold **Shift** while you draw and nothing is inferred.

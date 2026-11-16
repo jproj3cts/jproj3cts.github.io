@@ -3,9 +3,9 @@
 // measure the model and follow it; the sheet as a PDF.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { kernel, rectSketch, newDoc, newFeature } from './helpers.mjs';
+import { kernel, rectSketch, pointsSketch, newDoc, newFeature } from './helpers.mjs';
 import { normFile, fileData } from '../../src/core/doc.js';
-import { VIEW_DIRS, newDrawing, normDrawing, layoutOf, viewBox, viewPoint, dimGeom, drawSheet, pdfOfSheet, scaleText } from '../../src/core/drawing.js';
+import { VIEW_DIRS, newDrawing, normDrawing, layoutOf, viewBox, viewPoint, dimGeom, drawSheet, pdfOfSheet, scaleText, kernelViews, frameOf, hatchLines, dxfOfSheet, withDetails } from '../../src/core/drawing.js';
 
 const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, (what || '') + ' ' + a + ' is not ' + b);
 /* a 40 × 20 plate, 10 thick, with a hole of radius 4 at (30, 10), as a Part Studio's tab */
@@ -98,4 +98,60 @@ test('a drawing is a tab of the document: kept in the file, of a tab that is the
   assert.deepEqual(f.tabs[1].views.map(v => v.dir), ['front', 'top', 'right', 'iso']);
   const back = normFile(JSON.parse(JSON.stringify(fileData(f))));
   assert.equal(JSON.stringify(back), JSON.stringify(f)); assert.equal(fileData(f).version, 2);
+});
+
+/* a plate 40 × 20 × 10 with a plain hole of radius 4 at (30, 10) and a tapped M6 hole right through at (10, 10) */
+function tappedPlate() {
+  const doc = plate(), pl = newFeature(doc, 'plane', { ref: { std: 'top' }, offset: '10 mm' }), pts = pointsSketch(doc, [[10, 10]], { feature: pl.id });
+  doc.features.push(pl, pts, newFeature(doc, 'hole', { sketch: pts.id, kind: 'tapped', size: 'M6', end: 'through' }));
+  return doc;
+}
+test('a section, a detail, centre marks and a thread on a drawing; radius and angle dimensions; the sheet as a DXF', async () => {
+  const K = await kernel(), st = tappedPlate(), out = K.regen(st);
+  assert.ok(out.features.every(f => f.ok), out.features.map(f => f.error).join(';'));
+  const part = out.parts[0];
+  assert.equal(part.threads.length, 1); assert.equal(part.threads[0].label, 'M6×1'); near(part.threads[0].r, 2.5, 1e-9, 'drilled at the tap size');
+  const D0 = newDrawing('tA', 1), fv = D0.views.find(v => v.dir === 'front'), tv = D0.views.find(v => v.dir === 'top');
+  // a section of the front view up through the plain hole (x = 30), and a detail of the top view round the tapped one
+  const D = normDrawing(Object.assign({}, D0, { views: D0.views.concat([{ id: 'sA', dir: 'section', of: fv.id, axis: 'v', pos: 30 }, { id: 'dB', dir: 'detail', of: tv.id, c: [10, 10], r: 6, k: 2 }]) }));
+  assert.deepEqual(D.views.slice(-2).map(v => v.label), ['A', 'B']);
+  const F = frameOf(D, D.views.find(v => v.id === 'sA'));
+  assert.deepEqual(F.n.map(v => Math.round(v) + 0), [-1, 0, 0], 'looking along +x, the eye on the −x side'); assert.deepEqual(F.cut.o, [30, 0, 0]);
+  assert.equal(kernelViews(D).length, 5, 'a detail is drawn from its parent’s lines');
+  const items = [{ doc: st, part: part.id, id: part.id, p: [0, 0, 0], q: [0, 0, 0, 1] }];
+  const got = K.drawingViews(items, kernelViews(D)), data = { views: Object.fromEntries(got.map(g => [g.id, g])) }, by = id => data.views[id];
+  // the section: 20 wide (y) and 10 high, its cut faces the plate's cross-section less the hole (two pieces, 6 × 10 each)
+  const sb = viewBox(by('sA')); near(sb[2] - sb[0], 20, 1e-6); near(sb[3] - sb[1], 10, 1e-6);
+  assert.equal(by('sA').cut.length, 2);
+  const area = r => { let a = 0; for (let i = 0; i + 1 < r.length; i += 2) { const j = (i + 2) % r.length; a += r[i] * r[j + 1] - r[j] * r[i + 1]; } return Math.abs(a / 2); };
+  near(by('sA').cut.reduce((s, r) => s + area(r), 0), 120, 1e-3, 'the cut area');
+  assert.ok(hatchLines(by('sA').cut, 1).length > 10, 'hatched');
+  // centre marks: both holes seen end on from above, once each; the tapped one's thread a three-quarter circle at M6's major diameter
+  const circles = by(tv.id).circles.map(c => [c.c.map(v => +v.toFixed(3)).join(','), +c.r.toFixed(3)]).sort();
+  assert.deepEqual(circles, [['10,10', 2.5], ['30,10', 4]]);
+  assert.deepEqual(by(tv.id).threads.map(t => [t.kind, +t.r.toFixed(3), t.c.join(',')]), [['end', 3, '10,10']]);
+  // from the front: the thread's two lines, 3 either side of its axis, hidden (it is inside); in the section they are not cut away
+  const side = by(fv.id).threads; assert.equal(side.length, 1); assert.equal(side[0].kind, 'side'); near(side[0].half, 3, 1e-9); assert.equal(side[0].seen, false);
+  // the detail: the top view's lines within 6 of the tapped hole, at twice the sheet's scale
+  const L = layoutOf(D, data), dv = L.views.find(v => v.id === 'dB'), tvl = L.views.find(v => v.id === tv.id);
+  near(dv.s, 2 * tvl.s, 1e-12); assert.ok(withDetails(D, data).views.dB.vis.every(r => { for (let i = 0; i + 1 < r.length; i += 2) if (Math.hypot(r[i] - 10, r[i + 1] - 10) > 6 + 1e-6) return false; return true; }), 'inside its circle');
+  for (const v of L.views) { const hw = v.w * v.s / 2, hh = v.h * v.s / 2; assert.ok(v.at[0] - hw > L.m - 1e-6 && v.at[0] + hw < L.W - L.m + 1e-6 && v.at[1] - hh > L.m - 1e-6 && v.at[1] + hh < L.H - L.m + 1e-6, v.dir + ' is on the sheet'); }
+  // a radius: R4 on the plain hole's rim; a diameter on the tapped one reads as its thread
+  const rim = { c: [30, 10, 10], r: 4, n: [0, 0, 1] };
+  const gr = dimGeom(L, { id: 'r', view: tv.id, t: 'rad', ang: 30, off: 8 }, { a: rim }); assert.equal(gr.text, 'R4'); assert.equal(gr.arrows.length, 1);
+  const gd = dimGeom(L, { id: 'd', view: tv.id, t: 'dia', ang: 30, off: 8 }, { a: { c: [10, 10, 10], r: 2.5, n: [0, 0, 1], label: 'M6×1' } }); assert.equal(gd.text, 'M6×1');
+  // an angle between the plate's bottom edge and a line at 30° to it (corners given directly), 30°
+  const ga = dimGeom(L, { id: 'a', view: fv.id, t: 'ang', off: 12 }, { a: { pt: [0, 0, 0] }, b: { pt: [40, 0, 0] }, c: { pt: [0, 0, 0] }, d: { pt: [20 * Math.cos(Math.PI / 6), 0, 20 * Math.sin(Math.PI / 6)] } });
+  near(ga.value, 30, 1e-9); assert.equal(ga.text, '30°');
+  // the sheet as a DXF: R12, millimetres, the layers and line types, its lines, the section's name and the thread
+  const Dd = Object.assign({}, D, { dims: [{ id: 'd', view: tv.id, t: 'dia', ang: 30, off: 8 }] });
+  const dxf = new TextDecoder().decode(dxfOfSheet(Dd, data, { located: { d: { a: { c: [10, 10, 10], r: 2.5, label: 'M6×1' } } }, date: '16 Nov 2026' }));
+  assert.match(dxf, /\$ACADVER\n1\nAC1009/); assert.match(dxf, /\$INSUNITS\n70\n4/);
+  for (const name of ['VISIBLE', 'HIDDEN', 'CENTRE', 'DIMENSIONS', 'TEXT']) assert.match(dxf, new RegExp('\\nLAYER\\n2\\n' + name + '\\n'));
+  assert.ok((dxf.match(/\n0\nLINE\n/g) || []).length > 100);
+  assert.match(dxf, /\n1\nSECTION A-A\n/); assert.match(dxf, /\n1\nDETAIL B \(4:1\)\n/); assert.match(dxf, /\n1\nM6x1\n/);
+  assert.match(dxf, /\n8\nCENTRE\n6\nCENTER\n/, 'centre marks on their layer, chained');
+  assert.match(dxf, /0\nEOF\n$/);
+  // and the PDF still writes
+  assert.match(new TextDecoder('latin1').decode(pdfOfSheet(Dd, data, {})), /\(SECTION A-A\) Tj/);
 });

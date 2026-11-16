@@ -33,6 +33,7 @@ test('exports (STEP, STL) need a free account, gated first; saving the .jekcad n
   const all = order().filter(f => !f.startsWith('../')).map(src).join('\n');
   // a drawing's PDF is an export too: gated first
   assert.match(src('io/files.js'), /export function exportPdf\(\) \{\n {2}if \(!accountGate\('export a PDF'\)\) return false;/);
-  // every file made on the page goes through downloadFile: the .jekcad, the exports and the PDF
-  assert.equal((all.match(/downloadFile\(/g) || []).length, 4);
+  assert.match(src('io/files.js'), /export function exportDxf\(\) \{\n {2}if \(!accountGate\('export a DXF'\)\) return false;/);
+  // every file made on the page goes through downloadFile: the .jekcad, the exports, the PDF and the DXF
+  assert.equal((all.match(/downloadFile\(/g) || []).length, 5);
 });

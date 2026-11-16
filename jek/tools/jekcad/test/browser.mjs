@@ -926,6 +926,61 @@ export async function check(pw, base, shots) {
       ok('The plate made 60 long in its Part Studio: the drawing’s dimensions follow (the width, and the one between the corners), the hole’s as it was', after === '60,10,20,20,60,Ø8', after);
       ok('Export PDF writes the sheet (A4 landscape, its title in the block); the file keeps the drawing and opens on it with its dimensions', /^%PDF-1\.4/.test(pdf) && /\/MediaBox \[0 0 841\.89 595\.276\]/.test(pdf) && /\(Plate A\) Tj/.test(pdf) && /\.pdf$/.test(dl ? dl.suggestedFilename() : '') && JSON.parse(text).tabs.length === 2 && back.drw && back.dims === '60,10,20,20,60,Ø8' && back.title && back.title.title === 'Plate A' && !qe.length, JSON.stringify([pdf.slice(0, 12), dl && dl.suggestedFilename(), back, qe]));
     }
+    // threads and the rest of a drawing: a tapped M6 hole made in the Hole dialog, an external thread on a pin by the
+    // Thread feature; a section and a detail made by clicking; a radius, a thread note and an angle; the DXF
+    {
+      const q = await b.newPage({ viewport: { width: 1400, height: 880 }, acceptDownloads: true }), qe = [];
+      q.on('pageerror', e => qe.push(e.message));
+      await q.goto(base + '/jek/tools/jekcad.html?test');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      const settle = async () => { await q.waitForTimeout(250); await q.waitForFunction(() => !window.JEKcad.app.busy, null, { timeout: 20000 }).catch(() => {}); await q.waitForTimeout(200); };
+      const d = newDoc(); d.name = 'Bracket'; const s1 = rectSketch(d, 40, 20);
+      s1.ents.push({ id: 'h1', t: 'circle', c: [30, 10], r: 4 });
+      // a quarter round on the plate's back right corner, for a radius: an arc seen from above
+      const pl = newFeature(d, 'plane', { ref: { std: 'top' }, offset: '10 mm' }), pts = newFeature(d, 'sketch', { plane: { feature: pl.id }, ents: [{ id: 'p1', t: 'point', c: [10, 10] }], cons: [], dims: [] });
+      const pin = newFeature(d, 'sketch', { plane: { std: 'top' }, ents: [{ id: 'pc', t: 'circle', c: [70, 10], r: 3 }], cons: [], dims: [] });
+      d.features.push(s1, newFeature(d, 'extrude', { sketch: s1.id, regions: [[1, 1]], depth: '10', op: 'new' }), pl, pts, pin, newFeature(d, 'extrude', { sketch: pin.id, regions: [[70, 10]], depth: '20', op: 'new' }));
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d)); await settle();
+      // the Hole dialog: Tapped hides the diameter and asks for a thread; M6 right through
+      await q.click('[data-feature="hole"]'); await q.waitForSelector('#fd-kind');
+      await q.evaluate(id => { window.JEKcad.app.editing.f.sketch = id; }, pts.id);
+      await q.selectOption('#fd-kind', 'tapped'); await settle();
+      const form = await q.evaluate(() => ({ size: !!document.getElementById('fd-size'), dia: !!document.getElementById('fd-dia'), td: !!document.getElementById('fd-threadDepth') }));
+      await q.selectOption('#fd-size', 'M6'); await q.selectOption('#fd-end', 'through'); await settle();
+      await q.click('#featureOk'); await settle();
+      // the Thread feature on the pin's side
+      await q.evaluate(async () => { const J = window.JEKcad, P = J.app.result.parts.find(p => p.bbox[1][2] > 15), i = P.faceKinds.findIndex(k => k === 'cylinder'); J.app.sel = [{ part: P.id, kind: 'face', index: i }]; });
+      await q.click('[data-feature="thread"]'); await q.waitForSelector('#fd-size'); await settle();
+      await q.selectOption('#fd-size', 'M6'); await settle(); await q.click('#featureOk'); await settle();
+      const th = await q.evaluate(() => window.JEKcad.app.result.parts.map(p => (p.threads || []).map(t => t.label + (t.internal ? ' in' : ' out')).join()).join('|'));
+      // the measure readout on the tapped hole's wall
+      await q.evaluate(() => { const J = window.JEKcad, P = J.app.result.parts.find(p => (p.threads || []).some(t => t.internal)); J.app.sel = [{ part: P.id, kind: 'face', index: P.threads[0].face }]; J.selectPick(null, true); });
+      await q.waitForFunction(() => { const t = document.getElementById('measureTab'); return t && /Thread/.test(t.textContent); }, null, { timeout: 8000 }).catch(() => {});
+      const meas = await q.evaluate(() => (document.getElementById('measureTab') || {}).textContent || '');
+      // a drawing of the plate: a section by clicking the front view, a detail round the tapped hole
+      await q.evaluate(() => { const J = window.JEKcad; J.app.sel = []; });
+      await q.click('#tabAdd'); await q.click('.cad-tabmenu button:nth-child(3)'); await settle();
+      await q.selectOption('#drw-part', { index: 1 }); await settle();
+      await q.waitForFunction(() => window.JEKcad.dr.drawn && window.JEKcad.dr.drawn.layout.views.every(v => v.box), null, { timeout: 15000 }).catch(() => {});
+      const pt = (dir, uv) => q.evaluate(([dir2, q2]) => { const J = window.JEKcad, L = J.dr.drawn.layout, v = L.views.find(x => x.dir === dir2), s = L.toSheet(v, q2), c = J.dr.cam; return [c.x + s[0] * c.z, c.y + s[1] * c.z]; }, [dir, uv]);
+      const ob = await q.locator('#over').boundingBox(), clickAt = async a => { await q.mouse.move(ob.x + a[0], ob.y + a[1], { steps: 3 }); await q.waitForTimeout(60); await q.mouse.click(ob.x + a[0], ob.y + a[1]); await q.waitForTimeout(200); };
+      await q.click('[data-drw="section"]'); await clickAt(await pt('front', [30.6, 5])); await settle();
+      await q.click('[data-drw="detail"]'); await clickAt(await pt('top', [10, 10])); await clickAt(await pt('top', [16, 10])); await settle();
+      await q.waitForFunction(() => window.JEKcad.dr.drawn && window.JEKcad.dr.drawn.layout.views.length === 6 && window.JEKcad.dr.drawn.layout.views.every(v => v.box), null, { timeout: 15000 }).catch(() => {});
+      const views = await q.evaluate(() => { const J = window.JEKcad, D = J.app.drw, L = J.dr.drawn.layout, sv = L.views.find(v => v.dir === 'section'), dv = L.views.find(v => v.dir === 'detail'); return { kinds: D.views.map(v => v.dir + (v.label || '')).join(), pos: (D.views.find(v => v.dir === 'section') || {}).pos, cut: J.dr.data.views[sv.id].cut.length, ds: dv && +(dv.s / L.s).toFixed(3), tthreads: J.dr.data.views[L.views.find(v => v.dir === 'top').id].threads.length }; });
+      // dimensions: the tapped hole's rim reads as its thread; the plain hole as Ø8; an angle between the bottom and the right edge of the front view
+      await q.click('[data-drw="dim"]');
+      await clickAt(await pt('top', [10 + 2.5 * Math.SQRT1_2, 10 + 2.5 * Math.SQRT1_2])); await settle();
+      await clickAt(await pt('top', [30 + 4 * Math.SQRT1_2, 10 + 4 * Math.SQRT1_2])); await settle();
+      await q.click('[data-drw="ang"]'); await clickAt(await pt('front', [20, 0])); await clickAt(await pt('front', [40, 5])); await clickAt(await pt('front', [46, -6])); await settle();
+      const dims = await q.evaluate(() => window.JEKcad.dr.drawn.dims.map(x => x.g.text).join());
+      const [dl] = await Promise.all([q.waitForEvent('download', { timeout: 20000 }).catch(() => null), q.click('[data-drw="dxf"]')]);
+      const dxf = dl ? readFileSync(await dl.path(), 'utf8') : '';
+      await q.close();
+      ok('Hole › Tapped asks for a thread size (no diameter); an M6 right through drills Ø5 and notes M6×1 on its wall; Thread notes an external M6 on a Ø6 pin; the readout names the thread', form.size && !form.dia && th === 'M6×1 in|M6×1 out' && /Thread/.test(meas) && /M6×1/.test(meas) && !qe.length, JSON.stringify([form, th, meas, qe]));
+      ok('A section clicked on the front view (held to the hole’s centre, 30) is hatched where it cuts; a detail round the tapped hole is twice the sheet’s scale and keeps its thread', views.kinds === 'front,top,right,iso,sectionA,detailB' && views.pos === 30 && views.cut === 2 && views.ds === 2 && views.tthreads === 1, JSON.stringify(views));
+      ok('A tapped hole’s rim dimensions as its thread (M6×1), a plain hole as Ø8, two edges as their angle (90°); Export DXF writes an R12 file with the section named', dims === 'M6×1,Ø8,90°' && /AC1009/.test(dxf) && /\n1\nSECTION A-A\n/.test(dxf) && /\.dxf$/.test(dl ? dl.suggestedFilename() : '') && !qe.length, JSON.stringify([dims, dxf.slice(0, 30), dl && dl.suggestedFilename(), qe]));
+    }
     // signed out for sure: looking is free, changing is not (Sketch asks for an account and nothing is started)
     {
       const q = await b.newPage({ viewport: { width: 1200, height: 800 } });

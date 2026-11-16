@@ -38,13 +38,14 @@ export const FEATURE_KINDS = {
   fillet: { label: 'Fillet', defaults: { edges: [], radius: '2 mm' } },
   chamfer: { label: 'Chamfer', defaults: { edges: [], distance: '1 mm' } },
   shell: { label: 'Shell', defaults: { faces: [], thickness: '1 mm', outward: false } },
-  hole: { label: 'Hole', defaults: { sketch: null, kind: 'simple', dia: '5 mm', end: 'through', depth: '10 mm', tip: true, cbDia: '9 mm', cbDepth: '3 mm', csDia: '10 mm', csAngle: '90 deg', targets: [] } },
+  hole: { label: 'Hole', defaults: { sketch: null, kind: 'simple', size: 'M6', fit: 'normal', threadDepth: '12 mm', dia: '5 mm', end: 'through', depth: '10 mm', tip: true, cbDia: '9 mm', cbDepth: '3 mm', csDia: '10 mm', csAngle: '90 deg', targets: [] } },
   lpattern: { label: 'Linear pattern', defaults: { of: 'features', items: [], dir: 'x', dirRef: null, flip: false, count: '3', spacing: '20 mm' } },
   cpattern: { label: 'Circular pattern', defaults: { of: 'features', items: [], axis: 'z', axisRef: null, count: '6', angle: '360 deg' } },
   mirror: { label: 'Mirror', defaults: { of: 'features', items: [], plane: { std: 'right' } } },
   boolean: { label: 'Boolean', defaults: { op: 'union', targets: [], tools: [], keep: false } },
   // whole parts taken away (a feature like any other: undone, suppressed, rolled before, edited)
   delete: { label: 'Delete part', defaults: { targets: [] } },
+  thread: { label: 'Thread', defaults: { faces: [], size: 'M6', full: true, length: '10 mm' } },
   import: { label: 'Import', defaults: { file: '', format: 'step', data: '' } },
 };
 export const featureLabel = t => (FEATURE_KINDS[t] ? FEATURE_KINDS[t].label : t);
@@ -66,7 +67,7 @@ export function normFeature(f, i) {
   for (const [k, dv] of Object.entries(D)) {
     const v = f[k];
     if (typeof dv === 'boolean') o[k] = typeof v === 'boolean' ? v : dv;
-    else if (typeof dv === 'string' && /^(op|end|end2|kind|of|dir|axis|format)$/.test(k)) o[k] = isStr(v, 40) ? v : dv;
+    else if (typeof dv === 'string' && /^(op|end|end2|kind|of|dir|axis|format|size|fit)$/.test(k)) o[k] = isStr(v, 40) ? v : dv;
     else if (typeof dv === 'string' && (k === 'file' || k === 'data')) o[k] = typeof v === 'string' ? v : dv;
     else if (typeof dv === 'string') o[k] = exprOr(v, dv);
     else if (k === 'regions') o[k] = ptsOk(v);

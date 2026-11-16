@@ -3,6 +3,7 @@
   "../../jekray/src/core/hooks.js",
   "../../jekray/src/core/src-tag.js",
   "core/units.js",
+  "core/threads.js",
   "core/sketch.js",
   "core/font-data.js",
   "core/sketch-tools.js",

@@ -487,6 +487,9 @@
   .rt-act-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--rt-surface); transition: width 0.15s linear; }
   /* moved by transform, which the browser keeps animating even while a long step holds the page */
   .rt-activity.indeterminate .rt-act-bar i { width: 30%; animation: rt-slide 1.2s ease-in-out infinite; will-change: transform; }
+  /* the particles' scattering: its own bar under the bench's, in the cool colour its scattered field is drawn in */
+  .rt-activity.rt-act-scat { top: 2.75rem; }
+  .rt-act-scat .rt-act-bar i { background: #7fd8ff; }
   @keyframes rt-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
   @media (prefers-reduced-motion: reduce) { .rt-activity.indeterminate .rt-act-bar i { animation: none; width: 100%; opacity: 0.45; } }
   .rt-plot-tools { position: absolute; top: 0; right: 0; display: flex; gap: 0.25rem; }
@@ -6330,7 +6333,17 @@ function ddaAlpha(mr, mi, k, d, how, dir, pol) {
 }
 /* every pair's tensor by lattice offset: 12 numbers an offset (xx, xy, xz, yy, yz, zz, each
    re and im), the offset (a, b, c) at ((c + nz - 1) sy + (b + ny - 1)) sx + (a + nx - 1) */
+/* (kept: a particle turned, or lit another way, has the same lattice and the same table; the last few are held) */
+const DDA_TABLES = new Map();
 function ddaTable(lat, k) {
+  const key = [lat.nx, lat.ny, lat.nz, lat.d, k].join(), was = DDA_TABLES.get(key);
+  if (was) return was;
+  const made = ddaTableMake(lat, k);
+  DDA_TABLES.set(key, made);
+  while (DDA_TABLES.size > 3) DDA_TABLES.delete(DDA_TABLES.keys().next().value);
+  return made;
+}
+function ddaTableMake(lat, k) {
   const { nx, ny, nz, d } = lat, sx = 2 * nx - 1, sy = 2 * ny - 1, sz = 2 * nz - 1;
   const T = new Float64Array(12 * sx * sy * sz);
   let o = 0;
@@ -6352,13 +6365,100 @@ function ddaTable(lat, k) {
    solve is a generator (so a long run can report and be stopped between steps): it yields
    { iter, resid } each iteration and returns { p, iters, resid, converged }. E and p are
    Float64Array(6 N): each dipole's x, y, z, re then im, in the body frame. */
-function ddaSolver(lat, k, alpha) {
-  const N = lat.N, { T, sx, sy } = ddaTable(lat, k);
+/* ---------- The dipoles' sum as a convolution ----------
+   sum_q G(r_j - r_q) p_q is a convolution over the lattice's box: the table's six tensor components laid on a box at
+   least twice the lattice each way (a power of two), Fourier transformed once (kept with the table), and each sum is then
+   three transforms in, a product, and three back: N log N where the direct sum is N^2. The same sum to rounding. */
+function fftLine(re, im, n, cos, sin, rev) {
+  for (let i = 0; i < n; i++) { const j = rev[i]; if (j > i) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+  for (let size = 2; size <= n; size <<= 1) {
+    const half = size >> 1, step = n / size;
+    for (let s = 0; s < n; s += size) for (let m = 0; m < half; m++) {
+      const wr = cos[m * step], wi = sin[m * step], a = s + m, b = a + half;
+      const xr = re[b] * wr - im[b] * wi, xi = re[b] * wi + im[b] * wr;
+      re[b] = re[a] - xr; im[b] = im[a] - xi; re[a] += xr; im[a] += xi;
+    }
+  }
+}
+function fftPlan(n, inv) {
+  const cos = new Float64Array(n / 2 || 1), sin = new Float64Array(n / 2 || 1), rev = new Int32Array(n), bits = Math.round(Math.log2(n));
+  for (let m = 0; m < n / 2; m++) { const a = (inv ? 2 : -2) * Math.PI * m / n; cos[m] = Math.cos(a); sin[m] = Math.sin(a); }
+  for (let i = 0; i < n; i++) { let r = 0; for (let b = 0; b < bits; b++) r |= ((i >> b) & 1) << (bits - 1 - b); rev[i] = r; }
+  return { n, cos, sin, rev, lr: new Float64Array(n), li: new Float64Array(n) };
+}
+/* a 3D transform in place of a box (Mx, My, Mz; x fastest), re and im apart */
+function fft3(re, im, P, inv) {
+  const [px, py, pz] = inv ? P.inv : P.fwd, Mx = px.n, My = py.n, Mz = pz.n;
+  const pass = (pl, count, at, stride) => {
+    const { lr, li, n } = pl;
+    for (let c = 0; c < count; c++) {
+      const o = at(c);
+      for (let i = 0; i < n; i++) { lr[i] = re[o + i * stride]; li[i] = im[o + i * stride]; }
+      fftLine(lr, li, n, pl.cos, pl.sin, pl.rev);
+      for (let i = 0; i < n; i++) { re[o + i * stride] = lr[i]; im[o + i * stride] = li[i]; }
+    }
+  };
+  pass(px, My * Mz, c => c * Mx, 1);
+  pass(py, Mx * Mz, c => (c % Mx) + Math.floor(c / Mx) * Mx * My, Mx);
+  pass(pz, Mx * My, c => c, Mx * My);
+}
+const pow2 = n => { let m = 1; while (m < n) m <<= 1; return m; };
+function ddaConv(lat, tab) {
+  const { nx, ny, nz } = lat, Mx = pow2(2 * nx - 1), My = pow2(2 * ny - 1), Mz = pow2(2 * nz - 1), M = Mx * My * Mz, N = lat.N;
+  if (!tab.K) {
+    const P = { fwd: [fftPlan(Mx), fftPlan(My), fftPlan(Mz)], inv: [fftPlan(Mx, true), fftPlan(My, true), fftPlan(Mz, true)] };
+    const K = [];
+    for (let t = 0; t < 6; t++) {
+      const re = new Float64Array(M), im = new Float64Array(M);
+      for (let c = 1 - nz; c < nz; c++) for (let b = 1 - ny; b < ny; b++) for (let a = 1 - nx; a < nx; a++) {
+        if (!a && !b && !c) continue;
+        const o = 12 * (((c + nz - 1) * tab.sy + (b + ny - 1)) * tab.sx + (a + nx - 1)), g = ((a + Mx) % Mx) + Mx * (((b + My) % My) + My * ((c + Mz) % Mz));
+        re[g] = tab.T[o + 2 * t]; im[g] = tab.T[o + 2 * t + 1];
+      }
+      fft3(re, im, P);
+      K.push([re, im]);
+    }
+    tab.K = { K, P, M };
+  }
+  const { K, P } = tab.K, at = new Int32Array(N);
+  for (let j = 0; j < N; j++) at[j] = lat.ix[j] + Mx * (lat.iy[j] + My * lat.iz[j]);
+  const X = [0, 1, 2].map(() => [new Float64Array(M), new Float64Array(M)]), Y = [0, 1, 2].map(() => [new Float64Array(M), new Float64Array(M)]);
+  // the tensor's component for (row, column): xx xy xz / yx yy yz / zx zy zz
+  const comp = [[0, 1, 2], [1, 3, 4], [2, 4, 5]];
+  return (p, out) => {
+    for (let c = 0; c < 3; c++) {
+      const [re, im] = X[c]; re.fill(0); im.fill(0);
+      for (let j = 0; j < N; j++) { re[at[j]] = p[6 * j + 2 * c]; im[at[j]] = p[6 * j + 2 * c + 1]; }
+      fft3(re, im, P);
+    }
+    const [x0r, x0i] = X[0], [x1r, x1i] = X[1], [x2r, x2i] = X[2];
+    for (let r = 0; r < 3; r++) {
+      const [yr, yi] = Y[r], [ar, ai] = K[comp[r][0]], [br, bi] = K[comp[r][1]], [cr, ci] = K[comp[r][2]];
+      for (let g = 0; g < M; g++) {
+        yr[g] = ar[g] * x0r[g] - ai[g] * x0i[g] + br[g] * x1r[g] - bi[g] * x1i[g] + cr[g] * x2r[g] - ci[g] * x2i[g];
+        yi[g] = ar[g] * x0i[g] + ai[g] * x0r[g] + br[g] * x1i[g] + bi[g] * x1r[g] + cr[g] * x2i[g] + ci[g] * x2r[g];
+      }
+      fft3(yr, yi, P, true);
+      for (let j = 0; j < N; j++) { out[6 * j + 2 * r] = yr[at[j]] / M; out[6 * j + 2 * r + 1] = yi[at[j]] / M; }
+    }
+    return out;
+  };
+}
+const DDA_FFT_N = 400;            // dipoles from which the sum is taken as a convolution by FFT (ddaConv)
+function ddaSolver(lat, k, alpha, opts) {
+  const N = lat.N, tab = ddaTable(lat, k), { T, sx, sy } = tab;
   const lin = new Int32Array(N), c0 = ((lat.nz - 1) * sy + (lat.ny - 1)) * sx + (lat.nx - 1);
   for (let j = 0; j < N; j++) lin[j] = (lat.iz[j] * sy + lat.iy[j]) * sx + lat.ix[j];
   const a2 = alpha[0] * alpha[0] + alpha[1] * alpha[1], ir = alpha[0] / a2, ii = -alpha[1] / a2;     // 1 / alpha
+  // (by FFT where it is the quicker: the direct sum costs about N^2 pairs, the convolution about 32 of them a point of its box)
+  const box = pow2(2 * lat.nx - 1) * pow2(2 * lat.ny - 1) * pow2(2 * lat.nz - 1), fftFrom = opts && opts.fftFrom;
+  const conv = (fftFrom ? N >= fftFrom : N >= DDA_FFT_N && N * N > 32 * box) ? ddaConv(lat, tab) : null;
   // out = (1/alpha) p - sum G p
-  const apply = (p, out) => {
+  const apply = conv ? (p, out) => {
+    conv(p, out);
+    for (let q = 0; q < 6 * N; q += 2) { const pr = p[q], pi = p[q + 1]; out[q] = ir * pr - ii * pi - out[q]; out[q + 1] = ir * pi + ii * pr - out[q + 1]; }
+    return out;
+  } : (p, out) => {
     for (let j = 0; j < N; j++) {
       const lj = lin[j] + c0;
       let xr = 0, xi = 0, yr = 0, yi = 0, zr = 0, zi = 0;
@@ -6446,10 +6546,25 @@ function ddaPlaneWave(lat, k, dir, e0) {
    of unit vectors (body frame), out Float64Array(6 n) */
 function ddaFar(lat, k, p, dirs, out) {
   const n = dirs.length / 3, F = out || new Float64Array(6 * n), N = lat.N, k2 = k * k;
+  // (the lattice is a grid: each dipole's phase the product of three, one along each axis, worked out once a direction)
+  const grid = lat.ix && lat.nx, nx = lat.nx, ny = lat.ny, nz = lat.nz, d = lat.d;
+  const ax = grid ? new Float64Array(2 * nx) : null, ay = grid ? new Float64Array(2 * ny) : null, az = grid ? new Float64Array(2 * nz) : null;
+  // (positions as ddaLattice puts them: x and y about nx / 2, z about nz / 2)
+  const along = (t, m, u, c0) => { for (let a = 0; a < m; a++) { const ph = -k * u * ((a + 0.5 - c0 / 2) * d); t[2 * a] = Math.cos(ph); t[2 * a + 1] = Math.sin(ph); } };
   for (let i = 0; i < n; i++) {
     const ux = dirs[3 * i], uy = dirs[3 * i + 1], uz = dirs[3 * i + 2];
     let xr = 0, xi = 0, yr = 0, yi = 0, zr = 0, zi = 0;
-    for (let j = 0; j < N; j++) {
+    if (grid) {
+      along(ax, nx, ux, nx); along(ay, ny, uy, nx); along(az, nz, uz, nz);
+      for (let j = 0; j < N; j++) {
+        const a = 2 * lat.ix[j], bb = 2 * lat.iy[j], cc = 2 * lat.iz[j];
+        const pr = ax[a] * ay[bb] - ax[a + 1] * ay[bb + 1], pi = ax[a] * ay[bb + 1] + ax[a + 1] * ay[bb];
+        const c = pr * az[cc] - pi * az[cc + 1], s = pr * az[cc + 1] + pi * az[cc], b = 6 * j;
+        xr += p[b] * c - p[b + 1] * s; xi += p[b] * s + p[b + 1] * c;
+        yr += p[b + 2] * c - p[b + 3] * s; yi += p[b + 2] * s + p[b + 3] * c;
+        zr += p[b + 4] * c - p[b + 5] * s; zi += p[b + 4] * s + p[b + 5] * c;
+      }
+    } else for (let j = 0; j < N; j++) {
       const ph = -k * (ux * lat.x[j] + uy * lat.y[j] + uz * lat.z[j]), c = Math.cos(ph), s = Math.sin(ph), b = 6 * j;
       xr += p[b] * c - p[b + 1] * s; xi += p[b] * s + p[b + 1] * c;
       yr += p[b + 2] * c - p[b + 3] * s; yi += p[b + 2] * s + p[b + 3] * c;
@@ -6470,6 +6585,98 @@ function ddaExtAbs(k, alpha, E, p) {
   for (let q = 0; q < p.length; q += 2) { ext += E[q] * p[q + 1] - E[q + 1] * p[q]; p2 += p[q] * p[q] + p[q + 1] * p[q + 1]; }
   const a2 = alpha[0] * alpha[0] + alpha[1] * alpha[1], imInv = -alpha[1] / a2;
   return { ext: 4 * Math.PI * k * ext, abs: 4 * Math.PI * k * p2 * (-imInv - (2 / 3) * k * k * k) };
+}
+/* ==========================================================================
+   Answers of a linear problem kept and combined. A particle's scattering is linear in the light on it: the far field
+   of a sphere (Mie) and the dipoles of an array (the dipole array's solve) are a linear map of the incident field, for
+   a fixed set of wave directions and a fixed particle. So once the answers for a few incident fields are known, any
+   field that is a combination of them (the same light in another polarisation, or at another power) has the same
+   combination of their answers, with no new solve. Whether a field is such a combination is checked on the field
+   itself, to a part in 1e10, never assumed.
+   A vector is complex, interleaved: [re, im, re, im, ...] in a Float64Array (or Float32Array for answers kept small).
+   ========================================================================== */
+
+/* <a, b> = sum conj(a) b */
+function cdot(a, b) {
+  let r = 0, i = 0;
+  for (let q = 0; q < a.length; q += 2) { r += a[q] * b[q] + a[q + 1] * b[q + 1]; i += a[q] * b[q + 1] - a[q + 1] * b[q]; }
+  return [r, i];
+}
+const nrm2 = a => { let s = 0; for (let q = 0; q < a.length; q++) s += a[q] * a[q]; return s; };
+/* Least squares: the complex c with E ~ sum c_j V_j, by the normal equations (m is a handful, and the vectors kept are
+   never nearly parallel: see linAdmit). { c, rel }: rel is |E - sum c V| / |E|, worked out from the vectors themselves. */
+function linFit(V, E) {
+  const m = V.length, e2 = nrm2(E);
+  if (!m || !(e2 > 0)) return { c: [], rel: e2 > 0 ? 1 : 0 };
+  // the Gram matrix and the right side, complex, as an augmented m x (m + 1) system
+  const A = [];
+  for (let i = 0; i < m; i++) { const row = []; for (let j = 0; j < m; j++) row.push(cdot(V[i], V[j])); row.push(cdot(V[i], E)); A.push(row); }
+  for (let col = 0; col < m; col++) {
+    let piv = col, best = -1;
+    for (let r = col; r < m; r++) { const v = Math.hypot(A[r][col][0], A[r][col][1]); if (v > best) { best = v; piv = r; } }
+    if (!(best > 0)) return { c: [], rel: 1 };
+    [A[col], A[piv]] = [A[piv], A[col]];
+    const p = A[col][col], pd = p[0] * p[0] + p[1] * p[1];
+    for (let r = 0; r < m; r++) {
+      if (r === col) continue;
+      const a = A[r][col], f = [(a[0] * p[0] + a[1] * p[1]) / pd, (a[1] * p[0] - a[0] * p[1]) / pd];
+      for (let j = col; j <= m; j++) { const v = A[col][j]; A[r][j] = [A[r][j][0] - (f[0] * v[0] - f[1] * v[1]), A[r][j][1] - (f[0] * v[1] + f[1] * v[0])]; }
+    }
+  }
+  const c = A.map((row, i) => { const p = row[i], b = row[m], pd = p[0] * p[0] + p[1] * p[1]; return [(b[0] * p[0] + b[1] * p[1]) / pd, (b[1] * p[0] - b[0] * p[1]) / pd]; });
+  const R = Float64Array.from(E);
+  for (let j = 0; j < m; j++) linAxpy(R, [-c[j][0], -c[j][1]], V[j]);
+  return { c, rel: Math.sqrt(nrm2(R) / e2) };
+}
+/* y += a x (complex a) */
+function linAxpy(y, a, x) {
+  const ar = a[0], ai = a[1];
+  for (let q = 0; q < y.length; q += 2) { const xr = x[q], xi = x[q + 1]; y[q] += ar * xr - ai * xi; y[q + 1] += ar * xi + ai * xr; }
+  return y;
+}
+/* sum c_j W_j, a new Float64Array */
+function linCombine(W, c) {
+  const out = new Float64Array(W[0].length);
+  for (let j = 0; j < W.length; j++) linAxpy(out, c[j], W[j]);
+  return out;
+}
+const LIN_TOL = 1e-10;           // a field this close to a combination of those kept takes their answers' combination
+const LIN_NEW = 1e-3;                   // and one at least this far from it is kept as a new one (the rest are worked out, not kept)
+/* A store of answers by what they are for: key -> { V: fields, W: answers }, the most recently used kept, LIN_KEYS
+   of them and LIN_MAX answers each. get(key, E) the combined answer (or null) with the fit; put(key, E, A) keeps one. */
+function linStore(keys = 32, max = 4) {
+  const M = new Map();
+  return {
+    fit(key, E) {
+      const s = M.get(key);
+      if (!s) return null;
+      M.delete(key); M.set(key, s);
+      const f = linFit(s.V, E);
+      return Object.assign(f, { W: s.W, V: s.V });
+    },
+    get(key, E) {
+      const f = this.fit(key, E);
+      return f && f.c.length && f.rel <= LIN_TOL ? linCombine(f.W, f.c) : null;
+    },
+    put(key, E, A, fit) {
+      let s = M.get(key);
+      if (!s) { s = { V: [], W: [] }; M.set(key, s); while (M.size > keys) M.delete(M.keys().next().value); }
+      const f = fit || linFit(s.V, E);
+      if (s.V.length && !(f.rel >= LIN_NEW)) return false;
+      s.V.push(Float64Array.from(E)); s.W.push(Float64Array.from(A));
+      if (s.V.length > max) { s.V.shift(); s.W.shift(); }
+      return true;
+    },
+    clear() { M.clear(); },
+    get size() { return M.size; },
+  };
+}
+/* a short fingerprint of a numeric array (for keys): its length and a hash of its exact bits */
+function arrSig(a) {
+  const f = a instanceof Float64Array ? a : Float64Array.from(a), u = new Uint32Array(f.buffer, f.byteOffset, f.length * 2);
+  let h1 = 0x811c9dc5, h2 = 0x01000193;
+  for (let i = 0; i < u.length; i++) { h1 = Math.imul(h1 ^ u[i], 16777619); h2 = Math.imul(h2 + u[i], 2246822519) ^ (h2 >>> 13); }
+  return a.length + ':' + (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36);
 }
 /* ==========================================================================
    Scattered light in the far field: the pieces the three particle models share
@@ -11012,7 +11219,7 @@ const PARTICLE = {
       trapMed: ['bench', 'vacuum', 'air', 'water'].includes(e.trapMed) ? e.trapMed : 'bench',
       trapShape: ['cylinder', 'capsule', 'spheroid'].includes(e.trapShape) ? e.trapShape : 'sphere',
       trapLen: Math.max(1, num(e.trapLen, 1000)),
-      trapTilt: clamp(num(e.trapTilt, 0), -90, 90),
+      trapTilt: clamp(num(e.trapTilt, 0), -180, 180),         // (past 90 the axis leans back over: a sweep through the upright)
       trapP: Math.max(1e-12, num(e.trapP, 1013.25)),                // mbar, for air
       trapT: Math.max(0.001, num(e.trapT, 295)),                   // K, for the depth in kT
       scatModel: ['rayleigh', 'mie', 'dda'].includes(e.scatModel) ? e.scatModel : 'auto',
@@ -11036,7 +11243,7 @@ const PARTICLE = {
     what: 'One small particle at a point of the bench: a sphere, a rod or a spheroid, in whatever light reaches it. Its Scattering tab gives its cross-sections and the light it scatters (Lorenz–Mie for a sphere, a dipole array for a rod), its Trap tab the optical trap the light makes for it. The scattered light goes to the parts that catch it, as light of the laser that drives the particle: a lens collimates it, a photodetector reads it with the unscattered beam as fields. The light itself passes the particle untouched.',
     angle: 'the direction of a rod’s or spheroid’s axis in the bench plane (a sphere has none).',
     fields: { trap: 'always "sphere": the part is a particle (the field a screen\u2019s particle is told by).', trapMat: 'the particle’s material: a glass ("Fused silica", "Polystyrene" and so on), or "Au", "Ag", "Al" (metals, which absorb: their measured complex index).', trapR: 'the particle’s radius, nm: half its diameter (for a rod or spheroid, half the diameter across its axis).', trapRho: 'its density, kg/m³.',
-      trapMed: '"bench" (the index where the light is), "vacuum", "air" (with trapP) or "water".', trapShape: '"sphere", "cylinder" (a rod with flat ends), "capsule" (a rod with round ends) or "spheroid".', trapLen: 'nm: a rod’s or spheroid’s whole length along its axis.', trapTilt: 'degrees: its axis tilted up out of the bench plane (90: straight up).',
+      trapMed: '"bench" (the index where the light is), "vacuum", "air" (with trapP) or "water".', trapShape: '"sphere", "cylinder" (a rod with flat ends), "capsule" (a rod with round ends) or "spheroid".', trapLen: 'nm: a rod’s or spheroid’s whole length along its axis.', trapTilt: 'degrees: its axis tilted up out of the bench plane (90: straight up; past 90 it leans back over, to 180).',
       trapP: 'mbar: the air’s pressure, for trapMed "air".', trapT: 'K: the temperature the trap’s depth is compared with.',
       scatModel: '"auto" (Mie for a sphere, a dipole array for other shapes, Rayleigh when tiny), "rayleigh", "mie" or "dda".', scatDip: 'dipoles across the smallest dimension of a dipole array (0 chooses).',
       scatAt: '"part": the particle is where the part is; "trap": where the optical trap nearest the part holds it.', scatDx: 'µm: moved from there across the strongest beam, in the bench plane (across it level, for a beam that rises or descends).', scatDy: 'µm: moved up out of the plane (up from the beam, square to it, for a beam that rises or descends).', scatDz: 'µm: moved along the beam.',
@@ -19687,7 +19894,7 @@ function setParam(el, path, v) {
     case 'm2': v = clamp(v, 1, 50); break;
     case 'hm': case 'hn': case 'lp': v = Math.round(clamp(v, 0, 10)); break;
     case 'trapR': case 'trapRho': case 'trapLen': v = Math.max(1, v); break;
-    case 'trapTilt': v = clamp(v, -90, 90); break;
+    case 'trapTilt': v = clamp(v, -180, 180); break;
     case 'scatDip': v = Math.round(clamp(v, 0, 64)); break;
     case 'scatNA': v = clamp(v, 0.001, 4); break;
     case 'trapP': v = Math.max(1e-12, v); break;
@@ -19811,7 +20018,20 @@ function allSweeps() {
 function startLoop() {
   playStep = null;
   if (!animFrame) { animLast = null; animFrame = requestAnimationFrame(tick); }
+  scatWork.letFinish = () => playing.size > 0;
+  if (!sweepJob && !renderedPeriod()) aheadPlain();
   syncPanel(); updateSweepButtons();
+}
+/* Sweeps playing on steps of their own (no field rendered ahead), all at one rate and number of steps: the particles'
+   scattering for each step solved ahead, as the play will set it (ui/optimise.js tick), so a step that takes longer to
+   solve than it is shown is ready when it comes round. A sweep gliding (no steps) is solved as it goes. */
+function aheadPlain() {
+  const list = [...playing.values()].map(p => [getEl(p.id), p.path]).filter(([e, p]) => e && e.sweeps && e.sweeps[p]);
+  if (!list.length || !project.elements.some(e => e.type === 'particle')) return;
+  const sw0 = list[0][0].sweeps[list[0][1]];
+  if (!(sw0.steps > 0) || list.some(([e, p]) => e.sweeps[p].steps !== sw0.steps || e.sweeps[p].freq !== sw0.freq)) return;
+  const n = sw0.steps;
+  particlesAhead(list, n, (e, p, i) => stepValue(e.sweeps[p], i, n, 1 / e.sweeps[p].freq), () => list.every(([e, p]) => getEl(e.id) && e.sweeps && e.sweeps[p] && playing.has(sweepKey(e, p))));
 }
 function play(el, path) {
   const sw = el.sweeps && el.sweeps[path];
@@ -19924,13 +20144,13 @@ function cancelJobFor(el, path) {
 function pause(el, path) {
   cancelJobFor(el, path);
   playing.delete(sweepKey(el, path));
-  if (!playing.size) dropTraceStore();
+  if (!playing.size) { dropTraceStore(); scatterAheadStop(); }
   syncPanel(); updateSweepButtons(); scheduleSave();
 }
 function pauseAll() {
   if (sweepJob) sweepJob.cancel();
   if (!playing.size) return;
-  playing.clear(); dropTraceStore();
+  playing.clear(); dropTraceStore(); scatterAheadStop();
   syncPanel(); updateSweepButtons(); scheduleSave();
 }
 function syncPhases() {
@@ -20043,6 +20263,8 @@ function renderSweepFrames(list, onDone) {
   const saved = list.map(([el, path]) => getPath(el, path));
   const n = sweepFrames(list);
   framesLast = n;
+  // the particles' scattering for every step, solved ahead on their own worker beside the field (ui/scatter.js)
+  particlesAhead(list, n, (e, p, i) => stepValue(e.sweeps[p], i, n, period), () => list.every(([e, p]) => getEl(e.id) && e.sweeps && e.sweeps[p]));
   sweepVol.begin();
   // every step already rendered (played before, paused, played again): straight on, no render pass
   {
@@ -20066,7 +20288,7 @@ function renderSweepFrames(list, onDone) {
   sweepJob = job;
   const finish = ok => {
     if (sweepJob !== job) return;
-    sweepJob = null;
+    sweepJob = null; particlesAheadDone();
     list.forEach(([el, path], k) => { if (getEl(el.id)) setParam(el, path, saved[k]); });
     if (ok) fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period: cyc(), n, ref: job.ref };
     changed(false);
@@ -20149,6 +20371,8 @@ function renderSweepFrames(list, onDone) {
       traceScene();
       requestRender(); syncPanel();
       yield;
+      // (no scattering worker: the particles' answers for this step, here)
+      if (TEST_MODE || !WORKERS_OK) { particlesAheadNow(i, n); yield; }
       const srcs = popSources();
       if (srcs.length) {
         traceScene();
@@ -20332,35 +20556,42 @@ function activityNow() {
   const text = jobs.join(', ');
   return { text: 'Computing ' + text, frac: null };
 }
-const activity = { box: null, text: null, bar: null, since: 0, now: false, shown: 0 };
+/* two bars: what the bench is working out, and below it, apart, the particles' scattering (ui/scatter.js scatActivity:
+   a sweep's steps solved ahead, or a solve on show), so a slow particle is seen to be at work beside the field */
+const activity = { box: null, text: null, bar: null, since: 0, now: false, shown: 0, cls: '' };
+const scatBar = { box: null, text: null, bar: null, since: 0, now: false, shown: 0, cls: ' rt-act-scat' };
 /* for a job about to block the page: show the bar straight away, skipping the usual delay */
 function showActivityNow() { if (TEST_MODE) return; activity.now = true; updateActivity(); }
 function updateActivity() {
-  const a = activityNow(), now = performance.now();
+  barShow(activity, activityNow());
+  barShow(scatBar, scatActivity());
+}
+function barShow(B, a) {
+  const now = performance.now();
   if (!a) {
-    activity.since = 0;
+    B.since = 0;
     // once up, it stays long enough to read rather than flashing
-    if (activity.box && !activity.box.hidden && now - activity.shown > 400) activity.box.hidden = true;
+    if (B.box && !B.box.hidden && now - B.shown > 400) B.box.hidden = true;
     return;
   }
-  if (!activity.since) activity.since = now;
-  if (now - activity.since < 250 && !activity.now) return;
-  activity.now = false;
-  if (!activity.box) {
-    activity.label = h('span');
-    activity.pct = h('span', { class: 'rt-act-pct' });
-    activity.text = h('span', { class: 'rt-act-text' }, activity.label, activity.pct);
-    activity.bar = h('i');
-    activity.box = h('div', { class: 'rt-activity', role: 'status', 'aria-live': 'polite' }, activity.text, h('div', { class: 'rt-act-bar' }, activity.bar));
-    document.getElementById('stage').append(activity.box);
+  if (!B.since) B.since = now;
+  if (now - B.since < 250 && !B.now) return;
+  B.now = false;
+  if (!B.box) {
+    B.label = h('span');
+    B.pct = h('span', { class: 'rt-act-pct' });
+    B.text = h('span', { class: 'rt-act-text' }, B.label, B.pct);
+    B.bar = h('i');
+    B.box = h('div', { class: 'rt-activity' + B.cls, role: 'status', 'aria-live': 'polite' }, B.text, h('div', { class: 'rt-act-bar' }, B.bar));
+    document.getElementById('stage').append(B.box);
   }
-  if (activity.box.hidden) activity.shown = now;
-  activity.box.hidden = false;
-  if (activity.label.textContent !== a.text) activity.label.textContent = a.text;
+  if (B.box.hidden) B.shown = now;
+  B.box.hidden = false;
+  if (B.label.textContent !== a.text) B.label.textContent = a.text;
   const pct = a.frac === null ? '' : Math.round(100 * clamp(a.frac, 0, 1)) + '%';
-  if (activity.pct.textContent !== pct) activity.pct.textContent = pct;
-  activity.box.classList.toggle('indeterminate', a.frac === null);
-  activity.bar.style.width = a.frac === null ? '' : (100 * clamp(a.frac, 0, 1)).toFixed(1) + '%';
+  if (B.pct.textContent !== pct) B.pct.textContent = pct;
+  B.box.classList.toggle('indeterminate', a.frac === null);
+  B.bar.style.width = a.frac === null ? '' : (100 * clamp(a.frac, 0, 1)).toFixed(1) + '%';
 }
 
 /* ---------- Fibres and photodetectors: the field that reaches their face ----------
@@ -30402,7 +30633,10 @@ function tick(t) {
     // gliding one, where each step's trace is kept, on steps fine enough to look smooth (up to
     // about 60 a second) so that each comes round again
     const st = !P && sw.steps ? sw.steps * sw.freq : !P && traceStoreOn() ? clamp(Math.round(60 / sw.freq), 120, 600) * sw.freq : 0;
-    setParam(el, p.path, P ? stepValue(sw, tq, fieldRendered.n, P) : clockValueAt(sw, st ? Math.round(clockT * st) / st : tq));
+    // (a sweep of its own steps: the step by its number in the cycle, as stepValue has it, so each cycle comes back to the very
+    // same values, and a particle's answers solved ahead for them are found: ui/scatter.js particlesAhead)
+    const own = !P && sw.steps > 0 ? Math.round(clockT * st) : null;
+    setParam(el, p.path, P ? stepValue(sw, tq, fieldRendered.n, P) : own !== null ? stepValue(sw, ((own % sw.steps) + sw.steps) % sw.steps, sw.steps, 1 / sw.freq) : clockValueAt(sw, st ? Math.round(clockT * st) / st : tq));
   }
   // traced before the panels look: a screen's field is found by the bench as traced, and a
   // trace a step behind its parts asks for a field no step has (worked out live, every step)
@@ -30517,6 +30751,7 @@ function stackLongSelects(root) {
 function bindSync(node, sync) { refs.push({ node, sync }); sync(); }
 
 /* A plain number input. `onValue` receives a number (or `blank` when emptied). */
+const EDIT_SETTLE = 140;          // ms of no typing before a number typed reaches the bench (numInput)
 function numInput(id, get, onValue, opts = {}) {
   const inp = h('input', { id, type: 'text', inputmode: 'decimal', spellcheck: 'false', placeholder: opts.placeholder });
   const show = opts.fmt || fmtNum;
@@ -30527,15 +30762,21 @@ function numInput(id, get, onValue, opts = {}) {
     bindSync(inp, () => { inp.value = show(get()); });
     return inp;
   }
+  // Typing is kept apart from the bench: each keystroke takes the value at once (the part holds it), and what the bench
+  // does with it (the panel's readouts, the trace, the 3D view, the workers: changed) waits until the typing pauses
+  // (EDIT_SETTLE ms), or Enter or leaving the box, so a key never waits on a slow bench. One Undo step an edit, as before.
+  let settle = 0, owed = false;
+  const flush = () => { clearTimeout(settle); settle = 0; if (owed) { owed = false; changed(false); } };
   inp.addEventListener('input', () => {
     const raw = inp.value.trim();
     let v;
     if (raw === '') { if (opts.blank === undefined) return; v = opts.blank; }
     else { v = Number(raw); if (!isFinite(v)) return; }
-    beginEdit(); onValue(v); changed(false);
+    beginEdit(); onValue(v);
+    owed = true; clearTimeout(settle); settle = setTimeout(flush, EDIT_SETTLE);
   });
-  inp.addEventListener('change', () => { endEdit(); inp.value = show(get()); });
-  inp.addEventListener('blur', endEdit);
+  inp.addEventListener('change', () => { flush(); endEdit(); inp.value = show(get()); });
+  inp.addEventListener('blur', () => { flush(); endEdit(); });
   bindSync(inp, () => { inp.value = show(get()); });
   return inp;
 }
@@ -30547,7 +30788,8 @@ const sweepOpen = new Set();
 function paramBits(label, el, path, opts, id) {
   const sweeps = el.sweeps || (el.sweeps = {});
   const sw = sweeps[path], key = sweepKey(el, path), open = !!sw && sweepOpen.has(key);
-  const inp = numInput(id, () => getPath(el, path), v => { const H = opts.carry ? mateHold(el) : null; pause(el, path); setParam(el, path, v); mateFollow(H); }, opts);
+  // (a sweep of it playing or rendering stops: looked for first, as pausing redraws the panel)
+  const inp = numInput(id, () => getPath(el, path), v => { const H = opts.carry ? mateHold(el) : null; if (isPlaying(el, path) || jobHas(sweepJob, el, path)) pause(el, path); setParam(el, path, v); mateFollow(H); }, opts);
   inp.dataset.path = path;                      // which setting it is (an exercise lets only some be changed: ui/challenge.js)
   const name = label.replace(/\s*\(.*\)$/, '');
   const tip = sw ? (open ? 'Fold the sweep of ' : 'Edit the sweep of ') + name : 'Sweep ' + name + ' over a range';
@@ -38172,7 +38414,8 @@ function drawScatField() {
 /* The worker: this app again, asked for kind 'scatter' (worker/main.js), which sends its
    progress as it goes and the answer at the end. One run at a time; a run whose bench has
    moved on is let finish if it is nearly instant and stopped otherwise; Stop ends the worker. */
-const SCW = { w: null, failed: false, job: null, want: new Map(), stopped: new Map(), seq: 0, timer: null };
+const SCW = { w: null, failed: false, job: null, queue: [], stopped: new Map(), seq: 0, timer: null, ahead: null, done: 0, letFinish: () => false };
+const scatWork = SCW;
 function scatWorker() {
   if (SCW.w) return SCW.w;
   if (SCW.failed || TEST_MODE || !WORKERS_OK) return null;
@@ -38182,10 +38425,14 @@ function scatWorker() {
       const m = e.data, J = SCW.job;
       if (!J || J.id !== m.id) return;
       if (m.prog) { J.prog = m.prog; syncPanel(); return; }
-      SCW.job = null;
-      if (!m.ok) { console.warn('JEKray scattering worker:', m.err); scatFail(); return; }
+      SCW.job = null; clearTimeout(J.kill);
+      if (!m.ok) { console.warn('JEKray scattering worker:', m.err); scatFail(); if (J.reject) J.reject(new Error(m.err)); return; }
+      const o = m.out || {};
       // (a Particle part's answer is what the bench's trace launches its scattered light from: kept, the bench is drawn again)
-      if (m.out && m.out.S) { scatKeep(J.elId, m.out.key, m.out.S); requestRender(); }
+      // (a step solved ahead is kept for when the sweep gets there, not put on show)
+      if (o.S && o.key) { if (J.proj) scatStore(o.key, o.S); else scatKeep(J.elId, o.key, o.S); SCW.done++; requestRender(); }
+      if (o.T !== undefined && o.key) { trapKeep(trapKeyOf(o.key), o.T); requestRender(); }
+      if (J.resolve) J.resolve(o.cancelled ? null : o);
       syncPanel(); scatPump();
     };
     w.onerror = e => { e.preventDefault(); scatFail(); };
@@ -38198,52 +38445,159 @@ function scatFail() {
   SCW.failed = true;
   setScatMode('sync');
   if (SCW.w) SCW.w.terminate();
-  SCW.w = null; SCW.job = null;
+  const all = [SCW.job, ...SCW.queue].filter(Boolean);
+  SCW.w = null; SCW.job = null; SCW.queue = [];
+  for (const j of all) if (j.reject) j.reject(new Error('the scattering worker failed'));
   syncPanel();
 }
+/* The running job is out of date: the worker is asked to drop it (it hears between slices of its work, and keeps what it
+   has worked out, the answers it combines included); one that has not answered within a few seconds (a long step that
+   cannot be broken off) is stopped, and a fresh worker (a spare kept ready: page/workers.js) takes the next job. */
+function scatCancel() {
+  const J = SCW.job;
+  if (!J || J.cancelling) return;
+  J.cancelling = true;
+  if (SCW.w) SCW.w.postMessage({ cancel: J.id });
+  J.kill = setTimeout(() => { if (SCW.job === J) { scatKill(); scatPump(); } }, 3000);
+}
 function scatKill() {
+  const J = SCW.job;
   if (SCW.w) SCW.w.terminate();
   SCW.w = null; SCW.job = null;
+  if (J) { clearTimeout(J.kill); if (J.resolve) J.resolve(null); }
 }
 function scatPump() {
-  if (SCW.job || !SCW.want.size) return;
+  if (SCW.job || !SCW.queue.length) return;
   // (a moment after the last change, so a value being typed or dragged starts one run, not ten)
   clearTimeout(SCW.timer);
   SCW.timer = setTimeout(() => {
-    if (SCW.job || !SCW.want.size) return;
+    if (SCW.job || !SCW.queue.length) return;
     if (midDrag()) { scatPump(); return; }
-    const [elId, key] = SCW.want.entries().next().value;
-    SCW.want.delete(elId);
-    const el = getEl(elId), J = el && scatterPrep(el), w = J && J.key === key && scatWorker();
-    if (!w) { syncPanel(); return; }
-    SCW.job = { id: ++SCW.seq, elId, key, t0: performance.now(), prog: null };
-    w.postMessage({ id: SCW.job.id, kind: 'scatter', args: { id: elId }, proj: fwProject(), mods: modDelta(w) });
+    const q = SCW.queue.shift(), el = getEl(q.elId), w = el && scatWorker();
+    // (one asked for live: still wanted only if the bench still asks for it)
+    if (!w || (!q.proj && (!scatterPrep(el) || scatterPrep(el).key !== q.key))) { if (q.resolve) q.resolve(null); syncPanel(); scatPump(); return; }
+    SCW.job = Object.assign(q, { id: ++SCW.seq, t0: performance.now(), prog: null });
+    w.postMessage({ id: SCW.job.id, kind: q.kind, args: { id: q.elId, sets: q.sets || null, trap: false }, proj: q.proj || fwProject(), mods: modDelta(w) });
     syncPanel();
-  }, 120);
+  }, SCW.queue[0].proj ? 0 : 120);
+}
+/* ask for a job (kind 'scatter' or 'trap') for a particle as the bench now is: one waiting for the same part and kind
+   is replaced, and one running for a state the bench has left is dropped */
+function scatWant(el, key, kind) {
+  SCW.queue = SCW.queue.filter(q => q.proj || q.elId !== el.id || q.kind !== kind);
+  const live = { kind, elId: el.id, key };
+  // (live work goes before a sweep's steps solved ahead)
+  const at = SCW.queue.findIndex(q => q.proj);
+  if (at < 0) SCW.queue.push(live); else SCW.queue.splice(at, 0, live);
+  const J = SCW.job;
+  // (while sweeps play, one running is let finish: its answer is kept for when the sweep comes back to it, where one
+  // stopped at each step would never be done)
+  if (J && !J.proj && J.elId === el.id && J.kind === kind && J.key !== key && !SCW.letFinish()) scatCancel();
+  scatPump();
+}
+/* A sweep's step solved ahead: the bench as it is (proj) with the step's values set (sets: [id, path, value]); resolves
+   with { key, S }, or null when it was dropped */
+function scatterAhead(elId, proj, sets) {
+  if (TEST_MODE || SCW.failed || !WORKERS_OK || !scatWorker()) return null;
+  return new Promise((resolve, reject) => { SCW.queue.push({ kind: 'scatter', elId, key: null, proj, sets, resolve, reject }); scatPump(); });
+}
+/* A sweep's steps solved ahead for every Particle part whose light is on, one after another on the scattering worker
+   (beside the field's workers), each answer kept by its key (engines/scatter.js scatKept) so that each step, played,
+   finds its own. valueAt(el, path, i) the step's value, as the sweep will set it; live() false once the sweep is gone.
+   Its progress is SCW.ahead, which the activity bar reads. On the page alone (no workers, the tests) the steps are
+   solved where the field's own render does them (particlesAheadNow). */
+async function particlesAhead(list, n, valueAt, live) {
+  const parts = project.elements.filter(e => e.type === 'particle' && e.scatLight !== false && scatterPrep(e));
+  if (!parts.length || TEST_MODE || SCW.failed || !WORKERS_OK || !scatWorker()) return;
+  scatterAheadStop();
+  const run = SCW.ahead = { i: 0, n, done: 0, of: n * parts.length, t0: performance.now(), names: parts.map(e => e.name) };
+  const proj = fwProject();
+  try {
+    for (let i = 0; i < n; i++) for (const el of parts) {
+      if (SCW.ahead !== run || !live()) { if (SCW.ahead === run) SCW.ahead = null; return; }
+      run.i = i;
+      await scatterAhead(el.id, proj, list.map(([e, p]) => [e.id, p, valueAt(e, p, i)]));
+      if (SCW.ahead !== run) return;
+      run.done++;
+      syncPanel();
+    }
+  } catch (err) { /* the worker failed: the steps are worked out live */ }
+  if (SCW.ahead === run) SCW.ahead = null;
+  syncPanel();
+}
+/* the same on the page, for one step as the bench now stands (the render on the page sets each step's values) */
+function particlesAheadNow(i, n) {
+  const parts = project.elements.filter(el => el.type === 'particle' && el.scatLight !== false && scatterPrep(el));
+  if (!parts.length) return;
+  SCW.ahead = { i, n, done: i, of: n, t0: performance.now(), names: parts.map(e => e.name), page: true };
+  for (const el of parts) {
+    const J = scatterPrep(el);
+    if (scatFind(el.id, J.key, true)) continue;
+    scatKeep(el.id, J.key, scatterRun(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep, bare: true }), { trap: false }), true);
+  }
+}
+/* the steps on the page are done (or stopped) */
+function particlesAheadDone() { if (SCW.ahead && SCW.ahead.page) SCW.ahead = null; }
+/* What the scattering is doing, for the activity bar's own line (ui/sweeps.js): a sweep's steps solved ahead, or the
+   particle's solve on show; null when nothing is (or for less than a moment) */
+function scatActivity() {
+  const A = SCW.ahead, J = SCW.job, now = performance.now();
+  const stage = P => !P ? '' : P.stage === 'dipoles' ? (P.combined ? 'combined from earlier answers' : 'dipole array, ' + P.N + ' dipoles, iteration ' + P.iter) : P.stage === 'pattern' ? 'the pattern' : P.stage === 'sphere' ? 'Mie' : 'the light at the particle';
+  // a solve's progress in its run: its stage, and a dipole solve's residual on its way down to the tolerance (on a log scale)
+  const frac = P => !P ? 0 : P.stage === 'light' ? 0.05 : P.stage === 'dipoles' ? 0.1 + 0.75 * (P.combined ? 1 : Math.min(1, Math.max(0, Math.log(Math.max(P.resid, 1e-300)) / Math.log(P.tol || 1e-5)))) : P.stage === 'sphere' ? 0.5 : P.stage === 'pattern' ? 0.9 : 0;
+  if (A) {
+    const part = J && J.proj ? frac(J.prog) : 0;
+    return { text: 'Scattering' + (A.names.length === 1 ? ' by ' + A.names[0] : '') + ' for the sweep: step ' + (Math.min(A.n, A.i + 1)) + ' of ' + A.n + (J && J.proj && J.prog ? ', ' + stage(J.prog) : ''), frac: (A.done + part) / A.of };
+  }
+  if (J && now - J.t0 > 250) {
+    const el = getEl(J.elId), who = el ? el.name : 'the particle';
+    if (J.kind === 'trap') return { text: 'Finding the trap that holds ' + who, frac: null };
+    return { text: 'Scattering by ' + who + (J.prog ? ': ' + stage(J.prog) : '') + (J.cancelling ? ' (stopping: the bench has moved on)' : ''), frac: frac(J.prog) };
+  }
+  return null;
+}
+/* every step solved ahead dropped (the sweep stopped or rendered again) */
+function scatterAheadStop() {
+  for (const q of SCW.queue) if (q.proj && q.resolve) q.resolve(null);
+  SCW.queue = SCW.queue.filter(q => !q.proj);
+  if (SCW.job && SCW.job.proj) scatCancel();
+  SCW.ahead = null;
 }
 /* A screen's scattering: { S, busy, prog, stopped }. S is the last answer for this screen (stale
    while busy), null before the first; prog the run's progress. */
 function scatterLater(el) {
   const J = scatterPrep(el);
   if (!J) return { S: null, busy: false, none: true };
+  const k = scatFind(el.id, J.key);
+  if (k) { if (k.fresh) requestRender(); return { S: k.S, busy: false }; }
   const c = scatCache.get(el.id);
-  if (c && c.key === J.key) return { S: c.S, busy: false };
-  if (TEST_MODE || SCW.failed || !WORKERS_OK) return { S: scatterNow(el), busy: false };
+  if (TEST_MODE || SCW.failed || !WORKERS_OK) return { S: scatterNow(el, { trap: false }), busy: false };
   if (SCW.stopped.get(el.id) === J.key) return { S: c ? c.S : null, busy: false, stopped: true, stale: !!c };
   const job = SCW.job;
-  if (job && job.elId === el.id) {
-    if (job.key === J.key) return { S: c ? c.S : null, busy: true, prog: job.prog, t0: job.t0, stale: !!c };
-    // the bench has moved on under a run: a quick one finishes, a long one is stopped
-    if (performance.now() - job.t0 > 1200) scatKill();
-  }
-  SCW.want.set(el.id, J.key);
-  scatPump();
+  if (job && job.elId === el.id && job.kind === 'scatter' && job.key === J.key && !job.cancelling) return { S: c ? c.S : null, busy: true, prog: job.prog, t0: job.t0, stale: !!c };
+  // (a sweep's steps being solved ahead: this one comes with them; nothing is asked meanwhile)
+  if (SCW.ahead && !SCW.ahead.page && SCW.ahead.names.includes(el.name)) return { S: c ? c.S : null, busy: true, prog: null, stale: !!c, ahead: true };
+  if (!SCW.queue.some(q => !q.proj && q.elId === el.id && q.kind === "scatter" && q.key === J.key)) scatWant(el, J.key, "scatter");
   return { S: c ? c.S : null, busy: true, prog: null, stale: !!c };
+}
+/* A Particle part's trap: in its answer when the run solved it (the particle put where the trap holds it), else kept from
+   before, else asked of the worker apart: { T, busy } as particleTrapLater takes them */
+function trapLater(el) {
+  const J = scatterPrep(el);
+  if (!J) return { T: null, busy: false };
+  const c = scatFind(el.id, J.key, true);
+  if (c && c.S && c.S.trapRaw) return { T: c.S.trapRaw, busy: false };
+  const tk = trapKeyOf(J.key);
+  if (trapKept.has(tk)) return { T: trapKept.get(tk), busy: false };
+  if (TEST_MODE || SCW.failed || !WORKERS_OK) return { T: particleTrapNow(el), busy: false };
+  const job = SCW.job;
+  if (!(job && job.elId === el.id && job.kind === 'trap' && job.key === J.key) && !SCW.queue.some(q => !q.proj && q.elId === el.id && q.kind === 'trap' && q.key === J.key)) scatWant(el, J.key, 'trap');
+  return { T: null, busy: true };
 }
 function scatStop(el) {
   const J = scatterPrep(el);
   if (J) SCW.stopped.set(el.id, J.key);
-  SCW.want.delete(el.id);
+  SCW.queue = SCW.queue.filter(q => q.proj || q.elId !== el.id);
   if (SCW.job && SCW.job.elId === el.id) scatKill();
   syncPanel();
 }
@@ -38307,7 +38661,7 @@ function scatterRows(el, S) {
   const rows = [], D = S.dda;
   const how = S.model === 'mie' ? ', ' + S.mie.terms + ' terms' + (S.shape === 'sphere' ? ', exact for a sphere' : '')
     : S.model === 'dda' ? ': ' + D.N + ' dipoles ' + scatSig(D.d, 3) + ' nm apart (' + scatSig(D.across, 3) + ' across), |m|kd = ' + scatSig(D.mkd, 2) + ', lattice dispersion relation; ' +
-      (D.converged ? 'solved in ' + D.iters + ' iterations' : 'not converged after ' + D.iters + ' iterations') + ' (residual ' + scatSig(D.resid, 2) + ')'
+      (D.converged ? 'solved in ' + D.iters + ' iterations' : 'not converged after ' + D.iters + ' iterations') + ' (residual ' + scatSig(D.resid, 2) + ')' + (D.combined ? '; ' + (D.runs ? D.combined + ' of its ' + (D.runs + D.combined) + ' solves' : 'its solve' + (D.combined > 1 ? 's' : '')) + ' combined from answers already worked out for other light (the particle is linear in it)' : '') + (D.warm ? '; started from the nearest answer worked out before' : '')
       : ', good while the particle is much smaller than the wavelength';
   rows.push(['Model', MODEL_NAME[S.model] + how + (S.auto ? ' (Auto’s choice)' : '') + '; ' + scatSig(S.ms / 1000, 2) + ' s']);
   const size = S.shape === 'sphere' ? 'a sphere ' + fmtLen(S.D * 1e-6) + ' across' : ({ cylinder: 'a rod with flat ends', capsule: 'a rod with round ends', spheroid: 'a spheroid' })[S.shape] + ', ' + fmtLen(S.L * 1e-6) + ' × ' + fmtLen(S.D * 1e-6);
@@ -38358,7 +38712,9 @@ function caughtRows(el) {
 /* A Particle part's trap, from its scattering run (which solves the trap where it is): { T, busy } as the Trap tab takes them */
 function particleTrapLater(el) {
   const A = scatterLater(el), S = A.S;
-  return { T: S && S.trapRaw ? trapReport(el, S.trapRaw) : S && S.error ? { error: S.error === 'no beam' ? 'no focused beam' : S.error } : null, busy: !!A.busy, none: !!A.none };
+  if (S && S.error) return { T: { error: S.error === 'no beam' ? 'no focused beam' : S.error }, busy: !!A.busy, none: !!A.none };
+  const P = trapLater(el);
+  return { T: P.T ? (P.T.error ? { error: P.T.error } : trapReport(el, P.T)) : null, busy: !!A.busy || P.busy, none: !!A.none };
 }
 /* The bench's trace launches each Particle part's scattered light from the answer kept for it. Where that answer is from
    before the last change (or there is none yet), the worker is asked for a new one; when it comes the bench is drawn
@@ -38472,7 +38828,8 @@ function scatterSection(el) {
     panel.append(helpLine('Choose a particle to read the light it scatters here.', ['Choose a sphere, a rod or a spheroid to read the light it scatters from the beams through this screen: its cross-sections, where the scattered light goes, and how much a lens of a given numerical aperture would collect. Put the screen at (or near) the focus and untick “Stop the rays it records” on the Screen tab so the light carries on. The same particle is the one the Trap tab reads.'], 'note', 'margin-top:0.5rem'));
     return;
   }
-  const status = h('div', { class: 'rt-scatrun', role: 'status', 'aria-live': 'polite', style: 'display:none;align-items:center;gap:0.6rem;margin-top:0.6rem;font-size:0.8125rem;color:var(--jek-ink-soft)' });
+  const status = h('div', { class: 'rt-scatrun', role: 'status', 'aria-live': 'polite', style: 'display:none;align-items:center;flex-wrap:wrap;gap:0.6rem;margin-top:0.6rem;font-size:0.8125rem;color:var(--jek-ink-soft)' });
+  const bar = h('progress', { class: 'rt-scatbar', max: 1, 'aria-label': 'Scattering progress', style: 'flex:1;min-width:4rem;height:0.4rem;accent-color:var(--jek-cyan)' });
   const box = h('div', { class: 'rt-readout' });
   const views = [['in', 'In the bench plane'], ['out', 'Out of the plane'], ['map', 'Every direction']];
   const tabs = h('div', { class: 'rt-inline', style: 'margin:0.5rem 0 0.3rem;flex-wrap:wrap;column-gap:0.8rem;row-gap:0.2rem' });
@@ -38515,12 +38872,15 @@ function scatterSection(el) {
   bindSync(box, () => {
     const A = scatterLater(el), S = A.S && !A.S.error ? A.S : null;
     // the run's line: what it is doing, and Stop; or that it was stopped, and Run
-    let st = [];
-    if (A.busy) {
+    let st = [], frac = null;
+    // (with a bar of its own beside the line: what the bench's scattering bar reads, scatActivity)
+    const act = scatActivity();
+    if (A.busy || (act && SCW.ahead)) {
       const P = A.prog;
-      const what = !P ? 'Working out the scattering…' : P.stage === 'dipoles' ? 'Dipole array, ' + P.N + ' dipoles: ' + (P.iter ? 'iteration ' + P.iter + ', residual ' + scatSig(P.resid, 2) : 'starting') + '…'
+      const what = act && SCW.ahead ? act.text + '…' : !P ? 'Working out the scattering…' : P.stage === 'dipoles' ? (P.combined ? 'Dipole array: combined from answers already worked out…' : 'Dipole array, ' + P.N + ' dipoles: ' + (P.iter ? 'iteration ' + P.iter + ', residual ' + scatSig(P.resid, 2) : 'starting') + '…')
         : P.stage === 'pattern' ? 'Working out the pattern…' : 'Taking the light at the particle…';
-      st = [what, 'stop'];
+      frac = act ? act.frac : null;
+      st = [what, A.busy && !A.ahead ? 'stop' : ''];
     } else if (A.stopped) st = ['Stopped.', 'run'];
     else if (A.S && A.S.error) st = ['No scattering: ' + (A.S.error === 'no beam' || A.S.error === 'no focused beam' || A.S.error === 'no light' ? 'no Gaussian beam through here has a field to take.' : A.S.error), ''];
     else if (A.none) st = [isPart ? 'No Gaussian beam passes the particle (within three beam radii of it).' : 'No Gaussian beam reaches this screen.', ''];
@@ -38528,9 +38888,11 @@ function scatterSection(el) {
     if (s1 !== sigT) {
       sigT = s1;
       status.replaceChildren(...(st.length ? [h('span', null, st[0]), st[1] === 'stop' ? h('button', { class: 'rt-zb', type: 'button', onclick: () => scatStop(el) }, 'Stop')
-        : st[1] === 'run' ? h('button', { class: 'rt-zb', type: 'button', onclick: () => scatGo(el) }, 'Run') : ''] : []));
+        : st[1] === 'run' ? h('button', { class: 'rt-zb', type: 'button', onclick: () => scatGo(el) }, 'Run') : ''] : []), bar);
       status.style.display = st.length ? 'flex' : 'none';
     }
+    bar.hidden = !st.length || !A.busy && !SCW.ahead;
+    if (frac === null) bar.removeAttribute('value'); else bar.value = Math.max(0, Math.min(1, frac));
     box.style.opacity = A.busy && S ? '0.55' : '';              // figures from before the last change, while their run is redone
     // (a Particle part: after its own figures, where its scattered light goes on the bench)
     const rows = (S ? scatterRows(el, S) : []).concat(isPart && (S || A.none) ? caughtRows(el) : []);
@@ -39197,6 +39559,7 @@ function popIntensityAt(F) {
   return r => { const [a, b] = f(r); return a * a + b * b; };
 }
 /* the same, the residual field itself, [re, im] */
+const SERIES_MEMO = 4096;                   // radii kept a series
 function popFieldSeries(F) {
   if (F._series) return F._series;
   if (F.bab) {
@@ -39215,7 +39578,17 @@ function popFieldSeries(F) {
   const Q = qdht(F.re.length), [sr, si] = hankel(Q, F.R, F.re, F.im), V = Q.S / (2 * Math.PI * F.R), k = 1 / (Math.PI * F.R * F.R);
   const nu = new Float64Array(Q.N), wr = new Float64Array(Q.N), wi = new Float64Array(Q.N);
   for (let m = 0; m < Q.N; m++) { nu[m] = Q.j[m] * V / Q.S; wr[m] = sr[m] * Q.inv[m] * k; wi[m] = si[m] * Q.inv[m] * k; }
-  const f = r => { let a = 0, b = 0; for (let m = 0; m < Q.N; m++) { const j = besselJ01(2 * Math.PI * nu[m] * r)[0]; a += wr[m] * j; b += wi[m] * j; } return [a, b]; };
+  // (each radius's sum kept, the same radius asked for again given at once: a trap's search asks for the field at the same few
+  // radii over and over, a point and its neighbours either way, on the axis and off it)
+  const memo = new Map();
+  const f = r => {
+    const was = memo.get(r);
+    if (was) return [was[0], was[1]];
+    let a = 0, b = 0; for (let m = 0; m < Q.N; m++) { const j = besselJ01(2 * Math.PI * nu[m] * r)[0]; a += wr[m] * j; b += wi[m] * j; }
+    if (memo.size >= SERIES_MEMO) memo.clear();
+    memo.set(r, [a, b]);
+    return [a, b];
+  };
   Object.defineProperty(F, '_series', { value: f, enumerable: false });
   return f;
 }
@@ -45985,6 +46358,27 @@ function scatterWaves(parts, C, nMed, size, zRef = BEAM_Z) {
 // the waves' sum at the centre: [xr, xi, yr, yi, zr, zi]
 const wavesAt0 = L => { const e = [0, 0, 0, 0, 0, 0]; for (let o = 0; o < L.n; o++) for (let m = 0; m < 6; m++) e[m] += L.E[6 * o + m]; return e; };
 const abs2 = e => e.reduce((a, v) => a + v * v, 0);
+/* ---------- Answers combined, the particle being linear in its light (core/linmemo.js) ----------
+   A sphere's far field along a set of directions is a linear map of its waves' fields (the waves' directions fixed): kept
+   by the sphere, the waves' directions and the directions asked for, a field that is a combination of ones already
+   worked out (the same light in another polarisation or at another power) takes the same combination of their far
+   fields. The dipole array's solve the same: its dipoles for an incident field, kept by the lattice, its
+   polarisability and the solver's tolerance; a field that is not a combination is solved from the best combination
+   as its start. LIN_STATS counts what was combined and what worked out, for the tests and the progress line. */
+const LIN_STATS = { mieDone: 0, mieCombined: 0, ddaSolved: 0, ddaCombined: 0, ddaWarm: 0 };
+const MIE_LIN = linStore(48, 4), DDA_LIN = linStore(16, 4), DDA_FAR = linStore(16, 4), DDA_WARM = new Map();
+const DIR_SIG = new WeakMap();
+const dirSig = d => { let s = DIR_SIG.get(d); if (!s) { s = arrSig(d); DIR_SIG.set(d, s); } return s; };
+function linClear() { MIE_LIN.clear(); DDA_LIN.clear(); DDA_FAR.clear(); DDA_WARM.clear(); }
+function mieFar(tabKey, tab, k, L, dirs) {
+  const E = L.E.length === 6 * L.n ? L.E : L.E.subarray(0, 6 * L.n), d = L.d.length === 3 * L.n ? L.d : L.d.subarray(0, 3 * L.n);
+  const key = tabKey + '|' + dirSig(d) + '|' + dirSig(dirs), f = MIE_LIN.fit(key, E);
+  if (f && f.c.length && f.rel <= LIN_TOL) { LIN_STATS.mieCombined++; return linCombine(f.W, f.c); }
+  const F = mieFarWaves(tab, k, L, dirs);
+  LIN_STATS.mieDone++;
+  MIE_LIN.put(key, E, F, f);
+  return F;
+}
 /* the waves' field at each dipole of a lattice (body frame; fr the body's axes in the world): 6 N numbers */
 function wavesOnLattice(L, lat, k, fr) {
   const N = lat.N, E = new Float64Array(6 * N), db = toFrame(fr, L.d, 1), Eb = toFrame(fr, L.E, 2);
@@ -46111,7 +46505,11 @@ function* scatterGen(el, R, opts) {
   const F0 = beamFrame(b0), d0 = F0.d, a0 = F0.ex, up = F0.ey, zRef = F0.P0[2];
   // (a Particle part sits where it is put: off the beam's axis by what it is)
   let at = [sd.x, sd.dz, 0], atTrap = false, trapMiss = false, trapRaw = null;
-  {
+  // (the trap is solved here when the particle is put where the trap holds it, or when it is asked for with the answer; the
+  // page asks for it apart, and only while the Trap tab is read: its search is most of a sphere's time, and a particle
+  // put where the part is does not depend on it)
+  const trapNow = el.scatAt === 'trap' || !(opts && opts.trap === false);
+  if (trapNow) {
     let T = null;
     try { T = trapSolve(el, R, dom, len); } catch (err) { T = null; }
     if (T) trapRaw = T.error ? { error: T.error } : Object.assign({}, T, { nm });
@@ -46142,7 +46540,7 @@ function* scatterGen(el, R, opts) {
     x: k * aEq, kL: k * Math.max(P.D, P.L) / 2, area, I0, E2, at: { x: at[0], y: at[1], z: at[2], trap: atTrap }, beams: TB.parts.length, launches: launches.length,
     waves: launches.reduce((a, L) => a + L.n, 0), pupils: W.notes.pupils, plane: W.notes.plane, routes: TB.parts.map(q => (q.P ? q.P.route : 'beam')), single, dir: d0, pol, axis, flags,
     // where the particle is on the bench (mm; z its height above the breadboard), and the trap there (a Particle part's Trap tab)
-    pos: [C[0], C[1], zRef + C[2]], elPos: [el.x, el.y, zOf(el)], ...(trapRaw ? { trapRaw } : {}) };
+    pos: [C[0], C[1], zRef + C[2]], elPos: [el.x, el.y, zOf(el)], ...(trapRaw ? { trapRaw } : {}), ...(trapNow ? {} : { trapLater: true }) };
   // A particle inside a cavity its light goes round: solved in the cavity's modes where it can be (engines/scatter-cavity.js),
   // the launch the cavity's legs are in taking the light that comes back along the axis. Where it cannot (a degenerate,
   // ring, clipped, turned or misaligned cavity) the light that comes back is taken once, flagged (returnPlan).
@@ -46446,7 +46844,7 @@ function* scatterGen(el, R, opts) {
   };
   if (model === 'mie') {
     if (P.shape !== 'sphere') flags.push('mieNotSphere');
-    const tab = mieTable(CM);
+    const tab = mieTable(CM), tabKey = [k, aEq, mr, mi, CM.n].join(",");
     // the particle's own light that a retro-reflector brings back to it, scattered again (see particleReturn)
     for (let i = 0; i < launches.length; i++) {
       const L = launches[i];
@@ -46455,13 +46853,13 @@ function* scatterGen(el, R, opts) {
       cavDone(L, cavitySolve(plan, cavK, mieFarWaves(tab, k, L, cavDirs), j => mieFarWaves(tab, k, unitWave(j), cavDirs), k, nMed, cavTail()));
     }
     for (const L of launches) {
-      fars.push(dirs => mieFarWaves(tab, k, L, dirs));
+      fars.push(dirs => mieFar(tabKey, tab, k, L, dirs));
       yield { stage: 'sphere' };
       // the optical theorem, wave by wave: P_ext = (4 pi / k) / (2 Z) Im sum conj(E_o) . F(d_o)
       // (a pupil solve's returned waves: along them the far field is the solve's own)
       let F;
       if (L.farGrid && L.n0 !== undefined && L.farGrid.length === 6 * (L.n - L.n0)) { F = new Float64Array(6 * L.n); F.set(mieFarWaves(tab, k, L, L.d.subarray(0, 3 * L.n0))); F.set(L.farGrid, 6 * L.n0); }
-      else F = mieFarWaves(tab, k, L, L.d);
+      else F = mieFar(tabKey, tab, k, L, L.d);
       let s = 0; for (let q = 0; q < F.length; q += 2) s += L.E[q] * F[q + 1] - L.E[q + 1] * F[q];
       Pext.push(4 * Math.PI / k * s / (2 * Z)); Pabs.push(null);
     }
@@ -46509,15 +46907,42 @@ function* scatterGen(el, R, opts) {
     if (lat.coarse) flags.push('coarse');
     if (lat.capped) flags.push('capped');
     if (mAbs > 2.5) flags.push('highIndex');
+    // (an incident field that is a combination of ones solved for this lattice, polarisability and tolerance takes their
+    // answers' combination; another starts from the nearest combination of the last few solved for this lattice, whatever
+    // their polarisability: a particle turned a little, or lit a little differently, starts close to its answer)
+    const tol = o.tol || 1e-5, maxIter = o.maxIter || 300, wKey = [lat.N, lat.nx, lat.ny, lat.nz, lat.d, k, arrSig(lat.x), arrSig(lat.y), arrSig(lat.z)].join('|'), lKey = wKey + '|' + alpha + '|' + tol + '|' + maxIter;
+    D.combined = 0; D.warm = 0;
     const runSolve = function* (E, what, x0) {
-      const g = S.solve(E, { tol: o.tol || 1e-5, maxIter: o.maxIter || 300, x0 });
+      const f = DDA_LIN.fit(lKey, E);
+      if (f && f.c.length && f.rel <= LIN_TOL) { D.combined++; LIN_STATS.ddaCombined++; yield { stage: 'dipoles', what, iter: 0, resid: 0, N: lat.N, combined: true }; return linCombine(f.W, f.c); }
+      if (!x0) {
+        const W = DDA_WARM.get(wKey), g0 = W && W.V.length ? linFit(W.V, E) : null;
+        if (g0 && g0.c.length && g0.rel < 0.5) { x0 = linCombine(W.W, g0.c); D.warm++; LIN_STATS.ddaWarm++; }
+      }
+      const g = S.solve(E, { tol, maxIter, x0 });
       let r = g.next();
-      while (!r.done) { yield { stage: 'dipoles', what, iter: r.value.iter, resid: r.value.resid, N: lat.N }; r = g.next(); }
+      while (!r.done) { yield { stage: 'dipoles', what, iter: r.value.iter, resid: r.value.resid, N: lat.N, tol }; r = g.next(); }
       D.iters += r.value.iters; D.resid = Math.max(D.resid, r.value.resid); D.runs++;
+      LIN_STATS.ddaSolved++;
       if (!r.value.converged) D.converged = false;
+      else {
+        DDA_LIN.put(lKey, E, r.value.p, f);
+        let W = DDA_WARM.get(wKey);
+        if (!W) { W = { V: [], W: [] }; DDA_WARM.set(wKey, W); while (DDA_WARM.size > 4) DDA_WARM.delete(DDA_WARM.keys().next().value); }
+        W.V.push(Float64Array.from(E)); W.W.push(Float64Array.from(r.value.p));
+        if (W.V.length > 4) { W.V.shift(); W.W.shift(); }
+      }
       return r.value.p;
     };
-    const farOf = p => dirs => fromFrame(body, ddaFar(lat, k, p, toFrame(body, dirs, 1)), 2);
+    // (the far field is linear in the dipoles: kept and combined as the solve is, by the lattice, the body's axes and the directions)
+    const farKey = wKey + "|" + body.flat().join(",");
+    const farOf = p => dirs => {
+      const key = farKey + "|" + dirSig(dirs), f = DDA_FAR.fit(key, p);
+      if (f && f.c.length && f.rel <= LIN_TOL) return linCombine(f.W, f.c);
+      const F = fromFrame(body, ddaFar(lat, k, p, toFrame(body, dirs, 1)), 2);
+      DDA_FAR.put(key, p, F, f);
+      return F;
+    };
     yield { stage: 'dipoles', what: 'wave', iter: 0, resid: 1, N: lat.N };
     let n = 0;
     for (const L of launches) {
@@ -46649,18 +47074,79 @@ function* scatterGen(el, R, opts) {
 /* The answers kept, a screen each, under the key they were worked out for: the page's worker fills it (ui/scatter.js),
    and scatterNow; the data export and the 3D view read it */
 const scatCache = new Map();
+/* Every answer worked out is kept too, by its whole key (the most recently used SCAT_KEEP of them, and no more than
+   SCAT_BYTES of their arrays), so a bench that comes back to a state it has been in (a sweep's next cycle, a value
+   stepped back and forth, an Undo) finds its answer at once. A trap found apart is kept the same way, by the
+   particle's key without its scattering settings. */
+const SCAT_KEEP = 64, SCAT_BYTES = 96e6;
+const scatKept = new Map(), trapKept = new Map();
+const sizeOf = S => { let b = 2000; const walk = (o, d) => { if (!o || typeof o !== 'object' || d > 4) return; if (ArrayBuffer.isView(o)) { b += o.byteLength; return; } for (const v of Array.isArray(o) ? o : Object.values(o)) walk(v, d + 1); }; walk(S, 0); return b; };
+let keptBytes = 0;
+function keepKept(key, S) {
+  const was = scatKept.get(key);
+  if (was) { scatKept.delete(key); keptBytes -= was.bytes; }
+  const bytes = sizeOf(S);
+  scatKept.set(key, { S, bytes }); keptBytes += bytes;
+  while (scatKept.size > SCAT_KEEP || (keptBytes > SCAT_BYTES && scatKept.size > 1)) { const [k0, v0] = scatKept.entries().next().value; scatKept.delete(k0); keptBytes -= v0.bytes; }
+}
+const trapKeyOf = key => key.slice(0, key.lastIndexOf('|scat'));
+function trapKeep(tkey, T) { trapKept.delete(tkey); trapKept.set(tkey, T); while (trapKept.size > SCAT_KEEP) trapKept.delete(trapKept.keys().next().value); }
 /* An answer taken into the cache. The bench's trace launches a Particle part's scattered light from the answer kept
-   for it, so the trace's key counts the answers taken (scatRevNow): a new one is a new trace. */
+   for it, so the trace's key counts the answers taken (scatRevNow): a new one is a new trace (quiet: the trace taking it
+   is the one that asked, so it needs no other). */
 let scatRev = 0;
 const scatRevNow = () => scatRev;
-function scatKeep(id, key, S) { scatCache.set(id, { key, S }); const el = getEl(id); if (el && el.type === 'particle') scatRev++; }
+function scatKeep(id, key, S, quiet) {
+  scatCache.set(id, { key, S });
+  if (S && !S.error && key) keepKept(key, S);
+  if (S && S.trapRaw && key) trapKeep(trapKeyOf(key), S.trapRaw);
+  const el = getEl(id); if (el && el.type === 'particle' && !quiet) scatRev++;
+}
+/* an answer worked out ahead (a sweep's step): kept, not put on show; the bench traced again, in case it is the one the
+   bench is at now */
+function scatStore(key, S) {
+  if (!S || S.error || !key) return;
+  keepKept(key, S);
+  if (S.trapRaw) trapKeep(trapKeyOf(key), S.trapRaw);
+  scatRev++;
+}
+/* the answer for a particle at a key: the one on show, or one kept from before (made the one on show) */
+function scatFind(id, key, quiet) {
+  const c = scatCache.get(id);
+  if (c && c.key === key) return c;
+  const k = scatKept.get(key);
+  if (!k) return null;
+  scatKept.delete(key); scatKept.set(key, k);
+  scatKeep(id, key, k.S, quiet);
+  return { key, S: k.S, fresh: true };
+}
+/* A Particle part's trap, worked out apart from its scattering (the page's worker asks for it while the Trap tab is
+   read): what scatterGen would have put in trapRaw */
+function particleTrapRaw(el, R) {
+  const sd = particleDom(el, R);
+  if (!sd) return { error: 'no beam' };
+  const e2 = Object.assign(Object.create(el), { length: 2 * Math.max(0.02, 3 * sd.w) });
+  let T = null;
+  try { T = trapSolve(e2, R, sd.dom, sd.len); } catch (err) { T = null; }
+  return T ? (T.error ? { error: T.error } : Object.assign({}, T, { nm: sd.dom.sg.b.nm })) : null;
+}
+/* the trap now, on this thread (kept, or worked out and kept) */
+function particleTrapNow(el) {
+  const job = scatterPrep(el);
+  if (!job) return null;
+  const tk = trapKeyOf(job.key);
+  if (trapKept.has(tk)) return trapKept.get(tk);
+  const T = particleTrapRaw(el, popRun(lastTrace.beams, job.srcs, { keep: job.keep, bare: true }));
+  trapKeep(tk, T);
+  return T;
+}
 /* How a trace gets an answer it does not have: 'sync', worked out there and then (Node, the tests, a script's
    worker); 'async', the page's own worker is asked and the last answer stands meanwhile (ui/scatter.js); 'off',
    none (the other workers, which trace a bench for something else). */
 let scatMode = null;
 const scatModeNow = () => scatMode || (IN_WORKER ? 'off' : 'sync');
 function setScatMode(m) { scatMode = m; }
-function scatterCached(el) { const J = scatterPrep(el), c = J && scatCache.get(el.id); return c && c.key === J.key ? c.S : null; }
+function scatterCached(el) { const J = scatterPrep(el), c = J && scatFind(el.id, J.key, true); return c ? c.S : null; }
 /* an answer as plain numbers and lists (a script's, a file's) */
 const scatterPlain = S => JSON.parse(JSON.stringify(S, (k, v) => (ArrayBuffer.isView(v) ? Array.from(v) : v)));
 /* the run in one go */
@@ -46916,8 +47402,9 @@ function scatterLaunch(surfsBy) {
     const job = scatterPrep(el);
     if (!job) { st.state = 'dark'; continue; }
     st.key = job.key;
-    let c = scatCache.get(el.id);
-    if (!(c && c.key === job.key) && scatModeNow() === 'sync') { scatterNow(el); c = scatCache.get(el.id); }
+    let c = scatFind(el.id, job.key, true) || scatCache.get(el.id);
+    // (the trap is not worked out for the trace: the Trap tab, a script or particleTrapNow ask for it apart)
+    if (!(c && c.key === job.key) && scatModeNow() === "sync") { scatterNow(el, { trap: false }); c = scatCache.get(el.id); }
     if (!c || !c.S || c.S.error || !c.S.far) { st.state = c && c.key === job.key ? 'dark' : 'wait'; continue; }
     st.S = c.S; st.state = c.key === job.key ? 'ok' : 'stale';
     const S = st.S, e0 = S.elPos || [el.x, el.y, zOf(el)];
@@ -60266,6 +60753,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'A <b>Particle</b> is far quicker to sweep and to edit. Its scattering is linear in its light, so once two polarisations are solved every other polarisation and power is their combination, checked on the field and never assumed: a 20-step sweep of a fibre laser’s polarisation on a 1 µm sphere went from about 100 s a cycle to 3 s, and as a dipole array from 108 s to 4 s. Every answer is kept, so a sweep’s next cycle, and a value typed back, show at once. A sweep solves the particle’s steps ahead, beside the field, with a bar of its own under the bench’s (“Scattering … step 7 of 20”) and in the Scattering tab, and each frame shows its own step. The dipole array sums its dipoles by FFT and starts each solve from the nearest answer (a 4000-dipole rod: 10 s a step to 1 s), the trap is found only when the Trap tab is read, a solve made out of date is stopped rather than left to run, and a rod’s <b>Axis tilt</b> goes past 90° to 180°, so a tilt sweep can carry it through upright. Numbers typed in a panel reach the bench once typing pauses, so a key never waits on a slow bench.',
     'Fibres no longer swing out in great loops in 3D when a bench opens straight there: their routes in 3D no longer depend on how the 2D bench is zoomed.',
     'Right-click a part and choose <b>Suppress</b> to take it out of the bench until it is wanted again, as CAD suppresses a feature: it is not drawn, in 2D or 3D, a click does not pick it, and nothing meets it: the light passes where it stood, and the fibres and wires plugged into it count as unplugged at its end. Several selected suppress together. The Bench panel\u2019s list keeps it, struck through: right-click it for <b>Unsuppress</b>. Undo, the file and share links keep it; in a script, <code>J.suppress(name, on)</code>.',
     'A <b>Particle</b> can draw an estimate of its scattered field, as the diffracted field is drawn, on the bench and in 3D: tick <b>Draw an estimate of its scattered field</b> on its Scattering tab. It is the far-field pattern falling off as 1/r², stopped at the first part each direction meets, the intensity alone, on a log scale of its own (the scattered light is a millionth of the beam or less), so the beam is drawn as it was. It has cool colours of its own (navy to cyan on the dark bench), told apart from the beam where they overlap; the 3D key gives its scale under the beam’s, and pointing at it reads it; and while it is drawn the particle’s fan and cone rays are faded to 30% so they do not clutter it. Off unless asked for.',
@@ -61309,7 +61797,7 @@ function scriptCalls() {
     /* Lorenz-Mie for a sphere of size parameter x = k a and relative index mr + i mi: Qext, Qsca, Qabs, Qback, g, and S
        (each [S1 re, S1 im, S2 re, S2 im]) at the angles given (degrees), as Bohren and Huffman write them */
     mie(x, mr, mi, angles) { const C = mieCoeffs(+x, +mr, +mi || 0); return Object.assign(mieQ(C), { terms: C.n, S: (angles || []).map(a => mieS(C, Math.cos(a * Math.PI / 180))) }); },
-    scatter(name, opts) { traceScene(); const el = this.byName(name); if (!el) throw new Error('No part called ' + name); if (el.type === 'screen') throw new Error(el.name + ' is a screen: a particle is a Particle part of its own now (a file whose screen held one opens with it on a part called "' + el.name + ' particle")'); const S = (!opts && scatterCached(el)) || scatterNow(el, opts); return S ? Object.assign(scatterPlain(S), S.flags && S.flags.includes('cavity') ? { warning: CAVITY_WARNING } : null) : null; },
+    scatter(name, opts) { traceScene(); const el = this.byName(name); if (!el) throw new Error('No part called ' + name); if (el.type === 'screen') throw new Error(el.name + ' is a screen: a particle is a Particle part of its own now (a file whose screen held one opens with it on a part called "' + el.name + ' particle")'); const S = (!opts && scatterCached(el)) || scatterNow(el, opts), T = S && !S.trapRaw && S.trapLater ? particleTrapNow(el) : null; return S ? Object.assign(scatterPlain(S), T ? { trapRaw: scatterPlain(T) } : null, S.flags && S.flags.includes('cavity') ? { warning: CAVITY_WARNING } : null) : null; },
     /* where a Particle part's scattered light goes on the bench: its scattered power (W), a row for each part that catches some
        ({ name, share of the scattered power, P in W, followed: traced on as rays }), and what no part catches (lost, lostShare).
        state: "ok", or "dark" (no light reaches the particle); null for a part that is not a Particle or has its light off */
@@ -63153,11 +63641,27 @@ function workerShim() {
    Tools › Scripts, page/script-worker.js) is a module worker on the built page too, as Pyodide
    needs one, and is told what it is before the script runs (JEKRAY_SCRIPT_WORKER, or ?script) */
 const WORKERS_OK = !!(APP_SRC || DEV_WORKER) && typeof Worker !== 'undefined';
+/* The worker's script is built into a Blob URL once and kept while the page lives (the app's whole source, some
+   megabytes: made again for every worker it cost the page tens of milliseconds each time a job was replaced). A spare
+   classic worker is kept started, so one taken (a worker stopped for an out-of-date job, a render pool) runs at once;
+   another is started a moment later. */
+const APP_URL = { classic: null, module: null };
+function appUrl(script) {
+  const k = script ? 'module' : 'classic';
+  if (!APP_URL[k]) APP_URL[k] = URL.createObjectURL(new Blob(['(' + workerShim + ')();\n', script ? 'self.JEKRAY_SCRIPT_WORKER = true;\n' : '', APP_SRC], { type: 'text/javascript' }));
+  return APP_URL[k];
+}
+const SPARE = { w: null, timer: 0 };
+function spareLater() {
+  if (SPARE.w || SPARE.timer || TEST_MODE) return;
+  SPARE.timer = setTimeout(() => { SPARE.timer = 0; if (!SPARE.w) try { SPARE.w = new Worker(appUrl(false)); } catch (err) { SPARE.w = null; } }, 1500);
+}
 function newAppWorker(script) {
   if (!APP_SRC) return new Worker(DEV_WORKER + (script ? '?script' : ''), { type: 'module' });
-  const url = URL.createObjectURL(new Blob(['(' + workerShim + ')();\n', script ? 'self.JEKRAY_SCRIPT_WORKER = true;\n' : '', APP_SRC], { type: 'text/javascript' }));
-  const w = script ? new Worker(url, { type: 'module' }) : new Worker(url);
-  URL.revokeObjectURL(url);
+  if (script) return new Worker(appUrl(true), { type: 'module' });
+  const w = SPARE.w || new Worker(appUrl(false));
+  SPARE.w = null;
+  spareLater();
   return w;
 }
 
@@ -63404,8 +63908,15 @@ function volOut(R, key, vol, transfer) {
 }
 function workerMain() {
   let bench = { key: null, R: null }, wLoad = null;
+  // the scattering worker's jobs run a slice at a time, so a cancel sent for one (the bench moved on) is heard between
+  // slices and the worker, with what it keeps (the answers it can combine), stays for the next
+  const cancelled = new Set();
+  let lastProj = null, dirty = false;
   self.onmessage = e => {
+    if (e.data && e.data.cancel !== undefined) { cancelled.add(e.data.cancel); return; }
     const { id, kind, proj, args } = e.data;
+    if (kind === 'scatter' || kind === 'trap') { particleJob(e.data); return; }
+    lastProj = null;
     try {
       // the page's particles solved in a cavity: what the field runs take the cavity's light by (engines/scatter-cavity.js)
       if (proj) wLoad = JSON.parse(proj).cavLoad || null;
@@ -63424,17 +63935,6 @@ function workerMain() {
       } else if (kind === 'screen') {
         const el = getEl(args.id), J = el && popScreenPrep(el);
         out = J ? { key: J.key, D: fwPackD(popDiffraction(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }))) } : { key: null, D: null };
-      } else if (kind === 'scatter') {
-        // a particle's scattering (the Scattering tab's own worker): its progress as it goes, then the answer
-        const el = getEl(args.id), J = el && scatterPrep(el);
-        if (!J) out = { key: null, S: null };
-        else {
-          const g = scatterGen(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep, bare: true }));
-          // (its progress ten times a second, and each new stage as it starts, however short the one before it was)
-          let r = g.next(), t = 0, stage = '';
-          while (!r.done) { const now = Date.now(); if (now - t > 100 || r.value.stage !== stage) { t = now; stage = r.value.stage; self.postMessage({ id, prog: r.value }); } r = g.next(); }
-          out = { key: J.key, S: r.value };
-        }
       } else if (kind === 'detector') {
         const el = getEl(args.id), J = el && popScreenPrep(el);
         out = J ? { key: J.key + '|' + el.length + cavLoadKey(), r: detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })) } : null;
@@ -63500,6 +64000,40 @@ function workerMain() {
       self.postMessage({ id, ok: false, err: String((err && err.stack) || err) });
     }
   };
+  /* A particle's scattering (the Scattering tab's own worker, and a sweep's steps solved ahead): its progress as it goes,
+     then the answer; or its trap, asked for apart. args.sets: a sweep's values for the step, set as the page sets them.
+     The bench is loaded again only when it is not the one already loaded as it was sent. */
+  const tick = () => new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0); });
+  async function particleJob(m) {
+    const { id, kind, proj, args } = m;
+    try {
+      if (m.mods) modAbsorb(m.mods);
+      if (proj && (proj !== lastProj || dirty || m.mods)) { wLoad = JSON.parse(proj).cavLoad || null; loadProject(JSON.parse(proj)); traceScene(); bench = { key: null, R: null }; lastProj = proj; dirty = false; if (wLoad) lastTrace.cavLoad = wLoad; }
+      if (args.sets && args.sets.length) { for (const [eid, path, v] of args.sets) { const el = getEl(eid); if (el) setParam(el, path, v); } traceScene(); dirty = true; }
+      const el = getEl(args.id), J = el && scatterPrep(el);
+      if (!J) { self.postMessage({ id, ok: true, out: { key: null, S: null } }); return; }
+      const R = popRun(lastTrace.beams, J.srcs, { keep: J.keep, bare: true });
+      if (kind === 'trap') { self.postMessage({ id, ok: true, out: { key: J.key, T: particleTrapRaw(el, R) } }); return; }
+      // (an answer this worker has worked out before, a state come back to: sent again as it is)
+      const was = scatFind(el.id, J.key, true);
+      if (was && (was.S.trapRaw || !args.trap)) { self.postMessage({ id, ok: true, out: { key: J.key, S: was.S } }); return; }
+      const g = scatterGen(el, R, { trap: !!args.trap });
+      // (its progress ten times a second, and each new stage as it starts, however short the one before it was; a slice of
+      // about 40 ms at a time, a cancel heard between them)
+      let r = g.next(), t = 0, stage = '', slice = Date.now();
+      while (!r.done) {
+        const now = Date.now();
+        if (now - t > 100 || r.value.stage !== stage) { t = now; stage = r.value.stage; self.postMessage({ id, prog: r.value }); }
+        if (now - slice > 40) { await tick(); slice = Date.now(); if (cancelled.has(id)) { cancelled.delete(id); self.postMessage({ id, ok: true, out: { cancelled: true } }); return; } }
+        r = g.next();
+      }
+      cancelled.delete(id);
+      if (r.value && !r.value.error) scatKeep(el.id, J.key, r.value, true);
+      self.postMessage({ id, ok: true, out: { key: J.key, S: r.value } });
+    } catch (err) {
+      self.postMessage({ id, ok: false, err: String((err && err.stack) || err) });
+    }
+  }
 }
 
 /* A field run as plain data: each segment by its beam's index and its source's id, with its
@@ -64000,6 +64534,11 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // how many of the rendered steps, at the rates the sweeps have now, find their field ready
     sweepPlay(name, path) { play(this.byName(name), path); return new Promise(r => { const w = () => sweepJob ? setTimeout(w, 20) : r(playing.size); w(); }); },
     sweepPause() { pauseAll(); },
+    // (tests) what the particles' scattering has worked out, combined and kept so far; and what the two activity bars say now
+    scatStats() { return Object.assign({ kept: scatKept.size }, LIN_STATS); },
+    // (tests) the answer a particle's light on the bench is launched from now, as the trace has it: { axis, key } or null
+    scatShown(name) { traceScene(); const el = this.byName(name), S = el && scatterCached(el); return S ? { axis: S.axis, Psca: S.Psca } : null; },
+    activity() { const a = activityNow(), s = scatActivity(); return { bench: a && a.text, scat: s && s.text, scatFrac: s ? s.frac : null }; },
     // the diffracted field as the 3D view takes it, worked out here: per segment its cuts along it, their reach and the irradiance on the axis (W/cm²)
     vol3d() { traceScene(); const srcs = popSources(); if (!srcs.length) return null; const t0 = performance.now(), R = popRun(lastTrace.beams, srcs, {}), t1 = performance.now(), V = volData(R.segs, project.tab, null); self.__volMs = [t1 - t0, performance.now() - t1];
       return { peak: V.peak * 100, disp: volDisp(V) * 100, segs: V.segs.map(v => ({ i: v.i, two: v.two, coh: v.coh, ta: v.ta, tb: v.tb, o: v.o, e: v.e, ts: Array.from(v.ts), rmax: Array.from(v.rmax), peak: v.peak * 100,

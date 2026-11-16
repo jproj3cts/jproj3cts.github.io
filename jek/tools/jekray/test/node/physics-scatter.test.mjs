@@ -304,7 +304,7 @@ test('bench: the tight focus’s plane waves add up to its vector field, and a s
   assert.ok(offAxis.Psca < 0.05 * S.Psca && Math.abs(offAxis.at.x - 1.6e-3) < 1e-12, 'off the axis: ' + offAxis.Psca / S.Psca);
   // the dipole array for the same sphere in the same focus: within 2% of Mie
   const D = await scat([laser({}), objective, particle({ scatModel: 'dda' })]);
-  assert.ok(D.model === 'dda' && D.dda.converged && D.dda.runs === 2 && !D.flags.length);
+  assert.ok(D.model === 'dda' && D.dda.converged && D.dda.runs + D.dda.combined === 2 && !D.flags.length);
   near(D.Psca, S.Psca, 0.02, 'the dipole array in the focus'); near(D.Csca, S.Csca, 0.02, 'its plane-wave cross-section'); near(D.fwd, S.fwd, 0.01, 'its forward share');
 });
 test('bench: two beams of one laser add as fields, and a rod runs as a dipole array', async () => {

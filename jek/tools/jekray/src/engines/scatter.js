@@ -5,6 +5,7 @@ import { beamAt } from '../core/beams-hom.js';
 import { mieCoeffs, mieQ, mieTable } from '../core/mie.js';
 import { ddaAlpha, ddaExtAbs, ddaFar, ddaPlan, ddaPlaneWave, ddaSolver } from '../core/dda.js';
 import { Z0_OHM, coneGrid, dipoleFar, farPower, farPowerAlong, mieFarWaves, smallAlpha, sphereGrid, sphereTotals } from '../core/scatter.js';
+import { LIN_TOL, arrSig, linCombine, linFit, linStore } from '../core/linmemo.js';
 import { deg, project } from '../state/project.js';
 import { allSources, beamOn, getEl } from '../state/elements.js';
 import { lastTrace, zOf } from './trace.js';
@@ -179,6 +180,27 @@ export function scatterWaves(parts, C, nMed, size, zRef = BEAM_Z) {
 // the waves' sum at the centre: [xr, xi, yr, yi, zr, zi]
 const wavesAt0 = L => { const e = [0, 0, 0, 0, 0, 0]; for (let o = 0; o < L.n; o++) for (let m = 0; m < 6; m++) e[m] += L.E[6 * o + m]; return e; };
 const abs2 = e => e.reduce((a, v) => a + v * v, 0);
+/* ---------- Answers combined, the particle being linear in its light (core/linmemo.js) ----------
+   A sphere's far field along a set of directions is a linear map of its waves' fields (the waves' directions fixed): kept
+   by the sphere, the waves' directions and the directions asked for, a field that is a combination of ones already
+   worked out (the same light in another polarisation or at another power) takes the same combination of their far
+   fields. The dipole array's solve the same: its dipoles for an incident field, kept by the lattice, its
+   polarisability and the solver's tolerance; a field that is not a combination is solved from the best combination
+   as its start. LIN_STATS counts what was combined and what worked out, for the tests and the progress line. */
+export const LIN_STATS = { mieDone: 0, mieCombined: 0, ddaSolved: 0, ddaCombined: 0, ddaWarm: 0 };
+const MIE_LIN = linStore(48, 4), DDA_LIN = linStore(16, 4), DDA_FAR = linStore(16, 4), DDA_WARM = new Map();
+const DIR_SIG = new WeakMap();
+const dirSig = d => { let s = DIR_SIG.get(d); if (!s) { s = arrSig(d); DIR_SIG.set(d, s); } return s; };
+export function linClear() { MIE_LIN.clear(); DDA_LIN.clear(); DDA_FAR.clear(); DDA_WARM.clear(); }
+function mieFar(tabKey, tab, k, L, dirs) {
+  const E = L.E.length === 6 * L.n ? L.E : L.E.subarray(0, 6 * L.n), d = L.d.length === 3 * L.n ? L.d : L.d.subarray(0, 3 * L.n);
+  const key = tabKey + '|' + dirSig(d) + '|' + dirSig(dirs), f = MIE_LIN.fit(key, E);
+  if (f && f.c.length && f.rel <= LIN_TOL) { LIN_STATS.mieCombined++; return linCombine(f.W, f.c); }
+  const F = mieFarWaves(tab, k, L, dirs);
+  LIN_STATS.mieDone++;
+  MIE_LIN.put(key, E, F, f);
+  return F;
+}
 /* the waves' field at each dipole of a lattice (body frame; fr the body's axes in the world): 6 N numbers */
 function wavesOnLattice(L, lat, k, fr) {
   const N = lat.N, E = new Float64Array(6 * N), db = toFrame(fr, L.d, 1), Eb = toFrame(fr, L.E, 2);
@@ -305,7 +327,11 @@ export function* scatterGen(el, R, opts) {
   const F0 = beamFrame(b0), d0 = F0.d, a0 = F0.ex, up = F0.ey, zRef = F0.P0[2];
   // (a Particle part sits where it is put: off the beam's axis by what it is)
   let at = [sd.x, sd.dz, 0], atTrap = false, trapMiss = false, trapRaw = null;
-  {
+  // (the trap is solved here when the particle is put where the trap holds it, or when it is asked for with the answer; the
+  // page asks for it apart, and only while the Trap tab is read: its search is most of a sphere's time, and a particle
+  // put where the part is does not depend on it)
+  const trapNow = el.scatAt === 'trap' || !(opts && opts.trap === false);
+  if (trapNow) {
     let T = null;
     try { T = trapSolve(el, R, dom, len); } catch (err) { T = null; }
     if (T) trapRaw = T.error ? { error: T.error } : Object.assign({}, T, { nm });
@@ -336,7 +362,7 @@ export function* scatterGen(el, R, opts) {
     x: k * aEq, kL: k * Math.max(P.D, P.L) / 2, area, I0, E2, at: { x: at[0], y: at[1], z: at[2], trap: atTrap }, beams: TB.parts.length, launches: launches.length,
     waves: launches.reduce((a, L) => a + L.n, 0), pupils: W.notes.pupils, plane: W.notes.plane, routes: TB.parts.map(q => (q.P ? q.P.route : 'beam')), single, dir: d0, pol, axis, flags,
     // where the particle is on the bench (mm; z its height above the breadboard), and the trap there (a Particle part's Trap tab)
-    pos: [C[0], C[1], zRef + C[2]], elPos: [el.x, el.y, zOf(el)], ...(trapRaw ? { trapRaw } : {}) };
+    pos: [C[0], C[1], zRef + C[2]], elPos: [el.x, el.y, zOf(el)], ...(trapRaw ? { trapRaw } : {}), ...(trapNow ? {} : { trapLater: true }) };
   // A particle inside a cavity its light goes round: solved in the cavity's modes where it can be (engines/scatter-cavity.js),
   // the launch the cavity's legs are in taking the light that comes back along the axis. Where it cannot (a degenerate,
   // ring, clipped, turned or misaligned cavity) the light that comes back is taken once, flagged (returnPlan).
@@ -640,7 +666,7 @@ export function* scatterGen(el, R, opts) {
   };
   if (model === 'mie') {
     if (P.shape !== 'sphere') flags.push('mieNotSphere');
-    const tab = mieTable(CM);
+    const tab = mieTable(CM), tabKey = [k, aEq, mr, mi, CM.n].join(",");
     // the particle's own light that a retro-reflector brings back to it, scattered again (see particleReturn)
     for (let i = 0; i < launches.length; i++) {
       const L = launches[i];
@@ -649,13 +675,13 @@ export function* scatterGen(el, R, opts) {
       cavDone(L, cavitySolve(plan, cavK, mieFarWaves(tab, k, L, cavDirs), j => mieFarWaves(tab, k, unitWave(j), cavDirs), k, nMed, cavTail()));
     }
     for (const L of launches) {
-      fars.push(dirs => mieFarWaves(tab, k, L, dirs));
+      fars.push(dirs => mieFar(tabKey, tab, k, L, dirs));
       yield { stage: 'sphere' };
       // the optical theorem, wave by wave: P_ext = (4 pi / k) / (2 Z) Im sum conj(E_o) . F(d_o)
       // (a pupil solve's returned waves: along them the far field is the solve's own)
       let F;
       if (L.farGrid && L.n0 !== undefined && L.farGrid.length === 6 * (L.n - L.n0)) { F = new Float64Array(6 * L.n); F.set(mieFarWaves(tab, k, L, L.d.subarray(0, 3 * L.n0))); F.set(L.farGrid, 6 * L.n0); }
-      else F = mieFarWaves(tab, k, L, L.d);
+      else F = mieFar(tabKey, tab, k, L, L.d);
       let s = 0; for (let q = 0; q < F.length; q += 2) s += L.E[q] * F[q + 1] - L.E[q + 1] * F[q];
       Pext.push(4 * Math.PI / k * s / (2 * Z)); Pabs.push(null);
     }
@@ -703,15 +729,42 @@ export function* scatterGen(el, R, opts) {
     if (lat.coarse) flags.push('coarse');
     if (lat.capped) flags.push('capped');
     if (mAbs > 2.5) flags.push('highIndex');
+    // (an incident field that is a combination of ones solved for this lattice, polarisability and tolerance takes their
+    // answers' combination; another starts from the nearest combination of the last few solved for this lattice, whatever
+    // their polarisability: a particle turned a little, or lit a little differently, starts close to its answer)
+    const tol = o.tol || 1e-5, maxIter = o.maxIter || 300, wKey = [lat.N, lat.nx, lat.ny, lat.nz, lat.d, k, arrSig(lat.x), arrSig(lat.y), arrSig(lat.z)].join('|'), lKey = wKey + '|' + alpha + '|' + tol + '|' + maxIter;
+    D.combined = 0; D.warm = 0;
     const runSolve = function* (E, what, x0) {
-      const g = S.solve(E, { tol: o.tol || 1e-5, maxIter: o.maxIter || 300, x0 });
+      const f = DDA_LIN.fit(lKey, E);
+      if (f && f.c.length && f.rel <= LIN_TOL) { D.combined++; LIN_STATS.ddaCombined++; yield { stage: 'dipoles', what, iter: 0, resid: 0, N: lat.N, combined: true }; return linCombine(f.W, f.c); }
+      if (!x0) {
+        const W = DDA_WARM.get(wKey), g0 = W && W.V.length ? linFit(W.V, E) : null;
+        if (g0 && g0.c.length && g0.rel < 0.5) { x0 = linCombine(W.W, g0.c); D.warm++; LIN_STATS.ddaWarm++; }
+      }
+      const g = S.solve(E, { tol, maxIter, x0 });
       let r = g.next();
-      while (!r.done) { yield { stage: 'dipoles', what, iter: r.value.iter, resid: r.value.resid, N: lat.N }; r = g.next(); }
+      while (!r.done) { yield { stage: 'dipoles', what, iter: r.value.iter, resid: r.value.resid, N: lat.N, tol }; r = g.next(); }
       D.iters += r.value.iters; D.resid = Math.max(D.resid, r.value.resid); D.runs++;
+      LIN_STATS.ddaSolved++;
       if (!r.value.converged) D.converged = false;
+      else {
+        DDA_LIN.put(lKey, E, r.value.p, f);
+        let W = DDA_WARM.get(wKey);
+        if (!W) { W = { V: [], W: [] }; DDA_WARM.set(wKey, W); while (DDA_WARM.size > 4) DDA_WARM.delete(DDA_WARM.keys().next().value); }
+        W.V.push(Float64Array.from(E)); W.W.push(Float64Array.from(r.value.p));
+        if (W.V.length > 4) { W.V.shift(); W.W.shift(); }
+      }
       return r.value.p;
     };
-    const farOf = p => dirs => fromFrame(body, ddaFar(lat, k, p, toFrame(body, dirs, 1)), 2);
+    // (the far field is linear in the dipoles: kept and combined as the solve is, by the lattice, the body's axes and the directions)
+    const farKey = wKey + "|" + body.flat().join(",");
+    const farOf = p => dirs => {
+      const key = farKey + "|" + dirSig(dirs), f = DDA_FAR.fit(key, p);
+      if (f && f.c.length && f.rel <= LIN_TOL) return linCombine(f.W, f.c);
+      const F = fromFrame(body, ddaFar(lat, k, p, toFrame(body, dirs, 1)), 2);
+      DDA_FAR.put(key, p, F, f);
+      return F;
+    };
     yield { stage: 'dipoles', what: 'wave', iter: 0, resid: 1, N: lat.N };
     let n = 0;
     for (const L of launches) {
@@ -843,18 +896,79 @@ export function* scatterGen(el, R, opts) {
 /* The answers kept, a screen each, under the key they were worked out for: the page's worker fills it (ui/scatter.js),
    and scatterNow; the data export and the 3D view read it */
 export const scatCache = new Map();
+/* Every answer worked out is kept too, by its whole key (the most recently used SCAT_KEEP of them, and no more than
+   SCAT_BYTES of their arrays), so a bench that comes back to a state it has been in (a sweep's next cycle, a value
+   stepped back and forth, an Undo) finds its answer at once. A trap found apart is kept the same way, by the
+   particle's key without its scattering settings. */
+export const SCAT_KEEP = 64, SCAT_BYTES = 96e6;
+export const scatKept = new Map(), trapKept = new Map();
+const sizeOf = S => { let b = 2000; const walk = (o, d) => { if (!o || typeof o !== 'object' || d > 4) return; if (ArrayBuffer.isView(o)) { b += o.byteLength; return; } for (const v of Array.isArray(o) ? o : Object.values(o)) walk(v, d + 1); }; walk(S, 0); return b; };
+let keptBytes = 0;
+function keepKept(key, S) {
+  const was = scatKept.get(key);
+  if (was) { scatKept.delete(key); keptBytes -= was.bytes; }
+  const bytes = sizeOf(S);
+  scatKept.set(key, { S, bytes }); keptBytes += bytes;
+  while (scatKept.size > SCAT_KEEP || (keptBytes > SCAT_BYTES && scatKept.size > 1)) { const [k0, v0] = scatKept.entries().next().value; scatKept.delete(k0); keptBytes -= v0.bytes; }
+}
+export const trapKeyOf = key => key.slice(0, key.lastIndexOf('|scat'));
+export function trapKeep(tkey, T) { trapKept.delete(tkey); trapKept.set(tkey, T); while (trapKept.size > SCAT_KEEP) trapKept.delete(trapKept.keys().next().value); }
 /* An answer taken into the cache. The bench's trace launches a Particle part's scattered light from the answer kept
-   for it, so the trace's key counts the answers taken (scatRevNow): a new one is a new trace. */
+   for it, so the trace's key counts the answers taken (scatRevNow): a new one is a new trace (quiet: the trace taking it
+   is the one that asked, so it needs no other). */
 let scatRev = 0;
 export const scatRevNow = () => scatRev;
-export function scatKeep(id, key, S) { scatCache.set(id, { key, S }); const el = getEl(id); if (el && el.type === 'particle') scatRev++; }
+export function scatKeep(id, key, S, quiet) {
+  scatCache.set(id, { key, S });
+  if (S && !S.error && key) keepKept(key, S);
+  if (S && S.trapRaw && key) trapKeep(trapKeyOf(key), S.trapRaw);
+  const el = getEl(id); if (el && el.type === 'particle' && !quiet) scatRev++;
+}
+/* an answer worked out ahead (a sweep's step): kept, not put on show; the bench traced again, in case it is the one the
+   bench is at now */
+export function scatStore(key, S) {
+  if (!S || S.error || !key) return;
+  keepKept(key, S);
+  if (S.trapRaw) trapKeep(trapKeyOf(key), S.trapRaw);
+  scatRev++;
+}
+/* the answer for a particle at a key: the one on show, or one kept from before (made the one on show) */
+export function scatFind(id, key, quiet) {
+  const c = scatCache.get(id);
+  if (c && c.key === key) return c;
+  const k = scatKept.get(key);
+  if (!k) return null;
+  scatKept.delete(key); scatKept.set(key, k);
+  scatKeep(id, key, k.S, quiet);
+  return { key, S: k.S, fresh: true };
+}
+/* A Particle part's trap, worked out apart from its scattering (the page's worker asks for it while the Trap tab is
+   read): what scatterGen would have put in trapRaw */
+export function particleTrapRaw(el, R) {
+  const sd = particleDom(el, R);
+  if (!sd) return { error: 'no beam' };
+  const e2 = Object.assign(Object.create(el), { length: 2 * Math.max(0.02, 3 * sd.w) });
+  let T = null;
+  try { T = trapSolve(e2, R, sd.dom, sd.len); } catch (err) { T = null; }
+  return T ? (T.error ? { error: T.error } : Object.assign({}, T, { nm: sd.dom.sg.b.nm })) : null;
+}
+/* the trap now, on this thread (kept, or worked out and kept) */
+export function particleTrapNow(el) {
+  const job = scatterPrep(el);
+  if (!job) return null;
+  const tk = trapKeyOf(job.key);
+  if (trapKept.has(tk)) return trapKept.get(tk);
+  const T = particleTrapRaw(el, popRun(lastTrace.beams, job.srcs, { keep: job.keep, bare: true }));
+  trapKeep(tk, T);
+  return T;
+}
 /* How a trace gets an answer it does not have: 'sync', worked out there and then (Node, the tests, a script's
    worker); 'async', the page's own worker is asked and the last answer stands meanwhile (ui/scatter.js); 'off',
    none (the other workers, which trace a bench for something else). */
 let scatMode = null;
 export const scatModeNow = () => scatMode || (IN_WORKER ? 'off' : 'sync');
 export function setScatMode(m) { scatMode = m; }
-export function scatterCached(el) { const J = scatterPrep(el), c = J && scatCache.get(el.id); return c && c.key === J.key ? c.S : null; }
+export function scatterCached(el) { const J = scatterPrep(el), c = J && scatFind(el.id, J.key, true); return c ? c.S : null; }
 /* an answer as plain numbers and lists (a script's, a file's) */
 export const scatterPlain = S => JSON.parse(JSON.stringify(S, (k, v) => (ArrayBuffer.isView(v) ? Array.from(v) : v)));
 /* the run in one go */

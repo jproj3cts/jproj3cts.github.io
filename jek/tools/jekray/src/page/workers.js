@@ -36,11 +36,27 @@ import { workerShim } from '../worker/shim.js';
    Tools › Scripts, page/script-worker.js) is a module worker on the built page too, as Pyodide
    needs one, and is told what it is before the script runs (JEKRAY_SCRIPT_WORKER, or ?script) */
 export const WORKERS_OK = !!(APP_SRC || DEV_WORKER) && typeof Worker !== 'undefined';
+/* The worker's script is built into a Blob URL once and kept while the page lives (the app's whole source, some
+   megabytes: made again for every worker it cost the page tens of milliseconds each time a job was replaced). A spare
+   classic worker is kept started, so one taken (a worker stopped for an out-of-date job, a render pool) runs at once;
+   another is started a moment later. */
+const APP_URL = { classic: null, module: null };
+function appUrl(script) {
+  const k = script ? 'module' : 'classic';
+  if (!APP_URL[k]) APP_URL[k] = URL.createObjectURL(new Blob(['(' + workerShim + ')();\n', script ? 'self.JEKRAY_SCRIPT_WORKER = true;\n' : '', APP_SRC], { type: 'text/javascript' }));
+  return APP_URL[k];
+}
+const SPARE = { w: null, timer: 0 };
+function spareLater() {
+  if (SPARE.w || SPARE.timer || TEST_MODE) return;
+  SPARE.timer = setTimeout(() => { SPARE.timer = 0; if (!SPARE.w) try { SPARE.w = new Worker(appUrl(false)); } catch (err) { SPARE.w = null; } }, 1500);
+}
 export function newAppWorker(script) {
   if (!APP_SRC) return new Worker(DEV_WORKER + (script ? '?script' : ''), { type: 'module' });
-  const url = URL.createObjectURL(new Blob(['(' + workerShim + ')();\n', script ? 'self.JEKRAY_SCRIPT_WORKER = true;\n' : '', APP_SRC], { type: 'text/javascript' }));
-  const w = script ? new Worker(url, { type: 'module' }) : new Worker(url);
-  URL.revokeObjectURL(url);
+  if (script) return new Worker(appUrl(true), { type: 'module' });
+  const w = SPARE.w || new Worker(appUrl(false));
+  SPARE.w = null;
+  spareLater();
   return w;
 }
 

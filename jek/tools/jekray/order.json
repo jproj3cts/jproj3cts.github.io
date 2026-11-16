@@ -14,6 +14,7 @@
   "core/cells.js",
   "core/mie.js",
   "core/dda.js",
+  "core/linmemo.js",
   "core/scatter.js",
   "core/traps.js",
   "core/zeeman.js",

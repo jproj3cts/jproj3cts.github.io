@@ -13,7 +13,7 @@ import { H, requestRender, selFibre, selection, setSelFibreId, sy } from './rend
 import { drawBarShown } from './drawings.js';
 import { SWEEP_STEPS_MAX, getPath, setParam } from '../state/params.js';
 import {
-  WAVES, advOpen, fieldFramesOf, sweepStepsChanged, fieldPossible, isPlaying, pause, play, setFieldRendered, swPool,
+  WAVES, advOpen, fieldFramesOf, sweepStepsChanged, fieldPossible, isPlaying, jobHas, pause, play, setFieldRendered, swPool,
   swRelease, sweepDefault, sweepEta, sweepFrac, sweepJob, sweepKey, sweepValue
 } from './sweeps.js';
 import { V3D } from './view3d.js';
@@ -104,6 +104,7 @@ export function stackLongSelects(root) {
 export function bindSync(node, sync) { refs.push({ node, sync }); sync(); }
 
 /* A plain number input. `onValue` receives a number (or `blank` when emptied). */
+export const EDIT_SETTLE = 140;          // ms of no typing before a number typed reaches the bench (numInput)
 export function numInput(id, get, onValue, opts = {}) {
   const inp = h('input', { id, type: 'text', inputmode: 'decimal', spellcheck: 'false', placeholder: opts.placeholder });
   const show = opts.fmt || fmtNum;
@@ -114,15 +115,21 @@ export function numInput(id, get, onValue, opts = {}) {
     bindSync(inp, () => { inp.value = show(get()); });
     return inp;
   }
+  // Typing is kept apart from the bench: each keystroke takes the value at once (the part holds it), and what the bench
+  // does with it (the panel's readouts, the trace, the 3D view, the workers: changed) waits until the typing pauses
+  // (EDIT_SETTLE ms), or Enter or leaving the box, so a key never waits on a slow bench. One Undo step an edit, as before.
+  let settle = 0, owed = false;
+  const flush = () => { clearTimeout(settle); settle = 0; if (owed) { owed = false; changed(false); } };
   inp.addEventListener('input', () => {
     const raw = inp.value.trim();
     let v;
     if (raw === '') { if (opts.blank === undefined) return; v = opts.blank; }
     else { v = Number(raw); if (!isFinite(v)) return; }
-    beginEdit(); onValue(v); changed(false);
+    beginEdit(); onValue(v);
+    owed = true; clearTimeout(settle); settle = setTimeout(flush, EDIT_SETTLE);
   });
-  inp.addEventListener('change', () => { endEdit(); inp.value = show(get()); });
-  inp.addEventListener('blur', endEdit);
+  inp.addEventListener('change', () => { flush(); endEdit(); inp.value = show(get()); });
+  inp.addEventListener('blur', () => { flush(); endEdit(); });
   bindSync(inp, () => { inp.value = show(get()); });
   return inp;
 }
@@ -134,7 +141,8 @@ const sweepOpen = new Set();
 function paramBits(label, el, path, opts, id) {
   const sweeps = el.sweeps || (el.sweeps = {});
   const sw = sweeps[path], key = sweepKey(el, path), open = !!sw && sweepOpen.has(key);
-  const inp = numInput(id, () => getPath(el, path), v => { const H = opts.carry ? mateHold(el) : null; pause(el, path); setParam(el, path, v); mateFollow(H); }, opts);
+  // (a sweep of it playing or rendering stops: looked for first, as pausing redraws the panel)
+  const inp = numInput(id, () => getPath(el, path), v => { const H = opts.carry ? mateHold(el) : null; if (isPlaying(el, path) || jobHas(sweepJob, el, path)) pause(el, path); setParam(el, path, v); mateFollow(H); }, opts);
   inp.dataset.path = path;                      // which setting it is (an exercise lets only some be changed: ui/challenge.js)
   const name = label.replace(/\s*\(.*\)$/, '');
   const tip = sw ? (open ? 'Fold the sweep of ' : 'Edit the sweep of ') + name : 'Sweep ' + name + ' over a range';

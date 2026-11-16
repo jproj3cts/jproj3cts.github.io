@@ -5,14 +5,24 @@ charged-particle optics simulator built the same way beside it, JEKfilm, a thin-
 conventions; `jek/tools/jekray/README.md` has the tool's module rules, `jek/tools/jekion/README.md` JEKion's.
 
 ## Working rules
-- Develop on a feature branch and push it. **Ask before pushing to `main`** every time; an earlier "yes" does not carry over.
-- Before pushing to main, merge `origin/main` into the branch (never rebase or force-push), rebuild, re-run the full suite.
+Several people work on this repository, each with their own Claude sessions. The owner is jproj3cts.
+- **Work on a branch and open a pull request into `main`.** `main` is protected: a pull request, an approving review
+  and green CI are needed to merge, and changes to the paths in `.github/CODEOWNERS` need the owner's review. Never try
+  to push to `main` directly or to get round the protection. The owner may push to `main`, and in the owner's own
+  sessions asks first every time (an earlier "yes" does not carry over).
+- Before a pull request is merged, merge `origin/main` into the branch (never rebase or force-push a shared branch),
+  rebuild, re-run the full suite, and report the counts in the pull request.
 - CI (`.github/workflows/tests.yml`) runs the build/docs checks, the Node and browser suites and the API tests on pushes to
-  `main` and `claude/**` and on PRs (~7 min). Still run the suites locally before pushing and report the counts.
-- **Commits are the owner's.** Before the first commit of a session run
-  `git config user.name "jproj3cts" && git config user.email "114860885+jproj3cts@users.noreply.github.com"`, and write
-  commit messages with no `Co-Authored-By`, `Claude-Session` or other assistant lines, session links or model names.
-  (main's history was rewritten to this once, on 5 Nov 2026; it is never force-pushed again.)
+  `main` and `claude/**` and on every pull request (~7 min). Still run the suites locally before pushing.
+- **Commit as the person whose session it is.** Before the first commit of a session, set `git config user.name` and
+  `git config user.email` to that person's own GitHub name and noreply address (the owner's: `jproj3cts`,
+  `114860885+jproj3cts@users.noreply.github.com`). Never commit under someone else's name. Commit messages carry no
+  `Co-Authored-By`, `Claude-Session` or other assistant lines, session links or model names.
+  (main's history was rewritten once, on 5 Nov 2026; it is never force-pushed again.)
+- **Nothing secret goes in the repository**: API keys, Stripe and Cloudflare tokens, signing keys and the ops token
+  live in Cloudflare and Stripe, and only the owner has them. The API (`jek-api/`) and the shop worker (`worker/`) are
+  deployed by hand, by the owner only; a change there says in its pull request what the deploy needs (a migration, a
+  secret). Do not change CI to use secrets or `pull_request_target`.
 
 ## Site writing (the JEK pages, not the tool's own copy)
 The site should read as written by the people who build the things on it. Before changing a page's words:

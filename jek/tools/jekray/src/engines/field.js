@@ -287,6 +287,7 @@ export function popIntensityAt(F) {
   return r => { const [a, b] = f(r); return a * a + b * b; };
 }
 /* the same, the residual field itself, [re, im] */
+const SERIES_MEMO = 4096;                   // radii kept a series
 export function popFieldSeries(F) {
   if (F._series) return F._series;
   if (F.bab) {
@@ -305,7 +306,17 @@ export function popFieldSeries(F) {
   const Q = qdht(F.re.length), [sr, si] = hankel(Q, F.R, F.re, F.im), V = Q.S / (2 * Math.PI * F.R), k = 1 / (Math.PI * F.R * F.R);
   const nu = new Float64Array(Q.N), wr = new Float64Array(Q.N), wi = new Float64Array(Q.N);
   for (let m = 0; m < Q.N; m++) { nu[m] = Q.j[m] * V / Q.S; wr[m] = sr[m] * Q.inv[m] * k; wi[m] = si[m] * Q.inv[m] * k; }
-  const f = r => { let a = 0, b = 0; for (let m = 0; m < Q.N; m++) { const j = besselJ01(2 * Math.PI * nu[m] * r)[0]; a += wr[m] * j; b += wi[m] * j; } return [a, b]; };
+  // (each radius's sum kept, the same radius asked for again given at once: a trap's search asks for the field at the same few
+  // radii over and over, a point and its neighbours either way, on the axis and off it)
+  const memo = new Map();
+  const f = r => {
+    const was = memo.get(r);
+    if (was) return [was[0], was[1]];
+    let a = 0, b = 0; for (let m = 0; m < Q.N; m++) { const j = besselJ01(2 * Math.PI * nu[m] * r)[0]; a += wr[m] * j; b += wi[m] * j; }
+    if (memo.size >= SERIES_MEMO) memo.clear();
+    memo.set(r, [a, b]);
+    return [a, b];
+  };
   Object.defineProperty(F, '_series', { value: f, enumerable: false });
   return f;
 }

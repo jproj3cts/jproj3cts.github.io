@@ -12704,6 +12704,81 @@ const TESTS = [
     },
   },
   {
+    name: 'A polarisation sweep of a Mie particle: two solves, then every step combined, its own bar, and the second cycle kept',
+    why: 'a 300 nm silica sphere in the tight focus, the laser’s polarisation swept 0 to 90° in 8 steps with the field rendered ahead. Once two polarisations are solved, every step of the render is the combination of their far fields (no Mie sum worked out), the scattering bar says “step i of 8” while it works and is gone when done, and a second cycle played finds every step kept: nothing combined or worked out (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const raf = () => new Promise(r => rigWin().requestAnimationFrame(() => r()));
+      J.load(bench('scatter sweep', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol: 'linear', polAngle: 0, power: 50, popN: 64,
+        sweeps: { polAngle: { min: 0, max: 90, freq: 2, phase: 0, wave: 'triangle', field: true, steps: 8 } } }),
+        { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+1)-1)/lambda' },
+        particleAt({ name: 'S', x: 1, trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum', scatModel: 'mie' })], { minPower: 1e-6, light: { rays: true, envelope: false, field: true } }));
+      // the two polarisations, solved
+      J.set('L', { polAngle: 0 }); J.scatter('S'); J.set('L', { polAngle: 90 }); J.scatter('S'); J.set('L', { polAngle: 0 });
+      const s0 = J.scatStats(), seen = new Set();
+      let polling = true;
+      const poll = (async () => { while (polling) { const a = J.activity(); if (a.scat) seen.add(a.scat.replace(/step \d+/, 'step i')); await new Promise(r => setTimeout(r, 0)); } })();
+      try {
+        await J.sweepPlay('L', 'polAngle');
+        polling = false; await poll;
+        const s1 = J.scatStats(), cleared = !J.activity().scat;
+        const combined = s1.mieDone === s0.mieDone && s1.mieCombined > s0.mieCombined, bar = [...seen].some(t => /Scattering by S for the sweep: step i of 8/.test(t));
+        // a cycle and a half more, played
+        const t0 = performance.now(); while (performance.now() - t0 < 900) await raf();
+        const s2 = J.scatStats(), kept = s2.mieDone === s1.mieDone && s2.mieCombined === s1.mieCombined && s2.kept >= 8;
+        if (!(combined && bar && cleared && kept)) console.log('polarisation sweep', JSON.stringify({ s0, s1, s2, seen: [...seen], cleared }));
+        return combined && bar && cleared && kept ? 1 : 0;
+      } finally { polling = false; J.sweepPause(); }
+    },
+  },
+  {
+    name: 'A rod’s tilt swept past upright: every step its own answer, and the next cycle kept',
+    why: 'the owner’s case: a 200 nm × 1 µm rod (Auto takes the dipole array) tilted 45° to 135° in 10 steps, playing on its steps, its scattered field drawn. The tilt goes past 90° (it was held at 90°, so half the cycle showed one state), each step’s answer is worked out once, and the rod’s scattered light and picture follow every step; a second cycle works nothing out (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const raf = () => new Promise(r => rigWin().requestAnimationFrame(() => r()));
+      J.load(bench('rod sweep', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol: 'p', power: 50, popN: 64 }),
+        { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+1)-1)/lambda' },
+        particleAt({ name: 'S', x: 1, trapMat: 'Fused silica', trapShape: 'cylinder', trapR: 60, trapLen: 600, scatDip: 5, trapMed: 'vacuum', scatField: true,
+          sweeps: { trapTilt: { min: 45, max: 135, freq: 1, phase: 0, wave: 'ramp', field: false, steps: 10 } } })], { minPower: 1e-6 }));
+      const tilts = new Set(), Ps = new Map();
+      // (each frame waits on its step's solve, here on the page, and the clock moves at most 0.1 s a frame: a step at a time)
+      const cycle = async () => { const seen = new Set(), t0 = performance.now(); while (seen.size < 10 && performance.now() - t0 < 20000) { await raf(); const el = J.byName('S'), S = J.scatShown('S'); seen.add(el.trapTilt); tilts.add(el.trapTilt); if (S) Ps.set(el.trapTilt, S.axis[2]); } return seen.size; };
+      try {
+        await J.sweepPlay('S', 'trapTilt');
+        const s0 = J.scatStats(), n1 = await cycle(), s1 = J.scatStats(), n2 = await cycle(), s2 = J.scatStats();
+        if (n1 < 10 || n2 < 10) console.log('rod sweep: steps seen', n1, n2);
+        const past = [...tilts].some(t => t > 91), follows = [...Ps].every(([t, z]) => Math.abs(z - Math.sin(t * Math.PI / 180)) < 1e-9);
+        const kept = s2.ddaSolved === s1.ddaSolved && s2.ddaCombined === s1.ddaCombined && s1.kept >= 10;
+        if (!(past && follows && kept)) console.log('rod sweep', JSON.stringify({ tilts: [...tilts], s0, s1, s2, follows }));
+        return past && follows && kept ? 1 : 0;
+      } finally { J.sweepPause(); }
+    },
+  },
+  {
+    name: 'A key typed in a number box returns at once; the bench takes the value once typing pauses',
+    why: 'typing is kept apart from the bench: each key sets the value at once and returns within a frame’s budget (50 ms here, generous for CI), and the trace, panel and workers follow EDIT_SETTLE (140 ms) after the last key, or at once on Enter; one Undo step for the edit (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const doc = rigDoc(), wait = ms => new Promise(r => setTimeout(r, ms));
+      J.load(bench('typing', [src({ name: 'L', x: -20, rays: 5 }), screen({ name: 'Sc', x: 40 })]));
+      J.select('L'); await wait(50);
+      const lab = [...doc.querySelectorAll('#panel label')].find(l => /^Power/.test(l.textContent.trim())), inp = lab && doc.getElementById(lab.htmlFor);
+      if (!inp) return 0;
+      const n0 = J.traceInfo().count;
+      let worst = 0;
+      inp.focus(); inp.value = '';
+      for (const ch of '250') { const t0 = performance.now(); inp.value += ch; inp.dispatchEvent(new Event('input')); worst = Math.max(worst, performance.now() - t0); }
+      // the part has the value; nothing of the bench was done in the keys' own time
+      const held = J.byName('L').power === 250, deferred = J.traceInfo().count === n0;
+      await wait(400); await new Promise(r => rigWin().requestAnimationFrame(() => r()));
+      inp.dispatchEvent(new Event('change'));
+      const quick = worst < 50, taken = J.byName('L').power === 250 && J.traceInfo().count > n0 && J.traceInfo().current;
+      if (!(quick && held && deferred && taken)) console.log('typing', { worst, held, deferred, taken });
+      return quick && held && deferred && taken ? 1 : 0;
+    },
+  },
+  {
     name: 'The particle shrinks with the bench when zoomed out, in 2D and 3D',
     why: 'close in its sign is 16 px on the bench and 36 px in 3D; zoomed out it is never larger than 1 mm on the bench, down to 6 px in 2D and 10 px in 3D, so it does not dwarf the parts round it (1 when all hold)',
     want: 1, tol: 0, unit: '',

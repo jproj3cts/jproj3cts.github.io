@@ -6,7 +6,8 @@ import { particleOf } from '../core/traps.js';
 import { V, deg } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { modDelta } from '../engines/mods.js';
-import { SCAT_NMAX, scatCache, scatKeep, scatterNow, scatterPrep, setScatMode } from '../engines/scatter.js';
+import { SCAT_NMAX, particleTrapNow, scatCache, scatFind, scatKeep, scatStore, scatterNow, scatterPrep, scatterRun, setScatMode, trapKeep, trapKeyOf, trapKept } from '../engines/scatter.js';
+import { popRun } from '../engines/beam-tree.js';
 import { lastTrace } from '../engines/trace.js';
 import { trapReport } from '../engines/screen-stats.js';
 import { project } from '../state/project.js';
@@ -76,7 +77,8 @@ export function drawScatField() {
 /* The worker: this app again, asked for kind 'scatter' (worker/main.js), which sends its
    progress as it goes and the answer at the end. One run at a time; a run whose bench has
    moved on is let finish if it is nearly instant and stopped otherwise; Stop ends the worker. */
-const SCW = { w: null, failed: false, job: null, want: new Map(), stopped: new Map(), seq: 0, timer: null };
+const SCW = { w: null, failed: false, job: null, queue: [], stopped: new Map(), seq: 0, timer: null, ahead: null, done: 0, letFinish: () => false };
+export const scatWork = SCW;
 function scatWorker() {
   if (SCW.w) return SCW.w;
   if (SCW.failed || TEST_MODE || !WORKERS_OK) return null;
@@ -86,10 +88,14 @@ function scatWorker() {
       const m = e.data, J = SCW.job;
       if (!J || J.id !== m.id) return;
       if (m.prog) { J.prog = m.prog; syncPanel(); return; }
-      SCW.job = null;
-      if (!m.ok) { console.warn('JEKray scattering worker:', m.err); scatFail(); return; }
+      SCW.job = null; clearTimeout(J.kill);
+      if (!m.ok) { console.warn('JEKray scattering worker:', m.err); scatFail(); if (J.reject) J.reject(new Error(m.err)); return; }
+      const o = m.out || {};
       // (a Particle part's answer is what the bench's trace launches its scattered light from: kept, the bench is drawn again)
-      if (m.out && m.out.S) { scatKeep(J.elId, m.out.key, m.out.S); requestRender(); }
+      // (a step solved ahead is kept for when the sweep gets there, not put on show)
+      if (o.S && o.key) { if (J.proj) scatStore(o.key, o.S); else scatKeep(J.elId, o.key, o.S); SCW.done++; requestRender(); }
+      if (o.T !== undefined && o.key) { trapKeep(trapKeyOf(o.key), o.T); requestRender(); }
+      if (J.resolve) J.resolve(o.cancelled ? null : o);
       syncPanel(); scatPump();
     };
     w.onerror = e => { e.preventDefault(); scatFail(); };
@@ -102,52 +108,159 @@ function scatFail() {
   SCW.failed = true;
   setScatMode('sync');
   if (SCW.w) SCW.w.terminate();
-  SCW.w = null; SCW.job = null;
+  const all = [SCW.job, ...SCW.queue].filter(Boolean);
+  SCW.w = null; SCW.job = null; SCW.queue = [];
+  for (const j of all) if (j.reject) j.reject(new Error('the scattering worker failed'));
   syncPanel();
 }
+/* The running job is out of date: the worker is asked to drop it (it hears between slices of its work, and keeps what it
+   has worked out, the answers it combines included); one that has not answered within a few seconds (a long step that
+   cannot be broken off) is stopped, and a fresh worker (a spare kept ready: page/workers.js) takes the next job. */
+function scatCancel() {
+  const J = SCW.job;
+  if (!J || J.cancelling) return;
+  J.cancelling = true;
+  if (SCW.w) SCW.w.postMessage({ cancel: J.id });
+  J.kill = setTimeout(() => { if (SCW.job === J) { scatKill(); scatPump(); } }, 3000);
+}
 function scatKill() {
+  const J = SCW.job;
   if (SCW.w) SCW.w.terminate();
   SCW.w = null; SCW.job = null;
+  if (J) { clearTimeout(J.kill); if (J.resolve) J.resolve(null); }
 }
 function scatPump() {
-  if (SCW.job || !SCW.want.size) return;
+  if (SCW.job || !SCW.queue.length) return;
   // (a moment after the last change, so a value being typed or dragged starts one run, not ten)
   clearTimeout(SCW.timer);
   SCW.timer = setTimeout(() => {
-    if (SCW.job || !SCW.want.size) return;
+    if (SCW.job || !SCW.queue.length) return;
     if (midDrag()) { scatPump(); return; }
-    const [elId, key] = SCW.want.entries().next().value;
-    SCW.want.delete(elId);
-    const el = getEl(elId), J = el && scatterPrep(el), w = J && J.key === key && scatWorker();
-    if (!w) { syncPanel(); return; }
-    SCW.job = { id: ++SCW.seq, elId, key, t0: performance.now(), prog: null };
-    w.postMessage({ id: SCW.job.id, kind: 'scatter', args: { id: elId }, proj: fwProject(), mods: modDelta(w) });
+    const q = SCW.queue.shift(), el = getEl(q.elId), w = el && scatWorker();
+    // (one asked for live: still wanted only if the bench still asks for it)
+    if (!w || (!q.proj && (!scatterPrep(el) || scatterPrep(el).key !== q.key))) { if (q.resolve) q.resolve(null); syncPanel(); scatPump(); return; }
+    SCW.job = Object.assign(q, { id: ++SCW.seq, t0: performance.now(), prog: null });
+    w.postMessage({ id: SCW.job.id, kind: q.kind, args: { id: q.elId, sets: q.sets || null, trap: false }, proj: q.proj || fwProject(), mods: modDelta(w) });
     syncPanel();
-  }, 120);
+  }, SCW.queue[0].proj ? 0 : 120);
+}
+/* ask for a job (kind 'scatter' or 'trap') for a particle as the bench now is: one waiting for the same part and kind
+   is replaced, and one running for a state the bench has left is dropped */
+function scatWant(el, key, kind) {
+  SCW.queue = SCW.queue.filter(q => q.proj || q.elId !== el.id || q.kind !== kind);
+  const live = { kind, elId: el.id, key };
+  // (live work goes before a sweep's steps solved ahead)
+  const at = SCW.queue.findIndex(q => q.proj);
+  if (at < 0) SCW.queue.push(live); else SCW.queue.splice(at, 0, live);
+  const J = SCW.job;
+  // (while sweeps play, one running is let finish: its answer is kept for when the sweep comes back to it, where one
+  // stopped at each step would never be done)
+  if (J && !J.proj && J.elId === el.id && J.kind === kind && J.key !== key && !SCW.letFinish()) scatCancel();
+  scatPump();
+}
+/* A sweep's step solved ahead: the bench as it is (proj) with the step's values set (sets: [id, path, value]); resolves
+   with { key, S }, or null when it was dropped */
+export function scatterAhead(elId, proj, sets) {
+  if (TEST_MODE || SCW.failed || !WORKERS_OK || !scatWorker()) return null;
+  return new Promise((resolve, reject) => { SCW.queue.push({ kind: 'scatter', elId, key: null, proj, sets, resolve, reject }); scatPump(); });
+}
+/* A sweep's steps solved ahead for every Particle part whose light is on, one after another on the scattering worker
+   (beside the field's workers), each answer kept by its key (engines/scatter.js scatKept) so that each step, played,
+   finds its own. valueAt(el, path, i) the step's value, as the sweep will set it; live() false once the sweep is gone.
+   Its progress is SCW.ahead, which the activity bar reads. On the page alone (no workers, the tests) the steps are
+   solved where the field's own render does them (particlesAheadNow). */
+export async function particlesAhead(list, n, valueAt, live) {
+  const parts = project.elements.filter(e => e.type === 'particle' && e.scatLight !== false && scatterPrep(e));
+  if (!parts.length || TEST_MODE || SCW.failed || !WORKERS_OK || !scatWorker()) return;
+  scatterAheadStop();
+  const run = SCW.ahead = { i: 0, n, done: 0, of: n * parts.length, t0: performance.now(), names: parts.map(e => e.name) };
+  const proj = fwProject();
+  try {
+    for (let i = 0; i < n; i++) for (const el of parts) {
+      if (SCW.ahead !== run || !live()) { if (SCW.ahead === run) SCW.ahead = null; return; }
+      run.i = i;
+      await scatterAhead(el.id, proj, list.map(([e, p]) => [e.id, p, valueAt(e, p, i)]));
+      if (SCW.ahead !== run) return;
+      run.done++;
+      syncPanel();
+    }
+  } catch (err) { /* the worker failed: the steps are worked out live */ }
+  if (SCW.ahead === run) SCW.ahead = null;
+  syncPanel();
+}
+/* the same on the page, for one step as the bench now stands (the render on the page sets each step's values) */
+export function particlesAheadNow(i, n) {
+  const parts = project.elements.filter(el => el.type === 'particle' && el.scatLight !== false && scatterPrep(el));
+  if (!parts.length) return;
+  SCW.ahead = { i, n, done: i, of: n, t0: performance.now(), names: parts.map(e => e.name), page: true };
+  for (const el of parts) {
+    const J = scatterPrep(el);
+    if (scatFind(el.id, J.key, true)) continue;
+    scatKeep(el.id, J.key, scatterRun(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep, bare: true }), { trap: false }), true);
+  }
+}
+/* the steps on the page are done (or stopped) */
+export function particlesAheadDone() { if (SCW.ahead && SCW.ahead.page) SCW.ahead = null; }
+/* What the scattering is doing, for the activity bar's own line (ui/sweeps.js): a sweep's steps solved ahead, or the
+   particle's solve on show; null when nothing is (or for less than a moment) */
+export function scatActivity() {
+  const A = SCW.ahead, J = SCW.job, now = performance.now();
+  const stage = P => !P ? '' : P.stage === 'dipoles' ? (P.combined ? 'combined from earlier answers' : 'dipole array, ' + P.N + ' dipoles, iteration ' + P.iter) : P.stage === 'pattern' ? 'the pattern' : P.stage === 'sphere' ? 'Mie' : 'the light at the particle';
+  // a solve's progress in its run: its stage, and a dipole solve's residual on its way down to the tolerance (on a log scale)
+  const frac = P => !P ? 0 : P.stage === 'light' ? 0.05 : P.stage === 'dipoles' ? 0.1 + 0.75 * (P.combined ? 1 : Math.min(1, Math.max(0, Math.log(Math.max(P.resid, 1e-300)) / Math.log(P.tol || 1e-5)))) : P.stage === 'sphere' ? 0.5 : P.stage === 'pattern' ? 0.9 : 0;
+  if (A) {
+    const part = J && J.proj ? frac(J.prog) : 0;
+    return { text: 'Scattering' + (A.names.length === 1 ? ' by ' + A.names[0] : '') + ' for the sweep: step ' + (Math.min(A.n, A.i + 1)) + ' of ' + A.n + (J && J.proj && J.prog ? ', ' + stage(J.prog) : ''), frac: (A.done + part) / A.of };
+  }
+  if (J && now - J.t0 > 250) {
+    const el = getEl(J.elId), who = el ? el.name : 'the particle';
+    if (J.kind === 'trap') return { text: 'Finding the trap that holds ' + who, frac: null };
+    return { text: 'Scattering by ' + who + (J.prog ? ': ' + stage(J.prog) : '') + (J.cancelling ? ' (stopping: the bench has moved on)' : ''), frac: frac(J.prog) };
+  }
+  return null;
+}
+/* every step solved ahead dropped (the sweep stopped or rendered again) */
+export function scatterAheadStop() {
+  for (const q of SCW.queue) if (q.proj && q.resolve) q.resolve(null);
+  SCW.queue = SCW.queue.filter(q => !q.proj);
+  if (SCW.job && SCW.job.proj) scatCancel();
+  SCW.ahead = null;
 }
 /* A screen's scattering: { S, busy, prog, stopped }. S is the last answer for this screen (stale
    while busy), null before the first; prog the run's progress. */
 export function scatterLater(el) {
   const J = scatterPrep(el);
   if (!J) return { S: null, busy: false, none: true };
+  const k = scatFind(el.id, J.key);
+  if (k) { if (k.fresh) requestRender(); return { S: k.S, busy: false }; }
   const c = scatCache.get(el.id);
-  if (c && c.key === J.key) return { S: c.S, busy: false };
-  if (TEST_MODE || SCW.failed || !WORKERS_OK) return { S: scatterNow(el), busy: false };
+  if (TEST_MODE || SCW.failed || !WORKERS_OK) return { S: scatterNow(el, { trap: false }), busy: false };
   if (SCW.stopped.get(el.id) === J.key) return { S: c ? c.S : null, busy: false, stopped: true, stale: !!c };
   const job = SCW.job;
-  if (job && job.elId === el.id) {
-    if (job.key === J.key) return { S: c ? c.S : null, busy: true, prog: job.prog, t0: job.t0, stale: !!c };
-    // the bench has moved on under a run: a quick one finishes, a long one is stopped
-    if (performance.now() - job.t0 > 1200) scatKill();
-  }
-  SCW.want.set(el.id, J.key);
-  scatPump();
+  if (job && job.elId === el.id && job.kind === 'scatter' && job.key === J.key && !job.cancelling) return { S: c ? c.S : null, busy: true, prog: job.prog, t0: job.t0, stale: !!c };
+  // (a sweep's steps being solved ahead: this one comes with them; nothing is asked meanwhile)
+  if (SCW.ahead && !SCW.ahead.page && SCW.ahead.names.includes(el.name)) return { S: c ? c.S : null, busy: true, prog: null, stale: !!c, ahead: true };
+  if (!SCW.queue.some(q => !q.proj && q.elId === el.id && q.kind === "scatter" && q.key === J.key)) scatWant(el, J.key, "scatter");
   return { S: c ? c.S : null, busy: true, prog: null, stale: !!c };
+}
+/* A Particle part's trap: in its answer when the run solved it (the particle put where the trap holds it), else kept from
+   before, else asked of the worker apart: { T, busy } as particleTrapLater takes them */
+function trapLater(el) {
+  const J = scatterPrep(el);
+  if (!J) return { T: null, busy: false };
+  const c = scatFind(el.id, J.key, true);
+  if (c && c.S && c.S.trapRaw) return { T: c.S.trapRaw, busy: false };
+  const tk = trapKeyOf(J.key);
+  if (trapKept.has(tk)) return { T: trapKept.get(tk), busy: false };
+  if (TEST_MODE || SCW.failed || !WORKERS_OK) return { T: particleTrapNow(el), busy: false };
+  const job = SCW.job;
+  if (!(job && job.elId === el.id && job.kind === 'trap' && job.key === J.key) && !SCW.queue.some(q => !q.proj && q.elId === el.id && q.kind === 'trap' && q.key === J.key)) scatWant(el, J.key, 'trap');
+  return { T: null, busy: true };
 }
 function scatStop(el) {
   const J = scatterPrep(el);
   if (J) SCW.stopped.set(el.id, J.key);
-  SCW.want.delete(el.id);
+  SCW.queue = SCW.queue.filter(q => q.proj || q.elId !== el.id);
   if (SCW.job && SCW.job.elId === el.id) scatKill();
   syncPanel();
 }
@@ -211,7 +324,7 @@ function scatterRows(el, S) {
   const rows = [], D = S.dda;
   const how = S.model === 'mie' ? ', ' + S.mie.terms + ' terms' + (S.shape === 'sphere' ? ', exact for a sphere' : '')
     : S.model === 'dda' ? ': ' + D.N + ' dipoles ' + scatSig(D.d, 3) + ' nm apart (' + scatSig(D.across, 3) + ' across), |m|kd = ' + scatSig(D.mkd, 2) + ', lattice dispersion relation; ' +
-      (D.converged ? 'solved in ' + D.iters + ' iterations' : 'not converged after ' + D.iters + ' iterations') + ' (residual ' + scatSig(D.resid, 2) + ')'
+      (D.converged ? 'solved in ' + D.iters + ' iterations' : 'not converged after ' + D.iters + ' iterations') + ' (residual ' + scatSig(D.resid, 2) + ')' + (D.combined ? '; ' + (D.runs ? D.combined + ' of its ' + (D.runs + D.combined) + ' solves' : 'its solve' + (D.combined > 1 ? 's' : '')) + ' combined from answers already worked out for other light (the particle is linear in it)' : '') + (D.warm ? '; started from the nearest answer worked out before' : '')
       : ', good while the particle is much smaller than the wavelength';
   rows.push(['Model', MODEL_NAME[S.model] + how + (S.auto ? ' (Auto’s choice)' : '') + '; ' + scatSig(S.ms / 1000, 2) + ' s']);
   const size = S.shape === 'sphere' ? 'a sphere ' + fmtLen(S.D * 1e-6) + ' across' : ({ cylinder: 'a rod with flat ends', capsule: 'a rod with round ends', spheroid: 'a spheroid' })[S.shape] + ', ' + fmtLen(S.L * 1e-6) + ' × ' + fmtLen(S.D * 1e-6);
@@ -262,7 +375,9 @@ function caughtRows(el) {
 /* A Particle part's trap, from its scattering run (which solves the trap where it is): { T, busy } as the Trap tab takes them */
 export function particleTrapLater(el) {
   const A = scatterLater(el), S = A.S;
-  return { T: S && S.trapRaw ? trapReport(el, S.trapRaw) : S && S.error ? { error: S.error === 'no beam' ? 'no focused beam' : S.error } : null, busy: !!A.busy, none: !!A.none };
+  if (S && S.error) return { T: { error: S.error === 'no beam' ? 'no focused beam' : S.error }, busy: !!A.busy, none: !!A.none };
+  const P = trapLater(el);
+  return { T: P.T ? (P.T.error ? { error: P.T.error } : trapReport(el, P.T)) : null, busy: !!A.busy || P.busy, none: !!A.none };
 }
 /* The bench's trace launches each Particle part's scattered light from the answer kept for it. Where that answer is from
    before the last change (or there is none yet), the worker is asked for a new one; when it comes the bench is drawn
@@ -376,7 +491,8 @@ export function scatterSection(el) {
     panel.append(helpLine('Choose a particle to read the light it scatters here.', ['Choose a sphere, a rod or a spheroid to read the light it scatters from the beams through this screen: its cross-sections, where the scattered light goes, and how much a lens of a given numerical aperture would collect. Put the screen at (or near) the focus and untick “Stop the rays it records” on the Screen tab so the light carries on. The same particle is the one the Trap tab reads.'], 'note', 'margin-top:0.5rem'));
     return;
   }
-  const status = h('div', { class: 'rt-scatrun', role: 'status', 'aria-live': 'polite', style: 'display:none;align-items:center;gap:0.6rem;margin-top:0.6rem;font-size:0.8125rem;color:var(--jek-ink-soft)' });
+  const status = h('div', { class: 'rt-scatrun', role: 'status', 'aria-live': 'polite', style: 'display:none;align-items:center;flex-wrap:wrap;gap:0.6rem;margin-top:0.6rem;font-size:0.8125rem;color:var(--jek-ink-soft)' });
+  const bar = h('progress', { class: 'rt-scatbar', max: 1, 'aria-label': 'Scattering progress', style: 'flex:1;min-width:4rem;height:0.4rem;accent-color:var(--jek-cyan)' });
   const box = h('div', { class: 'rt-readout' });
   const views = [['in', 'In the bench plane'], ['out', 'Out of the plane'], ['map', 'Every direction']];
   const tabs = h('div', { class: 'rt-inline', style: 'margin:0.5rem 0 0.3rem;flex-wrap:wrap;column-gap:0.8rem;row-gap:0.2rem' });
@@ -419,12 +535,15 @@ export function scatterSection(el) {
   bindSync(box, () => {
     const A = scatterLater(el), S = A.S && !A.S.error ? A.S : null;
     // the run's line: what it is doing, and Stop; or that it was stopped, and Run
-    let st = [];
-    if (A.busy) {
+    let st = [], frac = null;
+    // (with a bar of its own beside the line: what the bench's scattering bar reads, scatActivity)
+    const act = scatActivity();
+    if (A.busy || (act && SCW.ahead)) {
       const P = A.prog;
-      const what = !P ? 'Working out the scattering…' : P.stage === 'dipoles' ? 'Dipole array, ' + P.N + ' dipoles: ' + (P.iter ? 'iteration ' + P.iter + ', residual ' + scatSig(P.resid, 2) : 'starting') + '…'
+      const what = act && SCW.ahead ? act.text + '…' : !P ? 'Working out the scattering…' : P.stage === 'dipoles' ? (P.combined ? 'Dipole array: combined from answers already worked out…' : 'Dipole array, ' + P.N + ' dipoles: ' + (P.iter ? 'iteration ' + P.iter + ', residual ' + scatSig(P.resid, 2) : 'starting') + '…')
         : P.stage === 'pattern' ? 'Working out the pattern…' : 'Taking the light at the particle…';
-      st = [what, 'stop'];
+      frac = act ? act.frac : null;
+      st = [what, A.busy && !A.ahead ? 'stop' : ''];
     } else if (A.stopped) st = ['Stopped.', 'run'];
     else if (A.S && A.S.error) st = ['No scattering: ' + (A.S.error === 'no beam' || A.S.error === 'no focused beam' || A.S.error === 'no light' ? 'no Gaussian beam through here has a field to take.' : A.S.error), ''];
     else if (A.none) st = [isPart ? 'No Gaussian beam passes the particle (within three beam radii of it).' : 'No Gaussian beam reaches this screen.', ''];
@@ -432,9 +551,11 @@ export function scatterSection(el) {
     if (s1 !== sigT) {
       sigT = s1;
       status.replaceChildren(...(st.length ? [h('span', null, st[0]), st[1] === 'stop' ? h('button', { class: 'rt-zb', type: 'button', onclick: () => scatStop(el) }, 'Stop')
-        : st[1] === 'run' ? h('button', { class: 'rt-zb', type: 'button', onclick: () => scatGo(el) }, 'Run') : ''] : []));
+        : st[1] === 'run' ? h('button', { class: 'rt-zb', type: 'button', onclick: () => scatGo(el) }, 'Run') : ''] : []), bar);
       status.style.display = st.length ? 'flex' : 'none';
     }
+    bar.hidden = !st.length || !A.busy && !SCW.ahead;
+    if (frac === null) bar.removeAttribute('value'); else bar.value = Math.max(0, Math.min(1, frac));
     box.style.opacity = A.busy && S ? '0.55' : '';              // figures from before the last change, while their run is redone
     // (a Particle part: after its own figures, where its scattered light goes on the bench)
     const rows = (S ? scatterRows(el, S) : []).concat(isPart && (S || A.none) ? caughtRows(el) : []);

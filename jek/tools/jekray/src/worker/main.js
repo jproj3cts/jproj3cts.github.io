@@ -10,7 +10,7 @@ import { legAlong, popKeyOf, popRun, popSources } from '../engines/beam-tree.js'
 import { closeupImage } from '../engines/closeup.js';
 import { volData, volLightBox } from '../engines/volume.js';
 import { popDiffraction, popScreenPrep } from '../engines/diffraction.js';
-import { scatterGen, scatterPrep } from '../engines/scatter.js';
+import { particleTrapRaw, scatFind, scatKeep, scatterGen, scatterPrep } from '../engines/scatter.js';
 import { detectorField } from '../engines/pd-cavity.js';
 import { cavLoadKey } from '../engines/scatter-cavity.js';
 import { antennaJob } from '../engines/antenna-field.js';
@@ -26,8 +26,15 @@ function volOut(R, key, vol, transfer) {
 }
 export function workerMain() {
   let bench = { key: null, R: null }, wLoad = null;
+  // the scattering worker's jobs run a slice at a time, so a cancel sent for one (the bench moved on) is heard between
+  // slices and the worker, with what it keeps (the answers it can combine), stays for the next
+  const cancelled = new Set();
+  let lastProj = null, dirty = false;
   self.onmessage = e => {
+    if (e.data && e.data.cancel !== undefined) { cancelled.add(e.data.cancel); return; }
     const { id, kind, proj, args } = e.data;
+    if (kind === 'scatter' || kind === 'trap') { particleJob(e.data); return; }
+    lastProj = null;
     try {
       // the page's particles solved in a cavity: what the field runs take the cavity's light by (engines/scatter-cavity.js)
       if (proj) wLoad = JSON.parse(proj).cavLoad || null;
@@ -46,17 +53,6 @@ export function workerMain() {
       } else if (kind === 'screen') {
         const el = getEl(args.id), J = el && popScreenPrep(el);
         out = J ? { key: J.key, D: fwPackD(popDiffraction(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }))) } : { key: null, D: null };
-      } else if (kind === 'scatter') {
-        // a particle's scattering (the Scattering tab's own worker): its progress as it goes, then the answer
-        const el = getEl(args.id), J = el && scatterPrep(el);
-        if (!J) out = { key: null, S: null };
-        else {
-          const g = scatterGen(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep, bare: true }));
-          // (its progress ten times a second, and each new stage as it starts, however short the one before it was)
-          let r = g.next(), t = 0, stage = '';
-          while (!r.done) { const now = Date.now(); if (now - t > 100 || r.value.stage !== stage) { t = now; stage = r.value.stage; self.postMessage({ id, prog: r.value }); } r = g.next(); }
-          out = { key: J.key, S: r.value };
-        }
       } else if (kind === 'detector') {
         const el = getEl(args.id), J = el && popScreenPrep(el);
         out = J ? { key: J.key + '|' + el.length + cavLoadKey(), r: detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })) } : null;
@@ -122,6 +118,40 @@ export function workerMain() {
       self.postMessage({ id, ok: false, err: String((err && err.stack) || err) });
     }
   };
+  /* A particle's scattering (the Scattering tab's own worker, and a sweep's steps solved ahead): its progress as it goes,
+     then the answer; or its trap, asked for apart. args.sets: a sweep's values for the step, set as the page sets them.
+     The bench is loaded again only when it is not the one already loaded as it was sent. */
+  const tick = () => new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0); });
+  async function particleJob(m) {
+    const { id, kind, proj, args } = m;
+    try {
+      if (m.mods) modAbsorb(m.mods);
+      if (proj && (proj !== lastProj || dirty || m.mods)) { wLoad = JSON.parse(proj).cavLoad || null; loadProject(JSON.parse(proj)); traceScene(); bench = { key: null, R: null }; lastProj = proj; dirty = false; if (wLoad) lastTrace.cavLoad = wLoad; }
+      if (args.sets && args.sets.length) { for (const [eid, path, v] of args.sets) { const el = getEl(eid); if (el) setParam(el, path, v); } traceScene(); dirty = true; }
+      const el = getEl(args.id), J = el && scatterPrep(el);
+      if (!J) { self.postMessage({ id, ok: true, out: { key: null, S: null } }); return; }
+      const R = popRun(lastTrace.beams, J.srcs, { keep: J.keep, bare: true });
+      if (kind === 'trap') { self.postMessage({ id, ok: true, out: { key: J.key, T: particleTrapRaw(el, R) } }); return; }
+      // (an answer this worker has worked out before, a state come back to: sent again as it is)
+      const was = scatFind(el.id, J.key, true);
+      if (was && (was.S.trapRaw || !args.trap)) { self.postMessage({ id, ok: true, out: { key: J.key, S: was.S } }); return; }
+      const g = scatterGen(el, R, { trap: !!args.trap });
+      // (its progress ten times a second, and each new stage as it starts, however short the one before it was; a slice of
+      // about 40 ms at a time, a cancel heard between them)
+      let r = g.next(), t = 0, stage = '', slice = Date.now();
+      while (!r.done) {
+        const now = Date.now();
+        if (now - t > 100 || r.value.stage !== stage) { t = now; stage = r.value.stage; self.postMessage({ id, prog: r.value }); }
+        if (now - slice > 40) { await tick(); slice = Date.now(); if (cancelled.has(id)) { cancelled.delete(id); self.postMessage({ id, ok: true, out: { cancelled: true } }); return; } }
+        r = g.next();
+      }
+      cancelled.delete(id);
+      if (r.value && !r.value.error) scatKeep(el.id, J.key, r.value, true);
+      self.postMessage({ id, ok: true, out: { key: J.key, S: r.value } });
+    } catch (err) {
+      self.postMessage({ id, ok: false, err: String((err && err.stack) || err) });
+    }
+  }
 }
 
 /* A field run as plain data: each segment by its beam's index and its source's id, with its

@@ -654,6 +654,15 @@ function whiteRuns(rays) {
 }
 /* a ray of a particle's scattered light, where its power would not show it: a step or two of the twelve, by its share of its cone's strongest */
 export const scatLevel = (r, tops) => (r.w / (tops.get(r.src) || 1) > 0.5 ? 2 : 1);
+/* a particle that draws its scattered field (scatField): its fan and its cones' rays faded to SC_FIELD_FADE of their
+   strength, so they do not clutter the glow, kept faintly as they still show where the light goes past a part */
+export const SC_FIELD_FADE = 0.3;
+export function scatFadeOf(src) {
+  const SC = lastTrace.scat;
+  if (!SC || !SC.fans || !src) return 1;
+  const id = String(src).split('~')[0];
+  return SC.fans.some(F => F.part === id && F.field) ? SC_FIELD_FADE : 1;
+}
 /* A particle's fan (lastTrace.scat.fans, engines/scatter-light.js): its rays in the bench plane, each as bright as the
    pattern is along it. A picture: nothing reads it. */
 function drawScatFans() {
@@ -665,7 +674,7 @@ function drawScatFans() {
   ctx.lineWidth = 1;
   for (const F of SC.fans) {
     if (!F.on || F.bench !== project.tab) continue;
-    const x0 = ox + F.pos[0] * k, y0 = oy - F.pos[1] * k;
+    const x0 = ox + F.pos[0] * k, y0 = oy - F.pos[1] * k, fade = F.field ? SC_FIELD_FADE : 1;
     for (let lvl = 1; lvl <= 4; lvl++) {
       ctx.beginPath();
       let any = false;
@@ -676,8 +685,8 @@ function drawScatFans() {
         ctx.moveTo(x0, y0); ctx.lineTo(x0 + F.rays[o] * L * k, y0 - F.rays[o + 1] * L * k); any = true;
       }
       if (!any) continue;
-      if (lightLayer) { ctx.globalAlpha = 1; ctx.strokeStyle = paperTint(lightInk(F.colour), glowA(0.05 * lvl)); }
-      else { ctx.globalAlpha = glowA(0.05 * lvl); ctx.strokeStyle = F.colour; }
+      if (lightLayer) { ctx.globalAlpha = 1; ctx.strokeStyle = paperTint(lightInk(F.colour), glowA(0.05 * lvl * fade)); }
+      else { ctx.globalAlpha = glowA(0.05 * lvl * fade); ctx.strokeStyle = F.colour; }
       ctx.stroke();
     }
   }
@@ -703,9 +712,10 @@ function drawRaysOn(ctx, rays, shared) {
     // (a particle's scattered light is far below the beam that drives it: by power it is the faintest step that shows, never nothing)
     const lvl = byPow ? Math.max(r.sc ? scatLevel(r, tops) : 0, Math.round(alpha * 12)) : r.sc ? scatLevel(r, tops) : Math.max(1, Math.round(alpha * 12));
     if (!lvl) continue;
+    const fade = r.sc ? scatFadeOf(r.src) : 1;
     for (const part of shared && shared.has(r) ? shared.get(r) : [{ pts: r.pts, colour: r.colour }]) {
-      const key = part.colour + '|' + lvl;
-      if (!groups.has(key)) groups.set(key, { colour: part.colour, alpha: lvl / 12, rays: [] });
+      const key = part.colour + '|' + lvl + '|' + fade;
+      if (!groups.has(key)) groups.set(key, { colour: part.colour, alpha: lvl / 12 * fade, rays: [] });
       groups.get(key).rays.push(part);
     }
   }
@@ -1216,8 +1226,10 @@ function renderAll(stale) {
   for (const el of els) if (el.type === 'draw' && el.layer === 'under') draw(el);
   drawFibres();
   for (const el of els) if (el.type !== 'source' && el.type !== 'draw' && el.type !== 'particle') draw(el);
+  // (a particle's scattered field under the rays: laid on paper, over them it would tint the beam's rays)
+  if (!stale) drawScatField();
   if (lightOf().rays) { if (lightOf().trail && !exporting) drawTrail(); drawRays(stale); }
-  if (!stale) { drawScatField(); drawScatFans(); }
+  if (!stale) drawScatFans();
   // (a particle is a dot on a beam: drawn over the light, where it can be seen)
   for (const el of els) if (el.type === 'particle') draw(el);
   if (!stale) {

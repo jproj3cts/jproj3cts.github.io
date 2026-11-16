@@ -305,6 +305,19 @@ export function magma(v) {
   const [a, ...c0] = MAGMA[i - 1], [b, ...c1] = MAGMA[i], t = (v - a) / (b - a);
   return c0.map((c, k) => Math.round(c + (c1[k] - c) * t));
 }
+/* A particle's scattered field (engines/scatter-field.js) is drawn in a ramp of its own, cool where the beam's field is
+   magma and the light's own colours are mostly warm, so the two can be told apart where they overlap (by any eye: they
+   differ in blue and in lightness, not only red against green). On the dark bench navy to blue to cyan to near white,
+   brighter as there is more; on paper, the other way, pale cyan to blue to navy, deeper as there is more. */
+const SCAT_RAMP_DARK = [[0, 10, 22, 70], [0.35, 26, 88, 214], [0.7, 48, 196, 236], [1, 228, 250, 255]];
+const SCAT_RAMP_PAPER = [[0, 150, 214, 238], [0.4, 38, 146, 222], [0.75, 22, 78, 190], [1, 10, 30, 110]];
+export function scatRamp(v, paper) {
+  const M = paper ? SCAT_RAMP_PAPER : SCAT_RAMP_DARK;
+  v = Math.min(1, Math.max(0, v));
+  let i = 1; while (i < M.length - 1 && M[i][0] < v) i++;
+  const [a, ...c0] = M[i - 1], [b, ...c1] = M[i], t = (v - a) / (b - a);
+  return c0.map((c, k) => Math.round(c + (c1[k] - c) * t));
+}
 /* While sweeps play, a screen's irradiance keeps the brightest scale it has shown, so light
    that dims across the whole spot (a Michelson's port going dark) dims on the plot rather
    than being scaled back up to fill it; once they stop, each plot scales to itself again */

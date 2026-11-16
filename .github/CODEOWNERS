@@ -1,0 +1,24 @@
+# Paths that need the owner's review before a pull request can merge (with "Require review from Code Owners" on in
+# main's ruleset). Everything else needs one approving review from anyone with write access.
+
+# accounts, billing and Stripe; the shop's fulfilment
+/jek-api/                                   @jproj3cts
+/worker/                                    @jproj3cts
+
+# CI, this file, and the working notes every Claude session reads
+/.github/                                   @jproj3cts
+/CLAUDE.md                                  @jproj3cts
+
+# legal pages
+/jek/terms.html                             @jproj3cts
+/jek/privacy.html                           @jproj3cts
+/jek/security.html                          @jproj3cts
+/jek/tools/jekray-licence.html              @jproj3cts
+
+# what is free, what is paid, and signing in (shared by every app)
+/jek/tools/jekray/src/ui/pro.js             @jproj3cts
+/jek/tools/jekray/src/io/account.js         @jproj3cts
+/jek/tools/jekray/src/io/cloud.js           @jproj3cts
+
+# the key that checks signed part packs
+/jek/tools/jekray/src/core/packsig.js       @jproj3cts

@@ -22,13 +22,13 @@ import { compileMaskExpr, maskFns } from '../core/mask.js';
 import { lastTrace, lastTraceKey, lastTraceMs, setLastTraceKey, traceCount, traceKeyNow, traceScene, traceStore, traceStoreHits } from '../engines/trace.js';
 import {
   beamPowerShare, benchStyleShown, bez, byPowerOn, fibreSegs, powerFade, powerTop, rayPowerShare, rayTops, handlePos, hornShape, requestRender, resize, segPlanes, selection,
-  setSelection, sx, sy, toScr, wireRender, lightLayer
+  setSelection, sx, sy, toScr, wireRender, lightLayer, drawCount
 } from './render.js';
 import { hitTest, wirePointer } from './pointer.js';
 import { getPath, setParam } from '../state/params.js';
 import {
   fieldFrames, fieldHeld, fieldRendered, pauseAll, play, playAll, playing, renderedPeriod, showActivityNow,
-  activityNow, stepValue, sweepJob, updateActivity
+  activityBars, activityNow, setSweepHoldLimit, stepValue, sweepHolding, sweepJob, updateActivity
 } from './sweeps.js';
 import { arrivalField, faceArrivals } from '../engines/fibre-face.js';
 import { portWorld, portsOf } from '../engines/fibre.js';
@@ -226,6 +226,10 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // (tests) the answer a particle's light on the bench is launched from now, as the trace has it: { axis, key } or null
     scatShown(name) { traceScene(); const el = this.byName(name), S = el && scatterCached(el); return S ? { axis: S.axis, Psca: S.Psca } : null; },
     activity() { const a = activityNow(), s = scatActivity(); return { bench: a && a.text, scat: s && s.text, scatFrac: s ? s.frac : null }; },
+    // (tests) a sweep's long render held: the limit lowered (none: put back), and whether it holds now with the frames drawn so far; the bars as drawn
+    sweepHoldLimit(s) { setSweepHoldLimit(s); },
+    sweepHold() { return { holding: sweepHolding(), drawn: drawCount }; },
+    activityBars() { return activityBars(); },
     // the diffracted field as the 3D view takes it, worked out here: per segment its cuts along it, their reach and the irradiance on the axis (W/cm²)
     vol3d() { traceScene(); const srcs = popSources(); if (!srcs.length) return null; const t0 = performance.now(), R = popRun(lastTrace.beams, srcs, {}), t1 = performance.now(), V = volData(R.segs, project.tab, null); self.__volMs = [t1 - t0, performance.now() - t1];
       return { peak: V.peak * 100, disp: volDisp(V) * 100, segs: V.segs.map(v => ({ i: v.i, two: v.two, coh: v.coh, ta: v.ta, tb: v.tb, o: v.o, e: v.e, ts: Array.from(v.ts), rmax: Array.from(v.rmax), peak: v.peak * 100,

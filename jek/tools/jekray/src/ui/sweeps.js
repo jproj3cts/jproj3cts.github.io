@@ -3,7 +3,7 @@ import { spmAsked } from '../core/pulses.js';
 import { V, project, selectedId } from '../state/project.js';
 import { allSources, beamOn, fieldDec, getEl, lightOf } from '../state/elements.js';
 import { dropTraceStore, lastTrace, setLastTraceKey, traceScene } from '../engines/trace.js';
-import { H, W, requestRender } from './render.js';
+import { H, W, requestRender, setDrawHeld } from './render.js';
 import { SWEEP_STEPS_MAX, getPath, setParam } from '../state/params.js';
 import { MODS } from '../core/modulators.js';
 import { modDelta } from '../engines/mods.js';
@@ -21,7 +21,7 @@ import { checkpoint } from './tabs.js';
 import { scheduleSave } from '../io/autosave.js';
 import { FW, TW, WORKERS_OK, fieldWorker, fwProject, fwRequest, fwUnpackRun, newAppWorker } from '../page/workers.js';
 import { track } from '../io/usage.js';
-import { particlesAhead, particlesAheadDone, particlesAheadNow, scatActivity, scatWork, scatterAheadStop } from "./scatter.js";
+import { particlesAhead, particlesAheadDone, particlesAheadNow, scatActivity, scatAheadEta, scatWork, scatterAheadStop } from "./scatter.js";
 
 /* ---------- Sweeps: each value oscillates on one shared clock ----------
    value = From + (To − From) · shape(f·T + phase/360), so phases are relative
@@ -115,7 +115,10 @@ function aheadPlain() {
   const sw0 = list[0][0].sweeps[list[0][1]];
   if (!(sw0.steps > 0) || list.some(([e, p]) => e.sweeps[p].steps !== sw0.steps || e.sweeps[p].freq !== sw0.freq)) return;
   const n = sw0.steps;
-  particlesAhead(list, n, (e, p, i) => stepValue(e.sweeps[p], i, n, 1 / e.sweeps[p].freq), () => list.every(([e, p]) => getEl(e.id) && e.sweeps && e.sweeps[p] && playing.has(sweepKey(e, p))));
+  // (its steps' solves predicted to take long: the play is held until they are all done, then it plays whole)
+  HOLD.plain = true; setDrawHeld(sweepHolding);
+  const run = particlesAhead(list, n, (e, p, i) => stepValue(e.sweeps[p], i, n, 1 / e.sweeps[p].freq), () => list.every(([e, p]) => getEl(e.id) && e.sweeps && e.sweeps[p] && playing.has(sweepKey(e, p))));
+  Promise.resolve(run).then(() => { if (!sweepJob) holdEnd(); });
 }
 export function play(el, path) {
   const sw = el.sweeps && el.sweeps[path];
@@ -228,11 +231,12 @@ export function cancelJobFor(el, path) {
 export function pause(el, path) {
   cancelJobFor(el, path);
   playing.delete(sweepKey(el, path));
-  if (!playing.size) { dropTraceStore(); scatterAheadStop(); }
+  if (!playing.size) { dropTraceStore(); scatterAheadStop(); holdEnd(); }
   syncPanel(); updateSweepButtons(); scheduleSave();
 }
 export function pauseAll() {
   if (sweepJob) sweepJob.cancel();
+  holdEnd();
   if (!playing.size) return;
   playing.clear(); dropTraceStore(); scatterAheadStop();
   syncPanel(); updateSweepButtons(); scheduleSave();
@@ -310,8 +314,67 @@ export function sweepEta(j) {
   if (j.t0 === null) return '';
   const done = j.i + (j.part || 0) - j.i0, dt = (performance.now() - j.t0) / 1000;
   if (done < 0.5 || dt < 1.5) return '';
-  const left = dt / done * (j.n - j.i0 - done);
-  return left < 1 ? '' : 'about ' + (left < 60 ? Math.ceil(left / 5) * 5 + ' s' : left < 3600 ? Math.round(left / 60) + ' min' : (left / 3600).toFixed(1) + ' h') + ' left';
+  return leftText(dt / done * (j.n - j.i0 - done));
+}
+/* time left as said on the bars: about 25 s, about 1 min 20 s, about 1.5 h */
+export function leftText(left) {
+  if (!(left >= 1)) return '';
+  if (left < 60) return 'about ' + Math.ceil(left / 5) * 5 + ' s left';
+  if (left < 3600) { const s = Math.round(left / 10) * 10, m = Math.floor(s / 60), r = s % 60; return 'about ' + m + ' min' + (r ? ' ' + r + ' s' : '') + ' left'; }
+  return 'about ' + (left / 3600).toFixed(1) + ' h left';
+}
+/* ---------- A long render held ----------
+   A sweep whose work ahead (its field's frames, its particles' scattering) is predicted to take longer than SWEEP_HOLD_S
+   does not play its steps as they trickle in: the bench is held as it was (render.js draws nothing new), the bars alone
+   say how it goes, and the cycle plays once all of it is ready. The prediction is the time the steps worked out so far
+   have taken, for every step there is to do, made again as each finishes: one that crosses the limit part way holds from
+   there. Under the limit the sweep behaves as it always has. Pause or Stop let go at once. */
+export const SWEEP_HOLD_S = 30;
+let holdLimit = SWEEP_HOLD_S;
+/* (the tests: a lower limit, so a quick sweep counts as a long one; none puts it back) */
+export function setSweepHoldLimit(s) { holdLimit = s > 0 ? s : SWEEP_HOLD_S; }
+export const HOLD = { on: false, wait: 0, plain: false };
+export const sweepHolding = () => HOLD.on;
+/* the whole of the work ahead, predicted (s), or null before a step has been timed: the longer of the field's and the particles' */
+export function sweepPredict(j) {
+  let T = null;
+  if (j && j.t0 !== null && j.t0 !== undefined) {
+    const done = j.i + (j.part || 0) - j.i0 + (j.pool ? 1 : 0), dt = (performance.now() - j.t0) / 1000;
+    if (done >= 1) T = dt / done * (j.n - j.i0);
+  }
+  const A = scatAheadEta();
+  if (A && A.done >= 1) T = Math.max(T || 0, A.dt / A.done * A.of);
+  return T;
+}
+/* the time left on whatever is still worked out ahead (s), for the bars */
+function holdLeft(j) {
+  let L = 0;
+  if (j && j.t0 !== null && j.t0 !== undefined) { const done = j.i + (j.part || 0) - j.i0 + (j.pool ? 1 : 0), dt = (performance.now() - j.t0) / 1000; if (done >= 1) L = dt / done * (j.n - j.i0 - done); }
+  const A = scatAheadEta();
+  if (A && A.done >= 1) L = Math.max(L, A.dt / A.done * (A.of - A.done));
+  return L;
+}
+function holdCheck(j) {
+  if (HOLD.on) return;
+  const T = sweepPredict(j);
+  if (T !== null && T > holdLimit) { HOLD.on = true; updateActivity(); }
+}
+export function holdEnd() {
+  clearTimeout(HOLD.wait); HOLD.wait = 0; HOLD.plain = false;
+  if (!HOLD.on) return;
+  HOLD.on = false;
+  requestRender(); syncPanel();
+}
+/* once the particles' steps ahead are done too (when held: the cycle plays whole), then go */
+function whenReady(go) {
+  clearTimeout(HOLD.wait);
+  if (!HOLD.on || !scatAheadEta()) { go(); return; }
+  HOLD.wait = setTimeout(() => whenReady(go), 150);
+}
+/* the play loop asks each frame: held (nothing moves), after looking again at a plain sweep's particles solved ahead */
+export function sweepHoldTick() {
+  if (HOLD.plain && !HOLD.on) holdCheck(null);
+  return HOLD.on;
 }
 /* screens whose diffracted field is on show: their panel is open at the Diffraction tab */
 const openScreens = () => project.elements.filter(e => (e.type === 'screen' || e.type === 'mirror') && (vs(e).screenTab === 'plots' || vs(e).screenTab === 'trap') &&
@@ -348,6 +411,7 @@ function renderSweepFrames(list, onDone) {
   const n = sweepFrames(list);
   framesLast = n;
   // the particles' scattering for every step, solved ahead on their own worker beside the field (ui/scatter.js)
+  setDrawHeld(sweepHolding); holdEnd();
   particlesAhead(list, n, (e, p, i) => stepValue(e.sweeps[p], i, n, period), () => list.every(([e, p]) => getEl(e.id) && e.sweeps && e.sweeps[p]));
   sweepVol.begin();
   // every step already rendered (played before, paused, played again): straight on, no render pass
@@ -376,8 +440,9 @@ function renderSweepFrames(list, onDone) {
     list.forEach(([el, path], k) => { if (getEl(el.id)) setParam(el, path, saved[k]); });
     if (ok) fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period: cyc(), n, ref: job.ref };
     changed(false);
-    if (ok) onDone();
-    else if (!job.quiet) toast('Stopped rendering the field');
+    // (held: it plays once the particles' steps are done too, the whole cycle ready)
+    if (ok) whenReady(() => { holdEnd(); onDone(); });
+    else { holdEnd(); if (!job.quiet) toast('Stopped rendering the field'); }
   };
   job.cancel = () => finish(false);
   const gone = () => list.some(([el, path]) => !getEl(el.id) || !el.sweeps || !el.sweeps[path]);
@@ -432,6 +497,7 @@ function renderSweepFrames(list, onDone) {
           if (!live()) return;
           if (o && o.key === J.key && o.D) keepFrame(fieldFrames.screens, J.key, diffFns(o.D));
         }
+        job.part = 1; holdCheck(job);        // (the step done: the whole predicted again)
       }
       finish(true);
     })().catch(() => {
@@ -486,6 +552,7 @@ function renderSweepFrames(list, onDone) {
         traceScene();
         keepFrame(fieldFrames.screens, J.key, popDiffraction(scr, R));
       }
+      job.part = 1; holdCheck(job);          // (the step done: the whole predicted again)
     }
   })();
   const step = () => {
@@ -565,7 +632,7 @@ function renderOnPool(pool, list, n, cyc, job, onDone) {
   for (let st = 8; st >= 1; st >>= 1) for (let i = 0; i < n; i += st) if (!seen.has(i)) { seen.add(i); order.push(i); }
   const first = Math.ceil(n / 8), done = new Set();
   let next = 0, started = false;
-  job.t0 = performance.now(); job.i0 = 0; job.i = -1; job.part = 0;
+  job.t0 = performance.now(); job.i0 = 0; job.i = -1; job.part = 0; job.pool = true;
   job.stage = pool.length > 1 ? pool.length + ' at once' : '';
   const play = () => { if (started || !live()) return; started = true; fieldRendered = { keys, period: cyc(), n, done, ref: job.ref }; onDone(); };
   const runOne = async W => {
@@ -584,18 +651,20 @@ function renderOnPool(pool, list, n, cyc, job, onDone) {
       if (o.vol) sweepVol.keep(o.vol.key, o.vol.tab, o.vol.bb, o.vol.V);
       for (const S of o.screens) if (S && S.D) keepFrame(fieldFrames.screens, S.key, diffFns(S.D));
       done.add(i); job.i = done.size - 1;
-      if (!started && done.size >= first && order.slice(0, first).every(k => done.has(k))) play();
+      holdCheck(job);
+      // (held: nothing plays until the whole cycle is there)
+      if (!started && !HOLD.on && done.size >= first && order.slice(0, first).every(k => done.has(k))) play();
       requestRender(); syncPanel();
     }
   };
   // stopped part way: what plays on is worked out live, not held to the coarse steps rendered so far
-  job.cancel = () => { if (!live()) return; sweepJob = null; swDrop(); if (fieldRendered && fieldRendered.done === done) fieldRendered = null; changed(false); if (!job.quiet) toast('Stopped rendering the field'); };
+  job.cancel = () => { if (!live()) return; sweepJob = null; swDrop(); holdEnd(); if (fieldRendered && fieldRendered.done === done) fieldRendered = null; changed(false); if (!job.quiet) toast('Stopped rendering the field'); };
   Promise.all(pool.map(runOne)).then(() => {
     if (!live()) return;
     sweepJob = null; swRelease();
     fieldRendered = { keys, period: cyc(), n, ref: job.ref };
     changed(false);
-    if (!started) { started = true; onDone(); }
+    whenReady(() => { holdEnd(); if (!started) { started = true; onDone(); } });
   }, err => {
     // a worker failed: the pool is not used again, and the render starts again the old way
     if (!live()) return;
@@ -623,10 +692,12 @@ export function benchFrame(key) {
 export function activityNow() {
   if (sweepJob) {
     const j = sweepJob, what = j.stage === 'the bench' ? 'the bench' : j.stage && j.stage !== 'tracing' ? j.stage : '';
-    const eta = sweepEta(j);
-    return { text: 'Rendering the field for the sweep: step ' + (j.i + 1) + ' of ' + j.n + (what ? ', ' + what : '') + (eta ? ' (' + eta + ')' : ''),
-      frac: (j.i + (j.part || 0)) / j.n };
+    // (held: the time left on all of it, field and particles, and that it plays once ready)
+    const eta = HOLD.on ? leftText(holdLeft(j)) : sweepEta(j);
+    return { text: 'Rendering the field for the sweep: step ' + (j.i + 1) + ' of ' + j.n + (what ? ', ' + what : '') + (eta ? ' (' + eta + ')' : '') + (HOLD.on ? '; it plays once all of it is ready' : ''),
+      frac: (j.i + (j.part || 0) + (j.pool ? 1 : 0)) / j.n };
   }
+  if (HOLD.on) { const A = scatAheadEta(), eta = leftText(holdLeft(null)); return { text: 'The sweep plays once its steps are worked out' + (eta ? ' (' + eta + ')' : ''), frac: A ? A.done / A.of : null }; }
   if (mcJob) return { text: 'Tolerance study: ' + mcJob.i + ' of ' + mcJob.n + ' trials', frac: mcJob.i / mcJob.n };
   const jobs = [];
   if (popState.job) jobs.push('the diffracted field on the bench');
@@ -648,7 +719,45 @@ const scatBar = { box: null, text: null, bar: null, since: 0, now: false, shown:
 export function showActivityNow() { if (TEST_MODE) return; activity.now = true; updateActivity(); }
 export function updateActivity() {
   barShow(activity, activityNow());
-  barShow(scatBar, scatActivity());
+  const s = scatActivity(), A = s && scatAheadEta(), left = A && A.done >= 1 ? leftText(A.dt / A.done * (A.of - A.done)) : '';
+  barShow(scatBar, s && left ? Object.assign({}, s, { text: s.text + ' (' + left + ')' }) : s);
+  placeBars();
+}
+/* The bars' dock (style.css .rt-actdock): at the bottom right of the bench, above its tab strip, clear of the parts rail
+   at the top. Whatever else sits at the bottom of the bench across its width (the minimap, the 3D view's key, the
+   drawing hint, the measuring bar, a note, an embed's bar) puts it above them; it is never higher than just under the
+   rail, and never wider than the bench. */
+const DOCK_AVOID = '.rt-minimap, .rt-v3dkey, .rt-drawhint, .rt-measurebar, .rt-welcome, .rt-embedbar';
+function actDock() {
+  const stage = document.getElementById('stage');
+  let d = stage.querySelector(':scope > .rt-actdock');
+  if (!d) { d = h('div', { class: 'rt-actdock' }); stage.append(d); }
+  return d;
+}
+function placeBars() {
+  const stage = document.getElementById('stage'), d = stage && stage.querySelector(':scope > .rt-actdock');
+  if (!d || ![...d.children].some(c => !c.hidden)) return;
+  const S = stage.getBoundingClientRect(), base = 2.6 * 16, gap = 6;
+  d.style.bottom = base + 'px';
+  const D = d.getBoundingClientRect();
+  let bottom = base;
+  for (const o of stage.querySelectorAll(DOCK_AVOID)) {
+    if (o.hidden || !o.offsetParent || getComputedStyle(o).display === 'none' || getComputedStyle(o).visibility === 'hidden') continue;
+    const r = o.getBoundingClientRect();
+    if (!r.width || !r.height || r.right <= D.left || r.left >= D.right || r.top >= S.bottom) continue;
+    bottom = Math.max(bottom, S.bottom - r.top + gap);
+  }
+  // (on a phone the panel is a sheet over the bottom of the bench: above it)
+  for (const sheet of document.querySelectorAll('.rt-panel')) if (!sheet.hidden && sheet.offsetParent && getComputedStyle(sheet).position === 'absolute') { const r = sheet.getBoundingClientRect(); if (r.height && r.top < S.bottom && r.left < D.right && r.right > D.left) bottom = Math.max(bottom, S.bottom - r.top + gap); }
+  // (no higher than just under the rail and what the top overlays need: on a short bench it stays at its base)
+  const top = parseFloat(getComputedStyle(stage).getPropertyValue('--rt-top')) || 0;
+  if (S.height - bottom - D.height < top + gap) bottom = base;
+  d.style.bottom = bottom + 'px';
+}
+/* (the tests) the two bars drawn now, as they stand: shown, pulsing, what they say */
+export function activityBars() {
+  activity.now = scatBar.now = true; updateActivity();
+  return [activity, scatBar].map(B => ({ shown: !!B.box && !B.box.hidden, busy: !!B.track && B.track.classList.contains('rt-busy'), text: B.label ? B.label.textContent : '' }));
 }
 function barShow(B, a) {
   const now = performance.now();
@@ -656,6 +765,8 @@ function barShow(B, a) {
     B.since = 0;
     // once up, it stays long enough to read rather than flashing
     if (B.box && !B.box.hidden && now - B.shown > 400) B.box.hidden = true;
+    // (its pulse stops the moment the work does: a bar left up a moment is plainly finished)
+    if (B.track) B.track.classList.remove('rt-busy');
     return;
   }
   if (!B.since) B.since = now;
@@ -666,8 +777,10 @@ function barShow(B, a) {
     B.pct = h('span', { class: 'rt-act-pct' });
     B.text = h('span', { class: 'rt-act-text' }, B.label, B.pct);
     B.bar = h('i');
-    B.box = h('div', { class: 'rt-activity' + B.cls, role: 'status', 'aria-live': 'polite' }, B.text, h('div', { class: 'rt-act-bar' }, B.bar));
-    document.getElementById('stage').append(B.box);
+    B.track = h('div', { class: 'rt-act-bar' }, B.bar);
+    B.box = h('div', { class: 'rt-activity' + B.cls, role: 'status', 'aria-live': 'polite' }, B.text, B.track);
+    // (in the bars' own dock, the bench's first, the scattering's under it)
+    if (B === activity) actDock().prepend(B.box); else actDock().append(B.box);
   }
   if (B.box.hidden) B.shown = now;
   B.box.hidden = false;
@@ -675,6 +788,8 @@ function barShow(B, a) {
   const pct = a.frac === null ? '' : Math.round(100 * clamp(a.frac, 0, 1)) + '%';
   if (B.pct.textContent !== pct) B.pct.textContent = pct;
   B.box.classList.toggle('indeterminate', a.frac === null);
+  // a pulse runs along it while the work goes on (style.css .rt-busy): it has not stopped, however slowly it fills
+  B.track.classList.add('rt-busy'); B.track.classList.toggle('rt-indet', a.frac === null);
   B.bar.style.width = a.frac === null ? '' : (100 * clamp(a.frac, 0, 1)).toFixed(1) + '%';
 }
 

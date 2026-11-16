@@ -1,3 +1,4 @@
+import { THREADS, threadOf } from '../core/threads.js';
 import { FEATURE_KINDS, MATERIALS, STD_PLANES, appliedCount, featureLabel, newFeature, partLook } from '../core/doc.js';
 import { defaultRegionPts, regionAt } from '../core/sketch-tools.js';
 import { evalExpr, exprIsFormula, fmtNum } from '../core/units.js';
@@ -32,8 +33,10 @@ export const FEATURE_FORMS = {
   fillet: [['edges', 'Edges or faces to round (tangent edges follow)', 'sel', { pick: 'edges' }], ['radius', 'Radius', 'expr', { unit: 'len' }]],
   chamfer: [['edges', 'Edges or faces to bevel (tangent edges follow)', 'sel', { pick: 'edges' }], ['distance', 'Distance', 'expr', { unit: 'len' }]],
   shell: [['faces', 'Faces to remove', 'sel', { pick: 'faces' }], ['thickness', 'Thickness', 'expr', { unit: 'len' }], ['outward', 'Thicken outward', 'check']],
-  hole: [['sketch', 'Sketch with points (each a hole)', 'sel', { pick: 'sketch' }], ['kind', 'Hole', 'select', { options: [['simple', 'Simple'], ['cbore', 'Counterbore'], ['csink', 'Countersink']] }], ['dia', 'Diameter', 'expr', { unit: 'len' }],
-    ['end', 'End', 'select', { options: [['blind', 'Blind'], ['through', 'Through all']] }], ['depth', 'Depth', 'expr', { unit: 'len', show: f => f.end === 'blind' }], ['tip', 'Drill tip (118°)', 'check', { show: f => f.end === 'blind' }],
+  hole: [['sketch', 'Sketch with points (each a hole)', 'sel', { pick: 'sketch' }], ['kind', 'Hole', 'select', { options: [['simple', 'Simple'], ['tapped', 'Tapped'], ['clear', 'Clearance for a screw'], ['cbore', 'Counterbore'], ['csink', 'Countersink']] }],
+    ['size', 'Thread', 'select', { options: THREADS.map(t => [t.size, t.size.replace('x', ' × ') + (t.size.includes('x') ? ' fine' : '')]), show: f => f.kind === 'tapped' || f.kind === 'clear' }], ['fit', 'Fit', 'select', { options: [['close', 'Close'], ['normal', 'Normal']], show: f => f.kind === 'clear' }],
+    ['dia', 'Diameter', 'expr', { unit: 'len', show: f => f.kind !== 'tapped' && f.kind !== 'clear' }],
+    ['end', 'End', 'select', { options: [['blind', 'Blind'], ['through', 'Through all']] }], ['depth', 'Depth', 'expr', { unit: 'len', show: f => f.end === 'blind' }], ['threadDepth', 'Thread depth', 'expr', { unit: 'len', show: f => f.kind === 'tapped' && f.end === 'blind' }], ['tip', 'Drill tip (118°)', 'check', { show: f => f.end === 'blind' }],
     ['cbDia', 'Counterbore diameter', 'expr', { unit: 'len', show: f => f.kind === 'cbore' }], ['cbDepth', 'Counterbore depth', 'expr', { unit: 'len', show: f => f.kind === 'cbore' }],
     ['csDia', 'Countersink diameter', 'expr', { unit: 'len', show: f => f.kind === 'csink' }], ['csAngle', 'Countersink angle', 'expr', { unit: 'ang', show: f => f.kind === 'csink' }], ['targets', 'Parts to cut (none: all)', 'sel', { pick: 'parts' }]],
   lpattern: [['of', 'Pattern', 'seg', { options: [['features', 'Features'], ['parts', 'Parts']] }], ['items', 'What to pattern', 'sel', { pick: f => (f.of === 'parts' ? 'parts' : 'features') }],
@@ -41,10 +44,29 @@ export const FEATURE_FORMS = {
   cpattern: [['of', 'Pattern', 'seg', { options: [['features', 'Features'], ['parts', 'Parts']] }], ['items', 'What to pattern', 'sel', { pick: f => (f.of === 'parts' ? 'parts' : 'features') }],
     ['axis', 'Axis', 'select', { options: [['x', 'x'], ['y', 'y'], ['z', 'z']], show: f => !f.axisRef }], ['axisRef', 'Or about an edge (straight or round)', 'sel', { pick: 'edge' }], ['count', 'Instances', 'expr', { unit: 'num' }], ['angle', 'Angle (360°: equally round)', 'expr', { unit: 'ang' }]],
   mirror: [['of', 'Mirror', 'seg', { options: [['features', 'Features'], ['parts', 'Parts']] }], ['items', 'What to mirror', 'sel', { pick: f => (f.of === 'parts' ? 'parts' : 'features') }], ['plane', 'Mirror plane', 'sel', { pick: 'plane' }]],
+  thread: [['faces', 'Round faces to thread (a hole at the tap drill, or a shaft)', 'sel', { pick: 'faces' }], ['size', 'Thread', 'select', { options: THREADS.map(t => [t.size, t.size.replace('x', ' × ') + (t.size.includes('x') ? ' fine' : '')]) }], ['full', 'The whole length of the face', 'check'], ['length', 'Length', 'expr', { unit: 'len', show: f => !f.full }]],
   delete: [['targets', 'Parts to delete', 'sel', { pick: 'parts' }]],
   boolean: [['op', '', 'seg', { options: [['union', 'Union'], ['subtract', 'Subtract'], ['intersect', 'Intersect']] }], ['targets', 'Parts', 'sel', { pick: 'parts' }], ['tools', 'Tools', 'sel', { pick: 'parts', show: f => f.op !== 'union' }], ['keep', 'Keep the tools', 'check', { show: f => f.op !== 'union' }]],
   import: [['file', 'STEP file', 'file']],
 };
+/* a thread's size from the round face it is put on: the size whose tap drill (a hole) or major diameter (a shaft) it is */
+function threadSizeFor(f, picks) {
+  const face = picks.find(p => p.kind === 'face');
+  if (!face) return;
+  kernelAsk('measure', { picks: [face], doc: app.doc }).then(m => {
+    const it = m && m.items[0];
+    if (!it || !it.radius || !app.editing || app.editing.f !== f) return;
+    const d = 2 * it.radius, t = THREADS.find(x => Math.abs(x.major - d) < 0.05) || THREADS.find(x => Math.abs(x.tap - d) < 0.05);
+    if (t && t.size !== f.size) { f.size = t.size; showDialog(); regenSoon(0); }
+  }).catch(() => {});
+}
+/* a tapped hole's sizes as a thread size is chosen: the thread two diameters deep, the drill a few pitches deeper */
+function holeSizeDefaults(f) {
+  const t = threadOf(f.size);
+  if (!t || f.kind !== 'tapped') return;
+  const mm = v => String(+v.toFixed(2)) + ' mm';
+  f.threadDepth = mm(2 * t.major); f.depth = mm(2 * t.major + 4 * t.pitch);
+}
 const pickOf = (fd, f) => (typeof fd[3].pick === 'function' ? fd[3].pick(f) : fd[3].pick);
 /* ---------- opening ---------- */
 export function openFeature(type, opts) {
@@ -137,10 +159,11 @@ function prefill(f, at) {
   if (f.type === 'plane' && plane) f.ref = plane.std ? { std: plane.std } : { feature: plane.feature };
   if (f.type === 'mirror' && plane) f.plane = plane.std ? { std: plane.std } : { feature: plane.feature };
   const model = sel.filter(s => s.kind === 'edge' || s.kind === 'face');
-  if (model.length && (f.type === 'fillet' || f.type === 'chamfer' || f.type === 'shell' || (f.type === 'plane' && !plane))) {
+  if (model.length && (f.type === 'fillet' || f.type === 'chamfer' || f.type === 'shell' || f.type === 'thread' || (f.type === 'plane' && !plane))) {
     kernelAsk('refs', { picks: model }).then(rs => {
       if (!app.editing || app.editing.f !== f) return;
       if (f.type === 'shell') f.faces = rs.filter(r => r.kind === 'face');
+      else if (f.type === 'thread') { f.faces = rs.filter(r => r.kind === 'face' && r.type === 'cylinder'); threadSizeFor(f, model); }
       else if (f.type === 'plane') { const r = rs.find(x => x.kind === 'face' && x.type === 'plane'); if (r) f.ref = r; }
       else f.edges = rs;
       showDialog(); regenSoon(0);
@@ -274,7 +297,7 @@ export function showDialog() {
     if (kind === 'expr') rows.push(exprField(f, key, label, more.unit));
     else if (kind === 'sel') rows.push(selField(E, fd));
     else if (kind === 'check') rows.push(h('label', { class: 'cad-frow check' }, h('input', { type: 'checkbox', 'data-key': key, id: 'fd-' + key, checked: f[key] ? true : null, onchange: e => { f[key] = e.target.checked; showDialog(); regenSoon(0); } }), label));
-    else if (kind === 'select') { const s = h('select', { 'data-key': key, id: 'fd-' + key, onchange: e => { f[key] = e.target.value; showDialog(); regenSoon(0); } }, ...more.options.map(([v, t]) => h('option', { value: v, selected: f[key] === v ? true : null }, t))); rows.push(h('div', { class: 'cad-frow' }, h('label', { for: 'fd-' + key }, label), s)); }
+    else if (kind === 'select') { const s = h('select', { 'data-key': key, id: 'fd-' + key, onchange: e => { f[key] = e.target.value; if (f.type === 'hole' && (key === 'size' || key === 'kind')) holeSizeDefaults(f); showDialog(); regenSoon(0); } }, ...more.options.map(([v, t]) => h('option', { value: v, selected: f[key] === v ? true : null }, t))); rows.push(h('div', { class: 'cad-frow' }, h('label', { for: 'fd-' + key }, label), s)); }
     else if (kind === 'seg') rows.push(h('div', { class: 'cad-seg', role: 'radiogroup', 'aria-label': featureLabel(f.type) + ' kind' }, ...more.options.map(([v, t]) => h('button', { type: 'button', role: 'radio', 'data-key': key, 'data-val': v, 'aria-checked': String(f[key] === v), class: f[key] === v ? 'on' : null, onclick: () => { f[key] = v; if (key === 'of') f.items = []; if (key === 'op' && E.auto) { const sk = app.doc.features.find(x => x.id === f.sketch); if (sk) f.regions = f.split ? splitDefaultPts(sk, f.type === 'extrude' && v === 'remove') : defaultRegionPts(sk.ents, v === 'remove'); } if (E.field) activate(E.field.key); else showDialog(); regenSoon(0); } }, t))));
     else if (kind === 'file') rows.push(h('div', { class: 'cad-frow' }, h('label', null, label), h('div', null, f.file || 'No file', ' ', h('button', { type: 'button', class: 'rt-btn', onclick: () => { const inp = h('input', { type: 'file', accept: '.step,.stp' }); inp.addEventListener('change', async () => { const fl = inp.files[0]; if (!fl) return; f.file = fl.name; f.data = await fl.text(); f.name = 'Import ' + fl.name.replace(/\.(step|stp)$/i, ''); showDialog(); regenSoon(0); }); inp.click(); } }, 'Choose…'))));
   }

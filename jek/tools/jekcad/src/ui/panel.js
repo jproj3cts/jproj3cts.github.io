@@ -16,7 +16,7 @@ import { kernelAsk } from '../page/kernel.js';
    it to reorder (where what it uses allows). A failed feature is red, its reason in its row. And the measure box
    in the view's corner: what the selection measures.
    ========================================================================== */
-const ICON_OF = { sketch: 'sketch', plane: 'plane', extrude: 'extrude', revolve: 'revolve', sweep: 'sweep', loft: 'loft', fillet: 'fillet', chamfer: 'chamfer', shell: 'shell', hole: 'hole', lpattern: 'lpattern', cpattern: 'cpattern', mirror: 'mirror', boolean: 'boolean', import: 'import', delete: 'trash' };
+const ICON_OF = { sketch: 'sketch', plane: 'plane', extrude: 'extrude', revolve: 'revolve', sweep: 'sweep', loft: 'loft', fillet: 'fillet', chamfer: 'chamfer', shell: 'shell', hole: 'hole', thread: 'thread', lpattern: 'lpattern', cpattern: 'cpattern', mirror: 'mirror', boolean: 'boolean', import: 'import', delete: 'trash' };
 let menuEl = null;
 function closeRowMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
 function rowMenu(x, y, items) {
@@ -193,6 +193,8 @@ async function measureShown() {
   if (seq !== measureSeq) return;
   // the readout: a tab at the foot of the view with the one value most likely wanted (between two parallel faces,
   // how far apart), opened to every value; a value clicked is copied
+  // (a threaded face says so: its thread from the part's list of them)
+  if (!app.asm) m.items.forEach((it, k) => { const s = picks[k]; if (it.kind === 'face' && s && s.kind === 'face') { const part = app.result && app.result.parts.find(x => x.id === s.part), t = part && (part.threads || []).find(x => x.face === s.index); if (t) it.thread = t; } });
   const R = measureReadout(m);
   if (!R) { box.hidden = true; return; }
   const open = measureOpen();

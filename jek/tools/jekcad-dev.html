@@ -125,7 +125,8 @@
         <button type="button" class="rt-btn quiet cad-fbtn" data-feature="fillet" data-icon="fillet" title="Round edges">Fillet</button>
         <button type="button" class="rt-btn quiet cad-fbtn" data-feature="chamfer" data-icon="chamfer" title="Bevel edges">Chamfer</button>
         <button type="button" class="rt-btn quiet cad-fbtn" data-feature="shell" data-icon="shell" title="Hollow a part, faces removed">Shell</button>
-        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="hole" data-icon="hole" title="Holes at a sketch’s points">Hole</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="hole" data-icon="hole" title="Holes at a sketch’s points: simple, tapped, clearance, counterbored, countersunk">Hole</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-feature="thread" data-icon="thread" title="A thread on a round face: a hole at a tap drill size, or a shaft">Thread</button>
         <span class="rt-qsep" aria-hidden="true"></span>
         <button type="button" class="rt-btn quiet cad-fbtn" data-feature="lpattern" data-icon="lpattern" title="Linear pattern">Linear</button>
         <button type="button" class="rt-btn quiet cad-fbtn" data-feature="cpattern" data-icon="cpattern" title="Circular pattern">Circular</button>
@@ -150,11 +151,16 @@
       </div>
       <div class="rt-row cad-fbar" id="drwBar" role="group" aria-label="Drawing" hidden>
         <button type="button" class="rt-btn quiet cad-fbtn on" data-drw="select" data-icon="select" title="Select: drag a view or a dimension to move it (Esc)">Select</button>
-        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="dim" data-icon="dim" title="Dimension (D): click two corners of a view, then where it goes; or click a circle for its diameter">Dimension</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="dim" data-icon="dim" title="Dimension (D): click two corners of a view, then where it goes; or click a circle for its diameter, an arc for its radius">Dimension</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="ang" data-icon="angle" title="Angle: click two straight lines of a view, then where it goes">Angle</button>
         <button type="button" class="rt-btn quiet cad-fbtn" data-drw="overall" data-icon="measure" title="Add each view’s overall width and height">Overall sizes</button>
+        <span class="rt-qsep" aria-hidden="true"></span>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="section" data-icon="section" title="Section: click in a view where it cuts, up the view (Shift: across it)">Section</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="detail" data-icon="detail" title="Detail: click the middle of what to enlarge, then how far round it">Detail</button>
         <span class="rt-qsep" aria-hidden="true"></span>
         <button type="button" class="rt-btn quiet cad-fbtn" data-drw="fit" data-icon="fit" title="Fit the sheet in the window (F)">Fit sheet</button>
         <button type="button" class="rt-btn quiet cad-fbtn" data-drw="pdf" data-icon="export" data-need="account" data-what="export a PDF" title="Export the sheet as a PDF, at its true size">Export PDF</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="dxf" data-icon="export" data-need="account" data-what="export a DXF" title="Export the sheet as a DXF (AutoCAD R12, millimetres) for other CAD programs">Export DXF</button>
       </div>
       <div class="rt-row cad-fbar cad-skbar" id="sketchBar" role="group" aria-label="Sketch tools" hidden></div>
     </div>

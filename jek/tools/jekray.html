@@ -464,12 +464,17 @@
     font: inherit; font-size: 0.875rem; color: var(--jek-ink); cursor: pointer;
   }
   .rt-menu button:hover, .rt-menu button:focus-visible { background: var(--jek-well); outline: none; }
-  /* what is being worked out: top right of the bench, white, no box */
+  /* What is being worked out: the bars in a dock of their own at the bottom right of the bench, above its tab strip,
+     in the bench's overlay colours (as the 3D key), never over the parts rail at the top or anything that can be
+     clicked. ui/sweeps.js (placeBars) raises the dock above whatever else sits at the bottom there (the minimap, the 3D
+     key, the drawing hint, a note) and narrows it to the bench. */
+  .rt-actdock { position: absolute; z-index: 5; right: 0.6rem; bottom: 2.6rem; width: min(26rem, calc(100% - 3rem)); display: flex; flex-direction: column; gap: 0.3rem; pointer-events: none; }
+  .rt-actdock:empty { display: none; }
   .rt-activity {
-    position: absolute; z-index: 5; right: 7rem; top: 0.55rem; width: min(380px, 50%);
-    font-size: 0.72rem; color: rgba(255,255,255,0.85); text-align: right; pointer-events: none;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    box-sizing: border-box; padding: 4px 8px 6px; border-radius: 4px; font-size: 0.72rem; text-align: right; pointer-events: none;
+    color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line);
   }
+  .rt-activity[hidden] { display: none; }
   /* a heavy field, said before it is worked out: top middle of the bench, with what would lighten it */
   .rt-heavy {
     position: absolute; z-index: 6; left: 50%; top: calc(var(--rt-top) + 0.6rem); transform: translateX(-50%); width: min(34rem, calc(100% - 2rem)); box-sizing: border-box;
@@ -483,15 +488,37 @@
   .rt-act-text { display: flex; justify-content: flex-end; gap: 0.5rem; margin-bottom: 0.3rem; line-height: 1.3; white-space: nowrap; }
   .rt-act-text span:first-child { overflow: hidden; text-overflow: ellipsis; }
   .rt-act-pct { font-family: var(--jek-mono); font-variant-numeric: tabular-nums; }
-  .rt-act-bar { position: relative; height: 2px; overflow: hidden; background: rgba(255,255,255,0.18); }
-  .rt-act-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--rt-surface); transition: width 0.15s linear; }
+  .rt-act-bar { position: relative; height: 2px; overflow: hidden; background: rgba(127,127,127,0.28); }
+  .rt-act-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--jek-orange, #f4793e); transition: width 0.15s linear; }
+  /* the particles' scattering: its own bar under the bench's, in the cool colour its scattered field is drawn in */
+  .rt-act-scat .rt-act-bar i { background: var(--jek-cyan, #4fc0d8); }
   /* moved by transform, which the browser keeps animating even while a long step holds the page */
   .rt-activity.indeterminate .rt-act-bar i { width: 30%; animation: rt-slide 1.2s ease-in-out infinite; will-change: transform; }
-  /* the particles' scattering: its own bar under the bench's, in the cool colour its scattered field is drawn in */
-  .rt-activity.rt-act-scat { top: 2.75rem; }
-  .rt-act-scat .rt-act-bar i { background: #7fd8ff; }
   @keyframes rt-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
   @media (prefers-reduced-motion: reduce) { .rt-activity.indeterminate .rt-act-bar i { animation: none; width: 100%; opacity: 0.45; } }
+  /* Every progress bar pulses while its work goes on (class rt-busy on the track): a soft highlight sweeping left to right
+     across the filled part, and across the whole track when how far it has got is not known (rt-indet), so a slow bar is
+     seen not to have stopped. Moved by transform alone, which the compositor keeps running while a long step holds the
+     page. A bar of its own elsewhere is .rt-pbar, a track with an <i> for its fill. With reduced motion, a gentle
+     breathing of the fill instead. */
+  .rt-act-bar { height: 3px; border-radius: 2px; }
+  .rt-act-bar i, .rt-pbar > i { overflow: hidden; }
+  .rt-pbar { position: relative; height: 5px; overflow: hidden; border-radius: 3px; background: rgba(127,127,127,0.22); }
+  .rt-pbar > i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 3px; background: var(--jek-cyan, #4fc0d8); transition: width 0.15s linear; }
+  .rt-busy > i::after, .rt-busy.rt-indet::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0) 20%, rgba(255,255,255,0.75) 50%, rgba(255,255,255,0) 80%, transparent 100%);
+    transform: translateX(-100%); animation: rt-sweep 1.5s ease-in-out infinite; will-change: transform;
+  }
+  /* (the whole track's pulse, where there is no fill to run along: in the fill's own colour, which shows on either theme) */
+  .rt-busy.rt-indet::after { background: linear-gradient(90deg, transparent 0%, rgba(79,192,216,0) 25%, rgba(79,192,216,0.65) 50%, rgba(79,192,216,0) 75%, transparent 100%); }
+  .rt-act-bar.rt-busy.rt-indet::after { background: linear-gradient(90deg, transparent, rgba(244,121,62,0.6), transparent); }
+  @keyframes rt-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+  @keyframes rt-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+  @media (prefers-reduced-motion: reduce) {
+    .rt-busy > i::after, .rt-busy.rt-indet::after { animation: none; display: none; }
+    .rt-busy > i { animation: rt-breathe 2.4s ease-in-out infinite; }
+  }
   .rt-plot-tools { position: absolute; top: 0; right: 0; display: flex; gap: 0.25rem; }
   .rt-sync {
     display: inline-grid; place-items: center;
@@ -11229,7 +11256,7 @@ const PARTICLE = {
       scatNA: clamp(num(e.scatNA, 0.5), 0.001, 4),
       scatDir: ['back', 'side', 'up', 'angle'].includes(e.scatDir) ? e.scatDir : 'fwd',
       scatAng: num(e.scatAng, 0),
-      scatScale: e.scatScale === 'lin' ? 'lin' : 'log',
+      scatScale: ['lin', 'log30', 'log60', 'log90'].includes(e.scatScale) ? e.scatScale : 'log',   // ('log': 40 dB, as benches before 30/60/90 saved it)
       scatView: ['out', 'map'].includes(e.scatView) ? e.scatView : 'in',
       scatLight: e.scatLight !== false,                            // its scattered light on the bench, to the parts that catch it
       scatFan: e.scatFan !== false,                                // and the faint fan in every direction (a picture only)
@@ -11248,10 +11275,10 @@ const PARTICLE = {
       scatModel: '"auto" (Mie for a sphere, a dipole array for other shapes, Rayleigh when tiny), "rayleigh", "mie" or "dda".', scatDip: 'dipoles across the smallest dimension of a dipole array (0 chooses).',
       scatAt: '"part": the particle is where the part is; "trap": where the optical trap nearest the part holds it.', scatDx: 'µm: moved from there across the strongest beam, in the bench plane (across it level, for a beam that rises or descends).', scatDy: 'µm: moved up out of the plane (up from the beam, square to it, for a beam that rises or descends).', scatDz: 'µm: moved along the beam.',
       scatNA: 'the numerical aperture of the cone the Scattering tab’s Collected figure is for.', scatDir: 'that cone’s direction: "fwd", "back", "side", "up" or "angle" (with scatAng).', scatAng: 'degrees: the cone’s direction on the bench, for scatDir "angle".',
-      scatScale: '"log" or "lin": the pattern plots’ scale.', scatView: '"in" (the bench plane), "out" (the plane out of it through the beam) or "map" (every direction).',
+      scatScale: '"lin", "log30", "log60" or "log90" (logarithmic over 30, 60 or 90 dB; "log", from older benches, is 40 dB): the pattern plots’ scale, and the scattered field picture’s (scatField) on the bench, where in 3D the light along a line of sight is on half the dB.', scatView: '"in" (the bench plane), "out" (the plane out of it through the beam) or "map" (every direction).',
       scatLight: 'true puts the scattered light on the bench: a cone to each part with a clear line to the particle, with the far field’s amplitude, phase and polarisation, coherent with the driving laser. false leaves the bench as it is without it.',
       scatFan: 'true draws a faint fan of the scattered light in every direction, as bright as the pattern is; a picture only, never part of a reading.',
-      scatField: 'true draws an estimate of the scattered field as the diffracted field is drawn (2D and 3D): the far-field pattern falling off as 1/r², stopped at the first part each direction meets, intensity only, on a log scale of its own (40 dB on the bench, 20 dB in 3D, whatever the beam’s); a picture only, never part of a reading. Default false.' },
+      scatField: 'true draws an estimate of the scattered field as the diffracted field is drawn (2D and 3D): the far-field pattern falling off as 1/r² as far as the first part each direction meets, and past a part that passes it on the light the cones’ rays carry (each ray’s power over its tube), intensity only, on a scale of its own, scatScale’s (on the bench its dB, in 3D half of them; or linear), whatever the beam’s; a picture only, never part of a reading. Default false.' },
   },
 };
 
@@ -14404,7 +14431,7 @@ const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + scatRevNow() + '|' + 
 // what changes nothing in the light: a part's name and where it is written, its import notes, drawings; where a
 // fibre component or a chip part sits (their networks are solved by what joins what: a fibre's length is its own
 // setting), and the way a fibre or waveguide is drawn across the bench
-const COSMETIC = new Set(['hide3d', 'label', 'name', 'assumed', 'design', 'source', 'lineColour', 'fillColour']);
+const COSMETIC = new Set(['hide3d', 'label', 'name', 'assumed', 'design', 'source', 'lineColour', 'fillColour', 'scatScale']);   // (scatScale: a particle's plots and pictures)
 const PLACED = new Set(['x', 'y', 'angle']), DRAWN = new Set(['path', 'ta', 'tb', 'route']);
 function keyCut(k, v) {
   if (COSMETIC.has(k)) return undefined;
@@ -17667,8 +17694,14 @@ function getCss(v) {
   return cssCache[v];
 }
 
+/* A sweep's render held (ui/sweeps.js: one predicted to take long shows its bars alone until the whole cycle is ready):
+   the bench, 2D and 3D, stays as it was drawn. drawCount: the frames drawn (the tests read it). */
+let drawHeld = () => false;
+function setDrawHeld(f) { drawHeld = f; }
+let drawCount = 0;
 function render() {
-  if (!W || !H) return;
+  if (!W || !H || drawHeld()) return;
+  drawCount++;
   // a view newly on the screen (a bench opened, a tab switched to) is the one a later resize keeps in place, once the
   // bench is the size it is drawn at (a resize still to come, as the panels change, leaves the new view as saved)
   if (V() !== benchMidView) { const r = stage.getBoundingClientRect(); if (r.width === W && r.height === H) { benchMid = r.left + r.width / 2; benchMidView = V(); } }
@@ -20031,7 +20064,10 @@ function aheadPlain() {
   const sw0 = list[0][0].sweeps[list[0][1]];
   if (!(sw0.steps > 0) || list.some(([e, p]) => e.sweeps[p].steps !== sw0.steps || e.sweeps[p].freq !== sw0.freq)) return;
   const n = sw0.steps;
-  particlesAhead(list, n, (e, p, i) => stepValue(e.sweeps[p], i, n, 1 / e.sweeps[p].freq), () => list.every(([e, p]) => getEl(e.id) && e.sweeps && e.sweeps[p] && playing.has(sweepKey(e, p))));
+  // (its steps' solves predicted to take long: the play is held until they are all done, then it plays whole)
+  HOLD.plain = true; setDrawHeld(sweepHolding);
+  const run = particlesAhead(list, n, (e, p, i) => stepValue(e.sweeps[p], i, n, 1 / e.sweeps[p].freq), () => list.every(([e, p]) => getEl(e.id) && e.sweeps && e.sweeps[p] && playing.has(sweepKey(e, p))));
+  Promise.resolve(run).then(() => { if (!sweepJob) holdEnd(); });
 }
 function play(el, path) {
   const sw = el.sweeps && el.sweeps[path];
@@ -20144,11 +20180,12 @@ function cancelJobFor(el, path) {
 function pause(el, path) {
   cancelJobFor(el, path);
   playing.delete(sweepKey(el, path));
-  if (!playing.size) { dropTraceStore(); scatterAheadStop(); }
+  if (!playing.size) { dropTraceStore(); scatterAheadStop(); holdEnd(); }
   syncPanel(); updateSweepButtons(); scheduleSave();
 }
 function pauseAll() {
   if (sweepJob) sweepJob.cancel();
+  holdEnd();
   if (!playing.size) return;
   playing.clear(); dropTraceStore(); scatterAheadStop();
   syncPanel(); updateSweepButtons(); scheduleSave();
@@ -20226,8 +20263,67 @@ function sweepEta(j) {
   if (j.t0 === null) return '';
   const done = j.i + (j.part || 0) - j.i0, dt = (performance.now() - j.t0) / 1000;
   if (done < 0.5 || dt < 1.5) return '';
-  const left = dt / done * (j.n - j.i0 - done);
-  return left < 1 ? '' : 'about ' + (left < 60 ? Math.ceil(left / 5) * 5 + ' s' : left < 3600 ? Math.round(left / 60) + ' min' : (left / 3600).toFixed(1) + ' h') + ' left';
+  return leftText(dt / done * (j.n - j.i0 - done));
+}
+/* time left as said on the bars: about 25 s, about 1 min 20 s, about 1.5 h */
+function leftText(left) {
+  if (!(left >= 1)) return '';
+  if (left < 60) return 'about ' + Math.ceil(left / 5) * 5 + ' s left';
+  if (left < 3600) { const s = Math.round(left / 10) * 10, m = Math.floor(s / 60), r = s % 60; return 'about ' + m + ' min' + (r ? ' ' + r + ' s' : '') + ' left'; }
+  return 'about ' + (left / 3600).toFixed(1) + ' h left';
+}
+/* ---------- A long render held ----------
+   A sweep whose work ahead (its field's frames, its particles' scattering) is predicted to take longer than SWEEP_HOLD_S
+   does not play its steps as they trickle in: the bench is held as it was (render.js draws nothing new), the bars alone
+   say how it goes, and the cycle plays once all of it is ready. The prediction is the time the steps worked out so far
+   have taken, for every step there is to do, made again as each finishes: one that crosses the limit part way holds from
+   there. Under the limit the sweep behaves as it always has. Pause or Stop let go at once. */
+const SWEEP_HOLD_S = 30;
+let holdLimit = SWEEP_HOLD_S;
+/* (the tests: a lower limit, so a quick sweep counts as a long one; none puts it back) */
+function setSweepHoldLimit(s) { holdLimit = s > 0 ? s : SWEEP_HOLD_S; }
+const HOLD = { on: false, wait: 0, plain: false };
+const sweepHolding = () => HOLD.on;
+/* the whole of the work ahead, predicted (s), or null before a step has been timed: the longer of the field's and the particles' */
+function sweepPredict(j) {
+  let T = null;
+  if (j && j.t0 !== null && j.t0 !== undefined) {
+    const done = j.i + (j.part || 0) - j.i0 + (j.pool ? 1 : 0), dt = (performance.now() - j.t0) / 1000;
+    if (done >= 1) T = dt / done * (j.n - j.i0);
+  }
+  const A = scatAheadEta();
+  if (A && A.done >= 1) T = Math.max(T || 0, A.dt / A.done * A.of);
+  return T;
+}
+/* the time left on whatever is still worked out ahead (s), for the bars */
+function holdLeft(j) {
+  let L = 0;
+  if (j && j.t0 !== null && j.t0 !== undefined) { const done = j.i + (j.part || 0) - j.i0 + (j.pool ? 1 : 0), dt = (performance.now() - j.t0) / 1000; if (done >= 1) L = dt / done * (j.n - j.i0 - done); }
+  const A = scatAheadEta();
+  if (A && A.done >= 1) L = Math.max(L, A.dt / A.done * (A.of - A.done));
+  return L;
+}
+function holdCheck(j) {
+  if (HOLD.on) return;
+  const T = sweepPredict(j);
+  if (T !== null && T > holdLimit) { HOLD.on = true; updateActivity(); }
+}
+function holdEnd() {
+  clearTimeout(HOLD.wait); HOLD.wait = 0; HOLD.plain = false;
+  if (!HOLD.on) return;
+  HOLD.on = false;
+  requestRender(); syncPanel();
+}
+/* once the particles' steps ahead are done too (when held: the cycle plays whole), then go */
+function whenReady(go) {
+  clearTimeout(HOLD.wait);
+  if (!HOLD.on || !scatAheadEta()) { go(); return; }
+  HOLD.wait = setTimeout(() => whenReady(go), 150);
+}
+/* the play loop asks each frame: held (nothing moves), after looking again at a plain sweep's particles solved ahead */
+function sweepHoldTick() {
+  if (HOLD.plain && !HOLD.on) holdCheck(null);
+  return HOLD.on;
 }
 /* screens whose diffracted field is on show: their panel is open at the Diffraction tab */
 const openScreens = () => project.elements.filter(e => (e.type === 'screen' || e.type === 'mirror') && (vs(e).screenTab === 'plots' || vs(e).screenTab === 'trap') &&
@@ -20264,6 +20360,7 @@ function renderSweepFrames(list, onDone) {
   const n = sweepFrames(list);
   framesLast = n;
   // the particles' scattering for every step, solved ahead on their own worker beside the field (ui/scatter.js)
+  setDrawHeld(sweepHolding); holdEnd();
   particlesAhead(list, n, (e, p, i) => stepValue(e.sweeps[p], i, n, period), () => list.every(([e, p]) => getEl(e.id) && e.sweeps && e.sweeps[p]));
   sweepVol.begin();
   // every step already rendered (played before, paused, played again): straight on, no render pass
@@ -20292,8 +20389,9 @@ function renderSweepFrames(list, onDone) {
     list.forEach(([el, path], k) => { if (getEl(el.id)) setParam(el, path, saved[k]); });
     if (ok) fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period: cyc(), n, ref: job.ref };
     changed(false);
-    if (ok) onDone();
-    else if (!job.quiet) toast('Stopped rendering the field');
+    // (held: it plays once the particles' steps are done too, the whole cycle ready)
+    if (ok) whenReady(() => { holdEnd(); onDone(); });
+    else { holdEnd(); if (!job.quiet) toast('Stopped rendering the field'); }
   };
   job.cancel = () => finish(false);
   const gone = () => list.some(([el, path]) => !getEl(el.id) || !el.sweeps || !el.sweeps[path]);
@@ -20348,6 +20446,7 @@ function renderSweepFrames(list, onDone) {
           if (!live()) return;
           if (o && o.key === J.key && o.D) keepFrame(fieldFrames.screens, J.key, diffFns(o.D));
         }
+        job.part = 1; holdCheck(job);        // (the step done: the whole predicted again)
       }
       finish(true);
     })().catch(() => {
@@ -20402,6 +20501,7 @@ function renderSweepFrames(list, onDone) {
         traceScene();
         keepFrame(fieldFrames.screens, J.key, popDiffraction(scr, R));
       }
+      job.part = 1; holdCheck(job);          // (the step done: the whole predicted again)
     }
   })();
   const step = () => {
@@ -20481,7 +20581,7 @@ function renderOnPool(pool, list, n, cyc, job, onDone) {
   for (let st = 8; st >= 1; st >>= 1) for (let i = 0; i < n; i += st) if (!seen.has(i)) { seen.add(i); order.push(i); }
   const first = Math.ceil(n / 8), done = new Set();
   let next = 0, started = false;
-  job.t0 = performance.now(); job.i0 = 0; job.i = -1; job.part = 0;
+  job.t0 = performance.now(); job.i0 = 0; job.i = -1; job.part = 0; job.pool = true;
   job.stage = pool.length > 1 ? pool.length + ' at once' : '';
   const play = () => { if (started || !live()) return; started = true; fieldRendered = { keys, period: cyc(), n, done, ref: job.ref }; onDone(); };
   const runOne = async W => {
@@ -20500,18 +20600,20 @@ function renderOnPool(pool, list, n, cyc, job, onDone) {
       if (o.vol) sweepVol.keep(o.vol.key, o.vol.tab, o.vol.bb, o.vol.V);
       for (const S of o.screens) if (S && S.D) keepFrame(fieldFrames.screens, S.key, diffFns(S.D));
       done.add(i); job.i = done.size - 1;
-      if (!started && done.size >= first && order.slice(0, first).every(k => done.has(k))) play();
+      holdCheck(job);
+      // (held: nothing plays until the whole cycle is there)
+      if (!started && !HOLD.on && done.size >= first && order.slice(0, first).every(k => done.has(k))) play();
       requestRender(); syncPanel();
     }
   };
   // stopped part way: what plays on is worked out live, not held to the coarse steps rendered so far
-  job.cancel = () => { if (!live()) return; sweepJob = null; swDrop(); if (fieldRendered && fieldRendered.done === done) fieldRendered = null; changed(false); if (!job.quiet) toast('Stopped rendering the field'); };
+  job.cancel = () => { if (!live()) return; sweepJob = null; swDrop(); holdEnd(); if (fieldRendered && fieldRendered.done === done) fieldRendered = null; changed(false); if (!job.quiet) toast('Stopped rendering the field'); };
   Promise.all(pool.map(runOne)).then(() => {
     if (!live()) return;
     sweepJob = null; swRelease();
     fieldRendered = { keys, period: cyc(), n, ref: job.ref };
     changed(false);
-    if (!started) { started = true; onDone(); }
+    whenReady(() => { holdEnd(); if (!started) { started = true; onDone(); } });
   }, err => {
     // a worker failed: the pool is not used again, and the render starts again the old way
     if (!live()) return;
@@ -20539,10 +20641,12 @@ function benchFrame(key) {
 function activityNow() {
   if (sweepJob) {
     const j = sweepJob, what = j.stage === 'the bench' ? 'the bench' : j.stage && j.stage !== 'tracing' ? j.stage : '';
-    const eta = sweepEta(j);
-    return { text: 'Rendering the field for the sweep: step ' + (j.i + 1) + ' of ' + j.n + (what ? ', ' + what : '') + (eta ? ' (' + eta + ')' : ''),
-      frac: (j.i + (j.part || 0)) / j.n };
+    // (held: the time left on all of it, field and particles, and that it plays once ready)
+    const eta = HOLD.on ? leftText(holdLeft(j)) : sweepEta(j);
+    return { text: 'Rendering the field for the sweep: step ' + (j.i + 1) + ' of ' + j.n + (what ? ', ' + what : '') + (eta ? ' (' + eta + ')' : '') + (HOLD.on ? '; it plays once all of it is ready' : ''),
+      frac: (j.i + (j.part || 0) + (j.pool ? 1 : 0)) / j.n };
   }
+  if (HOLD.on) { const A = scatAheadEta(), eta = leftText(holdLeft(null)); return { text: 'The sweep plays once its steps are worked out' + (eta ? ' (' + eta + ')' : ''), frac: A ? A.done / A.of : null }; }
   if (mcJob) return { text: 'Tolerance study: ' + mcJob.i + ' of ' + mcJob.n + ' trials', frac: mcJob.i / mcJob.n };
   const jobs = [];
   if (popState.job) jobs.push('the diffracted field on the bench');
@@ -20564,7 +20668,45 @@ const scatBar = { box: null, text: null, bar: null, since: 0, now: false, shown:
 function showActivityNow() { if (TEST_MODE) return; activity.now = true; updateActivity(); }
 function updateActivity() {
   barShow(activity, activityNow());
-  barShow(scatBar, scatActivity());
+  const s = scatActivity(), A = s && scatAheadEta(), left = A && A.done >= 1 ? leftText(A.dt / A.done * (A.of - A.done)) : '';
+  barShow(scatBar, s && left ? Object.assign({}, s, { text: s.text + ' (' + left + ')' }) : s);
+  placeBars();
+}
+/* The bars' dock (style.css .rt-actdock): at the bottom right of the bench, above its tab strip, clear of the parts rail
+   at the top. Whatever else sits at the bottom of the bench across its width (the minimap, the 3D view's key, the
+   drawing hint, the measuring bar, a note, an embed's bar) puts it above them; it is never higher than just under the
+   rail, and never wider than the bench. */
+const DOCK_AVOID = '.rt-minimap, .rt-v3dkey, .rt-drawhint, .rt-measurebar, .rt-welcome, .rt-embedbar';
+function actDock() {
+  const stage = document.getElementById('stage');
+  let d = stage.querySelector(':scope > .rt-actdock');
+  if (!d) { d = h('div', { class: 'rt-actdock' }); stage.append(d); }
+  return d;
+}
+function placeBars() {
+  const stage = document.getElementById('stage'), d = stage && stage.querySelector(':scope > .rt-actdock');
+  if (!d || ![...d.children].some(c => !c.hidden)) return;
+  const S = stage.getBoundingClientRect(), base = 2.6 * 16, gap = 6;
+  d.style.bottom = base + 'px';
+  const D = d.getBoundingClientRect();
+  let bottom = base;
+  for (const o of stage.querySelectorAll(DOCK_AVOID)) {
+    if (o.hidden || !o.offsetParent || getComputedStyle(o).display === 'none' || getComputedStyle(o).visibility === 'hidden') continue;
+    const r = o.getBoundingClientRect();
+    if (!r.width || !r.height || r.right <= D.left || r.left >= D.right || r.top >= S.bottom) continue;
+    bottom = Math.max(bottom, S.bottom - r.top + gap);
+  }
+  // (on a phone the panel is a sheet over the bottom of the bench: above it)
+  for (const sheet of document.querySelectorAll('.rt-panel')) if (!sheet.hidden && sheet.offsetParent && getComputedStyle(sheet).position === 'absolute') { const r = sheet.getBoundingClientRect(); if (r.height && r.top < S.bottom && r.left < D.right && r.right > D.left) bottom = Math.max(bottom, S.bottom - r.top + gap); }
+  // (no higher than just under the rail and what the top overlays need: on a short bench it stays at its base)
+  const top = parseFloat(getComputedStyle(stage).getPropertyValue('--rt-top')) || 0;
+  if (S.height - bottom - D.height < top + gap) bottom = base;
+  d.style.bottom = bottom + 'px';
+}
+/* (the tests) the two bars drawn now, as they stand: shown, pulsing, what they say */
+function activityBars() {
+  activity.now = scatBar.now = true; updateActivity();
+  return [activity, scatBar].map(B => ({ shown: !!B.box && !B.box.hidden, busy: !!B.track && B.track.classList.contains('rt-busy'), text: B.label ? B.label.textContent : '' }));
 }
 function barShow(B, a) {
   const now = performance.now();
@@ -20572,6 +20714,8 @@ function barShow(B, a) {
     B.since = 0;
     // once up, it stays long enough to read rather than flashing
     if (B.box && !B.box.hidden && now - B.shown > 400) B.box.hidden = true;
+    // (its pulse stops the moment the work does: a bar left up a moment is plainly finished)
+    if (B.track) B.track.classList.remove('rt-busy');
     return;
   }
   if (!B.since) B.since = now;
@@ -20582,8 +20726,10 @@ function barShow(B, a) {
     B.pct = h('span', { class: 'rt-act-pct' });
     B.text = h('span', { class: 'rt-act-text' }, B.label, B.pct);
     B.bar = h('i');
-    B.box = h('div', { class: 'rt-activity' + B.cls, role: 'status', 'aria-live': 'polite' }, B.text, h('div', { class: 'rt-act-bar' }, B.bar));
-    document.getElementById('stage').append(B.box);
+    B.track = h('div', { class: 'rt-act-bar' }, B.bar);
+    B.box = h('div', { class: 'rt-activity' + B.cls, role: 'status', 'aria-live': 'polite' }, B.text, B.track);
+    // (in the bars' own dock, the bench's first, the scattering's under it)
+    if (B === activity) actDock().prepend(B.box); else actDock().append(B.box);
   }
   if (B.box.hidden) B.shown = now;
   B.box.hidden = false;
@@ -20591,6 +20737,8 @@ function barShow(B, a) {
   const pct = a.frac === null ? '' : Math.round(100 * clamp(a.frac, 0, 1)) + '%';
   if (B.pct.textContent !== pct) B.pct.textContent = pct;
   B.box.classList.toggle('indeterminate', a.frac === null);
+  // a pulse runs along it while the work goes on (style.css .rt-busy): it has not stopped, however slowly it fills
+  B.track.classList.add('rt-busy'); B.track.classList.toggle('rt-indet', a.frac === null);
   B.bar.style.width = a.frac === null ? '' : (100 * clamp(a.frac, 0, 1)).toFixed(1) + '%';
 }
 
@@ -24497,7 +24645,7 @@ const V3D = (() => {
     show();
     if (!active() || !R) return;
     resize();
-    const key = traceKeyNow() + '|' + netKey() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale : '');
+    const key = traceKeyNow() + '|' + netKey() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale : '') + '|' + scatVolKey();   // (a particle's Scale changes no trace)
     if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
     if (R.camTab !== project.tab) { if (tool && tool.off && R.camTab !== null) tool.off(); R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
     // (and where the selected parts are and how they are turned, so their handles follow them, through an undo too)
@@ -25357,9 +25505,10 @@ const V3D = (() => {
       float v = texture2D(uAcc, vU).r;
       if (uDec > 0.0) v = clamp(1.0 + log(max(v, 1e-12)) / log(10.0) / uDec, 0.0, 1.0); else v = clamp(v, 0.0, 1.0);
       // a particle's scattered field, on its own log scale and in its own colours (scatRamp), laid under the beam's light
-      float w = uS > 0.0 ? clamp(1.0 + log(max(texture2D(uScat, vU).r, 1e-12)) / log(10.0) / uDecS, 0.0, 1.0) : 0.0;
+      // (uDecS 0: the particle's Scale is linear)
+      float ws = uS > 0.0 ? texture2D(uScat, vU).r : 0.0, w = uDecS > 0.0 ? clamp(1.0 + log(max(ws, 1e-12)) / log(10.0) / uDecS, 0.0, 1.0) : clamp(ws, 0.0, 1.0);
       if (v <= 0.002 && w <= 0.002) discard;
-      float a = v > 0.002 ? clamp(0.25 + 0.75 * v, 0.0, 0.92) * smoothstep(0.0, 0.06, v) : 0.0, aw = w > 0.002 ? clamp(0.25 + 0.75 * w, 0.0, 0.92) * smoothstep(0.0, 0.06, w) : 0.0;
+      float a = v > 0.002 ? clamp(0.25 + 0.75 * v, 0.0, 0.92) * smoothstep(0.0, 0.06, v) : 0.0, aw = w > 0.002 ? clamp(0.95 * w, 0.0, 0.92) : 0.0;   // (the scattered light fades out at its floor, not into a dark tint over the beam)
       float at = a + aw * (1.0 - a);
       gl_FragColor = vec4((texture2D(uMap, vec2(v, 0.5)).rgb * a + texture2D(uMapS, vec2(w, 0.5)).rgb * aw * (1.0 - a)) / max(at, 1e-6), at);
     }`;
@@ -25428,10 +25577,11 @@ const V3D = (() => {
      a particle's scattered field (scatVolMeshes) on its own */
   function volQuad(G) {
     const dec = fieldDec(lightOf().scale), q = new T.Mesh(new T.PlaneGeometry(2, 2), new T.ShaderMaterial({ vertexShader: VOLQ_VS, fragmentShader: VOLQ_FS, transparent: true, depthTest: false, depthWrite: false,
-      uniforms: { uAcc: { value: null }, uMap: { value: magmaMap() }, uDec: { value: dec }, uScat: { value: null }, uMapS: { value: scatMap(benchLight()) }, uDecS: { value: SF_DEC / 2 }, uS: { value: 0 } } }));
+      uniforms: { uAcc: { value: null }, uMap: { value: magmaMap() }, uDec: { value: dec }, uScat: { value: null }, uMapS: { value: scatMap(benchLight()) }, uDecS: { value: 2 }, uS: { value: 0 } } }));
     q.frustumCulled = false; q.renderOrder = 2; q.userData.volQuad = true;
     q.onBeforeRender = () => {
       const u = q.material.uniforms, sc = R.scatVols && R.scatVols.length && R.scatRT;
+      u.uDecS.value = sc ? scatDb(R.scatVols[0].userData.scatVol) / 20 : 2;    // (decades: half the Scale's dB, a tenth each)
       u.uAcc.value = R.volRT ? R.volRT.texture : null; u.uScat.value = sc ? R.scatRT.texture : u.uAcc.value; u.uS.value = sc ? 1 : 0;
     };
     G.add(q);
@@ -25472,7 +25622,10 @@ const V3D = (() => {
       gl_FragColor = vec4(sum / b * uK, 0.0, 0.0, 1.0);
     }`;
   const SVOL_VS = 'varying vec3 vP; void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
-  const scatVolKey = () => ((lastTrace.scat && lastTrace.scat.fans) || []).map(F => F.field ? F.part + ':' + F.field.top : '').join();
+  const scatVolKey = () => ((lastTrace.scat && lastTrace.scat.fans) || []).map(F => F.field ? F.part + ':' + F.field.top + ':' + scatDb(F) : '').join();
+  // a particle's Scale (the Scattering tab's, scatScale), in dB on the bench (0: linear); in 3D logarithmic over half of
+  // them (the light along a line of sight falls as 1/b where the irradiance falls as 1/b², so the glow reaches as far)
+  const scatDb = F => scatDbOf((getEl(F.part) || {}).scatScale);
   function scatVolMeshes(G) {
     for (const F of (lastTrace.scat && lastTrace.scat.fans) || []) {
       const S = F.field;
@@ -25480,13 +25633,15 @@ const V3D = (() => {
       // the pattern against its strongest direction (half floats hold no less than about 6e-8), and each direction's stop
       // as a share of the reach; theta down the rows, phi along them (wrapped round)
       const n = S.nT * S.nP, I = new Float32Array(n), Tt = new Float32Array(n);
-      for (let i = 0; i < n; i++) { I[i] = S.grid[i] / S.Imax; Tt[i] = Math.min(2, S.gridT[i] / S.R); }
+      // (as far out as the Scale draws it: a deeper one, further)
+      const Rd = scatReach(S, scatDb(F));
+      for (let i = 0; i < n; i++) { I[i] = S.grid[i] / S.Imax; Tt[i] = Math.min(1, S.gridT[i] / Rd); }
       const tex = (d, lin) => { const t = new T.DataTexture(d, S.nP, S.nT, T.RedFormat, T.FloatType); t.internalFormat = lin ? 'R16F' : 'R32F'; t.magFilter = t.minFilter = lin ? T.LinearFilter : T.NearestFilter; t.wrapS = T.RepeatWrapping; t.needsUpdate = true; return t; };
-      const tI = tex(I, true), tT = tex(Tt, false), geo = new T.BoxGeometry(2 * S.R, 2 * S.R, 2 * S.R);
+      const tI = tex(I, true), tT = tex(Tt, false), geo = new T.BoxGeometry(2 * Rd, 2 * Rd, 2 * Rd);
       // (the light along a line of sight against the top of its scale: the brightest direction's, passing rTop from the particle)
       const m = new T.ShaderMaterial({ vertexShader: SVOL_VS, fragmentShader: SVOL_FS, transparent: true, depthWrite: false, depthTest: false, side: T.BackSide,
         blending: T.CustomBlending, blendEquation: T.AddEquation, blendSrc: T.OneFactor, blendDst: T.OneFactor,
-        uniforms: { uI: { value: tI }, uT: { value: tT }, uDepth: { value: null }, uR: { value: S.R }, uRmin: { value: S.rTop / 3 }, uK: { value: S.rTop / Math.PI }, uNT: { value: S.nT }, uNP: { value: S.nP },
+        uniforms: { uI: { value: tI }, uT: { value: tT }, uDepth: { value: null }, uR: { value: Rd }, uRmin: { value: S.rTop / 3 }, uK: { value: S.rTop / Math.PI }, uNT: { value: S.nT }, uNP: { value: S.nP },
           uRes: { value: new T.Vector2(1, 1) }, uCam: { value: new T.Vector3() }, uMVP: { value: new T.Matrix4() } } });
       const o = new T.Mesh(geo, m);
       o.position.set(F.pos[0], F.pos[1], F.pos[2]);
@@ -25499,7 +25654,61 @@ const V3D = (() => {
         if (R.volRT) { m.uniforms.uDepth.value = R.volRT.depthTexture; m.uniforms.uRes.value.set(R.volRT.width, R.volRT.height); }
       };
       G.add(o);
+      if (F.through && F.through.length) scatThroughMesh(G, F);
     }
+  }
+  /* Past the parts (the field's `through`: engines/scatter-field.js scatThrough): each ray of a cone that goes on as a
+     ribbon facing the eye, as wide as its tube, carrying the light a line of sight through a round tube of it adds up
+     (E d sqrt(1 - u²) across it, u from -1 to 1), into the scattered field's own buffer and on its scale, so where the
+     light enters a part it joins the volume's. A tube narrower than SF_RIB mm is drawn that wide with the same light in it
+     (a thread under a pixel would flicker); a solid part in front hides it (the depth pass). */
+  const SF_RIB = 0.08;
+  const RIB_VS = `
+    attribute vec3 aQ; attribute float aSide, aV, aW; varying float vV, vU;
+    void main() {
+      vec4 p = modelViewMatrix * vec4(position, 1.0), q = modelViewMatrix * vec4(aQ, 1.0);
+      vec3 t = q.xyz - p.xyz, n = cross(t, p.xyz);
+      float l = length(n);
+      n = l > 1e-12 ? n / l : vec3(0.0, 1.0, 0.0);
+      p.xyz += n * aSide * 0.5 * aW;
+      vV = aV; vU = aSide;
+      gl_Position = projectionMatrix * p;
+    }`;
+  const RIB_FS = `
+    uniform sampler2D uDepth; uniform vec2 uRes; varying float vV, vU;
+    void main() {
+      if (gl_FragCoord.z > texture2D(uDepth, gl_FragCoord.xy / uRes).r) discard;
+      gl_FragColor = vec4(vV * sqrt(max(0.0, 1.0 - vU * vU)), 0.0, 0.0, 1.0);
+    }`;
+  function scatThroughMesh(G, F) {
+    const S = F.field, pos = [], q = [], side = [], val = [], wid = [], idx = [];
+    let nv = 0;
+    for (const c of F.through) for (const r of c.rays) {
+      const s = r.s, n = s.length / 5;
+      for (let m = 0; m + 1 < n; m++) {
+        const a = 5 * m, b = 5 * (m + 1);
+        if (s[a] === s[b] && s[a + 1] === s[b + 1] && s[a + 2] === s[b + 2]) continue;
+        // each end: its place, the other end (the ribbon's way), which edge, and its light on the field's scale
+        for (const [o, oo, sg] of [[a, b, 1], [a, b, -1], [b, a, -1], [b, a, 1]]) {
+          const d = s[o + 4], w = Math.max(d, SF_RIB);
+          pos.push(s[o], s[o + 1], s[o + 2]); q.push(s[oo], s[oo + 1], s[oo + 2]); side.push(sg); wid.push(w);
+          val.push(s[o + 3] * d * d / w / S.line);
+        }
+        idx.push(nv, nv + 1, nv + 2, nv, nv + 2, nv + 3); nv += 4;
+      }
+    }
+    if (!nv) return;
+    const geo = new T.BufferGeometry();
+    geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setAttribute('aQ', new T.Float32BufferAttribute(q, 3));
+    geo.setAttribute('aSide', new T.Float32BufferAttribute(side, 1)); geo.setAttribute('aV', new T.Float32BufferAttribute(val, 1)); geo.setAttribute('aW', new T.Float32BufferAttribute(wid, 1));
+    geo.setIndex(idx);
+    const m = new T.ShaderMaterial({ vertexShader: RIB_VS, fragmentShader: RIB_FS, transparent: true, depthWrite: false, depthTest: false, side: T.DoubleSide,
+      blending: T.CustomBlending, blendEquation: T.AddEquation, blendSrc: T.OneFactor, blendDst: T.OneFactor,
+      uniforms: { uDepth: { value: null }, uRes: { value: new T.Vector2(1, 1) } } });
+    const o = new T.Mesh(geo, m);
+    o.frustumCulled = false; o.layers.set(2); o.userData.scatThru = F;
+    o.onBeforeRender = () => { if (R.volRT) { m.uniforms.uDepth.value = R.volRT.depthTexture; m.uniforms.uRes.value.set(R.volRT.width, R.volRT.height); } };
+    G.add(o);
   }
   /* the volumes' light, added up into a buffer the size of the view before the scene is drawn: first the
      depth of what is solid (so a part in front of a beam hides it), then each volume, its light added */
@@ -25552,9 +25761,10 @@ const V3D = (() => {
     // a particle's scattered field (scatVolMeshes): its own colours and scale, the light along a line of sight in W/mm as its
     // pass adds it up; its top the strongest direction's, seen passing rTop from the particle (the field's `line`)
     if (sv) {
-      const F = sv[0].userData.scatVol, G = F.field, el = getEl(F.part), d3 = G.dec3;
+      const F = sv[0].userData.scatVol, G = F.field, el = getEl(F.part), db = scatDb(F), d3 = db / 20, lin = !db;
       parts.push(h('b', { class: 'sc', title: 'An estimate of the light the particle scatters (its far-field pattern over r\u00b2, stopped at the first part each direction meets), added up along each line of sight, on a log scale of its own: the scattered light is far fainter than the beam' + (sv.length > 1 ? '. The scale is the first particle\u2019s; each has its own' : '') },
-        'Scattered by ' + (el ? el.name : 'the particle') + ', along the line of sight, log (' + d3 * 10 + ' dB)'), bar(v => scatRamp(v, benchLight())), tks([[0, G.line * 10 ** -d3], [0.5, G.line * 10 ** (-d3 / 2)], [1, G.line]]));
+        'Scattered by ' + (el ? el.name : 'the particle') + ', along the line of sight, ' + (lin ? 'linear' : 'log (' + d3 * 10 + ' dB)')), bar(v => scatRamp(v, benchLight())),
+        tks(lin ? [[0, 0], [0.5, G.line / 2], [1, G.line]] : [[0, G.line * 10 ** -d3], [0.5, G.line * 10 ** (-d3 / 2)], [1, G.line]]));
     }
     if (R.vol || sv) parts.push(D.vread = h('div', { class: 'rd' }, 'Point at the light to read it'));
     D.vkey.replaceChildren(...parts);
@@ -25567,15 +25777,15 @@ const V3D = (() => {
     const rc = new T.Raycaster(); rc.setFromCamera(ndc(e), R.camera);
     let best = null;
     for (const o of R.scatVols) {
-      const F = o.userData.scatVol, G = F.field, ro = rc.ray.origin.clone().sub(o.position), rd = rc.ray.direction;
-      const sc = -ro.dot(rd), b2 = ro.lengthSq() - sc * sc, h2 = G.R * G.R - b2;
+      const F = o.userData.scatVol, G = F.field, Rd = scatReach(G, scatDb(F)), ro = rc.ray.origin.clone().sub(o.position), rd = rc.ray.direction;
+      const sc = -ro.dot(rd), b2 = ro.lengthSq() - sc * sc, h2 = Rd * Rd - b2;
       if (h2 <= 0) continue;
       const hh = Math.sqrt(h2), sN = Math.max(sc - hh, 0), sF = sc + hh;
       if (sF <= sN) continue;
       const b = Math.max(Math.sqrt(Math.max(b2, 0)), G.rTop / 3), a0 = Math.atan((sN - sc) / b), a1 = Math.atan((sF - sc) / b), n = 200, da = (a1 - a0) / n;
       let L = 0, top = null;
       for (let i = 0; i < n; i++) {
-        const s = sc + b * Math.tan(a0 + (i + 0.5) * da), p = ro.clone().addScaledVector(rd, s), I = scatFieldAt(G, p.x, p.y, p.z);
+        const s = sc + b * Math.tan(a0 + (i + 0.5) * da), p = ro.clone().addScaledVector(rd, s), I = scatFieldAt(G, p.x, p.y, p.z, Rd);
         L += I * p.lengthSq() / b * da;               // (I r^2 ds / r^2 = I r^2 da / b)
         if (I > 0 && (!top || I > top.I)) top = { I, p: p.add(o.position).toArray() };
       }
@@ -29422,11 +29632,9 @@ function particleParams(el) {
   if (!sph) rows.append(param('Length (nm)', el, 'trapLen'), param('Axis tilt up (°)', el, 'trapTilt'));
   rows.append(selectField('Medium', [['bench', 'As on the bench'], ['vacuum', 'Vacuum'], ['air', 'Air, at a pressure'], ['water', 'Water']], () => el.trapMed, v => { el.trapMed = v; }));
   if (el.trapMed === 'air') rows.append(param('Pressure (mbar)', el, 'trapP'));
-  const check = (key, text) => { const c = h('input', { type: 'checkbox' }); c.checked = el[key] !== false; c.onchange = () => { checkpoint(); el[key] = c.checked; changed(true); }; return h('label', { class: 'rt-check wide' }, c, text); };
-  rows.append(check('scatLight', 'Send its scattered light to the parts'), check('scatFan', 'Draw the scattered light in every direction'));
   panel.append(h('h3', null, 'Particle'), rows);
   panel.append(helpLine('A point of the bench: the light passes it untouched, and what it scatters goes to the parts that can see it.', ['The particle is ' + (METAL_NAMES[el.trapMat] || el.trapMat) + ', in whatever light reaches where it is put. The part’s angle is the direction of a rod’s or spheroid’s axis in the bench plane. Its Scattering tab gives its cross-sections, the power it scatters and where that goes; its Trap tab the optical trap the light makes for it. ',
-    'With its scattered light sent to the parts, each part with a clear line to the particle is sent a cone of rays that carry the scattered field along them: its power in that solid angle, its polarisation and its phase, as light of the laser that drives the particle. A lens collimates the cone, a photodetector reads it and adds it to the unscattered beam as a field, a fibre takes its overlap with its mode. The faint fan in every direction is a picture only: it is as bright as the pattern is along each ray and is never part of a reading. ',
+    'With its scattered light sent to the parts (its Scattering tab, On the bench), each part with a clear line to the particle is sent a cone of rays that carry the scattered field along them: its power in that solid angle, its polarisation and its phase, as light of the laser that drives the particle. A lens collimates the cone, a photodetector reads it and adds it to the unscattered beam as a field, a fibre takes its overlap with its mode. The faint fan in every direction is a picture only: it is as bright as the pattern is along each ray and is never part of a reading. ',
     'The particle and everything the light meets are in each other’s far field. Light that comes back to the particle is not scattered again, and two particles do not light each other.'], 'note', 'margin-top:0.5rem'));
 }
 function particlePanel(el) {
@@ -30605,6 +30813,8 @@ function stopSweepsFor(el, prefix) {
 }
 function tick(t) {
   if (!playing.size) { setAnimFrame(null); return; }
+  // (a long render held: nothing moves until the whole cycle is ready, the clock with it)
+  if (sweepHoldTick()) { setAnimLast(t); setAnimFrame(requestAnimationFrame(tick)); return; }
   const dt = animLast === null ? 0 : Math.min(0.1, (t - animLast) / 1000);
   setAnimLast(t);
   setClockT(clockT + (dt));
@@ -30908,14 +31118,17 @@ function sweepControls(el, path, sw, label) {
     const fc = h('input', { type: 'checkbox' });
     fc.checked = !!sw.field;
     fc.addEventListener('change', () => { checkpoint(); if (fc.checked) sw.field = true; else delete sw.field; setFieldRendered(null); changed(false); });
-    const status = h('p', { class: 'rt-hint', style: 'margin:0.2rem 0 0' });
+    const status = h('p', { class: 'rt-hint', style: 'margin:0.2rem 0 0' }), pfill = h('i'), pbar = h('div', { class: 'rt-pbar', role: 'progressbar', 'aria-label': 'Rendering the field', style: 'margin:0.25rem 0 0.1rem' }, pfill);
     bindSync(status, () => {
       status.textContent = rendering() ? 'Rendering the field: ' + (sweepJob.i + 1) + ' of ' + sweepJob.n + (sweepEta(sweepJob) ? ', ' + sweepEta(sweepJob) : '') + '\u2026'
         : sw.field ? 'Play renders the field at ' + fieldFramesOf(sw) + ' points of the cycle (enough to play smoothly at its rate, unless Steps is set), on the bench and on every screen it reaches, then plays through them.'
         : '';
       status.hidden = !status.textContent;
+      // its bar, pulsing while the render goes on (style.css .rt-busy)
+      const r = rendering(), f = r ? Math.max(0, Math.min(1, (sweepJob.i + (sweepJob.part || 0) + (sweepJob.pool ? 1 : 0)) / sweepJob.n)) : 0;
+      pbar.hidden = !r; pbar.classList.toggle('rt-busy', r); pfill.style.width = (100 * f).toFixed(1) + '%'; pbar.setAttribute('aria-valuenow', String(Math.round(100 * f)));
     });
-    box.append(h('label', { class: 'rt-check', title: 'Unticked, the sweep plays quickly: the diffracted field is held (the beams show as outlines, screens keep their last field) and worked out again when it stops.' }, fc, 'Render the diffracted field (slow)'), status);
+    box.append(h('label', { class: 'rt-check', title: 'Unticked, the sweep plays quickly: the diffracted field is held (the beams show as outlines, screens keep their last field) and worked out again when it stops.' }, fc, 'Render the diffracted field (slow)'), status, pbar);
     // the render workers warmed up while the sweep is in view, so Play does not wait for them to start
     if (sw.field && swPool()) swRelease();
   }
@@ -38363,39 +38576,89 @@ function flipLens(el) {
    own cool ramp (scatRamp), not the light's colour, so it is told from the beam where they overlap. An image in the bench's own millimetres over what of the field's square is in view (and a quarter of a view
    more each way), at about two of the screen's pixels to its own, kept while the view stays inside it at about that scale:
    a pan or a zoom draws the same image moved. A particle without it costs nothing here. */
-const SF_IMG = new WeakMap();                   // a field -> { key, x0, y0, x1, y1, mmpp, cv }
+const SF_IMG = new WeakMap();
+/* A fan's light past the parts in the bench plane (its field's `through`, engines/scatter-field.js scatThrough): the strips
+   between neighbouring rays of each cone's two spokes nearest the plane (ring by ring out from the axis on either side,
+   and across the axis between the two first rings), a quad for each step along them, its irradiance the four corners'
+   mean; and the box (mm) the field and they cover. Kept with the fan. */
+const SF_STRIPS = new WeakMap();
+function scatStrips(F) {
+  let T = SF_STRIPS.get(F);
+  if (T) return T;
+  const P = F.pos, bb = [P[0], P[1], P[0], P[1]], quads = [];
+  for (const c of F.through || []) {
+    const half = c.nP / 2, side = j => c.rays.filter(r => r.sj === j).sort((a, b) => a.ri - b.ri);
+    const line = side(half).reverse().concat(side(0));
+    for (let i = 0; i + 1 < line.length; i++) {
+      const A = line[i].s, B = line[i + 1].s, n = Math.min(A.length, B.length) / 5;
+      if (Math.abs(line[i].ri - line[i + 1].ri) > 1) continue;
+      for (let m = 0; m + 1 < n; m++) {
+        const a = 5 * m, b = 5 * (m + 1);
+        if (Math.hypot(A[b] - A[a], A[b + 1] - A[a + 1]) === 0 && Math.hypot(B[b] - B[a], B[b + 1] - B[a + 1]) === 0) continue;
+        quads.push([A[a], A[a + 1], A[b], A[b + 1], B[b], B[b + 1], B[a], B[a + 1], 0.25 * (A[a + 3] + A[b + 3] + B[a + 3] + B[b + 3])]);
+      }
+    }
+    for (const r of c.rays) for (let o = 0; o < r.s.length; o += 5) { bb[0] = Math.min(bb[0], r.s[o]); bb[1] = Math.min(bb[1], r.s[o + 1]); bb[2] = Math.max(bb[2], r.s[o]); bb[3] = Math.max(bb[3], r.s[o + 1]); }
+  }
+  T = { quads, bb };
+  SF_STRIPS.set(F, T);
+  return T;
+}                   // a field -> { key, x0, y0, x1, y1, mmpp, cv }
 function drawScatField() {
   const SC = lastTrace.scat;
   if (!SC || !SC.fans) return;
   for (const F of SC.fans) {
     const G = F.field;
     if (!G || F.bench !== project.tab || !(G.top > 0)) continue;
-    const v = V(), k = v.scale, P = F.pos, hw = W / 2 / k, hh = H / 2 / k;
-    // in view: the field's square cut to the view
-    const vx0 = Math.max(P[0] - G.R, v.cx - hw), vx1 = Math.min(P[0] + G.R, v.cx + hw), vy0 = Math.max(P[1] - G.R, v.cy - hh), vy1 = Math.min(P[1] + G.R, v.cy + hh);
+    const db = scatDbOf((getEl(F.part) || {}).scatScale), Rd = scatReach(G, db), v = V(), k = v.scale, P = F.pos, hw = W / 2 / k, hh = H / 2 / k, T = scatStrips(F);
+    const E = [Math.min(T.bb[0], P[0] - Rd), Math.min(T.bb[1], P[1] - Rd), Math.max(T.bb[2], P[0] + Rd), Math.max(T.bb[3], P[1] + Rd)];
+    // in view: the field's square (and where its light goes on past the parts) cut to the view
+    const vx0 = Math.max(E[0], v.cx - hw), vx1 = Math.min(E[2], v.cx + hw), vy0 = Math.max(E[1], v.cy - hh), vy1 = Math.min(E[3], v.cy + hh);
     if (!(vx1 > vx0 && vy1 > vy0)) continue;
-    const want = 2 / (k * DPR), key = String(lightLayer);
+    const want = 2 / (k * DPR), key = lightLayer + '|' + db;
     let C = SF_IMG.get(G);
-    if (!C || C.key !== key || C.mmpp > 1.5 * want || C.mmpp < want / 1.5 || C.x0 > vx0 || C.x1 < vx1 || C.y0 > vy0 || C.y1 < vy1) {
-      const x0 = Math.max(P[0] - G.R, v.cx - 1.5 * hw), x1 = Math.min(P[0] + G.R, v.cx + 1.5 * hw), y0 = Math.max(P[1] - G.R, v.cy - 1.5 * hh), y1 = Math.min(P[1] + G.R, v.cy + 1.5 * hh);
+    if (!C || C.key !== key || C.want > 1.5 * want || C.want < want / 1.5 || C.x0 > vx0 || C.x1 < vx1 || C.y0 > vy0 || C.y1 < vy1) {
+      const x0 = Math.max(E[0], v.cx - 1.5 * hw), x1 = Math.min(E[2], v.cx + 1.5 * hw), y0 = Math.max(E[1], v.cy - 1.5 * hh), y1 = Math.min(E[3], v.cy + 1.5 * hh);
       // (at most about 250 thousand pixels: past that, coarser)
       const mmpp = Math.max(want, Math.sqrt((x1 - x0) * (y1 - y0) / 2.5e5)), nx = Math.max(1, Math.ceil((x1 - x0) / mmpp)), ny = Math.max(1, Math.ceil((y1 - y0) / mmpp));
       const cv = C && C.cv && C.cv.width === nx && C.cv.height === ny ? C.cv : document.createElement('canvas');
       cv.width = nx; cv.height = ny;
       const lut = new Uint8Array(768);
       for (let c = 0; c < 256; c++) lut.set(scatRamp(c / 255, lightLayer), 3 * c);
-      const g = cv.getContext('2d'), img = g.createImageData(nx, ny), d = img.data, px = (x1 - x0) / nx, py = (y1 - y0) / ny;
+      const g = cv.getContext('2d'), px = (x1 - x0) / nx, py = (y1 - y0) / ny;
+      // past the parts: the strips between the cones' rays in the bench plane, each as bright as the light it carries, laid
+      // down first as levels (grey, the brighter kept where two meet, each a little wider than it is so no seam shows)
+      let lv = null;
+      if (T.quads.length) {
+        g.save();
+        g.clearRect(0, 0, nx, ny);
+        g.globalCompositeOperation = 'lighten';
+        g.setTransform(1 / px, 0, 0, -1 / py, -x0 / px, y1 / py);
+        g.lineWidth = 1.5 * px; g.lineJoin = 'round';
+        for (const Q of T.quads) {
+          const a = scatFieldLevel(G, Q[8], db);
+          if (!(a > 0)) continue;
+          const c = Math.max(1, Math.round(255 * a));
+          g.fillStyle = g.strokeStyle = 'rgb(' + c + ',' + c + ',' + c + ')';
+          g.beginPath(); g.moveTo(Q[0], Q[1]); g.lineTo(Q[2], Q[3]); g.lineTo(Q[4], Q[5]); g.lineTo(Q[6], Q[7]); g.closePath(); g.fill(); g.stroke();
+        }
+        g.restore();
+        lv = g.getImageData(0, 0, nx, ny).data;
+      }
+      const img = g.createImageData(nx, ny), d = img.data;
       for (let j = 0; j < ny; j++) {
         const dy = y1 - (j + 0.5) * py - P[1];
         for (let i = 0; i < nx; i++) {
-          const a = scatFieldLevel(G, scatPlaneAt(G, x0 + (i + 0.5) * px - P[0], dy));
+          const o = 4 * (j * nx + i);
+          // the 1/r² picture, or where the light has gone on past a part, that (they meet where it enters the part)
+          const a = Math.max(scatFieldLevel(G, scatPlaneAt(G, x0 + (i + 0.5) * px - P[0], dy, Rd), db), lv && lv[o + 3] ? lv[o] / 255 : 0);
           if (!(a > 0)) continue;
-          const o = 4 * (j * nx + i), c = 3 * Math.round(255 * a);
+          const c = 3 * Math.round(255 * a);
           d[o] = lut[c]; d[o + 1] = lut[c + 1]; d[o + 2] = lut[c + 2]; d[o + 3] = Math.round(255 * glowA(0.95 * a));
         }
       }
       g.putImageData(img, 0, 0);
-      C = { key, x0, y0, x1, y1, mmpp: px, cv };
+      C = { key, x0, y0, x1, y1, want, cv };      // (want: the scale it was made for, which a coarser image past its cap still is)
       SF_IMG.set(G, C);
     }
     ctx.save();
@@ -38556,6 +38819,8 @@ function scatActivity() {
   }
   return null;
 }
+/* the steps solved ahead on the worker, for a sweep's estimate (ui/sweeps.js): seconds so far, steps done and in all; null when none are */
+function scatAheadEta() { const A = SCW.ahead; return A && !A.page ? { dt: (performance.now() - A.t0) / 1000, done: A.done, of: A.of } : null; }
 /* every step solved ahead dropped (the sweep stopped or rendered again) */
 function scatterAheadStop() {
   for (const q of SCW.queue) if (q.proj && q.resolve) q.resolve(null);
@@ -38702,7 +38967,7 @@ function scatterRows(el, S) {
    scattered power and the power, as launched into the part's aperture) and one for what no part catches */
 function caughtRows(el) {
   const R = lastTrace.scat && lastTrace.scat.parts && lastTrace.scat.parts[el.id], rows = [];
-  if (el.scatLight === false) return [['On the bench', 'Its scattered light is not sent to the parts (the Particle tab turns it on).']];
+  if (el.scatLight === false) return [['On the bench', 'Its scattered light is not sent to the parts (On the bench, below, turns it on).']];
   if (!R || R.state === 'dark' || R.state === 'none') return rows;
   if (R.state === 'wait') return [['On the bench', 'Working out the scattered light…']];
   for (const r of R.rows) rows.push(['Caught by ' + r.name, scatPct(r.share) + ' of the scattered power, ' + scatPw(r.P) + (r.followed ? '' : ' (not traced on: only the ' + R.rows.filter(q => q.followed).length + ' parts that catch most are)')]);
@@ -38727,7 +38992,6 @@ function scatterKeepUp() {
 }
 /* the page's wiring: where there are workers a trace does not wait for a scattering run */
 function wireScatter() { if (!TEST_MODE && WORKERS_OK) setScatMode('async'); }
-const SCAT_DB = 40;        // a log plot's depth
 /* the pattern on one cut as a polar plot: the angle as on the bench (or from the beam, up), the radius the intensity */
 function drawPolar(cv, el, S, which) {
   const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, side = Math.min(w, 340), c = cv.getContext('2d');
@@ -38735,11 +38999,11 @@ function drawPolar(cv, el, S, which) {
   c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, side);
   cv._csv = null;
   if (!S || !S.cutIn) return;
-  const cut = which === 'out' ? S.cutOut : S.cutIn, log = el.scatScale !== 'lin';
+  const cut = which === 'out' ? S.cutOut : S.cutIn, dB = scatDbOf(el.scatScale), log = dB > 0;     // (dB: the Scale's depth)
   const cx = w / 2, cy = side / 2, R = side / 2 - 30, n = cut.I.length;
   let mx = 0; for (const v of cut.I) if (v > mx) mx = v;
   if (!(mx > 0)) return;
-  const rOf = v => (log ? Math.max(0, 1 + 10 * Math.log10(Math.max(v / mx, 1e-30)) / SCAT_DB) : v / mx) * R;
+  const rOf = v => (log ? Math.max(0, 1 + 10 * Math.log10(Math.max(v / mx, 1e-30)) / dB) : v / mx) * R;
   c.font = axisFont(); c.lineWidth = 1;
   // rings and spokes
   c.strokeStyle = inkA(0.12); c.fillStyle = getCss('--jek-ink-soft');
@@ -38748,7 +39012,7 @@ function drawPolar(cv, el, S, which) {
   for (let a = 0; a < 360; a += 30) { c.moveTo(cx, cy); c.lineTo(cx + R * Math.cos(a * deg), cy - R * Math.sin(a * deg)); }
   c.stroke();
   c.textAlign = 'left'; c.textBaseline = 'bottom';
-  for (let q = 1; q <= 3; q++) c.fillText(log ? '−' + (SCAT_DB * (4 - q) / 4) + ' dB' : String(q / 4), cx + 3, cy - R * q / 4 - 1);
+  for (let q = 1; q <= 3; q++) c.fillText(log ? '−' + (dB * (4 - q) / 4) + ' dB' : String(q / 4), cx + 3, cy - R * q / 4 - 1);
   c.textBaseline = 'middle';
   for (const a of [0, 90, 180, 270]) {
     const x = cx + (R + 12) * Math.cos(a * deg), y = cy - (R + 12) * Math.sin(a * deg);
@@ -38796,7 +39060,7 @@ function drawScatMap(cv, el, S) {
   c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
   cv._csv = null;
   if (!S || !S.map) return;
-  const M = S.map, log = el.scatScale !== 'lin';
+  const M = S.map, dB = scatDbOf(el.scatScale), log = dB > 0;
   const sxA = { kind: 'plain', title: 'angle from the beam (°)' }, syA = { kind: 'plain', title: S.dir && Math.abs(S.dir[2]) > 1e-9 ? 'round the beam (°): 0 across it level, 90 up from it' : 'round the beam (°): 0 across in the plane, 90 up' };
   const A = plotArea(c, w, hgt, [0, 360], syA);
   let mx = 0; for (const v of M.I) if (v > mx) mx = v;
@@ -38810,7 +39074,7 @@ function drawScatMap(cv, el, S) {
     for (let j = 0; j < H2; j++) {
       const p = (1 - (j + 0.5) / H2) * nP, p0 = Math.floor(p) % nP, p1 = (p0 + 1) % nP, g = p - Math.floor(p);
       const v = (1 - f) * ((1 - g) * M.I[a * nP + p0] + g * M.I[a * nP + p1]) + f * ((1 - g) * M.I[b * nP + p0] + g * M.I[b * nP + p1]);
-      const u = log ? 1 + 10 * Math.log10(Math.max(v / mx, 1e-30)) / SCAT_DB : v / mx, rgb = magma(u), o = 4 * (j * W2 + i);
+      const u = log ? 1 + 10 * Math.log10(Math.max(v / mx, 1e-30)) / dB : v / mx, rgb = magma(u), o = 4 * (j * W2 + i);
       img.data[o] = rgb[0]; img.data[o + 1] = rgb[1]; img.data[o + 2] = rgb[2]; img.data[o + 3] = 255;
     }
   }
@@ -38830,7 +39094,7 @@ function scatterSection(el) {
     return;
   }
   const status = h('div', { class: 'rt-scatrun', role: 'status', 'aria-live': 'polite', style: 'display:none;align-items:center;flex-wrap:wrap;gap:0.6rem;margin-top:0.6rem;font-size:0.8125rem;color:var(--jek-ink-soft)' });
-  const bar = h('progress', { class: 'rt-scatbar', max: 1, 'aria-label': 'Scattering progress', style: 'flex:1;min-width:4rem;height:0.4rem;accent-color:var(--jek-cyan)' });
+  const fill = h('i'), bar = h('div', { class: 'rt-pbar rt-scatbar', role: 'progressbar', 'aria-label': 'Scattering progress', style: 'flex:1;min-width:4rem' }, fill);
   const box = h('div', { class: 'rt-readout' });
   const views = [['in', 'In the bench plane'], ['out', 'Out of the plane'], ['map', 'Every direction']];
   const tabs = h('div', { class: 'rt-inline', style: 'margin:0.5rem 0 0.3rem;flex-wrap:wrap;column-gap:0.8rem;row-gap:0.2rem' });
@@ -38840,22 +39104,25 @@ function scatterSection(el) {
   for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { vs(el).scatView = key; draw(); } }, text));
   // under the figure: its scale, and the lens the Collected figure is for (a notional lens: the particle is lit by every
   // beam through it whatever these say, and its light reaches every part that sees it)
-  const scale = h('div', { class: 'rt-rows', style: 'margin-top:0.3rem' }, selectField('Scale', [['log', 'Logarithmic, ' + SCAT_DB + ' dB'], ['lin', 'Linear']], () => el.scatScale, v => { el.scatScale = v; }, { rebuild: false }),
+  const scale = h('div', { class: 'rt-rows', style: 'margin-top:0.3rem' }, selectField('Scale', SCAT_SCALES.map(q => [q[0], q[1]]).concat(el.scatScale === 'log' ? [['log', 'Logarithmic, 40 dB (as saved)']] : []), () => el.scatScale, v => { el.scatScale = v; }, { rebuild: false }),
     param('Collection lens NA', el, 'scatNA'),
     selectField('Collection lens faces', [['fwd', 'Ahead (the beam’s way)'], ['back', 'Behind (back along it)'], ['side', 'The side, in the plane'], ['up', 'Above'], ['angle', 'A direction on the bench']], () => el.scatDir, v => { el.scatDir = v; }));
   if (el.scatDir === 'angle') scale.append(param('Direction (°)', el, 'scatAng'));
   scale.append(helpLine('The Collected figure is for this lens alone: the particle is lit by every beam through it whatever is set here.'));
   if (isPart) {
-    // the scattered field's picture (engines/scatter-field.js): off unless asked for, its scale its own
-    const c = h('input', { type: 'checkbox' }), sfLine = h('div', { class: 'rt-note', style: 'font-size:0.75rem;color:var(--jek-ink-soft);margin-top:0.15rem' });
-    c.checked = !!el.scatField;
-    c.onchange = () => { checkpoint(); el.scatField = c.checked; changed(true); };
-    scale.append(h('label', { class: 'rt-check wide' }, c, 'Draw an estimate of its scattered field'), sfLine,
-      helpLine('The far-field pattern falling off as 1/r², drawn as the diffracted field is, in cool colours on a scale of its own.', ['Drawn on the bench and in 3D as the diffracted field is, in a ramp of its own (navy to cyan to white on the dark bench, pale cyan to navy on paper) so it is told from the beam, from the pattern the plots show: the irradiance along each direction is the power scattered into a unit solid angle over the distance squared, and it stops at the first part that direction meets, as the rays do. ',
-        'It is the intensity alone, with no fringes against the beam (they are a wavelength apart), and the far field alone, which holds from a few micrometres out. The scattered light is a millionth of the beam or less, so it has a log scale of its own (40 dB on the bench, 20 dB in 3D, where the light is added along each line of sight), which changes nothing of how the beam is drawn. A picture: no reading takes it.'], 'note'));
+    // on the bench: what is sent to the parts, then how it is drawn (the fan; the field's picture, engines/scatter-field.js,
+    // off unless asked for, on the Scale above)
+    const check = (key, text, on) => { const c = h('input', { type: 'checkbox' }); c.checked = on(); c.onchange = () => { checkpoint(); el[key] = c.checked; changed(true); }; return h('label', { class: 'rt-check wide' }, c, text); };
+    const sfLine = h('div', { class: 'rt-note', style: 'font-size:0.75rem;color:var(--jek-ink-soft);margin-top:0.15rem' });
+    scale.append(h('h4', { style: 'margin:0.6rem 0 0.1rem;font-size:0.8125rem' }, 'On the bench'),
+      check('scatLight', 'Send its scattered light to the parts', () => el.scatLight !== false),
+      check('scatFan', 'Draw the scattered light in every direction', () => el.scatFan !== false),
+      check('scatField', 'Draw an estimate of its scattered field', () => !!el.scatField), sfLine,
+      helpLine('The far-field pattern falling off as 1/r², and past the parts the light the cones carry on, drawn as the diffracted field is, in cool colours on the Scale above.', ['Drawn on the bench and in 3D as the diffracted field is, in a ramp of its own (navy to cyan to white on the dark bench, pale cyan to navy on paper) so it is told from the beam, from the pattern the plots show: the irradiance along each direction is the power scattered into a unit solid angle over the distance squared, as far as the first part that direction meets. Past a part that passes it on (a lens, a window) it is the light the cones\u2019 rays carry, each ray\u2019s power over the tube it and its neighbours bound, joining the 1/r\u00b2 picture where it enters the part. ',
+        'It is the intensity alone, with no fringes against the beam (they are a wavelength apart), the far field alone, which holds from a few micrometres out, and past the parts the rays\u2019 geometry alone, with no diffraction. The scattered light is a millionth of the beam or less, so it has a scale of its own, the Scale above: logarithmic over its dB on the bench (and half of them in 3D, where the light is added along each line of sight and so falls as 1/r, not 1/r\u00b2: the light reaches as far), or linear. A deeper scale draws it further out. It changes nothing of how the beam is drawn. A picture: no reading takes it.'], 'note'));
     bindSync(sfLine, () => {
       const G = el.scatField && lastTrace.scat && ((lastTrace.scat.fans || []).find(F => F.part === el.id) || {}).field;
-      const t = G ? 'Its scale: ' + scatSig(G.top, 3) + ' W/mm² at the top (' + fmtLen(G.rTop) + ' out along the brightest direction), to ' + G.dec * 10 + ' dB below, out to ' + fmtLen(G.R) + '.' : '';
+      const db = scatDbOf(el.scatScale), t = G ? 'Its scale: ' + (db ? '' : 'linear, 0 to ') + scatSig(G.top, 3) + ' W/mm² at the top (' + fmtLen(G.rTop) + ' out along the brightest direction)' + (db ? ', to ' + db + ' dB below (' + db / 2 + ' dB along a line of sight in 3D)' : '') + ', out to ' + fmtLen(scatReach(G, db)) + '.' : '';
       // with the ramp it is drawn in on the bench (scatRamp), floor to top
       if (sfLine.dataset.t !== t + benchLight()) {
         sfLine.dataset.t = t + benchLight();
@@ -38893,7 +39160,10 @@ function scatterSection(el) {
       status.style.display = st.length ? 'flex' : 'none';
     }
     bar.hidden = !st.length || !A.busy && !SCW.ahead;
-    if (frac === null) bar.removeAttribute('value'); else bar.value = Math.max(0, Math.min(1, frac));
+    // (pulsing while it works: style.css .rt-busy)
+    bar.classList.toggle('rt-busy', !bar.hidden); bar.classList.toggle('rt-indet', frac === null);
+    fill.style.width = frac === null ? '0' : (100 * Math.max(0, Math.min(1, frac))).toFixed(1) + '%';
+    if (frac === null) bar.removeAttribute('aria-valuenow'); else bar.setAttribute('aria-valuenow', String(Math.round(100 * Math.max(0, Math.min(1, frac)))));
     box.style.opacity = A.busy && S ? '0.55' : '';              // figures from before the last change, while their run is redone
     // (a Particle part: after its own figures, where its scattered light goes on the bench)
     const rows = (S ? scatterRows(el, S) : []).concat(isPart && (S || A.none) ? caughtRows(el) : []);
@@ -47215,9 +47485,9 @@ function scatFieldBuild(Fs, nMed, met, reach) {
 }
 /* the irradiance (W/mm²) at (dx, dy) mm from the particle in the bench plane: the ring's intensity between its two
    nearest directions over r², nothing past the stop of the nearest one or the reach */
-function scatPlaneAt(G, dx, dy) {
+function scatPlaneAt(G, dx, dy, R = G.R) {
   const r = Math.hypot(dx, dy), N = G.nRing;
-  if (!(r > 0) || r > G.R) return 0;
+  if (!(r > 0) || r > R) return 0;
   let p = Math.atan2(dy, dx) / (2 * Math.PI) * N;
   if (p < 0) p += N;
   const j = Math.floor(p), f = p - j, j0 = j % N, j1 = (j + 1) % N;
@@ -47226,9 +47496,9 @@ function scatPlaneAt(G, dx, dy) {
 }
 /* the same anywhere about the particle (dz up), from the sphere's grid: its intensity between the four nearest nodes, its
    stop the nearest node's (what the 3D view's shader does) */
-function scatFieldAt(G, dx, dy, dz) {
+function scatFieldAt(G, dx, dy, dz, R = G.R) {
   const r = Math.hypot(dx, dy, dz);
-  if (!(r > 0) || r > G.R) return 0;
+  if (!(r > 0) || r > R) return 0;
   const t = Math.acos(Math.max(-1, Math.min(1, dz / r))) / Math.PI * (G.nT - 1);
   let p = Math.atan2(dy, dx) / (2 * Math.PI) * G.nP;
   if (p < 0) p += G.nP;
@@ -47238,8 +47508,91 @@ function scatFieldAt(G, dx, dy, dz) {
   const a = G.grid[i * G.nP + j0] * (1 - fp) + G.grid[i * G.nP + j1] * fp, b = G.grid[(i + 1) * G.nP + j0] * (1 - fp) + G.grid[(i + 1) * G.nP + j1] * fp;
   return (a * (1 - ft) + b * ft) / (r * r);
 }
-/* an irradiance on the 2D scale: 0 (the floor) to 1 (the top and above) */
-const scatFieldLevel = (G, v) => v > 0 && G.top > 0 ? Math.max(0, Math.min(1, 1 + Math.log10(v / G.top) / G.dec)) : 0;
+/* The Scale a particle's figure and pictures are drawn on (its scatScale, the Scattering tab's Scale): dB below the top for a
+   log scale, 0 for linear. 'log' is what benches before the choice of depth saved: 40 dB, still drawn so, no longer offered. */
+const SCAT_SCALES = [['lin', 'Linear', 0], ['log30', 'Logarithmic, 30 dB', 30], ['log60', 'Logarithmic, 60 dB', 60], ['log90', 'Logarithmic, 90 dB', 90]];
+const scatDbOf = sc => sc === 'log' ? 40 : (SCAT_SCALES.find(q => q[0] === sc) || [0, 0, 40])[2];
+/* an irradiance on the 2D scale: 0 (the floor) to 1 (the top and above); logarithmic over db dB (the field's own 40 when
+   not given), or linear from nought to the top with db 0 */
+const scatFieldLevel = (G, v, db = 10 * G.dec) => !(v > 0 && G.top > 0) ? 0 : !db ? Math.min(1, v / G.top) : Math.max(0, Math.min(1, 1 + 10 * Math.log10(v / G.top) / db));
+/* how far out the picture is drawn on a scale: on a log one, where the strongest direction meets the floor (the field's
+   reach R at 40 dB, further on a deeper scale, nearer on a shallower one); linear, the reach */
+const scatReach = (G, db) => db > 0 ? G.rTop * 10 ** (db / 20) : G.R;
+
+/* ---------- Past the first part: the light the cones carry on ----------
+   The 1/r² picture ends at the first part each direction meets. A part that passes the light on (a lens, a window, a
+   splitter) does so in the cones' rays, which the trace follows on to whatever stops them (engines/scatter-light.js).
+   Past the first part the picture is made from those rays, as tubes: each ray of a cone stands for the solid angle sa it
+   was launched into, and its neighbours in the cone's grid (the next ring out, the next spoke round) bound its tube. Where
+   the ray is, the tube's cross-section is rho |a x b|, a and b the steps square to the ray to the two neighbours (each
+   on its own path between the same two faces) (the same face crossed, the same share of the way between two), rho = sa / |da x db| from the launch
+   directions (da, db the same steps a unit from the particle), so that by the particle the tube is sa r², and the irradiance, the ray's power over its tube, is what the
+   1/r² picture has: the two join where the light enters the part. The ray's power is its weight against its cone's
+   strongest (the trace's own, Fresnel losses and all). An estimate of where the light goes and how bright it is, from the
+   rays' geometry: no diffraction, so at a focus it is as narrow as the rays make it (held to SF_DMIN across).
+   For each cone: its rays that go on past their first part, each as samples along its way from there, SF_SUB to a stretch
+   between two faces, [x, y, z, E (W/mm²), d (the tube's diameter, mm)] each, and the ray's place in the grid. */
+const SF_SUB = 8;
+const SF_DMIN = 0.02;                 // mm: the narrowest a tube is taken to be
+const SF_GROW = 20;                   // and the most it may widen past the first face before it is taken to have lost its neighbours
+/* the step from p to where the stretch k of a neighbour (Q, points by threes) crosses the plane through p square to (ux,
+   uy, uz), into out; false where the stretch runs along that plane */
+function sfAcross(Q, k, p, ux, uy, uz, out) {
+  const ex = Q[3 * k + 3] - Q[3 * k], ey = Q[3 * k + 4] - Q[3 * k + 1], ez = Q[3 * k + 5] - Q[3 * k + 2], den = ex * ux + ey * uy + ez * uz;
+  if (!(Math.abs(den) > 1e-12 * Math.hypot(ex, ey, ez) * Math.hypot(ux, uy, uz))) return false;
+  const tau = -((Q[3 * k] - p[0]) * ux + (Q[3 * k + 1] - p[1]) * uy + (Q[3 * k + 2] - p[2]) * uz) / den;
+  out[0] = Q[3 * k] + tau * ex - p[0]; out[1] = Q[3 * k + 1] + tau * ey - p[1]; out[2] = Q[3 * k + 2] + tau * ez - p[2];
+  return true;
+}
+const sfCross = (a, b) => Math.hypot(a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]);
+/* v: a cone's virtual source (its vRays, each with ri, sj, sa, d; vLp its strongest ray's power, mW; scat.grid); rays: the
+   trace's rays of that source ({ pts, zs, w, rid }) */
+function scatThrough(v, rays) {
+  const g = v.scat && v.scat.grid;
+  if (!g || !v.vRays || !(v.vLp > 0)) return null;
+  const nP = g.nP, top = v.vLp * 1e-3;
+  // each ray of the cone by its place in the grid: its main branch (the one that carries most) as a list of points
+  const at = new Map();
+  for (const r of rays) {
+    const id = String(r.rid), V = v.vRays[+id.slice(id.lastIndexOf(':') + 1)];
+    if (!V || V.off || !r.pts || r.pts.length < 6) continue;
+    const key = V.ri * 4096 + V.sj, o = at.get(key);
+    if (o && o.r.w >= r.w) continue;
+    const n = r.pts.length >> 1, P = new Float64Array(3 * n);
+    for (let i = 0; i < n; i++) { P[3 * i] = r.pts[2 * i]; P[3 * i + 1] = r.pts[2 * i + 1]; P[3 * i + 2] = r.zs ? r.zs[i] : 0; }
+    at.set(key, { r, V, P, n });
+  }
+  const out = [];
+  for (const R0 of at.values()) {
+    const { V, P, n } = R0;
+    const ring = at.get((V.ri + 1) * 4096 + V.sj) || at.get((V.ri - 1) * 4096 + V.sj);
+    const spoke = at.get(V.ri * 4096 + (V.sj + 1) % nP) || at.get(V.ri * 4096 + (V.sj - 1 + nP) % nP);
+    if (!ring || !spoke || !(V.sa > 0)) continue;
+    // (at the launch: the neighbours' directions where they cross the plane square to this ray a unit from the particle)
+    const at1 = W => { const c = W[0] * V.d[0] + W[1] * V.d[1] + W[2] * V.d[2]; return [0, 1, 2].map(q => W[q] / c - V.d[q]); };
+    const c0 = sfCross(at1(ring.V.d), at1(spoke.V.d));
+    const m = Math.min(n, ring.n, spoke.n);
+    if (!(c0 > 0) || m < 3) continue;
+    const rho = V.sa / c0, Pw = R0.r.w * top, S = new Float32Array(5 * (m - 2) * (SF_SUB + 1)), p = [0, 0, 0], a = [0, 0, 0], b = [0, 0, 0];
+    let o = 0, d1 = 0;
+    // from the first face on: the stretches between faces 1 .. m-1 (a ray whose neighbours went another way, meeting
+    // other faces, shows as a tube grown past SF_GROW times what it was at the first face: it ends there)
+    stretch: for (let k = 1; k < m - 1; k++) for (let s = 0; s <= SF_SUB; s++) {
+      const t = s / SF_SUB;
+      for (let q = 0; q < 3; q++) p[q] = P[3 * k + q] + t * (P[3 * k + 3 + q] - P[3 * k + q]);
+      // the steps to the neighbours square to the ray: where each neighbour's own stretch (as a line) crosses the plane
+      // through this point square to the ray (a neighbour meets a face nearer or further on, and is followed to that plane)
+      const ux = P[3 * k + 3] - P[3 * k], uy = P[3 * k + 4] - P[3 * k + 1], uz = P[3 * k + 5] - P[3 * k + 2];
+      if (!sfAcross(ring.P, k, p, ux, uy, uz, a) || !sfAcross(spoke.P, k, p, ux, uy, uz, b)) break stretch;
+      const A = Math.max(rho * sfCross(a, b), Math.PI * SF_DMIN * SF_DMIN / 4), dd = Math.sqrt(4 * A / Math.PI);
+      if (!d1) d1 = dd;
+      else if (dd > SF_GROW * d1) break stretch;
+      S[o] = p[0]; S[o + 1] = p[1]; S[o + 2] = p[2]; S[o + 3] = Pw / A; S[o + 4] = dd; o += 5;
+    }
+    if (o > 5) out.push({ ri: V.ri, sj: V.sj, s: o < S.length ? S.slice(0, o) : S });
+  }
+  return out.length ? { nP, nR: g.th.length, rays: out } : null;
+}
 /* ---------- A particle's scattered light, put back on the bench ----------
    A Particle part's scattering answer (engines/scatter.js) holds the far field's complex amplitude over the sphere
    of directions, a launch each. The trace puts that light on the bench in two steps (see the end of traceSceneOnce).
@@ -47587,6 +47940,12 @@ function scatterLaunch(surfsBy) {
         R.parts[st.el.id] = { state: st.state, key: st.key, pos: st.pos || null, Psca, rows, caught: got, lost: Math.max(0, Psca - got), lostShare: Psca > 0 ? Math.max(0, 1 - got / Psca) : 0,
           cones: st.cones.map(v => v.id), probed: st.probeKept ? 0 : st.dirs ? st.dirs.length : 0, launched: st.cones.concat(st.waveSrc).reduce((a, v) => a + v.vRays.length, 0) };
         for (const v of st.cones) v.scat.P = v.vRays.reduce((a, r) => a + (r.off ? 0 : r.pw), 0);
+        // the field's picture past the first part: the light the cones carry on, from their rays (scatter-field.js, scatThrough)
+        if (st.fan && st.fan.field) {
+          const by = new Map();
+          for (const r of lastTrace.rays || []) if (r.sc && r.src.startsWith(st.el.id + '~s')) { if (!by.has(r.src)) by.set(r.src, []); by.get(r.src).push(r); }
+          st.fan.through = st.cones.map(v => by.has(v.id) ? scatThrough(v, by.get(v.id)) : null).filter(Boolean);
+        }
         if (st.fan) R.fans.push(st.fan);
       }
       return R;
@@ -60754,11 +61113,12 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'A sweep whose work ahead (its diffracted field, a Particle’s scattering) is predicted to take longer than 30 seconds no longer plays its steps as they trickle in: the bench stays as it is and the progress bars say how long is left (“about 1 min 20 s left”), then the whole cycle plays smoothly. The prediction is made again as each step finishes, and Pause still stops it at once. Every progress bar now has a light running along it while its work goes on, so a slow one is plainly still working (with reduced motion, it breathes gently instead).',
     'A <b>Particle</b>\u2019s Dipoles across reads 0 as automatic, and says under it what automatic picks.',
     'A <b>Particle</b> is far quicker to sweep and to edit. Its scattering is linear in its light, so once two polarisations are solved every other polarisation and power is their combination, checked on the field and never assumed: a 20-step sweep of a fibre laser’s polarisation on a 1 µm sphere went from about 100 s a cycle to 3 s, and as a dipole array from 108 s to 4 s. Every answer is kept, so a sweep’s next cycle, and a value typed back, show at once. A sweep solves the particle’s steps ahead, beside the field, with a bar of its own under the bench’s (“Scattering … step 7 of 20”) and in the Scattering tab, and each frame shows its own step. The dipole array sums its dipoles by FFT and starts each solve from the nearest answer (a 4000-dipole rod: 10 s a step to 1 s), the trap is found only when the Trap tab is read, a solve made out of date is stopped rather than left to run, and a rod’s <b>Axis tilt</b> goes past 90° to 180°, so a tilt sweep can carry it through upright. Numbers typed in a panel reach the bench once typing pauses, so a key never waits on a slow bench.',
     'Fibres no longer swing out in great loops in 3D when a bench opens straight there: their routes in 3D no longer depend on how the 2D bench is zoomed.',
     'Right-click a part and choose <b>Suppress</b> to take it out of the bench until it is wanted again, as CAD suppresses a feature: it is not drawn, in 2D or 3D, a click does not pick it, and nothing meets it: the light passes where it stood, and the fibres and wires plugged into it count as unplugged at its end. Several selected suppress together. The Bench panel\u2019s list keeps it, struck through: right-click it for <b>Unsuppress</b>. Undo, the file and share links keep it; in a script, <code>J.suppress(name, on)</code>.',
-    'A <b>Particle</b> can draw an estimate of its scattered field, as the diffracted field is drawn, on the bench and in 3D: tick <b>Draw an estimate of its scattered field</b> on its Scattering tab. It is the far-field pattern falling off as 1/r², stopped at the first part each direction meets, the intensity alone, on a log scale of its own (the scattered light is a millionth of the beam or less), so the beam is drawn as it was. It has cool colours of its own (navy to cyan on the dark bench), told apart from the beam where they overlap; the 3D key gives its scale under the beam’s, and pointing at it reads it; and while it is drawn the particle’s fan and cone rays are faded to 30% so they do not clutter it. Off unless asked for.',
+    'A <b>Particle</b> can draw an estimate of its scattered field, as the diffracted field is drawn, on the bench and in 3D: tick <b>Draw an estimate of its scattered field</b> on its Scattering tab. It is the far-field pattern falling off as 1/r², stopped at the first part each direction meets, the intensity alone, on a log scale of its own (the scattered light is a millionth of the beam or less), so the beam is drawn as it was. It has cool colours of its own (navy to cyan on the dark bench), told apart from the beam where they overlap; the 3D key gives its scale under the beam’s, and pointing at it reads it; and while it is drawn the particle’s fan and cone rays are faded to 30% so they do not clutter it. Past a lens, or any part that passes it on, it goes on as a glow drawn from the cone\u2019s rays (each ray\u2019s power over the tube it and its neighbours bound), joining the picture where the light enters the part and on the same scale. It follows the Scattering tab\u2019s <b>Scale</b>, which the figure takes too: Linear, or Logarithmic over 30, 60 or 90 dB (in 3D, along a line of sight, half the dB); a deeper scale draws it further out, and a bench saved before keeps its 40 dB. Off unless asked for. The switches for a particle\u2019s light on the bench (sending it to the parts, the fan, this picture) are together on its Scattering tab, under <b>On the bench</b>.',
     'A part hidden by its eye in the bench list is hidden on the 2D bench as well as in 3D, its name with it, and a click there no longer picks it; the light still meets it, and chosen in the list it is drawn faintly. A <b>Particle</b>\u2019s sign shrinks with the bench when zoomed out (never larger than 1 mm there), so it no longer dwarfs the parts round it.',
     'A <b>Particle</b> inside a two-mirror cavity is solved in the cavity\u2019s own Hermite-Gauss modes: its light that goes round and comes back drives it again, every round trip at once, by Mie, the dipole array or the single dipole. The Scattering tab gives how far it moves the cavity\u2019s resonance and how much it widens it, and the detectors behind either mirror read the cavity with the particle in it. A ring, or a cavity clipped or out of line, keeps the warning.',
     'A <b>Particle</b> in a concentric or confocal cavity, or one near them, is solved too: the mirrors bring its light back re-imaged, so it is solved over the directions it sends onto them, each traced round the cavity by the bench\u2019s tracer (the mirrors\u2019 shape, rims, coatings and placing), every return of it followed until it fades. The detectors read the cavity with the particle in it. A cavity of small Fresnel number gets a note that the rims are taken as hard edges. A cavity just outside that range, solved in its modes, takes the same returns for the modes past the solve\u2019s list where the mirrors re-image the particle\u2019s light (checked for 90% mirrors 2 mm across, 0.5 to 1.1 mm short of concentric); elsewhere near it the tab says what is not to be trusted.',
@@ -64541,6 +64901,10 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // (tests) the answer a particle's light on the bench is launched from now, as the trace has it: { axis, key } or null
     scatShown(name) { traceScene(); const el = this.byName(name), S = el && scatterCached(el); return S ? { axis: S.axis, Psca: S.Psca } : null; },
     activity() { const a = activityNow(), s = scatActivity(); return { bench: a && a.text, scat: s && s.text, scatFrac: s ? s.frac : null }; },
+    // (tests) a sweep's long render held: the limit lowered (none: put back), and whether it holds now with the frames drawn so far; the bars as drawn
+    sweepHoldLimit(s) { setSweepHoldLimit(s); },
+    sweepHold() { return { holding: sweepHolding(), drawn: drawCount }; },
+    activityBars() { return activityBars(); },
     // the diffracted field as the 3D view takes it, worked out here: per segment its cuts along it, their reach and the irradiance on the axis (W/cm²)
     vol3d() { traceScene(); const srcs = popSources(); if (!srcs.length) return null; const t0 = performance.now(), R = popRun(lastTrace.beams, srcs, {}), t1 = performance.now(), V = volData(R.segs, project.tab, null); self.__volMs = [t1 - t0, performance.now() - t1];
       return { peak: V.peak * 100, disp: volDisp(V) * 100, segs: V.segs.map(v => ({ i: v.i, two: v.two, coh: v.coh, ta: v.ta, tb: v.tb, o: v.o, e: v.e, ts: Array.from(v.ts), rmax: Array.from(v.rmax), peak: v.peak * 100,

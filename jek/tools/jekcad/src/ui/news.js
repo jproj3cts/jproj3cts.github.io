@@ -3,8 +3,13 @@ import { h } from '../../../jekray/src/ui/dom.js';
 /* ==========================================================================
    The version, and what is new in it (Help › What’s new)
    ========================================================================== */
-export const APP_VERSION = '0.9.0';
+export const APP_VERSION = '0.10.0';
 export const NEWS = [
+  { v: '0.10.0', date: '16 Nov 2026', items: [
+    '<b>Tapped and clearance holes</b>: pick an ISO metric size (M1.6 to M24) and the hole is drilled to suit. <b>Thread</b> notes a thread on a hole or a shaft that is already there.',
+    '<b>Section and detail views</b> on drawings: a section is hatched where it cuts, a detail draws part of a view larger.',
+    'Drawings gain radius and angle dimensions, centre marks, threads drawn to ISO 6410 and named in their diameter dimension, and <b>Export DXF</b>.',
+  ] },
   { v: '0.9.0', date: '12 Nov 2026', items: [
     '<b>Drawings</b>: a new kind of tab. Front, top, right and isometric views of a Part Studio or an Assembly on a sheet, with hidden lines removed.',
     'Dimensions on a drawing follow the model: overall sizes in one click, or click two corners and a place, or a circle for its diameter.',

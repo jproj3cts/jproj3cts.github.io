@@ -1,7 +1,7 @@
 import { EMBED, TEST_MODE } from '../../../jekray/src/core/constants.js';
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { accountGate, keepHere } from '../../../jekray/src/ui/pro.js';
-import { drwPdf } from '../ui/drawing.js';
+import { drwDxf, drwPdf } from '../ui/drawing.js';
 import { asmItems } from '../ui/assembly.js';
 import { editGate } from '../ui/app.js';
 import { track } from '../../../jekray/src/io/usage.js';
@@ -108,8 +108,19 @@ export function exportPdf() {
   toast('Exported ' + safeName(out.name) + '.pdf');
   return true;
 }
+/* a drawing's sheet as a DXF, for other CAD programs */
+export function exportDxf() {
+  if (!accountGate('export a DXF')) return false;
+  const out = drwDxf();
+  if (!out) { toast('Open a Drawing tab first: the + at the foot of the view adds one', true); return false; }
+  downloadFile(safeName(out.name) + '.dxf', out.bytes, 'application/dxf');
+  track('export', 'cad-dxf');
+  toast('Exported ' + safeName(out.name) + '.dxf');
+  return true;
+}
 export function wireFiles() {
   hooks.cadExportPdf = exportPdf;
+  hooks.cadExportDxf = exportDxf;
   hooks.cadSaveLater = scheduleSave;
   on('exportPart', x => exportParts(x.fmt, [x.id]));
   const stage = document.getElementById('stage');

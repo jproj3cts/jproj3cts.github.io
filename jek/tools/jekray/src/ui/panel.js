@@ -261,14 +261,17 @@ function sweepControls(el, path, sw, label) {
     const fc = h('input', { type: 'checkbox' });
     fc.checked = !!sw.field;
     fc.addEventListener('change', () => { checkpoint(); if (fc.checked) sw.field = true; else delete sw.field; setFieldRendered(null); changed(false); });
-    const status = h('p', { class: 'rt-hint', style: 'margin:0.2rem 0 0' });
+    const status = h('p', { class: 'rt-hint', style: 'margin:0.2rem 0 0' }), pfill = h('i'), pbar = h('div', { class: 'rt-pbar', role: 'progressbar', 'aria-label': 'Rendering the field', style: 'margin:0.25rem 0 0.1rem' }, pfill);
     bindSync(status, () => {
       status.textContent = rendering() ? 'Rendering the field: ' + (sweepJob.i + 1) + ' of ' + sweepJob.n + (sweepEta(sweepJob) ? ', ' + sweepEta(sweepJob) : '') + '\u2026'
         : sw.field ? 'Play renders the field at ' + fieldFramesOf(sw) + ' points of the cycle (enough to play smoothly at its rate, unless Steps is set), on the bench and on every screen it reaches, then plays through them.'
         : '';
       status.hidden = !status.textContent;
+      // its bar, pulsing while the render goes on (style.css .rt-busy)
+      const r = rendering(), f = r ? Math.max(0, Math.min(1, (sweepJob.i + (sweepJob.part || 0) + (sweepJob.pool ? 1 : 0)) / sweepJob.n)) : 0;
+      pbar.hidden = !r; pbar.classList.toggle('rt-busy', r); pfill.style.width = (100 * f).toFixed(1) + '%'; pbar.setAttribute('aria-valuenow', String(Math.round(100 * f)));
     });
-    box.append(h('label', { class: 'rt-check', title: 'Unticked, the sweep plays quickly: the diffracted field is held (the beams show as outlines, screens keep their last field) and worked out again when it stops.' }, fc, 'Render the diffracted field (slow)'), status);
+    box.append(h('label', { class: 'rt-check', title: 'Unticked, the sweep plays quickly: the diffracted field is held (the beams show as outlines, screens keep their last field) and worked out again when it stops.' }, fc, 'Render the diffracted field (slow)'), status, pbar);
     // the render workers warmed up while the sweep is in view, so Play does not wait for them to start
     if (sw.field && swPool()) swRelease();
   }

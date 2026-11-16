@@ -1168,7 +1168,7 @@
     {
      "k": "scatScale",
      "def": "\"log\"",
-     "meaning": "\"log\" or \"lin\": the pattern plots’ scale."
+     "meaning": "\"lin\", \"log30\", \"log60\" or \"log90\" (logarithmic over 30, 60 or 90 dB; \"log\", from older benches, is 40 dB): the pattern plots’ scale, and the scattered field picture’s (scatField) on the bench, where in 3D the light along a line of sight is on half the dB."
     },
     {
      "k": "scatView",
@@ -1188,7 +1188,7 @@
     {
      "k": "scatField",
      "def": "false",
-     "meaning": "true draws an estimate of the scattered field as the diffracted field is drawn (2D and 3D): the far-field pattern falling off as 1/r², stopped at the first part each direction meets, intensity only, on a log scale of its own (40 dB on the bench, 20 dB in 3D, whatever the beam’s); a picture only, never part of a reading. Default false."
+     "meaning": "true draws an estimate of the scattered field as the diffracted field is drawn (2D and 3D): the far-field pattern falling off as 1/r² as far as the first part each direction meets, and past a part that passes it on the light the cones’ rays carry (each ray’s power over its tube), intensity only, on a scale of its own, scatScale’s (on the bench its dB, in 3D half of them; or linear), whatever the beam’s; a picture only, never part of a reading. Default false."
     }
    ]
   },

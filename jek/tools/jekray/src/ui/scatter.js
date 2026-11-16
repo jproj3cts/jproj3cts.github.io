@@ -12,7 +12,7 @@ import { lastTrace } from '../engines/trace.js';
 import { trapReport } from '../engines/screen-stats.js';
 import { project } from '../state/project.js';
 import { DPR, H, W, benchLight, ctx, getCss, glowA, glowOp, inkA, lightLayer, requestRender, sx, sy } from './render.js';
-import { scatFieldLevel, scatPlaneAt } from '../engines/scatter-field.js';
+import { SCAT_SCALES, scatDbOf, scatFieldLevel, scatPlaneAt, scatReach } from '../engines/scatter-field.js';
 import { bindSync, helpLine, panel, param, selectField, syncPanel, vs } from './panel.js';
 import { h } from './dom.js';
 import { axisFont, drawAxes, magma, plotArea, plotCsv, plotSaveRow, scatRamp } from './plots.js';
@@ -26,39 +26,89 @@ import { checkpoint } from './tabs.js';
    own cool ramp (scatRamp), not the light's colour, so it is told from the beam where they overlap. An image in the bench's own millimetres over what of the field's square is in view (and a quarter of a view
    more each way), at about two of the screen's pixels to its own, kept while the view stays inside it at about that scale:
    a pan or a zoom draws the same image moved. A particle without it costs nothing here. */
-const SF_IMG = new WeakMap();                   // a field -> { key, x0, y0, x1, y1, mmpp, cv }
+const SF_IMG = new WeakMap();
+/* A fan's light past the parts in the bench plane (its field's `through`, engines/scatter-field.js scatThrough): the strips
+   between neighbouring rays of each cone's two spokes nearest the plane (ring by ring out from the axis on either side,
+   and across the axis between the two first rings), a quad for each step along them, its irradiance the four corners'
+   mean; and the box (mm) the field and they cover. Kept with the fan. */
+const SF_STRIPS = new WeakMap();
+function scatStrips(F) {
+  let T = SF_STRIPS.get(F);
+  if (T) return T;
+  const P = F.pos, bb = [P[0], P[1], P[0], P[1]], quads = [];
+  for (const c of F.through || []) {
+    const half = c.nP / 2, side = j => c.rays.filter(r => r.sj === j).sort((a, b) => a.ri - b.ri);
+    const line = side(half).reverse().concat(side(0));
+    for (let i = 0; i + 1 < line.length; i++) {
+      const A = line[i].s, B = line[i + 1].s, n = Math.min(A.length, B.length) / 5;
+      if (Math.abs(line[i].ri - line[i + 1].ri) > 1) continue;
+      for (let m = 0; m + 1 < n; m++) {
+        const a = 5 * m, b = 5 * (m + 1);
+        if (Math.hypot(A[b] - A[a], A[b + 1] - A[a + 1]) === 0 && Math.hypot(B[b] - B[a], B[b + 1] - B[a + 1]) === 0) continue;
+        quads.push([A[a], A[a + 1], A[b], A[b + 1], B[b], B[b + 1], B[a], B[a + 1], 0.25 * (A[a + 3] + A[b + 3] + B[a + 3] + B[b + 3])]);
+      }
+    }
+    for (const r of c.rays) for (let o = 0; o < r.s.length; o += 5) { bb[0] = Math.min(bb[0], r.s[o]); bb[1] = Math.min(bb[1], r.s[o + 1]); bb[2] = Math.max(bb[2], r.s[o]); bb[3] = Math.max(bb[3], r.s[o + 1]); }
+  }
+  T = { quads, bb };
+  SF_STRIPS.set(F, T);
+  return T;
+}                   // a field -> { key, x0, y0, x1, y1, mmpp, cv }
 export function drawScatField() {
   const SC = lastTrace.scat;
   if (!SC || !SC.fans) return;
   for (const F of SC.fans) {
     const G = F.field;
     if (!G || F.bench !== project.tab || !(G.top > 0)) continue;
-    const v = V(), k = v.scale, P = F.pos, hw = W / 2 / k, hh = H / 2 / k;
-    // in view: the field's square cut to the view
-    const vx0 = Math.max(P[0] - G.R, v.cx - hw), vx1 = Math.min(P[0] + G.R, v.cx + hw), vy0 = Math.max(P[1] - G.R, v.cy - hh), vy1 = Math.min(P[1] + G.R, v.cy + hh);
+    const db = scatDbOf((getEl(F.part) || {}).scatScale), Rd = scatReach(G, db), v = V(), k = v.scale, P = F.pos, hw = W / 2 / k, hh = H / 2 / k, T = scatStrips(F);
+    const E = [Math.min(T.bb[0], P[0] - Rd), Math.min(T.bb[1], P[1] - Rd), Math.max(T.bb[2], P[0] + Rd), Math.max(T.bb[3], P[1] + Rd)];
+    // in view: the field's square (and where its light goes on past the parts) cut to the view
+    const vx0 = Math.max(E[0], v.cx - hw), vx1 = Math.min(E[2], v.cx + hw), vy0 = Math.max(E[1], v.cy - hh), vy1 = Math.min(E[3], v.cy + hh);
     if (!(vx1 > vx0 && vy1 > vy0)) continue;
-    const want = 2 / (k * DPR), key = String(lightLayer);
+    const want = 2 / (k * DPR), key = lightLayer + '|' + db;
     let C = SF_IMG.get(G);
-    if (!C || C.key !== key || C.mmpp > 1.5 * want || C.mmpp < want / 1.5 || C.x0 > vx0 || C.x1 < vx1 || C.y0 > vy0 || C.y1 < vy1) {
-      const x0 = Math.max(P[0] - G.R, v.cx - 1.5 * hw), x1 = Math.min(P[0] + G.R, v.cx + 1.5 * hw), y0 = Math.max(P[1] - G.R, v.cy - 1.5 * hh), y1 = Math.min(P[1] + G.R, v.cy + 1.5 * hh);
+    if (!C || C.key !== key || C.want > 1.5 * want || C.want < want / 1.5 || C.x0 > vx0 || C.x1 < vx1 || C.y0 > vy0 || C.y1 < vy1) {
+      const x0 = Math.max(E[0], v.cx - 1.5 * hw), x1 = Math.min(E[2], v.cx + 1.5 * hw), y0 = Math.max(E[1], v.cy - 1.5 * hh), y1 = Math.min(E[3], v.cy + 1.5 * hh);
       // (at most about 250 thousand pixels: past that, coarser)
       const mmpp = Math.max(want, Math.sqrt((x1 - x0) * (y1 - y0) / 2.5e5)), nx = Math.max(1, Math.ceil((x1 - x0) / mmpp)), ny = Math.max(1, Math.ceil((y1 - y0) / mmpp));
       const cv = C && C.cv && C.cv.width === nx && C.cv.height === ny ? C.cv : document.createElement('canvas');
       cv.width = nx; cv.height = ny;
       const lut = new Uint8Array(768);
       for (let c = 0; c < 256; c++) lut.set(scatRamp(c / 255, lightLayer), 3 * c);
-      const g = cv.getContext('2d'), img = g.createImageData(nx, ny), d = img.data, px = (x1 - x0) / nx, py = (y1 - y0) / ny;
+      const g = cv.getContext('2d'), px = (x1 - x0) / nx, py = (y1 - y0) / ny;
+      // past the parts: the strips between the cones' rays in the bench plane, each as bright as the light it carries, laid
+      // down first as levels (grey, the brighter kept where two meet, each a little wider than it is so no seam shows)
+      let lv = null;
+      if (T.quads.length) {
+        g.save();
+        g.clearRect(0, 0, nx, ny);
+        g.globalCompositeOperation = 'lighten';
+        g.setTransform(1 / px, 0, 0, -1 / py, -x0 / px, y1 / py);
+        g.lineWidth = 1.5 * px; g.lineJoin = 'round';
+        for (const Q of T.quads) {
+          const a = scatFieldLevel(G, Q[8], db);
+          if (!(a > 0)) continue;
+          const c = Math.max(1, Math.round(255 * a));
+          g.fillStyle = g.strokeStyle = 'rgb(' + c + ',' + c + ',' + c + ')';
+          g.beginPath(); g.moveTo(Q[0], Q[1]); g.lineTo(Q[2], Q[3]); g.lineTo(Q[4], Q[5]); g.lineTo(Q[6], Q[7]); g.closePath(); g.fill(); g.stroke();
+        }
+        g.restore();
+        lv = g.getImageData(0, 0, nx, ny).data;
+      }
+      const img = g.createImageData(nx, ny), d = img.data;
       for (let j = 0; j < ny; j++) {
         const dy = y1 - (j + 0.5) * py - P[1];
         for (let i = 0; i < nx; i++) {
-          const a = scatFieldLevel(G, scatPlaneAt(G, x0 + (i + 0.5) * px - P[0], dy));
+          const o = 4 * (j * nx + i);
+          // the 1/r² picture, or where the light has gone on past a part, that (they meet where it enters the part)
+          const a = Math.max(scatFieldLevel(G, scatPlaneAt(G, x0 + (i + 0.5) * px - P[0], dy, Rd), db), lv && lv[o + 3] ? lv[o] / 255 : 0);
           if (!(a > 0)) continue;
-          const o = 4 * (j * nx + i), c = 3 * Math.round(255 * a);
+          const c = 3 * Math.round(255 * a);
           d[o] = lut[c]; d[o + 1] = lut[c + 1]; d[o + 2] = lut[c + 2]; d[o + 3] = Math.round(255 * glowA(0.95 * a));
         }
       }
       g.putImageData(img, 0, 0);
-      C = { key, x0, y0, x1, y1, mmpp: px, cv };
+      C = { key, x0, y0, x1, y1, want, cv };      // (want: the scale it was made for, which a coarser image past its cap still is)
       SF_IMG.set(G, C);
     }
     ctx.save();
@@ -219,6 +269,8 @@ export function scatActivity() {
   }
   return null;
 }
+/* the steps solved ahead on the worker, for a sweep's estimate (ui/sweeps.js): seconds so far, steps done and in all; null when none are */
+export function scatAheadEta() { const A = SCW.ahead; return A && !A.page ? { dt: (performance.now() - A.t0) / 1000, done: A.done, of: A.of } : null; }
 /* every step solved ahead dropped (the sweep stopped or rendered again) */
 export function scatterAheadStop() {
   for (const q of SCW.queue) if (q.proj && q.resolve) q.resolve(null);
@@ -365,7 +417,7 @@ function scatterRows(el, S) {
    scattered power and the power, as launched into the part's aperture) and one for what no part catches */
 function caughtRows(el) {
   const R = lastTrace.scat && lastTrace.scat.parts && lastTrace.scat.parts[el.id], rows = [];
-  if (el.scatLight === false) return [['On the bench', 'Its scattered light is not sent to the parts (the Particle tab turns it on).']];
+  if (el.scatLight === false) return [['On the bench', 'Its scattered light is not sent to the parts (On the bench, below, turns it on).']];
   if (!R || R.state === 'dark' || R.state === 'none') return rows;
   if (R.state === 'wait') return [['On the bench', 'Working out the scattered light…']];
   for (const r of R.rows) rows.push(['Caught by ' + r.name, scatPct(r.share) + ' of the scattered power, ' + scatPw(r.P) + (r.followed ? '' : ' (not traced on: only the ' + R.rows.filter(q => q.followed).length + ' parts that catch most are)')]);
@@ -390,7 +442,6 @@ export function scatterKeepUp() {
 }
 /* the page's wiring: where there are workers a trace does not wait for a scattering run */
 export function wireScatter() { if (!TEST_MODE && WORKERS_OK) setScatMode('async'); }
-const SCAT_DB = 40;        // a log plot's depth
 /* the pattern on one cut as a polar plot: the angle as on the bench (or from the beam, up), the radius the intensity */
 function drawPolar(cv, el, S, which) {
   const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, side = Math.min(w, 340), c = cv.getContext('2d');
@@ -398,11 +449,11 @@ function drawPolar(cv, el, S, which) {
   c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, side);
   cv._csv = null;
   if (!S || !S.cutIn) return;
-  const cut = which === 'out' ? S.cutOut : S.cutIn, log = el.scatScale !== 'lin';
+  const cut = which === 'out' ? S.cutOut : S.cutIn, dB = scatDbOf(el.scatScale), log = dB > 0;     // (dB: the Scale's depth)
   const cx = w / 2, cy = side / 2, R = side / 2 - 30, n = cut.I.length;
   let mx = 0; for (const v of cut.I) if (v > mx) mx = v;
   if (!(mx > 0)) return;
-  const rOf = v => (log ? Math.max(0, 1 + 10 * Math.log10(Math.max(v / mx, 1e-30)) / SCAT_DB) : v / mx) * R;
+  const rOf = v => (log ? Math.max(0, 1 + 10 * Math.log10(Math.max(v / mx, 1e-30)) / dB) : v / mx) * R;
   c.font = axisFont(); c.lineWidth = 1;
   // rings and spokes
   c.strokeStyle = inkA(0.12); c.fillStyle = getCss('--jek-ink-soft');
@@ -411,7 +462,7 @@ function drawPolar(cv, el, S, which) {
   for (let a = 0; a < 360; a += 30) { c.moveTo(cx, cy); c.lineTo(cx + R * Math.cos(a * deg), cy - R * Math.sin(a * deg)); }
   c.stroke();
   c.textAlign = 'left'; c.textBaseline = 'bottom';
-  for (let q = 1; q <= 3; q++) c.fillText(log ? '−' + (SCAT_DB * (4 - q) / 4) + ' dB' : String(q / 4), cx + 3, cy - R * q / 4 - 1);
+  for (let q = 1; q <= 3; q++) c.fillText(log ? '−' + (dB * (4 - q) / 4) + ' dB' : String(q / 4), cx + 3, cy - R * q / 4 - 1);
   c.textBaseline = 'middle';
   for (const a of [0, 90, 180, 270]) {
     const x = cx + (R + 12) * Math.cos(a * deg), y = cy - (R + 12) * Math.sin(a * deg);
@@ -459,7 +510,7 @@ function drawScatMap(cv, el, S) {
   c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
   cv._csv = null;
   if (!S || !S.map) return;
-  const M = S.map, log = el.scatScale !== 'lin';
+  const M = S.map, dB = scatDbOf(el.scatScale), log = dB > 0;
   const sxA = { kind: 'plain', title: 'angle from the beam (°)' }, syA = { kind: 'plain', title: S.dir && Math.abs(S.dir[2]) > 1e-9 ? 'round the beam (°): 0 across it level, 90 up from it' : 'round the beam (°): 0 across in the plane, 90 up' };
   const A = plotArea(c, w, hgt, [0, 360], syA);
   let mx = 0; for (const v of M.I) if (v > mx) mx = v;
@@ -473,7 +524,7 @@ function drawScatMap(cv, el, S) {
     for (let j = 0; j < H2; j++) {
       const p = (1 - (j + 0.5) / H2) * nP, p0 = Math.floor(p) % nP, p1 = (p0 + 1) % nP, g = p - Math.floor(p);
       const v = (1 - f) * ((1 - g) * M.I[a * nP + p0] + g * M.I[a * nP + p1]) + f * ((1 - g) * M.I[b * nP + p0] + g * M.I[b * nP + p1]);
-      const u = log ? 1 + 10 * Math.log10(Math.max(v / mx, 1e-30)) / SCAT_DB : v / mx, rgb = magma(u), o = 4 * (j * W2 + i);
+      const u = log ? 1 + 10 * Math.log10(Math.max(v / mx, 1e-30)) / dB : v / mx, rgb = magma(u), o = 4 * (j * W2 + i);
       img.data[o] = rgb[0]; img.data[o + 1] = rgb[1]; img.data[o + 2] = rgb[2]; img.data[o + 3] = 255;
     }
   }
@@ -493,7 +544,7 @@ export function scatterSection(el) {
     return;
   }
   const status = h('div', { class: 'rt-scatrun', role: 'status', 'aria-live': 'polite', style: 'display:none;align-items:center;flex-wrap:wrap;gap:0.6rem;margin-top:0.6rem;font-size:0.8125rem;color:var(--jek-ink-soft)' });
-  const bar = h('progress', { class: 'rt-scatbar', max: 1, 'aria-label': 'Scattering progress', style: 'flex:1;min-width:4rem;height:0.4rem;accent-color:var(--jek-cyan)' });
+  const fill = h('i'), bar = h('div', { class: 'rt-pbar rt-scatbar', role: 'progressbar', 'aria-label': 'Scattering progress', style: 'flex:1;min-width:4rem' }, fill);
   const box = h('div', { class: 'rt-readout' });
   const views = [['in', 'In the bench plane'], ['out', 'Out of the plane'], ['map', 'Every direction']];
   const tabs = h('div', { class: 'rt-inline', style: 'margin:0.5rem 0 0.3rem;flex-wrap:wrap;column-gap:0.8rem;row-gap:0.2rem' });
@@ -503,22 +554,25 @@ export function scatterSection(el) {
   for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { vs(el).scatView = key; draw(); } }, text));
   // under the figure: its scale, and the lens the Collected figure is for (a notional lens: the particle is lit by every
   // beam through it whatever these say, and its light reaches every part that sees it)
-  const scale = h('div', { class: 'rt-rows', style: 'margin-top:0.3rem' }, selectField('Scale', [['log', 'Logarithmic, ' + SCAT_DB + ' dB'], ['lin', 'Linear']], () => el.scatScale, v => { el.scatScale = v; }, { rebuild: false }),
+  const scale = h('div', { class: 'rt-rows', style: 'margin-top:0.3rem' }, selectField('Scale', SCAT_SCALES.map(q => [q[0], q[1]]).concat(el.scatScale === 'log' ? [['log', 'Logarithmic, 40 dB (as saved)']] : []), () => el.scatScale, v => { el.scatScale = v; }, { rebuild: false }),
     param('Collection lens NA', el, 'scatNA'),
     selectField('Collection lens faces', [['fwd', 'Ahead (the beam’s way)'], ['back', 'Behind (back along it)'], ['side', 'The side, in the plane'], ['up', 'Above'], ['angle', 'A direction on the bench']], () => el.scatDir, v => { el.scatDir = v; }));
   if (el.scatDir === 'angle') scale.append(param('Direction (°)', el, 'scatAng'));
   scale.append(helpLine('The Collected figure is for this lens alone: the particle is lit by every beam through it whatever is set here.'));
   if (isPart) {
-    // the scattered field's picture (engines/scatter-field.js): off unless asked for, its scale its own
-    const c = h('input', { type: 'checkbox' }), sfLine = h('div', { class: 'rt-note', style: 'font-size:0.75rem;color:var(--jek-ink-soft);margin-top:0.15rem' });
-    c.checked = !!el.scatField;
-    c.onchange = () => { checkpoint(); el.scatField = c.checked; changed(true); };
-    scale.append(h('label', { class: 'rt-check wide' }, c, 'Draw an estimate of its scattered field'), sfLine,
-      helpLine('The far-field pattern falling off as 1/r², drawn as the diffracted field is, in cool colours on a scale of its own.', ['Drawn on the bench and in 3D as the diffracted field is, in a ramp of its own (navy to cyan to white on the dark bench, pale cyan to navy on paper) so it is told from the beam, from the pattern the plots show: the irradiance along each direction is the power scattered into a unit solid angle over the distance squared, and it stops at the first part that direction meets, as the rays do. ',
-        'It is the intensity alone, with no fringes against the beam (they are a wavelength apart), and the far field alone, which holds from a few micrometres out. The scattered light is a millionth of the beam or less, so it has a log scale of its own (40 dB on the bench, 20 dB in 3D, where the light is added along each line of sight), which changes nothing of how the beam is drawn. A picture: no reading takes it.'], 'note'));
+    // on the bench: what is sent to the parts, then how it is drawn (the fan; the field's picture, engines/scatter-field.js,
+    // off unless asked for, on the Scale above)
+    const check = (key, text, on) => { const c = h('input', { type: 'checkbox' }); c.checked = on(); c.onchange = () => { checkpoint(); el[key] = c.checked; changed(true); }; return h('label', { class: 'rt-check wide' }, c, text); };
+    const sfLine = h('div', { class: 'rt-note', style: 'font-size:0.75rem;color:var(--jek-ink-soft);margin-top:0.15rem' });
+    scale.append(h('h4', { style: 'margin:0.6rem 0 0.1rem;font-size:0.8125rem' }, 'On the bench'),
+      check('scatLight', 'Send its scattered light to the parts', () => el.scatLight !== false),
+      check('scatFan', 'Draw the scattered light in every direction', () => el.scatFan !== false),
+      check('scatField', 'Draw an estimate of its scattered field', () => !!el.scatField), sfLine,
+      helpLine('The far-field pattern falling off as 1/r², and past the parts the light the cones carry on, drawn as the diffracted field is, in cool colours on the Scale above.', ['Drawn on the bench and in 3D as the diffracted field is, in a ramp of its own (navy to cyan to white on the dark bench, pale cyan to navy on paper) so it is told from the beam, from the pattern the plots show: the irradiance along each direction is the power scattered into a unit solid angle over the distance squared, as far as the first part that direction meets. Past a part that passes it on (a lens, a window) it is the light the cones\u2019 rays carry, each ray\u2019s power over the tube it and its neighbours bound, joining the 1/r\u00b2 picture where it enters the part. ',
+        'It is the intensity alone, with no fringes against the beam (they are a wavelength apart), the far field alone, which holds from a few micrometres out, and past the parts the rays\u2019 geometry alone, with no diffraction. The scattered light is a millionth of the beam or less, so it has a scale of its own, the Scale above: logarithmic over its dB on the bench (and half of them in 3D, where the light is added along each line of sight and so falls as 1/r, not 1/r\u00b2: the light reaches as far), or linear. A deeper scale draws it further out. It changes nothing of how the beam is drawn. A picture: no reading takes it.'], 'note'));
     bindSync(sfLine, () => {
       const G = el.scatField && lastTrace.scat && ((lastTrace.scat.fans || []).find(F => F.part === el.id) || {}).field;
-      const t = G ? 'Its scale: ' + scatSig(G.top, 3) + ' W/mm² at the top (' + fmtLen(G.rTop) + ' out along the brightest direction), to ' + G.dec * 10 + ' dB below, out to ' + fmtLen(G.R) + '.' : '';
+      const db = scatDbOf(el.scatScale), t = G ? 'Its scale: ' + (db ? '' : 'linear, 0 to ') + scatSig(G.top, 3) + ' W/mm² at the top (' + fmtLen(G.rTop) + ' out along the brightest direction)' + (db ? ', to ' + db + ' dB below (' + db / 2 + ' dB along a line of sight in 3D)' : '') + ', out to ' + fmtLen(scatReach(G, db)) + '.' : '';
       // with the ramp it is drawn in on the bench (scatRamp), floor to top
       if (sfLine.dataset.t !== t + benchLight()) {
         sfLine.dataset.t = t + benchLight();
@@ -556,7 +610,10 @@ export function scatterSection(el) {
       status.style.display = st.length ? 'flex' : 'none';
     }
     bar.hidden = !st.length || !A.busy && !SCW.ahead;
-    if (frac === null) bar.removeAttribute('value'); else bar.value = Math.max(0, Math.min(1, frac));
+    // (pulsing while it works: style.css .rt-busy)
+    bar.classList.toggle('rt-busy', !bar.hidden); bar.classList.toggle('rt-indet', frac === null);
+    fill.style.width = frac === null ? '0' : (100 * Math.max(0, Math.min(1, frac))).toFixed(1) + '%';
+    if (frac === null) bar.removeAttribute('aria-valuenow'); else bar.setAttribute('aria-valuenow', String(Math.round(100 * Math.max(0, Math.min(1, frac)))));
     box.style.opacity = A.busy && S ? '0.55' : '';              // figures from before the last change, while their run is redone
     // (a Particle part: after its own figures, where its scattered light goes on the bench)
     const rows = (S ? scatterRows(el, S) : []).concat(isPart && (S || A.none) ? caughtRows(el) : []);

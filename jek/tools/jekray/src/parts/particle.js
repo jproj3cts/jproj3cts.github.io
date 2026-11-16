@@ -33,7 +33,7 @@ export const PARTICLE = {
       scatNA: clamp(num(e.scatNA, 0.5), 0.001, 4),
       scatDir: ['back', 'side', 'up', 'angle'].includes(e.scatDir) ? e.scatDir : 'fwd',
       scatAng: num(e.scatAng, 0),
-      scatScale: e.scatScale === 'lin' ? 'lin' : 'log',
+      scatScale: ['lin', 'log30', 'log60', 'log90'].includes(e.scatScale) ? e.scatScale : 'log',   // ('log': 40 dB, as benches before 30/60/90 saved it)
       scatView: ['out', 'map'].includes(e.scatView) ? e.scatView : 'in',
       scatLight: e.scatLight !== false,                            // its scattered light on the bench, to the parts that catch it
       scatFan: e.scatFan !== false,                                // and the faint fan in every direction (a picture only)
@@ -52,10 +52,10 @@ export const PARTICLE = {
       scatModel: '"auto" (Mie for a sphere, a dipole array for other shapes, Rayleigh when tiny), "rayleigh", "mie" or "dda".', scatDip: 'dipoles across the smallest dimension of a dipole array (0 chooses).',
       scatAt: '"part": the particle is where the part is; "trap": where the optical trap nearest the part holds it.', scatDx: 'µm: moved from there across the strongest beam, in the bench plane (across it level, for a beam that rises or descends).', scatDy: 'µm: moved up out of the plane (up from the beam, square to it, for a beam that rises or descends).', scatDz: 'µm: moved along the beam.',
       scatNA: 'the numerical aperture of the cone the Scattering tab’s Collected figure is for.', scatDir: 'that cone’s direction: "fwd", "back", "side", "up" or "angle" (with scatAng).', scatAng: 'degrees: the cone’s direction on the bench, for scatDir "angle".',
-      scatScale: '"log" or "lin": the pattern plots’ scale.', scatView: '"in" (the bench plane), "out" (the plane out of it through the beam) or "map" (every direction).',
+      scatScale: '"lin", "log30", "log60" or "log90" (logarithmic over 30, 60 or 90 dB; "log", from older benches, is 40 dB): the pattern plots’ scale, and the scattered field picture’s (scatField) on the bench, where in 3D the light along a line of sight is on half the dB.', scatView: '"in" (the bench plane), "out" (the plane out of it through the beam) or "map" (every direction).',
       scatLight: 'true puts the scattered light on the bench: a cone to each part with a clear line to the particle, with the far field’s amplitude, phase and polarisation, coherent with the driving laser. false leaves the bench as it is without it.',
       scatFan: 'true draws a faint fan of the scattered light in every direction, as bright as the pattern is; a picture only, never part of a reading.',
-      scatField: 'true draws an estimate of the scattered field as the diffracted field is drawn (2D and 3D): the far-field pattern falling off as 1/r², stopped at the first part each direction meets, intensity only, on a log scale of its own (40 dB on the bench, 20 dB in 3D, whatever the beam’s); a picture only, never part of a reading. Default false.' },
+      scatField: 'true draws an estimate of the scattered field as the diffracted field is drawn (2D and 3D): the far-field pattern falling off as 1/r² as far as the first part each direction meets, and past a part that passes it on the light the cones’ rays carry (each ray’s power over its tube), intensity only, on a scale of its own, scatScale’s (on the bench its dB, in 3D half of them; or linear), whatever the beam’s; a picture only, never part of a reading. Default false.' },
   },
 };
 

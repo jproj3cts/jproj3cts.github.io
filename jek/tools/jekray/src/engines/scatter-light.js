@@ -12,7 +12,7 @@ import { beamFrame } from './phase-screen.js';
 import { scatCache, scatFind, scatModeNow, scatterNow, scatterPrep } from './scatter.js';
 import { beamFieldAt } from './fibre-face.js';
 import { cavLoadOf } from './scatter-cavity.js';
-import { scatFieldBuild, scatFieldDirs } from './scatter-field.js';
+import { scatFieldBuild, scatFieldDirs, scatThrough } from './scatter-field.js';
 
 /* ---------- A particle's scattered light, put back on the bench ----------
    A Particle part's scattering answer (engines/scatter.js) holds the far field's complex amplitude over the sphere
@@ -361,6 +361,12 @@ export function scatterLaunch(surfsBy) {
         R.parts[st.el.id] = { state: st.state, key: st.key, pos: st.pos || null, Psca, rows, caught: got, lost: Math.max(0, Psca - got), lostShare: Psca > 0 ? Math.max(0, 1 - got / Psca) : 0,
           cones: st.cones.map(v => v.id), probed: st.probeKept ? 0 : st.dirs ? st.dirs.length : 0, launched: st.cones.concat(st.waveSrc).reduce((a, v) => a + v.vRays.length, 0) };
         for (const v of st.cones) v.scat.P = v.vRays.reduce((a, r) => a + (r.off ? 0 : r.pw), 0);
+        // the field's picture past the first part: the light the cones carry on, from their rays (scatter-field.js, scatThrough)
+        if (st.fan && st.fan.field) {
+          const by = new Map();
+          for (const r of lastTrace.rays || []) if (r.sc && r.src.startsWith(st.el.id + '~s')) { if (!by.has(r.src)) by.set(r.src, []); by.get(r.src).push(r); }
+          st.fan.through = st.cones.map(v => by.has(v.id) ? scatThrough(v, by.get(v.id)) : null).filter(Boolean);
+        }
         if (st.fan) R.fans.push(st.fan);
       }
       return R;

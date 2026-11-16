@@ -104,3 +104,7 @@ A project can hold several benches, each on a tab. Light keeps to its own bench.
 ## Sweeps
 
 Any number in a panel can be swept: it moves back and forth over a range on a shared clock, and the bench is worked out again at each step. The **Sweeps** menu also has **Optimise the bench…** (a golden-section search for one parameter, or Nelder–Mead from a Latin hypercube start for several) and **Tolerance the bench…** (Monte Carlo over the swept ranges). A lens or RF design is optimised and toleranced in its own workspace instead, against its design conditions. A sweep that renders its field ahead also solves each step's particle scattering ahead, with a bar of its own under the bench's (see [Scattering by a particle](/jek/docs/jekray/free-space/scattering/#speed-answers-kept-combined-and-solved-ahead)).
+
+A sweep with **Render the diffracted field** ticked works out its frames ahead, and a Particle's scattering for each step, before it plays. When that is predicted to take longer than 30 seconds (from the time its first steps take, and again as each one finishes), the bench stays as it is and only the progress bars move, with the time left (*about 1 min 20 s left*). The sweep then plays the whole cycle smoothly. A quicker sweep shows its steps as they are worked out, as before. **Pause** stops it at once either way.
+
+Every progress bar has a light running along it while its work goes on, so a slow bar can be told from one that has stopped. With reduced motion set on the computer, the bar brightens and dims gently instead.

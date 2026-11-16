@@ -3,6 +3,7 @@ import './../../jekray/src/core/constants.js';
 import './../../jekray/src/core/hooks.js';
 import './../../jekray/src/core/src-tag.js';
 import './core/units.js';
+import './core/threads.js';
 import './core/sketch.js';
 import './core/font-data.js';
 import './core/sketch-tools.js';

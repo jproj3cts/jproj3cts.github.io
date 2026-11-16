@@ -545,11 +545,11 @@ One small particle at a point of the bench: a sphere, a rod or a spheroid, in wh
 | scatNA | `0.5` | the numerical aperture of the cone the Scattering tab’s Collected figure is for. |
 | scatDir | `"fwd"` | that cone’s direction: "fwd", "back", "side", "up" or "angle" (with scatAng). |
 | scatAng | `0` | degrees: the cone’s direction on the bench, for scatDir "angle". |
-| scatScale | `"log"` | "log" or "lin": the pattern plots’ scale. |
+| scatScale | `"log"` | "lin", "log30", "log60" or "log90" (logarithmic over 30, 60 or 90 dB; "log", from older benches, is 40 dB): the pattern plots’ scale, and the scattered field picture’s (scatField) on the bench, where in 3D the light along a line of sight is on half the dB. |
 | scatView | `"in"` | "in" (the bench plane), "out" (the plane out of it through the beam) or "map" (every direction). |
 | scatLight | `true` | true puts the scattered light on the bench: a cone to each part with a clear line to the particle, with the far field’s amplitude, phase and polarisation, coherent with the driving laser. false leaves the bench as it is without it. |
 | scatFan | `true` | true draws a faint fan of the scattered light in every direction, as bright as the pattern is; a picture only, never part of a reading. |
-| scatField | `false` | true draws an estimate of the scattered field as the diffracted field is drawn (2D and 3D): the far-field pattern falling off as 1/r², stopped at the first part each direction meets, intensity only, on a log scale of its own (40 dB on the bench, 20 dB in 3D, whatever the beam’s); a picture only, never part of a reading. Default false. |
+| scatField | `false` | true draws an estimate of the scattered field as the diffracted field is drawn (2D and 3D): the far-field pattern falling off as 1/r² as far as the first part each direction meets, and past a part that passes it on the light the cones’ rays carry (each ray’s power over its tube), intensity only, on a scale of its own, scatScale’s (on the bench its dB, in 3D half of them; or linear), whatever the beam’s; a picture only, never part of a reading. Default false. |
 
 ### "link": Link plane
 

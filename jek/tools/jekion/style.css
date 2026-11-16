@@ -5,6 +5,7 @@
   .ion-simbar .rt-btn { pointer-events: auto; padding: 0.15rem 0.5rem; font-size: 0.75rem; }
   .ion-simbar.busy::before { content: ''; width: 0.6rem; height: 0.6rem; border: 2px solid var(--jek-cyan); border-right-color: transparent; border-radius: 50%; animation: ion-spin 0.8s linear infinite; }
   @keyframes ion-spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .ion-simbar.busy::before { animation: rt-breathe 2.4s ease-in-out infinite; } }   /* (rt-breathe: JEKray's stylesheet, which this page carries) */
   .ion-legend { position: absolute; right: 0.6rem; bottom: 2.8rem; z-index: 4; padding: 0.3rem 0.5rem; font: 0.7rem var(--jek-mono); color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line); border-radius: 2px; pointer-events: none; }
   .ion-legend canvas { display: block; width: 120px; height: 8px; margin: 0.2rem 0; }
   .ion-legend .lr { display: flex; justify-content: space-between; }

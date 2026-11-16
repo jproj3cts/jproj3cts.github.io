@@ -15308,7 +15308,7 @@ function traceSceneOnce() {
           // it is nothing at all, so its field carries on unchanged.
           const P = linkTo.get(s.el.id);
           if (!P || !P.s) { if (!chief) { blocked[s.el.id] = (blocked[s.el.id] || 0) + w; (blockedSrc[s.el.id] || (blockedSrc[s.el.id] = new Set())).add(src.id); } break; }
-          if (!chief) rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn, rid: id, fam, ev: path, J: [sr, si, pr, pi] });
+          if (!chief && !(src.vRays && !src.vRays[vK].draw)) rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn, rid: id, fam, ev: path, J: [sr, si, pr, pi], ...(src.vRays ? { sc: src.vRays[vK].draw } : {}) });
           [px, py] = toWorld(P.s.f, lx, ly);
           [dx, dy] = toWorldDir(P.s.f, ldx, ldy);
           bn = P.el.bench;
@@ -15690,7 +15690,8 @@ function traceSceneOnce() {
                 hole: s.kind === 'mirror' && !s.el.R ? hole : 0 });
             } else dropped++;
             if (!chief && wr > 0.005 * w) {   // brightness changes: start a new drawn segment
-              rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn, rid: id, fam, ev: path, J: [sr, si, pr, pi] });
+              // (a particle's scattered ray keeps its mark on each piece, as its last piece has it: drawn as scattered light, or not at all)
+              if (!(src.vRays && !src.vRays[vK].draw)) rays.push({ pts: pts.slice(), zs: pts.zs && pts.zs.slice(0, pts.length >> 1), colour, w, src: src.id, bench: bn, rid: id, fam, ev: path, J: [sr, si, pr, pi], ...(src.vRays ? { sc: src.vRays[vK].draw } : {}) });
               pts.length = 0; pts.push(px, py);
             }
           }
@@ -47528,13 +47529,15 @@ const scatReach = (G, db) => db > 0 ? G.rTop * 10 ** (db / 20) : G.R;
    on its own path between the same two faces) (the same face crossed, the same share of the way between two), rho = sa / |da x db| from the launch
    directions (da, db the same steps a unit from the particle), so that by the particle the tube is sa r², and the irradiance, the ray's power over its tube, is what the
    1/r² picture has: the two join where the light enters the part. The ray's power is its weight against its cone's
-   strongest (the trace's own, Fresnel losses and all). An estimate of where the light goes and how bright it is, from the
-   rays' geometry: no diffraction, so at a focus it is as narrow as the rays make it (held to SF_DMIN across).
+   strongest (the trace's own, Fresnel losses and all), stretch by stretch along the branch that carries most. An
+   estimate of where the light goes and how bright it is, from the rays' geometry: no diffraction, so at a focus it is
+   as narrow as the rays make it (held to SF_DMIN across).
    For each cone: its rays that go on past their first part, each as samples along its way from there, SF_SUB to a stretch
    between two faces, [x, y, z, E (W/mm²), d (the tube's diameter, mm)] each, and the ray's place in the grid. */
 const SF_SUB = 8;
 const SF_DMIN = 0.02;                 // mm: the narrowest a tube is taken to be
 const SF_GROW = 20;                   // and the most it may widen past the first face before it is taken to have lost its neighbours
+const SF_GROW0 = 0.5;                // (mm: a pencil narrower than this at the first face is held to widening past SF_GROW times this)
 /* the step from p to where the stretch k of a neighbour (Q, points by threes) crosses the plane through p square to (ux,
    uy, uz), into out; false where the stretch runs along that plane */
 function sfAcross(Q, k, p, ux, uy, uz, out) {
@@ -47551,29 +47554,56 @@ function scatThrough(v, rays) {
   const g = v.scat && v.scat.grid;
   if (!g || !v.vRays || !(v.vLp > 0)) return null;
   const nP = g.nP, top = v.vLp * 1e-3;
-  // each ray of the cone by its place in the grid: its main branch (the one that carries most) as a list of points
-  const at = new Map();
+  // each ray of the cone by its place in the grid, as one path: from the particle, and wherever it splits (a beam splitter,
+  // a face's weak reflection, a screen it passes) on along the branch that carries most, as the trace keeps each branch
+  // as a ray of its own from where it split; W, the weight along each stretch
+  const byK = new Map();
   for (const r of rays) {
-    const id = String(r.rid), V = v.vRays[+id.slice(id.lastIndexOf(':') + 1)];
-    if (!V || V.off || !r.pts || r.pts.length < 6) continue;
-    const key = V.ri * 4096 + V.sj, o = at.get(key);
-    if (o && o.r.w >= r.w) continue;
-    const n = r.pts.length >> 1, P = new Float64Array(3 * n);
-    for (let i = 0; i < n; i++) { P[3 * i] = r.pts[2 * i]; P[3 * i + 1] = r.pts[2 * i + 1]; P[3 * i + 2] = r.zs ? r.zs[i] : 0; }
-    at.set(key, { r, V, P, n });
+    if (!r.pts || r.pts.length < 4) continue;
+    const id = String(r.rid), k = +id.slice(id.lastIndexOf(':') + 1);
+    if (!byK.has(k)) byK.set(k, []);
+    byK.get(k).push(r);
+  }
+  const at = new Map(), near = (r, x, y) => Math.abs(r.pts[0] - x) < 1e-6 && Math.abs(r.pts[1] - y) < 1e-6;
+  for (const [k, list] of byK) {
+    const V = v.vRays[k];
+    if (!V || V.off) continue;
+    let r = null;
+    for (const q of list) if (near(q, v.x, v.y) && (!r || q.w > r.w)) r = q;
+    const xs = [], W = [], used = new Set();
+    while (r && !used.has(r)) {
+      used.add(r);
+      const n = r.pts.length >> 1;
+      for (let i = xs.length ? 1 : 0; i < n; i++) { xs.push(r.pts[2 * i], r.pts[2 * i + 1], r.zs ? r.zs[i] : 0); W.push(r.w); }
+      const ex = r.pts[2 * n - 2], ey = r.pts[2 * n - 1];
+      let nx = null;
+      for (const q of list) if (!used.has(q) && near(q, ex, ey) && (!nx || q.w > nx.w)) nx = q;
+      r = nx;
+    }
+    const n = xs.length / 3;
+    if (n < 3) continue;
+    at.set(V.ri * 4096 + V.sj, { V, P: Float64Array.from(xs), W, n });
   }
   const out = [];
   for (const R0 of at.values()) {
     const { V, P, n } = R0;
-    const ring = at.get((V.ri + 1) * 4096 + V.sj) || at.get((V.ri - 1) * 4096 + V.sj);
-    const spoke = at.get(V.ri * 4096 + (V.sj + 1) % nP) || at.get(V.ri * 4096 + (V.sj - 1 + nP) % nP);
-    if (!ring || !spoke || !(V.sa > 0)) continue;
+    // (of the two neighbours each way, the one that goes on furthest with it: the next ring out may end on a lens's rim
+    // where this ray goes through)
+    const pick = (q1, q2) => !q1 ? q2 : !q2 ? q1 : Math.min(q2.n, R0.n) > Math.min(q1.n, R0.n) ? q2 : q1;
+    let ring = pick(at.get((V.ri + 1) * 4096 + V.sj), at.get((V.ri - 1) * 4096 + V.sj));
+    let spoke = pick(at.get(V.ri * 4096 + (V.sj + 1) % nP), at.get(V.ri * 4096 + (V.sj - 1 + nP) % nP));
+    // a neighbour that does not go on as far as the ray (the next ring out ends on a rim, the ring in is a patch's, cut
+    // from this cone) is let go, and the tube taken from the other alone, as widening alike both ways across the ray
+    if (ring && ring.n < n && spoke && spoke.n >= ring.n) ring = null;
+    if (spoke && spoke.n < n && ring && ring.n >= spoke.n) spoke = null;
+    if ((!ring && !spoke) || !(V.sa > 0)) continue;
     // (at the launch: the neighbours' directions where they cross the plane square to this ray a unit from the particle)
     const at1 = W => { const c = W[0] * V.d[0] + W[1] * V.d[1] + W[2] * V.d[2]; return [0, 1, 2].map(q => W[q] / c - V.d[q]); };
-    const c0 = sfCross(at1(ring.V.d), at1(spoke.V.d));
-    const m = Math.min(n, ring.n, spoke.n);
+    const sq = v => v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+    const c0 = ring && spoke ? sfCross(at1(ring.V.d), at1(spoke.V.d)) : sq(at1((ring || spoke).V.d));
+    const m = Math.min(n, ring ? ring.n : n, spoke ? spoke.n : n);
     if (!(c0 > 0) || m < 3) continue;
-    const rho = V.sa / c0, Pw = R0.r.w * top, S = new Float32Array(5 * (m - 2) * (SF_SUB + 1)), p = [0, 0, 0], a = [0, 0, 0], b = [0, 0, 0];
+    const rho = V.sa / c0, S = new Float32Array(5 * (m - 2) * (SF_SUB + 1)), p = [0, 0, 0], a = [0, 0, 0], b = [0, 0, 0];
     let o = 0, d1 = 0;
     // from the first face on: the stretches between faces 1 .. m-1 (a ray whose neighbours went another way, meeting
     // other faces, shows as a tube grown past SF_GROW times what it was at the first face: it ends there)
@@ -47583,11 +47613,11 @@ function scatThrough(v, rays) {
       // the steps to the neighbours square to the ray: where each neighbour's own stretch (as a line) crosses the plane
       // through this point square to the ray (a neighbour meets a face nearer or further on, and is followed to that plane)
       const ux = P[3 * k + 3] - P[3 * k], uy = P[3 * k + 4] - P[3 * k + 1], uz = P[3 * k + 5] - P[3 * k + 2];
-      if (!sfAcross(ring.P, k, p, ux, uy, uz, a) || !sfAcross(spoke.P, k, p, ux, uy, uz, b)) break stretch;
-      const A = Math.max(rho * sfCross(a, b), Math.PI * SF_DMIN * SF_DMIN / 4), dd = Math.sqrt(4 * A / Math.PI);
+      if ((ring && !sfAcross(ring.P, k, p, ux, uy, uz, a)) || (spoke && !sfAcross(spoke.P, k, p, ux, uy, uz, b))) break stretch;
+      const A = Math.max(rho * (ring && spoke ? sfCross(a, b) : sq(ring ? a : b)), Math.PI * SF_DMIN * SF_DMIN / 4), dd = Math.sqrt(4 * A / Math.PI);
       if (!d1) d1 = dd;
-      else if (dd > SF_GROW * d1) break stretch;
-      S[o] = p[0]; S[o + 1] = p[1]; S[o + 2] = p[2]; S[o + 3] = Pw / A; S[o + 4] = dd; o += 5;
+      else if (dd > SF_GROW * Math.max(d1, SF_GROW0)) break stretch;
+      S[o] = p[0]; S[o + 1] = p[1]; S[o + 2] = p[2]; S[o + 3] = R0.W[k] * top / A; S[o + 4] = dd; o += 5;
     }
     if (o > 5) out.push({ ri: V.ri, sj: V.sj, s: o < S.length ? S.slice(0, o) : S });
   }

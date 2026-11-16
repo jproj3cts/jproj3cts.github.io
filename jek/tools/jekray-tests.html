@@ -7374,6 +7374,24 @@ const TESTS = [
     },
   },
   {
+    name: 'A bench opened straight in 3D lays its fibres as it does after a visit to 2D',
+    why: 'a fibre route\u2019s own handles were 24 px at the 2D bench\u2019s zoom, unset when a bench opens straight in 3D, so its fibres swung out in great loops until 2D had been shown; in 3D they now have a length of their own in mm (1 when the fibre Michelson\u2019s tubes are the same both ways, at a 2D zoom far out and close in)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const V = J.view3d;
+      try {
+        // (as when a bench opens in a tab whose 2D bench has never been laid out: its zoom far out)
+        J.load(JSON.parse(getDemo('fibre-michelson'))); J.setView({ scale: 0.05 }); await V.set(true);
+        const a = V.fibreBoxes();
+        await V.set(false); J.setView({ scale: 20 }); J.redraw(); await V.set(true);
+        const b = V.fibreBoxes();
+        const ids = Object.keys(a || {}), same = ids.length > 0 && ids.every(id => b[id] && a[id].every((v, i) => Math.abs(v - b[id][i]) < 1e-3));
+        if (!same) console.log('fibres in 3D', JSON.stringify({ a, b }));
+        return same ? 1 : 0;
+      } finally { await V.set(false); }
+    },
+  },
+  {
     name: 'A part hidden in 3D by its eye still acts on the light',
     why: 'the Michelson in 3D: the eye beside Fixed mirror in the bench list closes and fades, the 3D view draws one part fewer, the bench is not traced again, the light drawn in 3D is the same, and the choice is saved and undone (1 when all hold)',
     want: 1, tol: 0, unit: '',

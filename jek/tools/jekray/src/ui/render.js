@@ -1475,10 +1475,12 @@ export const portsInUse = () => new Set((project.fibres || []).flatMap(F => [pke
 /* A fibre's path, in bench coordinates: cubic segments from port to port through its nodes.
    It leaves each port along the port's direction, ta and tb mm (or a length that suits the
    span); each node has an in handle h1 and an out handle h2, offsets from it, as in a
-   drawing program. endB, a point, stands in for the far port while a fibre is being laid. */
+   drawing program. endB, a point, stands in for the far port while a fibre is being laid. minHandle (mm), when given,
+   is the least length of a handle set by itself, in place of 24 px at the bench's zoom: the 3D view gives it, so its
+   routes do not hang on how the 2D bench happens to be zoomed (unset when a bench opens straight in 3D). */
 // a node's handle as an offset: one left out, or set to null (a script writing a path), is none
 const hnd = v => Array.isArray(v) && v.length === 2 && isFinite(v[0]) && isFinite(v[1]) ? v : [0, 0];
-export function fibreSegs(F, endB) {
+export function fibreSegs(F, endB, minHandle) {
   const A = getEl(F.a[0]);
   if (!A) return null;
   const pa = portWorld(A, F.a[1]);
@@ -1487,7 +1489,7 @@ export function fibreSegs(F, endB) {
   if (F.route === 'square') return squareSegs(F, pa, pb, endB);
   const nodes = F.path || [], s0 = V().scale;
   const P = [[pa.x, pa.y], ...nodes.map(n => [n.x, n.y]), endB || [pb.x, pb.y]];
-  const auto = i => Math.max(24 / s0, 0.4 * Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]));
+  const auto = i => Math.max(minHandle > 0 ? minHandle : 24 / s0, 0.4 * Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]));
   const segs = [];
   for (let i = 0; i < P.length - 1; i++) {
     const ta = F.ta != null ? F.ta : auto(0);

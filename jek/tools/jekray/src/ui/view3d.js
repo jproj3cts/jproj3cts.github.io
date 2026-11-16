@@ -425,6 +425,7 @@ export const V3D = (() => {
      lie on the table (a waveguide stays at its chips' height), rising to each port; a fibre carrying light glows its colour */
   /* the fibres, cables and waveguides: each tube kept while its route is the same (a sweep's step, a trace, moves none of
      them: made again for each, they cost an orbit its frames), its colour and glow set afresh */
+  const FIBRE_HANDLE_3D = 6;          // mm: a route's own handles at their shortest in 3D, whatever the 2D zoom
   function wires(G) {
     for (const o of [...G.children]) G.remove(o);
     const kept = R.wireCache || (R.wireCache = new Map()), usedW = new Set();
@@ -432,7 +433,7 @@ export const V3D = (() => {
     const list = (project.fibres || []).filter(F => on.has(F.a[0]) && on.has(F.b[0]));
     const lights = list.map(F => F.wire || F.wg ? { mw: 0 } : fibreLight(F)), topMw = Math.max(1e-30, ...lights.map(l => l.mw));
     list.forEach((F, i) => {
-      let segs = null; try { segs = fibreSegs(F); } catch (e) { segs = null; }
+      let segs = null; try { segs = fibreSegs(F, null, FIBRE_HANDLE_3D); } catch (e) { segs = null; }
       if (!segs || !segs.length) return;
       const xy = [];
       for (const [p0, c1, c2, p3] of segs) for (let k = xy.length ? 1 : 0; k <= 16; k++) {
@@ -1628,7 +1629,7 @@ export const V3D = (() => {
   /* the point of a fibre's route nearest a point on the table: its segment and where along it */
   const fibreNear = (F, X, Y) => {
     let best = null;
-    (fibreSegs(F) || []).forEach((C, k) => { for (let i = 0; i <= 60; i++) { const [x, y] = bez(C, i / 60), d = Math.hypot(x - X, y - Y); if (!best || d < best.d) best = { k, t: i / 60, d }; } });
+    (fibreSegs(F, null, FIBRE_HANDLE_3D) || []).forEach((C, k) => { for (let i = 0; i <= 60; i++) { const [x, y] = bez(C, i / 60), d = Math.hypot(x - X, y - Y); if (!best || d < best.d) best = { k, t: i / 60, d }; } });
     return best;
   };
   function inCube(n) { const c = cubeRect(); return n.px >= c.x && n.px <= c.x + c.w && n.py >= c.y && n.py <= c.y + c.h; }
@@ -2167,6 +2168,8 @@ export const V3D = (() => {
       fieldSegs() { if (!R || !R.vol) return null; return R.vol.segs.map(s => { const P = volPlanes(s); return { two: s.two, coh: s.coh, o: s.o, e: s.e, n0: s.n, ta: s.ta, tb: s.tb, ts: [...s.ts], rmax: [...s.rmax], peak: s.peak, pl: P.pl.map(v => v.toArray()), ext: P.ext }; }); },
       // how many times the view has been drawn, and the tubes the cables and fibres are drawn with (kept while their route is)
       draws: () => (R && R.draws) || 0,
+      // each fibre's tube as drawn: the box round it on the bench (mm), by the fibre's id
+      fibreBoxes() { if (!R) return null; sync(); const out = {}; for (const [id, c] of R.wireCache || []) { const g = c.obj.geometry; g.computeBoundingBox(); const b = g.boundingBox; out[id] = [b.min.x, b.min.y, b.max.x, b.max.y].map(v => +v.toFixed(3)); } return out; },
       // a particle's scattered field as drawn (scatVolMeshes): its volumes; and what one frame takes, the GPU's work finished (ms)
       scatField: () => { if (!R || !active()) return null; sync(); const k = D.vkey.querySelector('b.sc'); return { vols: (R.scatVols || []).length, quad: R.groups.light.children.some(o => o.userData.volQuad), key: D.vkey.hidden || !k ? null : D.vkey.textContent }; },
       // what pointing at a canvas point reads (css px from its top left): the beam's line and the scattered field's

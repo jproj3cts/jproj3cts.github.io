@@ -17,7 +17,6 @@ import { vsrc } from './scatter-light.js';
    with where a ray crosses the particle's plane (its path to second order: the mirrors' curvature is in it), so a return that comes back beside the particle is carried on exactly enough. Kept while
    the cavity, the particle and the light stay as they are (the key); nothing of it is light on the bench. */
 export const PMAP_N = 64;              // the grid's points across each cap (as the solve's)
-export const PMAP_FAR = 0.065;          // the returns' image this far from the particle (of the cavity's length) still followed for the mode solve
 export const PMAP_REFL = 6;            // reflections followed, for the small fan that finds the pattern
 const PMAP_DX = 1e-3;                  // mm: the offsets beside the particle
 const PMAP_FAN = [2e-3, 5e-3];         // rad: the fan's angles
@@ -136,11 +135,8 @@ function pmapStore(run) {
   // the pattern: the fewest reflections after which the fan meets again near the particle (within a twentieth of its
   // spread, at a twentieth of the cavity's length)
   const L = Math.hypot(K.far.x - K.near.x, K.far.y - K.near.y, zOf(K.far) - zOf(K.near));
-  let pattern = 0, far = false;
-  // (a second look, only when the first finds nothing: the returns re-imaged a little further off, up to PMAP_FAR of
-  // the cavity's length. The degenerate cavity's solve does not take those; the mode solve's returns do, cavTail)
-  for (const [reach, rmax] of [[0.05, PMAP_REFL], [PMAP_FAR, 2]]) { if (pattern === 1 || pattern === 2) break; far = reach > 0.05; const first = pattern; pattern = 0;
-  for (let r = 1; r <= rmax && !pattern; r++) {
+  let pattern = 0;
+  for (let r = 1; r <= PMAP_REFL && !pattern; r++) {
     let ok = true;
     for (const sg of [1, -1]) {
       const rays = [];
@@ -153,18 +149,17 @@ function pmapStore(run) {
       if (!(Math.abs(D) > 1e-12)) { ok = false; break; }
       const P = [0, 1, 2].map(c => det(A.map((row, i) => row.map((v, j) => (j === c ? bv[i] : v)))) / D);
       for (const { s0, spread } of rays) { const w = pmAd3(P, s0.X, -1); if (!(Math.hypot(...pmAd3(w, s0.d, -pmD3(w, s0.d))) < 0.05 * spread)) ok = false; }
-      if (Math.hypot(...pmAd3(P, C, -1)) > reach * L) ok = false;
+      if (Math.hypot(...pmAd3(P, C, -1)) > 0.05 * L) ok = false;
       if (!ok) break;
     }
     if (ok) pattern = r;
   }
-  if (far && !pattern) { pattern = first; far = false; } }
   if (!pattern || pattern > 2) return { key, pattern: pattern || 0, why: pattern ? 'pattern' : 'noimage' };
   // per main ray: where it crosses the particle's plane after `pattern` reflections (q, 3D, from C), its way d, the path
   // to there, its field matrix (3 x 3 complex, the physicists' convention: the trace's amplitudes conjugated), and the
   // same from the four offsets; per rim cell the share of its sub-rays that come back and their mean direction
   const cross = s0 => { const t = pmD3(pmAd3(C, s0.X, -1), axis) / pmD3(s0.d, axis); const Q = pmAd3(s0.X, s0.d, t); return { q: pmAd3(Q, C, -1), d: s0.d, ell: s0.opl + t /* (vacuum between the mirrors) */ }; };
-  const N = main.length, out = { key, pattern, farImage: far, caps, C, axis, ex: K.ex, ey: K.ey, L, nm: K.nm, far: K.far.id, near: K.near.id, cell: [] };
+  const N = main.length, out = { key, pattern, caps, C, axis, ex: K.ex, ey: K.ey, L, nm: K.nm, far: K.far.id, near: K.near.id, cell: [] };
   for (let i = 0; i < N; i++) {
     const a = recOf(run.vs, i, pattern), b = recOf(run.vp, i, pattern);
     if (!a || !b) { out.cell.push(null); continue; }

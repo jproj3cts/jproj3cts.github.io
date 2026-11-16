@@ -11,7 +11,7 @@ import { lastTrace, zOf } from './trace.js';
 import { popKeyOf, popRun } from './beam-tree.js';
 import { trapBeams, trapLegAt, trapMedium, trapSolve } from './diffraction.js';
 import { beamFrame } from './phase-screen.js';
-import { CAV_TAIL, CAV_TAIL_LONG, CAV_TAIL_REACH, cavUnchecked, cavitySolve, cavityModes, cavityPlan } from './scatter-cavity.js';
+import { cavUnchecked, cavitySolve, cavityModes, cavityPlan } from './scatter-cavity.js';
 import { PUP_FRESNEL, pupApplyChains, pupChains, pupGmres, pupGrid, pupLock, pupMapAt, pupReturns, pupilPlan } from './scatter-pupil.js';
 
 /* ---------- The light a particle scatters ----------
@@ -350,15 +350,9 @@ export function* scatterGen(el, R, opts) {
   }
   // A degenerate cavity (or one near it) is solved in the pupil instead (engines/scatter-pupil.js): the particle's light as
   // directions over the mirrors' caps, each traced round to its return
-  let pup = null, pupL = -1, pupWhy = null, tail = null;
-  // (a cavity the mode solve takes, cavK, is gone through too where its mirrors bring the particle's light back re-imaged:
-  // there the modes past the solve's list carry as much as those in it, and the returns are followed for them. See cavTail)
-  // (only while the returns are few enough to have been checked, and to be worth the following: they fade as the round
-  // trip does, a reflection each for a cavity near concentric; a finer cavity keeps its list, and its warning)
-  const fadeIn = cavK ? Math.log(1e-9) / (0.5 * Math.log(Math.min(0.999999, Math.hypot(cavK.lam00[0], cavK.lam00[1])))) : Infinity;
-  const forTail = !!(plan && !plan.why && cavK && CAV_TAIL.on && fadeIn <= CAV_TAIL_LONG);
-  if (plan && (plan.why === 'degenerate' || plan.why === 'unstable' || forTail)) {
-    const Cw = [C[0], C[1], C[2] + zRef], PP = pupilPlan(TB, Cw, nMed, nm, el, forTail);
+  let pup = null, pupL = -1, pupWhy = null;
+  if (plan && (plan.why === 'degenerate' || plan.why === 'unstable')) {
+    const Cw = [C[0], C[1], C[2] + zRef], PP = pupilPlan(TB, Cw, nMed, nm, el);
     if (PP && !PP.why) {
       // the empty cavity's waves at the particle: forward (towards the far mirror: the light let in and the loop's leg) and back
       const at = q => { const W = scatterWaves([q], C, nMed, 0, zRef).launches[0]; return W && W.n ? Array.from(W.E.subarray(0, 6)) : [0, 0, 0, 0, 0, 0]; };
@@ -459,49 +453,8 @@ export function* scatterGen(el, R, opts) {
         else pup = { PP, G, Rt, f, b, h2, h2ray, gouyHalf, lock, lamM: nm * 1e-9 / nMed, nm, nMed };
       }
     } else if (PP) pupWhy = PP.why;
-    if (forTail) {
-      tail = pup; pup = null; pupL = -1; pupWhy = null;
-      // how far from the particle the returns cross its plane, as the phase the map's carrying across leaves out
-      // (k q^3 / R^2, q the mode's Rayleigh range times the cap's half angle, R the tighter mirror's radius): see CAV_TAIL_REACH
-      if (tail) {
-        const Rm = Math.min(...tail.PP.M.map(m => Math.abs(m.el.R || Infinity))), q = plan.qF[0][1] * tail.PP.map.caps[0].s / 1.1;
-        tail.reach = isFinite(Rm) ? 2 * Math.PI / (nm * 1e-6) * q * q * q / (Rm * Rm) : Infinity;
-      }
-    }
     if (pup) plan.why = null;
   }
-  /* The returns for the mode solve. Its list of modes stops at an order (CAV_NMAX); the particle's light goes into every
-     order the mirrors' rims pass, and near degeneracy the orders past the list carry as much as those in it (their
-     round trips differ little from one to the next, so they do not average away: the list's sum does not settle with
-     the order, and paraxial frequencies are wrong for the high ones). The same light followed ray by ray through the
-     tracer's map (pupChains: every return, to the rims) is all the orders at once. So where the map has the returns
-     re-imaged, the four sums the mode solve needs (the field along the axis each way at the particle per unit far field
-     ahead and back) are taken from the chains instead of from the list. Elsewhere the list stands. */
-  const cavTail = () => {
-    if (!tail) return null;
-    if (tail.Gt) return tail.Gt;
-    const { G, Rt, lamM } = tail, N = G.N, t0 = Date.now();
-    const Sm = tail.S || (tail.S = pupChains(tail.PP, G, Rt, 2 * Math.PI / (tail.nm * 1e-6), tail.nMed, lamM));
-    const e = [plan.ex, plan.ey], d = plan.dir, sums = [[0, 0], [0, 0], [0, 0], [0, 0]];        // ff, fb, bf, bb (to, from)
-    const fwd = new Uint8Array(N);
-    for (let i = 0; i < N; i++) fwd[i] = G.dirs[3 * i] * d[0] + G.dirs[3 * i + 1] * d[1] + G.dirs[3 * i + 2] * d[2] > 0 ? 1 : 0;
-    for (let from = 0; from < 2; from++) for (let pl = 0; pl < 2; pl++) {
-      // a unit far field along e[pl], square to each direction, into the cap ahead (from = 0) or back
-      const F = new Float64Array(6 * N), ev = e[pl];
-      for (let i = 0; i < N; i++) {
-        if (fwd[i] !== (from === 0 ? 1 : 0)) continue;
-        const u = [G.dirs[3 * i], G.dirs[3 * i + 1], G.dirs[3 * i + 2]], ue = u[0] * ev[0] + u[1] * ev[1] + u[2] * ev[2];
-        for (let q = 0; q < 3; q++) F[6 * i + 2 * q] = ev[q] - u[q] * ue;
-      }
-      const A = pupApplyChains(G, Sm, F);
-      for (let i = 0; i < N; i++) {
-        const w = G.w[i], to = fwd[i] ? 0 : 1, acc = sums[2 * to + from];
-        for (let q = 0; q < 3; q++) { acc[0] += 0.5 * w * ev[q] * A[6 * i + 2 * q]; acc[1] += 0.5 * w * ev[q] * A[6 * i + 2 * q + 1]; }
-      }
-    }
-    tail.Gt = { ff: sums[0], fb: sums[1], bf: sums[2], bb: sums[3], returns: Sm.returns, longest: Sm.longest, ms: Date.now() - t0, kept: !!Sm.kept };
-    return tail.Gt;
-  };
   // (one the solve does not take keeps the warning, whether or not its light is seen to come back by returnPlan)
   if (plan && plan.why && !flags.includes('cavity')) flags.push('cavity');
   if (plan) out.cav = { canon: plan.c.id, name: plan.c.name, solved: !plan.why, why: plan.why || null, degen: plan.degen || null, finesse: plan.c.finesse, gouy: plan.c.gouy, ...(pupWhy ? { pupWhy } : {}) };
@@ -601,13 +554,10 @@ export function* scatterGen(el, R, opts) {
   const unitWave = i => ({ n: 1, d: Float64Array.from(i < 2 ? plan.dir : plan.dir.map(v => -v)), E: Float64Array.from((i % 2 ? plan.ey : plan.ex).flatMap(v => [v, 0])) });
   // the solve's answer kept on the answer, and the returned waves joined to the launch
   const cavDone = (L, sol) => {
-    // the light at the particle with its returns against its own (as the pupil solve reports it)
-    { const e0 = wavesAt0(L), et = e0.map((v, q) => v + sol.Ef[q] + sol.Eb[q]); out.cav.E2ratio = abs2(et) / abs2(e0); }
     const n0 = L.n, d = new Float64Array(3 * (n0 + 2)), E = new Float64Array(6 * (n0 + 2));
     d.set(L.d); E.set(L.E); d.set(plan.dir, 3 * n0); d.set(plan.dir.map(v => -v), 3 * n0 + 3); E.set(sol.Ef, 6 * n0); E.set(sol.Eb, 6 * n0 + 6);
     L.n0 = n0; L.d = d; L.E = E; L.n = n0 + 2;
-    if (cavUnchecked(plan.c, null) && !(tail && tail.reach <= CAV_TAIL_REACH && tail.Gt && tail.Gt.longest <= CAV_TAIL_LONG) && !flags.includes('modeNear')) flags.push('modeNear');
-    if (tail && tail.Gt) out.cav.tail = { returns: tail.Gt.returns, longest: tail.Gt.longest, ms: tail.Gt.ms, kept: tail.Gt.kept, pattern: tail.PP.pattern, fresnel: tail.PP.fresnel, reach: tail.reach };
+    if (cavUnchecked(plan.c, null) && !flags.includes('modeNear')) flags.push('modeNear');
     const lamM = plan.c.lam0 / plan.nLeg, zR = plan.qF[0][1];
     Object.assign(out.cav, { f00: cavK.modes[0].f0[cavK.sp], b00: cavK.modes[0].b0[cavK.sp], modes: cavK.kept.length, kept: cavK.kept.map(M => [M.m, M.n]), lam00: cavK.lam00, rho200: cavK.rho200, dLock: cavK.dLock,
       shiftK: sol.shiftK, widenK: sol.widenK, lwK: sol.lwK, shiftLw: sol.shiftLw, widenLw: sol.widenLw, shiftHz: sol.shiftK * C_SI / (2 * Math.PI), widenHz: sol.widenK * C_SI / (2 * Math.PI),
@@ -646,7 +596,7 @@ export function* scatterGen(el, R, opts) {
       const L = launches[i];
       if (pup && i === pupL) { yield* pupSolve(L, mieFarWaves(tab, k, L, pup.G.dirs), function* (A) { return mieFarWaves(tab, k, pupWaves(A), pup.G.dirs); }); continue; }
       if (i !== cavL) { particleReturn(L, { TB, nMed, zRef, F0, C, d0, k, tab, flags, out }); continue; }
-      cavDone(L, cavitySolve(plan, cavK, mieFarWaves(tab, k, L, cavDirs), j => mieFarWaves(tab, k, unitWave(j), cavDirs), k, nMed, cavTail()));
+      cavDone(L, cavitySolve(plan, cavK, mieFarWaves(tab, k, L, cavDirs), j => mieFarWaves(tab, k, unitWave(j), cavDirs), k, nMed));
     }
     for (const L of launches) {
       fars.push(dirs => mieFarWaves(tab, k, L, dirs));
@@ -672,7 +622,7 @@ export function* scatterGen(el, R, opts) {
         e = e0.map((v, q) => v + sol.er[q]); p = smallP(e);
       }
       if (i === cavL) {
-        const sol = cavitySolve(plan, cavK, dipoleFar(k, p, cavDirs), j => dipoleFar(k, smallP(Array.from(unitWave(j).E)), cavDirs), k, nMed, cavTail());
+        const sol = cavitySolve(plan, cavK, dipoleFar(k, p, cavDirs), j => dipoleFar(k, smallP(Array.from(unitWave(j).E)), cavDirs), k, nMed);
         e = e0.map((v, q) => v + sol.Ef[q] + sol.Eb[q]); p = smallP(e);
         cavDone(launches[i], sol);
       }
@@ -721,7 +671,7 @@ export function* scatterGen(el, R, opts) {
       if (launches.indexOf(L) === cavL) {
         const Eu = [0, 1, 2, 3].map(j => wavesOnLattice(unitWave(j), lat, k, body)), pu = [];
         for (let j = 0; j < 4; j++) pu.push(yield* runSolve(Eu[j], 'the cavity\u2019s axis, wave ' + (j + 1)));
-        const sol = cavitySolve(plan, cavK, farOf(p)(cavDirs), j => farOf(pu[j])(cavDirs), k, nMed, cavTail());
+        const sol = cavitySolve(plan, cavK, farOf(p)(cavDirs), j => farOf(pu[j])(cavDirs), k, nMed);
         const add = (A, U) => { const o = Float64Array.from(A); for (let j = 0; j < 4; j++) { const [xr, xi] = sol.x[j], u = U[j]; for (let q = 0; q < o.length; q += 2) { o[q] += xr * u[q] - xi * u[q + 1]; o[q + 1] += xr * u[q + 1] + xi * u[q]; } } return o; };
         E = add(E, Eu); p = add(p, pu);
         cavDone(L, sol);

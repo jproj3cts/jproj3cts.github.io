@@ -37,7 +37,7 @@ const unitp = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] /
 
 /* The plan for a particle at world point Cw in a degenerate (or near-degenerate) two-mirror cavity, from the tracer's
    one-pass map of it (engines/scatter-pupil-map.js): null when it is not in one, { c, why } when this solve does not take it */
-export function pupilPlan(TB, Cw, nMed, nm, el, farOk) {
+export function pupilPlan(TB, Cw, nMed, nm, el) {
   let cs;
   try { cs = findCavities(); } catch (err) { return null; }
   for (const c of cs) {
@@ -54,7 +54,6 @@ export function pupilPlan(TB, Cw, nMed, nm, el, farOk) {
     const map = el && PUP_MAPS.get(el.id);
     if (!map || !map.C || Math.hypot(map.C[0] - Cw[0], map.C[1] - Cw[1], map.C[2] - Cw[2]) > 1e-9) return no('probe');
     if (map.why) return no(map.why);
-    if (map.farImage && !farOk) return no('noimage');           // (re-imaged further off than the degenerate cavity's solve takes)
     const far = getEl(map.far), near = getEl(map.near), lamMm = nm * 1e-6 / nMed;
     const fresnel = Math.min(0.5 * (far.diameter || far.length || 0), 0.5 * (near.diameter || near.length || 0)) ** 2 / (lamMm * map.L);
     return { c, map, legF: lf, legB: lb, entry, dir: map.axis, ex: map.ex, ey: map.ey, C: Cw, pattern: map.pattern, fresnel, L: map.L, M: [{ el: near }, { el: far }] };

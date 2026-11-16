@@ -2,7 +2,7 @@ import { IN_WORKER, TEST_MODE, clamp } from '../core/constants.js';
 import { hooks } from '../core/hooks.js';
 import { packText } from '../core/format.js';
 import { MODS, MOD_COLOURS, modNames, modText } from '../core/modulators.js';
-import { num, project } from '../state/project.js';
+import { allParts, num, project } from '../state/project.js';
 import { PACKS } from '../state/packs.js';
 import { setLastTraceKey } from './trace.js';
 import { detectorReading } from './fibre-face.js';
@@ -270,7 +270,7 @@ export const MOD_CODE_MAX = 512 * 1024, MOD_KINDS = ['element', 'plate', 'compon
    someone opening it is asked whether to install each mod not yet installed (or installed in
    another version), with the same prompt as any mod. Until then its parts stand in. */
 export function modsCarried() {
-  const ids = new Set(project.elements.filter(e => e.mod).map(e => e.mod.id)), out = [];
+  const ids = new Set(allParts().filter(e => e.mod).map(e => e.mod.id)), out = [];   // (a suppressed part's mod too: the file keeps it)
   for (const id of ids) {
     const pk = MODS.packs.get(id) || PACKS.list.find(p => p.id === id && p.code), was = (project.mods || []).find(m => m.id === id);
     if (pk) out.push(Object.assign({ id, name: pk.name, author: pk.author, packVersion: pk.packVersion, licence: pk.licence, description: pk.description, hash: pk.hash, code: pk.code }, pk.signed ? { signed: pk.signed } : {}));

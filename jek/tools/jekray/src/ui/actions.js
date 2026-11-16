@@ -4,7 +4,7 @@ import { liveMates, mateSpread, matesCopied, normMates } from '../core/mates.js'
 import { designOne, makeAssembly, splitAssembly } from './assembly.js';
 import { openLensDesign } from './lens-workspace.js';
 import { fmtLen } from '../core/format.js';
-import { V, deg, extraSel, future, history, nextName, num, project, selectOne, selectedId, uid } from '../state/project.js';
+import { V, deg, dropParts, extraSel, future, history, nextName, num, project, selectOne, selectedId, setSuppressed, uid } from '../state/project.js';
 import { makeElement, normElement, serialize } from '../state/elements.js';
 import { onTab } from '../state/tabs.js';
 import { lastTrace } from '../engines/trace.js';
@@ -90,10 +90,30 @@ export function removeEls(list) {
   checkpoint();
   const ids = new Set(list.map(e => e.id));
   for (const e of list) stopSweepsFor(e);
-  project.elements = project.elements.filter(e => !ids.has(e.id));
-  project.fibres = (project.fibres || []).filter(F => !ids.has(F.a[0]) && !ids.has(F.b[0]));
+  dropParts(ids);                                        // (a suppressed one too, chosen in the parts list)
   selectOne(null);
   changed(true);
+}
+/* suppressed, as a CAD feature is: out of the bench, in 2D and 3D, and out of every engine, until unsuppressed (the
+   fibres plugged into it wait, as they are: state/project.js setSuppressed). One part suppressed stays chosen, its
+   panel saying so with Unsuppress; several are put down. One step for Undo */
+export function suppressEls(list, on) {
+  list = list.filter(e => !!e.suppressed !== !!on);
+  if (!list.length) return;
+  checkpoint();
+  if (on) for (const e of list) stopSweepsFor(e);
+  setSuppressed(list, on);
+  if (on) selectOne(list.length === 1 ? list[0].id : null);
+  else { const here = list.filter(onTab); setSelection(here.length ? here : []); }
+  changed(true);
+}
+/* the parts list's right-click menu for a row: a part in play has the bench's, a suppressed one its own */
+export function partsListMenu(X, Y, el) {
+  if (!el.suppressed) { if (!onTab(el)) switchTab(el.bench); benchMenu(X, Y, el, [el.x, el.y]); return; }
+  selectOne(el.id); renderPanel(); requestRender();
+  showCtxMenu(X, Y, [
+    { label: 'Unsuppress', fn: () => suppressEls([el], false) },
+    { label: 'Delete', key: 'Del', fn: () => removeEls([el]) }]);
 }
 export function setLocked(list, on) { checkpoint(); for (const e of list) { if (on) e.locked = true; else delete e.locked; } changed(true); }
 export function moveToTab(list, id) { checkpoint(); for (const e of list) e.bench = id; switchTab(id); setSelection(list); changed(true); }
@@ -250,7 +270,9 @@ export function benchMenu(X, Y, hit, at, in3d) {
     ...(one && one.type !== 'draw' && !in3d ? [{ label: 'Edit name', fn: () => editText(one, 'name') }] : []),
     ...(one && one.type === 'draw' && one.shape === 'text' ? [{ label: 'Edit text', fn: () => editText(one, 'text') }] : []),
     ...(one && one.label ? [{ label: 'Put the name back', fn: () => { checkpoint(); delete one.label; changed(true); } }] : []),
-    { label: locked ? 'Unlock' : 'Lock in place', fn: () => setLocked(list, !locked) }, '-',
+    { label: locked ? 'Unlock' : 'Lock in place', fn: () => setLocked(list, !locked) },
+    // out of the bench and the light until unsuppressed: the parts list keeps it, struck through
+    { label: n > 1 ? 'Suppress ' + n + ' parts' : 'Suppress', fn: () => suppressEls(list, true) }, '-',
     ...project.benches.filter(b => !list.every(x => x.bench === b.id)).map(b => ({ label: 'Move to ' + b.name, fn: () => moveToTab(list, b.id) })),
     { label: 'Zoom to selection', key: 'Z', fn: in3d ? () => V3D.zoomSel() : zoomToSelection }]);
 }
@@ -431,8 +453,7 @@ export function drawMeasures() {
 export function removeEl(el) {
   checkpoint();
   stopSweepsFor(el);
-  project.elements = project.elements.filter(e => e.id !== el.id);
-  project.fibres = (project.fibres || []).filter(F => F.a[0] !== el.id && F.b[0] !== el.id);
+  dropParts(new Set([el.id]));
   selectOne(null);
   changed(true);
 }

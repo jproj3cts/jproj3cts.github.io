@@ -1,4 +1,4 @@
-import { project } from './project.js';
+import { allParts, project } from './project.js';
 
 /* ---------- Tabs: benches of their own ----------
    A project holds one or more benches, each on a tab with its own view; every element is on
@@ -9,7 +9,7 @@ export function ensureBenches(p) {
   if (!Array.isArray(p.benches) || !p.benches.length) p.benches = [{ id: 'b1', name: 'Bench 1', view: p.view || { cx: 0, cy: 0, scale: 4 } }];
   const ids = new Set(p.benches.map(b => b.id));
   if (!ids.has(p.tab)) p.tab = p.benches[0].id;
-  for (const e of p.elements) if (!ids.has(e.bench)) e.bench = p.benches[0].id;
+  for (const e of allParts(p)) if (!ids.has(e.bench)) e.bench = p.benches[0].id;     // (suppressed parts too)
   p.view = p.benches.find(b => b.id === p.tab).view;
   return p;
 }

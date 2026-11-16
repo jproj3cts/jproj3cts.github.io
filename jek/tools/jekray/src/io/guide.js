@@ -41,7 +41,8 @@ function aiReference() {
   const L = [];
   L.push('## Element reference', '',
     'Every element has "type", "id" (any unique string), "name", "x", "y" (mm) and "angle" (degrees), and "bench" (a tab id) when there are several tabs. The other fields are listed with the value the tool uses if you leave them out. Leave out anything you do not need to change.', '',
-    'Any element but a drawing may also have "lineColour" and "fillColour", each "#rrggbb": its own colours on the bench and in exported pictures. Every line of the part is drawn in the line colour and its body in the fill colour, as see-through as the tool draws it. Leave them out and the part is drawn in the tool\u2019s own colours. They change nothing about the light.', '');
+    'Any element but a drawing may also have "lineColour" and "fillColour", each "#rrggbb": its own colours on the bench and in exported pictures. Every line of the part is drawn in the line colour and its body in the fill colour, as see-through as the tool draws it. Leave them out and the part is drawn in the tool\u2019s own colours. They change nothing about the light.', '',
+    'Any element may also have "suppressed": true: it is kept in the file but taken out of the bench, as a suppressed CAD feature is, until the person unsuppresses it (right-click \u203a Unsuppress in the Bench panel\u2019s list). It is not drawn and nothing meets it: the light passes where it stands, and fibres or wires plugged into it count as unplugged at its end. Leave it out for a part in use.', '');
   for (const t of Object.keys(TYPE_LABEL)) {
     const d = aiDefaults(t), F = AI_FIELDS[t] || {};
     L.push('### "' + t + '": ' + TYPE_LABEL[t], '', AI_WHAT[t] || '', '', '**angle:** ' + (AI_ANGLE[t] || ''), '', '| field | default | meaning |', '|---|---|---|');

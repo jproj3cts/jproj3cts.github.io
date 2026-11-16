@@ -1,5 +1,5 @@
 import { EMBED, STORE_KEY, TEST_MODE, cloud } from '../core/constants.js';
-import { project } from '../state/project.js';
+import { allParts, project } from '../state/project.js';
 import { serialize } from '../state/elements.js';
 import { setStatus } from '../ui/actions.js';
 import { cloudChanged, cloudNote, cloudOn } from './cloud.js';
@@ -15,7 +15,7 @@ export function readSnaps() {
   try { const v = JSON.parse(localStorage.getItem(SNAP_KEY)); return Array.isArray(v) ? v : []; } catch (err) { return []; }
 }
 export function keepSnapshot(why, now) {
-  if (TEST_MODE || EMBED || !project || !project.elements.length || !keepHere()) return;
+  if (TEST_MODE || EMBED || !project || !allParts().length || !keepHere()) return;
   const list = readSnaps(), json = JSON.stringify(serialize());
   if (list.length && list[0].json === json) return;
   if (!now && list.length && Date.now() - list[0].t < SNAP_EVERY) return;

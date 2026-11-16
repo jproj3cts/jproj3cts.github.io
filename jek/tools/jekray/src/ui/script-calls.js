@@ -1,4 +1,4 @@
-import { project, typeLabel } from '../state/project.js';
+import { allParts, project, setSuppressed, typeLabel } from '../state/project.js';
 import { normElement, normFibres, serialize } from '../state/elements.js';
 import { lastTrace, paraxial, setLastTraceKey, sourceLines, subFrame, traceScene } from '../engines/trace.js';
 import { elementSurfaces } from '../core/stl.js';
@@ -109,8 +109,18 @@ export function scriptCalls() {
       const keep = { id: el.id, type: el.type, bench: el.bench }, next = normElement(Object.assign(JSON.parse(JSON.stringify(el)), props || {}, keep));
       for (const k of Object.keys(el)) delete el[k];
       Object.assign(el, next, keep);
+      if (!!el.suppressed !== !project.elements.includes(el)) setSuppressed([], true);    // { suppressed } set: out of the bench, or back
       setLastTraceKey(null); traceScene();
       return el;
+    },
+    /* a part suppressed (on, the default) or unsuppressed, as the bench's right-click Suppress does: out of the bench
+       and every engine, the fibres plugged into it waiting, until unsuppressed */
+    suppress(name, on = true) {
+      const el = typeof name === 'string' ? this.byName(name) : name;
+      if (!el) throw new Error('No part called ' + name);
+      setSuppressed([el], !!on);
+      setLastTraceKey(null); traceScene();
+      return !!el.suppressed;
     },
     /* a fibre, wire or waveguide changed (by its id, or its place in J.project().fibres), checked as J.load does:
        its path's nodes may be { x, y } (handles left out are none) */
@@ -141,7 +151,7 @@ export function scriptCalls() {
       traceScene(); const A = antennaNow(this.byName(name), 'ant');
       return A && { Gdbi: A.Gdbi, Ddbi: A.Ddbi, hpbw: A.hpbw, hpbwY: A.hpbwY, lobe: A.lobe, eta: A.eta, hornDbi: A.hornDbi, focus: A.focus, farField: A.farField, beam: A.beam, feed: A.feed, round: A.round, eng: A.eng };
     },
-    byName(name) { return project.elements.find(e => e.name === name); },
+    byName(name) { return project.elements.find(e => e.name === name) || allParts().find(e => e.name === name); },   // (a suppressed part too)
     stats(name) { const el = this.byName(name); return el ? screenStats(el) : null; },
     metric(name, key) { return metricRaw(this.byName(name), key); },
     paraxial(name, nm) { return paraxial(this.byName(name), nm); },

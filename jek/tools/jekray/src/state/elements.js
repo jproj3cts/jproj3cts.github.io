@@ -1,6 +1,6 @@
 import { BEAM_Z, FORMAT, VERSION, ZOOM_MAX, clamp } from '../core/constants.js';
-import { assemblies, normAssemblies } from '../core/assembly.js';
-import { liveMates, normMates } from '../core/mates.js';
+import { keptAssemblies, normAssemblies } from '../core/assembly.js';
+import { keptMates, normMates } from '../core/mates.js';
 import { hooks } from '../core/hooks.js';
 import { normModRef } from '../core/modulators.js';
 import { partHex } from '../core/part-colours.js';
@@ -8,7 +8,7 @@ import { applyRf, normRf } from '../core/rf.js';
 import { applyPulse, isLaserLike, syncLine } from '../core/pulses.js';
 import { RF } from '../parts/rf.js';
 import { PARTS, PART_BY_KEY, TYPE_LABEL } from '../parts/registry.js';
-import { normCoat, normMat, num, project, selectedId, setProject, uid } from './project.js';
+import { allFibres, allParts, normCoat, normMat, num, partitionParts, project, selectedId, setProject, uid } from './project.js';
 import { ensureBenches } from './tabs.js';
 import { loadGen, setLoadGen, sourceLines, tippable } from '../engines/trace.js';
 import { SWEEP_STEPS_MAX, getPath } from './params.js';
@@ -93,6 +93,7 @@ export function normElementBase(e) {
   };
   if (e.locked === true) base.locked = true;                  // held in place: not moved by dragging or the arrow keys
   if (e.hide3d === true) base.hide3d = true;                  // not drawn on the bench, 2D or 3D (the light still meets it)
+  if (e.suppressed === true) base.suppressed = true;          // out of the bench until unsuppressed: not drawn, and nothing meets it (state/project.js allParts)
   // its own colours on the bench and in exported pictures (core/part-colours.js): kept only when set, so a part without them is drawn as ever
   if (e.type !== 'draw') { const lc = partHex(e.lineColour), fc = partHex(e.fillColour); if (lc) base.lineColour = lc; if (fc) base.fillColour = fc; }
   // its height above the breadboard (mm), kept only when not the beam height (see zOf)
@@ -278,15 +279,15 @@ export function serialize() {
     library: project.library || [],
     cavityLock: project.cavityLock || {},
     benches: project.benches, tab: project.tab,
-    elements: project.elements,
-    fibres: project.fibres || [],
-    ...(assemblies().length ? { assemblies: assemblies() } : {}),
-    ...(liveMates().length ? { mates: liveMates() } : {}),
+    elements: allParts(),                              // the suppressed among them, in their places (state/project.js)
+    fibres: allFibres(),
+    ...(keptAssemblies().length ? { assemblies: keptAssemblies() } : {}),
+    ...(keptMates().length ? { mates: keptMates() } : {}),
     measures: project.measures || [],
     notes: project.notes || '',
     ...(project.labelMm > 0 ? { labelMm: project.labelMm } : {}),
     ...(project.labelFixed ? { labelFixed: true, labelPx: project.labelPx || 12 } : {}),
-    ...(project.elements.some(e => e.mod) ? { mods: modsCarried() } : {}),
+    ...(allParts().some(e => e.mod) ? { mods: modsCarried() } : {}),
     ...(project.style && (project.style.bg || project.style.holes === false) ? { style: project.style } : {}),
   };
 }
@@ -423,6 +424,7 @@ export function loadProject(data) {
   p.fibres = normFibres(data.fibres, p.elements);
   p.assemblies = normAssemblies(data.assemblies, p.elements);
   p.mates = normMates(data.mates, p.elements);                 // faces of parts held together (core/mates.js)
+  partitionParts(p);                                           // the suppressed parts, and the fibres plugged into them, kept apart
   p.measures = normMeasures(data.measures, p.benches);
   p.notes = typeof data.notes === 'string' ? data.notes.slice(0, 20000) : '';
   if (isFinite(data.labelMm) && data.labelMm > 0) p.labelMm = clamp(+data.labelMm, 1e-6, 1e4);     // parts' names, mm high

@@ -1,5 +1,5 @@
 import { hooks } from '../core/hooks.js';
-import { V, project } from '../state/project.js';
+import { V, project, setSuppressed } from '../state/project.js';
 import { onTab } from '../state/tabs.js';
 import { lastTrace } from '../engines/trace.js';
 import { CHALLENGES, EXERCISES, LISTED_NEWEST, checkPasses, checkWant, exerciseBench, exerciseById, isChallenge } from '../core/exercises.js';
@@ -72,6 +72,8 @@ const exHeld = (o, fields) => { const c = Object.assign({}, o); for (const k of 
 /* what was changed that may not be is put back: parts, their settings, the fibres; parts added go, parts deleted come back */
 function exEnforce() {
   let back = false;
+  // a part suppressed is a part taken away: it comes back
+  if (project.suppressed && project.suppressed.length) { setSuppressed(project.suppressed.slice(), false); back = true; }
   const now = new Map(project.elements.map(e => [e.id, e]));
   const list = [];
   for (const [id, js] of EX.snap) {

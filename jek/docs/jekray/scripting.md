@@ -19,6 +19,7 @@ description: "Drive JEKray from a script: the Scripts editor on the bench (with 
 | `J.element(name)` | A part's settings, as a copy. |
 | `J.get(name, path)`, `J.set(name, path, value)` | A parameter read, or set and the bench traced again. |
 | `J.set(name, { x: 20, diameter: 25 })` | Several of a part's fields at once, checked as a file's are (clamped, filled in), then traced; its id, type and tab stay. Returns the part. |
+| `J.suppress(name, on)` | A part suppressed (`on` true, the default) or unsuppressed, as the bench's right-click **Suppress** does: out of the bench and the light, the fibres plugged into it unplugged at its end, until unsuppressed; then traced. `J.set(name, { suppressed: true })` does the same. `J.elements()` lists the parts in play; `J.element(name)` still finds a suppressed one. Returns whether it is suppressed. |
 | `J.range(a, b, n)` | n values from a to b. |
 | `J.sweep(name, path, values, read)` | Each value set, `read(value)` called, and the parameter put back: rows of the value and what was read. |
 | `J.csv(rows)` | Rows as CSV text. |

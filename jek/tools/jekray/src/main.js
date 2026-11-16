@@ -181,6 +181,7 @@ import './engines/scatter-cavity.js';
 import './engines/scatter-pupil-map.js';
 import './engines/scatter-pupil.js';
 import './engines/scatter.js';
+import './engines/scatter-field.js';
 import './engines/scatter-light.js';
 import './engines/antenna-field.js';
 import './engines/lens-engine.js';

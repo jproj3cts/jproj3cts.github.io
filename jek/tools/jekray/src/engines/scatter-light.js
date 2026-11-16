@@ -12,6 +12,7 @@ import { beamFrame } from './phase-screen.js';
 import { scatCache, scatModeNow, scatterNow, scatterPrep } from './scatter.js';
 import { beamFieldAt } from './fibre-face.js';
 import { cavLoadOf } from './scatter-cavity.js';
+import { scatFieldBuild, scatFieldDirs } from './scatter-field.js';
 
 /* ---------- A particle's scattered light, put back on the bench ----------
    A Particle part's scattering answer (engines/scatter.js) holds the far field's complex amplitude over the sphere
@@ -225,6 +226,8 @@ export function scatterLaunch(surfsBy) {
       dirs.push(cone[0]);
       for (const fr of [0.55, 0.93]) for (let j = 0; j < 8; j++) { const th = fr * cone[1], ph = 2 * Math.PI * (j + (fr > 0.6 ? 0.5 : 0)) / 8, sn = Math.sin(th), c = Math.cos(th); dirs.push([0, 1, 2].map(q => sn * Math.cos(ph) * ex[q] + sn * Math.sin(ph) * ey[q] + c * cone[0][q])); }
     }
+    // the scattered field's picture (scatField, engines/scatter-field.js): its own directions, probed with the rest
+    if (el.scatField) { st.fieldAt = dirs.length; for (const d of scatFieldDirs()) dirs.push(d); }
     st.dirs = dirs;
     st.probe = vsrc(el, st.pos, st.launches[0].nm, st.launches[0].root, { id: el.id + '~probe', vRays: dirs.map(d => ({ d, J: [1, 0, 0, 0] })), vProbe: [] });
     // what the probe met is kept while nothing it depends on has changed: where the particle is and the bench's parts as they
@@ -325,6 +328,12 @@ export function scatterLaunch(surfsBy) {
         const rays = new Float32Array(5 * nF);
         for (let i = 0; i < nF; i++) { const m = met0[i]; rays.set([st.dirs[i][0], st.dirs[i][1], st.dirs[i][2], m ? Math.min(m.t, 4 * reach) : reach, top > 0 ? I[i] / top : 0], 5 * i); }
         st.fan = { part: el.id, bench: el.bench, pos: st.pos, colour: wavelengthColour(st.launches[0].nm), nPlane: SC_PLANE, n: nF, rays, on: el.scatFan !== false };
+        // the field's picture: the pattern along its own directions, each stopped where its probe ray met a part
+        if (st.fieldAt !== undefined) {
+          const nD = st.dirs.length - st.fieldAt, dd = new Float64Array(3 * nD);
+          for (let i = 0; i < nD; i++) for (let m = 0; m < 3; m++) dd[3 * i + m] = st.dirs[st.fieldAt + i][m];
+          st.fan.field = scatFieldBuild(st.launches.map(La => farAt(S.far, La.L, dd)), nMed, met0.slice(st.fieldAt), st.caught.reduce((a, K) => Math.max(a, K.far), 0));
+        }
       }
       return out;
     },

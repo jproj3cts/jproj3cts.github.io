@@ -18,6 +18,7 @@ import { lensSurfaces, polyVerts, rawSag, sagFn, lensStacks } from '../core/geom
 import { crystalGeom, elementSurfaces, meshOf } from '../core/stl.js';
 import { stopBlades } from '../core/mask.js';
 import { lastTrace, setRoll, setTip, setZ, tippable, traceKeyNow, traceStore, traceStoreOn, zOf } from '../engines/trace.js';
+import { SF_DEC } from '../engines/scatter-field.js';
 import {
   beamPowerShare, benchBg, benchHoles, benchLight, bez, byPowerOn, draw, fibreLight, fibreSegs, fibreSplit, filterColour, halfSize, hornShape, moveGrip, powerFade, powerTop, rayPowerShare, symbolCanvas, rayAlpha, rayDensity, rayTops,
   requestRender, resize, segPlanes, selFibre, selection, setSelFibreId, setSelection, surfPoints
@@ -913,7 +914,7 @@ export const V3D = (() => {
     if (fb && !VL.data && (held || VL.busy) && last) VL = { data: last, busy: VL.busy };
     if (VL.data) R.volLast = { tab: project.tab, data: VL.data };
     R.vol = VL.data; R.volBusy = VL.busy;
-    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top].join('|'), sig = traceStoreOn() ? lightSig(lastTrace) : null, got = sig !== null ? lc.get(sig) : null;
+    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top, scatVolKey()].join('|'), sig = traceStoreOn() ? lightSig(lastTrace) : null, got = sig !== null ? lc.get(sig) : null;
     if (got && got.k === lk) { for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; }
     else {
       if (got) { for (const o of got.objs) disposeObj(o); lc.delete(sig); }
@@ -928,6 +929,7 @@ export const V3D = (() => {
       }
     }
     R.volMeshes = G.light.children.filter(o => o.userData.vol);
+    R.scatVols = G.light.children.filter(o => o.userData.scatVol);
     keyShow();
     // the sun over the board, its shadow covering it
     const c = new T.Vector3(), s = new T.Vector3();
@@ -1079,6 +1081,8 @@ export const V3D = (() => {
       geo.computeBoundingBox(); box.union(geo.boundingBox);
     });
     if (lightOf().field && R.vol) volMeshes(G);
+    scatVolMeshes(G);
+    if (G.children.some(o => o.userData.vol || o.userData.scatVol)) volQuad(G);
   }
   // a segment's planes as the renderer's clipping planes (the world is the bench's frame, in mm)
   // always two (one that cuts nothing standing in), so every beam shares one compiled shader
@@ -1153,12 +1157,16 @@ export const V3D = (() => {
   // the buffer they add into, coloured: the light along each line of sight against the top of the key
   const VOLQ_VS = 'varying vec2 vU; void main() { vU = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }';
   const VOLQ_FS = `
-    uniform sampler2D uAcc, uMap; uniform float uDec; varying vec2 vU;
+    uniform sampler2D uAcc, uMap, uScat; uniform float uDec, uDecS, uS; varying vec2 vU;
     void main() {
       float v = texture2D(uAcc, vU).r;
       if (uDec > 0.0) v = clamp(1.0 + log(max(v, 1e-12)) / log(10.0) / uDec, 0.0, 1.0); else v = clamp(v, 0.0, 1.0);
-      if (v <= 0.002) discard;
-      gl_FragColor = vec4(texture2D(uMap, vec2(v, 0.5)).rgb, clamp(0.25 + 0.75 * v, 0.0, 0.92) * smoothstep(0.0, 0.06, v));
+      // a particle's scattered field, on its own log scale, laid under the beam's light
+      float w = uS > 0.0 ? clamp(1.0 + log(max(texture2D(uScat, vU).r, 1e-12)) / log(10.0) / uDecS, 0.0, 1.0) : 0.0;
+      if (v <= 0.002 && w <= 0.002) discard;
+      float a = v > 0.002 ? clamp(0.25 + 0.75 * v, 0.0, 0.92) * smoothstep(0.0, 0.06, v) : 0.0, aw = w > 0.002 ? clamp(0.25 + 0.75 * w, 0.0, 0.92) * smoothstep(0.0, 0.06, w) : 0.0;
+      float at = a + aw * (1.0 - a);
+      gl_FragColor = vec4((texture2D(uMap, vec2(v, 0.5)).rgb * a + texture2D(uMap, vec2(w, 0.5)).rgb * aw * (1.0 - a)) / max(at, 1e-6), at);
     }`;
   function volPlanes(s) {
     const B = lastTrace.beams || [], none = new T.Vector4(0, 0, 0, 1);
@@ -1170,13 +1178,16 @@ export const V3D = (() => {
     return { pl: [loc(P.p0), loc(P.p1)], ext: [P.p0 ? Math.min(5, P.p0.tan) : 0, P.p1 ? Math.min(5, P.p1.tan) : 0] };
   }
   let magmaTex = null;
-  function volMeshes(G) {
-    const V = R.vol, dec = fieldDec(lightOf().scale);
+  function magmaMap() {
     if (!magmaTex) {
       const d = new Uint8Array(256 * 4);
       for (let i = 0; i < 256; i++) { const c = magma(i / 255); d.set([c[0], c[1], c[2], 255], i * 4); }
       magmaTex = new T.DataTexture(d, 256, 1, T.RGBAFormat); magmaTex.magFilter = magmaTex.minFilter = T.LinearFilter; magmaTex.needsUpdate = true;
     }
+    return magmaTex;
+  }
+  function volMeshes(G) {
+    const V = R.vol, magmaTex = magmaMap();
     for (const s of V.segs) {
       const nc = Math.min(64, s.ts.length), M = s.M, data = new Float32Array(s.I.length);
       const Sh = volShared(), top = Sh ? Sh.top : volDisp(V), K = top / ((Sh ? Sh.line : volDispLine(V)) || 1);
@@ -1206,20 +1217,92 @@ export const V3D = (() => {
       };
       G.add(o);
     }
-    // the buffer, coloured over the scene where the volumes were drawn among the light
-    const q = new T.Mesh(new T.PlaneGeometry(2, 2), new T.ShaderMaterial({ vertexShader: VOLQ_VS, fragmentShader: VOLQ_FS, transparent: true, depthTest: false, depthWrite: false,
-      uniforms: { uAcc: { value: null }, uMap: { value: magmaTex }, uDec: { value: dec } } }));
+  }
+  /* the buffers, coloured over the scene where the volumes were drawn among the light: the beams' on the bench's scale,
+     a particle's scattered field (scatVolMeshes) on its own */
+  function volQuad(G) {
+    const dec = fieldDec(lightOf().scale), q = new T.Mesh(new T.PlaneGeometry(2, 2), new T.ShaderMaterial({ vertexShader: VOLQ_VS, fragmentShader: VOLQ_FS, transparent: true, depthTest: false, depthWrite: false,
+      uniforms: { uAcc: { value: null }, uMap: { value: magmaMap() }, uDec: { value: dec }, uScat: { value: null }, uDecS: { value: SF_DEC / 2 }, uS: { value: 0 } } }));
     q.frustumCulled = false; q.renderOrder = 2; q.userData.volQuad = true;
-    q.onBeforeRender = () => { q.material.uniforms.uAcc.value = R.volRT ? R.volRT.texture : null; };
+    q.onBeforeRender = () => {
+      const u = q.material.uniforms, sc = R.scatVols && R.scatVols.length && R.scatRT;
+      u.uAcc.value = R.volRT ? R.volRT.texture : null; u.uScat.value = sc ? R.scatRT.texture : u.uAcc.value; u.uS.value = sc ? 1 : 0;
+    };
     G.add(q);
+  }
+  /* A particle's scattered field (its scatField: lastTrace.scat.fans[].field, engines/scatter-field.js) as glowing light,
+     in the field's colours: a box round the particle, its shader taking each line of sight through the sphere of the
+     field's reach. Along a line that passes the particle at b, s = b tan(a) and ds / r^2 = da / b, so the light added up,
+     the integral of I(direction) / r^2 ds, is a sum over even steps in the angle a: a few tens of them hold it however near
+     the line passes. A step past what its direction meets first (the stop the trace's probe found) adds nothing, and the
+     march ends where the line of sight meets a solid part (the scene's depth, from the depth pass volPass makes). It goes
+     into a buffer of its own, coloured on its own log scale (half the bench's decades: the light along a line falls as 1/b
+     where the irradiance falls as 1/b^2), so it changes nothing of how the beam is drawn. */
+  const SVOL_FS = `
+    uniform sampler2D uI, uT, uDepth; uniform float uR, uRmin, uK, uNT, uNP; uniform vec2 uRes; uniform vec3 uCam; uniform mat4 uMVP;
+    varying vec3 vP;
+    void main() {
+      vec3 ro = uCam, rd = normalize(vP - uCam);
+      float sc = -dot(ro, rd), b2 = dot(ro, ro) - sc * sc, h2 = uR * uR - b2;
+      if (h2 <= 0.0) discard;
+      float hh = sqrt(h2), sN = max(sc - hh, 0.0), sF = sc + hh;
+      if (sF <= sN) discard;
+      float b = max(sqrt(max(b2, 0.0)), uRmin), a0 = atan((sN - sc) / b), a1 = atan((sF - sc) / b), da = (a1 - a0) / 48.0;
+      float zs = texture2D(uDepth, gl_FragCoord.xy / uRes).r, jit = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453), sum = 0.0;
+      for (int i = 0; i < 48; i++) {
+        float a = a0 + (float(i) + jit) * da, s = sc + b * tan(a);
+        vec3 p = ro + rd * s;
+        vec4 c = uMVP * vec4(p, 1.0);
+        if (c.z / c.w * 0.5 + 0.5 > zs) break;
+        float r = length(p);
+        if (r < 1e-9) continue;
+        vec3 d = p / r;
+        float th = acos(clamp(d.z, -1.0, 1.0)) / 3.14159265, ph = atan(d.y, d.x) / 6.28318531;
+        vec2 uv = vec2(ph + 0.5 / uNP, (th * (uNT - 1.0) + 0.5) / uNT);
+        if (r >= texture2D(uT, uv).r * uR) continue;
+        sum += texture2D(uI, uv).r * da;
+      }
+      if (sum <= 0.0) discard;
+      gl_FragColor = vec4(sum / b * uK, 0.0, 0.0, 1.0);
+    }`;
+  const SVOL_VS = 'varying vec3 vP; void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
+  const scatVolKey = () => ((lastTrace.scat && lastTrace.scat.fans) || []).map(F => F.field ? F.part + ':' + F.field.top : '').join();
+  function scatVolMeshes(G) {
+    for (const F of (lastTrace.scat && lastTrace.scat.fans) || []) {
+      const S = F.field;
+      if (!S || F.bench !== project.tab || !(S.Imax > 0)) continue;
+      // the pattern against its strongest direction (half floats hold no less than about 6e-8), and each direction's stop
+      // as a share of the reach; theta down the rows, phi along them (wrapped round)
+      const n = S.nT * S.nP, I = new Float32Array(n), Tt = new Float32Array(n);
+      for (let i = 0; i < n; i++) { I[i] = S.grid[i] / S.Imax; Tt[i] = Math.min(2, S.gridT[i] / S.R); }
+      const tex = (d, lin) => { const t = new T.DataTexture(d, S.nP, S.nT, T.RedFormat, T.FloatType); t.internalFormat = lin ? 'R16F' : 'R32F'; t.magFilter = t.minFilter = lin ? T.LinearFilter : T.NearestFilter; t.wrapS = T.RepeatWrapping; t.needsUpdate = true; return t; };
+      const tI = tex(I, true), tT = tex(Tt, false), geo = new T.BoxGeometry(2 * S.R, 2 * S.R, 2 * S.R);
+      // (the light along a line of sight against the top of its scale: the brightest direction's, passing rTop from the particle)
+      const m = new T.ShaderMaterial({ vertexShader: SVOL_VS, fragmentShader: SVOL_FS, transparent: true, depthWrite: false, depthTest: false, side: T.BackSide,
+        blending: T.CustomBlending, blendEquation: T.AddEquation, blendSrc: T.OneFactor, blendDst: T.OneFactor,
+        uniforms: { uI: { value: tI }, uT: { value: tT }, uDepth: { value: null }, uR: { value: S.R }, uRmin: { value: S.rTop / 3 }, uK: { value: S.rTop / Math.PI }, uNT: { value: S.nT }, uNP: { value: S.nP },
+          uRes: { value: new T.Vector2(1, 1) }, uCam: { value: new T.Vector3() }, uMVP: { value: new T.Matrix4() } } });
+      const o = new T.Mesh(geo, m);
+      o.position.set(F.pos[0], F.pos[1], F.pos[2]);
+      o.frustumCulled = false;
+      o.layers.set(2);                                    // drawn only into its own buffer (see volPass)
+      o.userData.scatVol = F; o.userData.texs = [tI, tT];
+      o.onBeforeRender = (r, sc, cam) => {
+        m.uniforms.uCam.value.copy(cam.position).sub(o.position);
+        m.uniforms.uMVP.value.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse).multiply(o.matrixWorld);
+        if (R.volRT) { m.uniforms.uDepth.value = R.volRT.depthTexture; m.uniforms.uRes.value.set(R.volRT.width, R.volRT.height); }
+      };
+      G.add(o);
+    }
   }
   /* the volumes' light, added up into a buffer the size of the view before the scene is drawn: first the
      depth of what is solid (so a part in front of a beam hides it), then each volume, its light added */
   function volPass() {
-    const ms = R.volMeshes;
-    if (!ms || !ms.length) return;
+    const ms = R.volMeshes, sv = R.scatVols;
+    if ((!ms || !ms.length) && (!sv || !sv.length)) return;
     const { gl, scene, camera } = R, sz = gl.getDrawingBufferSize(new T.Vector2());
-    if (!R.volRT) R.volRT = new T.WebGLRenderTarget(sz.x, sz.y, { type: T.HalfFloatType, depthBuffer: true, minFilter: T.NearestFilter, magFilter: T.NearestFilter });
+    // (its depth a texture, which a particle's scattered field reads: see scatVolMeshes)
+    if (!R.volRT) R.volRT = new T.WebGLRenderTarget(sz.x, sz.y, { type: T.HalfFloatType, depthBuffer: true, depthTexture: new T.DepthTexture(sz.x, sz.y), minFilter: T.NearestFilter, magFilter: T.NearestFilter });
     else if (R.volRT.width !== sz.x || R.volRT.height !== sz.y) R.volRT.setSize(sz.x, sz.y);
     const hid = [];
     scene.traverse(o => {
@@ -1235,6 +1318,12 @@ export const V3D = (() => {
     scene.overrideMaterial = null;
     for (const o of hid) o.visible = true;
     camera.layers.set(1); gl.render(scene, camera); camera.layers.set(0);
+    if (sv && sv.length) {
+      if (!R.scatRT) R.scatRT = new T.WebGLRenderTarget(sz.x, sz.y, { type: T.HalfFloatType, depthBuffer: false, minFilter: T.NearestFilter, magFilter: T.NearestFilter });
+      else if (R.scatRT.width !== sz.x || R.scatRT.height !== sz.y) R.scatRT.setSize(sz.x, sz.y);
+      gl.setRenderTarget(R.scatRT); gl.clear(true, false, false);
+      camera.layers.set(2); gl.render(scene, camera); camera.layers.set(0);
+    }
     gl.setRenderTarget(null); gl.setClearColor(cc, ca); gl.shadowMap.needsUpdate = sh;
   }
   /* the key under the 3D view while it shows the field: its colours against irradiance, and
@@ -2030,6 +2119,9 @@ export const V3D = (() => {
       fieldSegs() { if (!R || !R.vol) return null; return R.vol.segs.map(s => { const P = volPlanes(s); return { two: s.two, coh: s.coh, o: s.o, e: s.e, n0: s.n, ta: s.ta, tb: s.tb, ts: [...s.ts], rmax: [...s.rmax], peak: s.peak, pl: P.pl.map(v => v.toArray()), ext: P.ext }; }); },
       // how many times the view has been drawn, and the tubes the cables and fibres are drawn with (kept while their route is)
       draws: () => (R && R.draws) || 0,
+      // a particle's scattered field as drawn (scatVolMeshes): its volumes; and what one frame takes, the GPU's work finished (ms)
+      scatField: () => { if (!R || !active()) return null; sync(); return { vols: (R.scatVols || []).length, quad: R.groups.light.children.some(o => o.userData.volQuad) }; },
+      drawMs(n = 5) { if (!R || !active()) return null; sync(); draw(); const g = R.gl.getContext(); g.finish(); const t0 = performance.now(); for (let i = 0; i < n; i++) draw(); g.finish(); return (performance.now() - t0) / n; },
       wireIds: () => (R ? R.groups.wires.children.map(o => o.geometry.id) : []),
       sync: () => { if (R) sync(); },
       fieldAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), r = volUnder({ clientX: b.left + px, clientY: b.top + py }); return r && { I: r.I * 100, L: r.L, p: r.p }; },

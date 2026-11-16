@@ -1108,7 +1108,7 @@
     {
      "k": "trapTilt",
      "def": "0",
-     "meaning": "degrees: its axis tilted up out of the bench plane (90: straight up)."
+     "meaning": "degrees: its axis tilted up out of the bench plane (90: straight up; past 90 it leans back over, to 180)."
     },
     {
      "k": "trapP",

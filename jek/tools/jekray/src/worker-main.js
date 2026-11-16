@@ -14,6 +14,7 @@ import './core/crystals.js';
 import './core/cells.js';
 import './core/mie.js';
 import './core/dda.js';
+import './core/linmemo.js';
 import './core/scatter.js';
 import './core/traps.js';
 import './core/zeeman.js';

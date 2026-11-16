@@ -94,7 +94,17 @@ export function ddaAlpha(mr, mi, k, d, how, dir, pol) {
 }
 /* every pair's tensor by lattice offset: 12 numbers an offset (xx, xy, xz, yy, yz, zz, each
    re and im), the offset (a, b, c) at ((c + nz - 1) sy + (b + ny - 1)) sx + (a + nx - 1) */
+/* (kept: a particle turned, or lit another way, has the same lattice and the same table; the last few are held) */
+const DDA_TABLES = new Map();
 function ddaTable(lat, k) {
+  const key = [lat.nx, lat.ny, lat.nz, lat.d, k].join(), was = DDA_TABLES.get(key);
+  if (was) return was;
+  const made = ddaTableMake(lat, k);
+  DDA_TABLES.set(key, made);
+  while (DDA_TABLES.size > 3) DDA_TABLES.delete(DDA_TABLES.keys().next().value);
+  return made;
+}
+function ddaTableMake(lat, k) {
   const { nx, ny, nz, d } = lat, sx = 2 * nx - 1, sy = 2 * ny - 1, sz = 2 * nz - 1;
   const T = new Float64Array(12 * sx * sy * sz);
   let o = 0;
@@ -116,13 +126,100 @@ function ddaTable(lat, k) {
    solve is a generator (so a long run can report and be stopped between steps): it yields
    { iter, resid } each iteration and returns { p, iters, resid, converged }. E and p are
    Float64Array(6 N): each dipole's x, y, z, re then im, in the body frame. */
-export function ddaSolver(lat, k, alpha) {
-  const N = lat.N, { T, sx, sy } = ddaTable(lat, k);
+/* ---------- The dipoles' sum as a convolution ----------
+   sum_q G(r_j - r_q) p_q is a convolution over the lattice's box: the table's six tensor components laid on a box at
+   least twice the lattice each way (a power of two), Fourier transformed once (kept with the table), and each sum is then
+   three transforms in, a product, and three back: N log N where the direct sum is N^2. The same sum to rounding. */
+function fftLine(re, im, n, cos, sin, rev) {
+  for (let i = 0; i < n; i++) { const j = rev[i]; if (j > i) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+  for (let size = 2; size <= n; size <<= 1) {
+    const half = size >> 1, step = n / size;
+    for (let s = 0; s < n; s += size) for (let m = 0; m < half; m++) {
+      const wr = cos[m * step], wi = sin[m * step], a = s + m, b = a + half;
+      const xr = re[b] * wr - im[b] * wi, xi = re[b] * wi + im[b] * wr;
+      re[b] = re[a] - xr; im[b] = im[a] - xi; re[a] += xr; im[a] += xi;
+    }
+  }
+}
+function fftPlan(n, inv) {
+  const cos = new Float64Array(n / 2 || 1), sin = new Float64Array(n / 2 || 1), rev = new Int32Array(n), bits = Math.round(Math.log2(n));
+  for (let m = 0; m < n / 2; m++) { const a = (inv ? 2 : -2) * Math.PI * m / n; cos[m] = Math.cos(a); sin[m] = Math.sin(a); }
+  for (let i = 0; i < n; i++) { let r = 0; for (let b = 0; b < bits; b++) r |= ((i >> b) & 1) << (bits - 1 - b); rev[i] = r; }
+  return { n, cos, sin, rev, lr: new Float64Array(n), li: new Float64Array(n) };
+}
+/* a 3D transform in place of a box (Mx, My, Mz; x fastest), re and im apart */
+function fft3(re, im, P, inv) {
+  const [px, py, pz] = inv ? P.inv : P.fwd, Mx = px.n, My = py.n, Mz = pz.n;
+  const pass = (pl, count, at, stride) => {
+    const { lr, li, n } = pl;
+    for (let c = 0; c < count; c++) {
+      const o = at(c);
+      for (let i = 0; i < n; i++) { lr[i] = re[o + i * stride]; li[i] = im[o + i * stride]; }
+      fftLine(lr, li, n, pl.cos, pl.sin, pl.rev);
+      for (let i = 0; i < n; i++) { re[o + i * stride] = lr[i]; im[o + i * stride] = li[i]; }
+    }
+  };
+  pass(px, My * Mz, c => c * Mx, 1);
+  pass(py, Mx * Mz, c => (c % Mx) + Math.floor(c / Mx) * Mx * My, Mx);
+  pass(pz, Mx * My, c => c, Mx * My);
+}
+const pow2 = n => { let m = 1; while (m < n) m <<= 1; return m; };
+function ddaConv(lat, tab) {
+  const { nx, ny, nz } = lat, Mx = pow2(2 * nx - 1), My = pow2(2 * ny - 1), Mz = pow2(2 * nz - 1), M = Mx * My * Mz, N = lat.N;
+  if (!tab.K) {
+    const P = { fwd: [fftPlan(Mx), fftPlan(My), fftPlan(Mz)], inv: [fftPlan(Mx, true), fftPlan(My, true), fftPlan(Mz, true)] };
+    const K = [];
+    for (let t = 0; t < 6; t++) {
+      const re = new Float64Array(M), im = new Float64Array(M);
+      for (let c = 1 - nz; c < nz; c++) for (let b = 1 - ny; b < ny; b++) for (let a = 1 - nx; a < nx; a++) {
+        if (!a && !b && !c) continue;
+        const o = 12 * (((c + nz - 1) * tab.sy + (b + ny - 1)) * tab.sx + (a + nx - 1)), g = ((a + Mx) % Mx) + Mx * (((b + My) % My) + My * ((c + Mz) % Mz));
+        re[g] = tab.T[o + 2 * t]; im[g] = tab.T[o + 2 * t + 1];
+      }
+      fft3(re, im, P);
+      K.push([re, im]);
+    }
+    tab.K = { K, P, M };
+  }
+  const { K, P } = tab.K, at = new Int32Array(N);
+  for (let j = 0; j < N; j++) at[j] = lat.ix[j] + Mx * (lat.iy[j] + My * lat.iz[j]);
+  const X = [0, 1, 2].map(() => [new Float64Array(M), new Float64Array(M)]), Y = [0, 1, 2].map(() => [new Float64Array(M), new Float64Array(M)]);
+  // the tensor's component for (row, column): xx xy xz / yx yy yz / zx zy zz
+  const comp = [[0, 1, 2], [1, 3, 4], [2, 4, 5]];
+  return (p, out) => {
+    for (let c = 0; c < 3; c++) {
+      const [re, im] = X[c]; re.fill(0); im.fill(0);
+      for (let j = 0; j < N; j++) { re[at[j]] = p[6 * j + 2 * c]; im[at[j]] = p[6 * j + 2 * c + 1]; }
+      fft3(re, im, P);
+    }
+    const [x0r, x0i] = X[0], [x1r, x1i] = X[1], [x2r, x2i] = X[2];
+    for (let r = 0; r < 3; r++) {
+      const [yr, yi] = Y[r], [ar, ai] = K[comp[r][0]], [br, bi] = K[comp[r][1]], [cr, ci] = K[comp[r][2]];
+      for (let g = 0; g < M; g++) {
+        yr[g] = ar[g] * x0r[g] - ai[g] * x0i[g] + br[g] * x1r[g] - bi[g] * x1i[g] + cr[g] * x2r[g] - ci[g] * x2i[g];
+        yi[g] = ar[g] * x0i[g] + ai[g] * x0r[g] + br[g] * x1i[g] + bi[g] * x1r[g] + cr[g] * x2i[g] + ci[g] * x2r[g];
+      }
+      fft3(yr, yi, P, true);
+      for (let j = 0; j < N; j++) { out[6 * j + 2 * r] = yr[at[j]] / M; out[6 * j + 2 * r + 1] = yi[at[j]] / M; }
+    }
+    return out;
+  };
+}
+export const DDA_FFT_N = 400;            // dipoles from which the sum is taken as a convolution by FFT (ddaConv)
+export function ddaSolver(lat, k, alpha, opts) {
+  const N = lat.N, tab = ddaTable(lat, k), { T, sx, sy } = tab;
   const lin = new Int32Array(N), c0 = ((lat.nz - 1) * sy + (lat.ny - 1)) * sx + (lat.nx - 1);
   for (let j = 0; j < N; j++) lin[j] = (lat.iz[j] * sy + lat.iy[j]) * sx + lat.ix[j];
   const a2 = alpha[0] * alpha[0] + alpha[1] * alpha[1], ir = alpha[0] / a2, ii = -alpha[1] / a2;     // 1 / alpha
+  // (by FFT where it is the quicker: the direct sum costs about N^2 pairs, the convolution about 32 of them a point of its box)
+  const box = pow2(2 * lat.nx - 1) * pow2(2 * lat.ny - 1) * pow2(2 * lat.nz - 1), fftFrom = opts && opts.fftFrom;
+  const conv = (fftFrom ? N >= fftFrom : N >= DDA_FFT_N && N * N > 32 * box) ? ddaConv(lat, tab) : null;
   // out = (1/alpha) p - sum G p
-  const apply = (p, out) => {
+  const apply = conv ? (p, out) => {
+    conv(p, out);
+    for (let q = 0; q < 6 * N; q += 2) { const pr = p[q], pi = p[q + 1]; out[q] = ir * pr - ii * pi - out[q]; out[q + 1] = ir * pi + ii * pr - out[q + 1]; }
+    return out;
+  } : (p, out) => {
     for (let j = 0; j < N; j++) {
       const lj = lin[j] + c0;
       let xr = 0, xi = 0, yr = 0, yi = 0, zr = 0, zi = 0;
@@ -210,10 +307,25 @@ export function ddaPlaneWave(lat, k, dir, e0) {
    of unit vectors (body frame), out Float64Array(6 n) */
 export function ddaFar(lat, k, p, dirs, out) {
   const n = dirs.length / 3, F = out || new Float64Array(6 * n), N = lat.N, k2 = k * k;
+  // (the lattice is a grid: each dipole's phase the product of three, one along each axis, worked out once a direction)
+  const grid = lat.ix && lat.nx, nx = lat.nx, ny = lat.ny, nz = lat.nz, d = lat.d;
+  const ax = grid ? new Float64Array(2 * nx) : null, ay = grid ? new Float64Array(2 * ny) : null, az = grid ? new Float64Array(2 * nz) : null;
+  // (positions as ddaLattice puts them: x and y about nx / 2, z about nz / 2)
+  const along = (t, m, u, c0) => { for (let a = 0; a < m; a++) { const ph = -k * u * ((a + 0.5 - c0 / 2) * d); t[2 * a] = Math.cos(ph); t[2 * a + 1] = Math.sin(ph); } };
   for (let i = 0; i < n; i++) {
     const ux = dirs[3 * i], uy = dirs[3 * i + 1], uz = dirs[3 * i + 2];
     let xr = 0, xi = 0, yr = 0, yi = 0, zr = 0, zi = 0;
-    for (let j = 0; j < N; j++) {
+    if (grid) {
+      along(ax, nx, ux, nx); along(ay, ny, uy, nx); along(az, nz, uz, nz);
+      for (let j = 0; j < N; j++) {
+        const a = 2 * lat.ix[j], bb = 2 * lat.iy[j], cc = 2 * lat.iz[j];
+        const pr = ax[a] * ay[bb] - ax[a + 1] * ay[bb + 1], pi = ax[a] * ay[bb + 1] + ax[a + 1] * ay[bb];
+        const c = pr * az[cc] - pi * az[cc + 1], s = pr * az[cc + 1] + pi * az[cc], b = 6 * j;
+        xr += p[b] * c - p[b + 1] * s; xi += p[b] * s + p[b + 1] * c;
+        yr += p[b + 2] * c - p[b + 3] * s; yi += p[b + 2] * s + p[b + 3] * c;
+        zr += p[b + 4] * c - p[b + 5] * s; zi += p[b + 4] * s + p[b + 5] * c;
+      }
+    } else for (let j = 0; j < N; j++) {
       const ph = -k * (ux * lat.x[j] + uy * lat.y[j] + uz * lat.z[j]), c = Math.cos(ph), s = Math.sin(ph), b = 6 * j;
       xr += p[b] * c - p[b + 1] * s; xi += p[b] * s + p[b + 1] * c;
       yr += p[b + 2] * c - p[b + 3] * s; yi += p[b + 2] * s + p[b + 3] * c;

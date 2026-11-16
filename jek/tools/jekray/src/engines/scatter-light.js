@@ -9,7 +9,7 @@ import { getEl } from '../state/elements.js';
 import { PARTS } from '../parts/registry.js';
 import { lastTrace, polFrame, zOf } from './trace.js';
 import { beamFrame } from './phase-screen.js';
-import { scatCache, scatModeNow, scatterNow, scatterPrep } from './scatter.js';
+import { scatCache, scatFind, scatModeNow, scatterNow, scatterPrep } from './scatter.js';
 import { beamFieldAt } from './fibre-face.js';
 import { cavLoadOf } from './scatter-cavity.js';
 import { scatFieldBuild, scatFieldDirs } from './scatter-field.js';
@@ -177,8 +177,9 @@ export function scatterLaunch(surfsBy) {
     const job = scatterPrep(el);
     if (!job) { st.state = 'dark'; continue; }
     st.key = job.key;
-    let c = scatCache.get(el.id);
-    if (!(c && c.key === job.key) && scatModeNow() === 'sync') { scatterNow(el); c = scatCache.get(el.id); }
+    let c = scatFind(el.id, job.key, true) || scatCache.get(el.id);
+    // (the trap is not worked out for the trace: the Trap tab, a script or particleTrapNow ask for it apart)
+    if (!(c && c.key === job.key) && scatModeNow() === "sync") { scatterNow(el, { trap: false }); c = scatCache.get(el.id); }
     if (!c || !c.S || c.S.error || !c.S.far) { st.state = c && c.key === job.key ? 'dark' : 'wait'; continue; }
     st.S = c.S; st.state = c.key === job.key ? 'ok' : 'stale';
     const S = st.S, e0 = S.elPos || [el.x, el.y, zOf(el)];

@@ -87,8 +87,8 @@ export const AREAS = {
   },
   scatter: {
     what: 'light scattered by one particle: Lorenz–Mie, the dipole array, a focus as plane waves, the Scattering tab and its worker; the Particle part and its scattered light on the bench',
-    src: ['src/core/mie.js', 'src/core/dda.js', 'src/core/scatter.js', 'src/engines/scatter.js', 'src/engines/scatter-cavity.js', 'src/engines/scatter-pupil.js', 'src/engines/scatter-light.js', 'src/engines/scatter-field.js', 'src/parts/particle.js', 'src/ui/parts/particle.js', 'src/ui/scatter.js'],
-    node: ['physics-scatter.test.mjs', 'physics-scatter-field.test.mjs', 'physics-particle.test.mjs', 'physics-particle-cavity.test.mjs', 'physics-particle-pupil.test.mjs', 'particle-from-screen.test.mjs', 'physics-rising.test.mjs', 'demos.test.mjs', 'parts.test.mjs', 'pro-gate.test.mjs', 'data-export.test.mjs'],
+    src: ['src/core/mie.js', 'src/core/dda.js', 'src/core/linmemo.js', 'src/core/scatter.js', 'src/engines/scatter.js', 'src/engines/scatter-cavity.js', 'src/engines/scatter-pupil.js', 'src/engines/scatter-light.js', 'src/engines/scatter-field.js', 'src/parts/particle.js', 'src/ui/parts/particle.js', 'src/ui/scatter.js'],
+    node: ['physics-scatter.test.mjs', 'physics-scatter-linear.test.mjs', 'physics-scatter-field.test.mjs', 'physics-particle.test.mjs', 'physics-particle-cavity.test.mjs', 'physics-particle-pupil.test.mjs', 'particle-from-screen.test.mjs', 'physics-rising.test.mjs', 'demos.test.mjs', 'parts.test.mjs', 'pro-gate.test.mjs', 'data-export.test.mjs'],
     browser: ['Scattering by a particle', 'Dipole traps'],
   },
   site: {

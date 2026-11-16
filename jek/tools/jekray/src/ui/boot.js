@@ -28,7 +28,7 @@ import { hitTest, wirePointer } from './pointer.js';
 import { getPath, setParam } from '../state/params.js';
 import {
   fieldFrames, fieldHeld, fieldRendered, pauseAll, play, playAll, playing, renderedPeriod, showActivityNow,
-  stepValue, sweepJob, updateActivity
+  activityNow, stepValue, sweepJob, updateActivity
 } from './sweeps.js';
 import { arrivalField, faceArrivals } from '../engines/fibre-face.js';
 import { portWorld, portsOf } from '../engines/fibre.js';
@@ -99,9 +99,9 @@ import { gatherData } from '../engines/data-export.js';
 import { endTour, nameInput, openDemo, startNewBench, startTour, tour, TOURS, tourTick, wireTours } from './tours.js';
 import { modAsk, modLoad, modPrepare, modReset, wireMods } from '../io/mods.js';
 import { FW, TW, WORKERS_OK, fieldWorker, fwMismatch, fwProject, fwRequest, newAppWorker } from '../page/workers.js';
-import { scatterPlain, scatterPrep } from '../engines/scatter.js';
+import { LIN_STATS, scatKept, scatterCached, scatterPlain, scatterPrep } from '../engines/scatter.js';
 import { setCavDegenCheck } from '../engines/scatter-cavity.js';
-import { wireScatter } from './scatter.js';
+import { scatActivity, wireScatter } from './scatter.js';
 import { drawingSvgText, drawingsPdfBlob, lensDrawings } from './lens-drawing.js';
 import { partFiles } from './lens-make.js';
 import { reportPdfBlob } from './lens-report.js';
@@ -221,6 +221,11 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // how many of the rendered steps, at the rates the sweeps have now, find their field ready
     sweepPlay(name, path) { play(this.byName(name), path); return new Promise(r => { const w = () => sweepJob ? setTimeout(w, 20) : r(playing.size); w(); }); },
     sweepPause() { pauseAll(); },
+    // (tests) what the particles' scattering has worked out, combined and kept so far; and what the two activity bars say now
+    scatStats() { return Object.assign({ kept: scatKept.size }, LIN_STATS); },
+    // (tests) the answer a particle's light on the bench is launched from now, as the trace has it: { axis, key } or null
+    scatShown(name) { traceScene(); const el = this.byName(name), S = el && scatterCached(el); return S ? { axis: S.axis, Psca: S.Psca } : null; },
+    activity() { const a = activityNow(), s = scatActivity(); return { bench: a && a.text, scat: s && s.text, scatFrac: s ? s.frac : null }; },
     // the diffracted field as the 3D view takes it, worked out here: per segment its cuts along it, their reach and the irradiance on the axis (W/cm²)
     vol3d() { traceScene(); const srcs = popSources(); if (!srcs.length) return null; const t0 = performance.now(), R = popRun(lastTrace.beams, srcs, {}), t1 = performance.now(), V = volData(R.segs, project.tab, null); self.__volMs = [t1 - t0, performance.now() - t1];
       return { peak: V.peak * 100, disp: volDisp(V) * 100, segs: V.segs.map(v => ({ i: v.i, two: v.two, coh: v.coh, ta: v.ta, tb: v.tb, o: v.o, e: v.e, ts: Array.from(v.ts), rmax: Array.from(v.rmax), peak: v.peak * 100,

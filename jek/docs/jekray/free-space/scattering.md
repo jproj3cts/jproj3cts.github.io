@@ -15,7 +15,7 @@ Add a Particle from the parts list (Active and atomic) and put it where the ligh
 - **Shape**: a sphere, a rod with flat ends (a cylinder), a rod with round ends (a capsule) or a spheroid.
 - **Material**: a glass from JEKray's list, or gold, silver or aluminium. The glasses are taken as lossless. The metals use their measured complex index, so they absorb.
 - **Diameter**, and for a rod or spheroid its **Length** along its axis. A capsule's length includes its round ends. A spheroid shorter than its diameter is oblate.
-- The part's **Angle** is the direction of a rod's or spheroid's axis in the bench plane, and **Axis tilt** its tilt up out of the plane. A tilt of 90° stands the rod upright.
+- The part's **Angle** is the direction of a rod's or spheroid's axis in the bench plane, and **Axis tilt** its tilt up out of the plane. A tilt of 90° stands the rod upright, and past 90° (to 180°) it leans back over, so a sweep of the tilt can carry it through upright.
 - **Medium**: the bench's where the light is, vacuum, air or water.
 - **Send its scattered light to the parts** and **Draw the scattered light in every direction**, described [below](#scattered-light-on-the-bench).
 
@@ -85,6 +85,18 @@ $$
 - **Output.** The far field $$\mathbf F(\hat r) = k^2\sum_j \left(\mathbf p_j - \hat r(\hat r\cdot\mathbf p_j)\right)e^{-ik\hat r\cdot\mathbf r_j}$$, extinction from the optical theorem and absorption from the dipoles themselves.
 
 The run happens in the background. The tab shows the solver's iterations as they go, and **Stop** ends it.
+
+The sum over every pair of dipoles is taken as a convolution by FFT when that is quicker, which it is from a few hundred dipoles: for a 200 nm × 1 µm rod of 4000 dipoles one product takes 65 ms where the direct sum took 245 ms, the same to 1 part in 10¹⁵. The far field is summed with each dipole's phase as the product of one along each axis of the lattice.
+
+### Speed: answers kept, combined and solved ahead
+
+The scattering of one particle is linear in the light on it. Once two polarisations of a laser have been solved, any other polarisation (linear at any angle, or circular) and any power is a combination of those two answers, and JEKray takes that combination instead of solving again. It does not assume it: the incident field at the particle is checked to be that combination to 1 part in 10¹⁰, and is solved in full if it is not. For a sphere the combination is of Mie far fields; for a dipole array, of the dipoles themselves, so that every figure (powers, cross-sections, the pattern, the light sent to the parts) is worked out from fields, never by adding powers. The Node tests check a combined answer against a solve from nothing at several angles, circular light and other powers: to 1 part in 10¹⁴ for Mie, and for the dipole array to the solver's tolerance.
+
+A dipole array that is not such a combination (the particle turned, say) starts its solve from the nearest combination of the last few answers for the same lattice, and the lattice's interaction table is kept between runs. Every answer is also kept under the whole state it was worked out for (the last 64), so a state the bench comes back to (a sweep's next cycle, a value typed and typed back, Undo) is shown at once.
+
+A sweep solves the particle ahead. With the field rendered ahead, each step's scattering is worked out beside the field's frames, on the particle's own worker; a sweep playing on its own **Steps** (no field rendered) solves its steps ahead the same way. Each frame then shows the scattering of its own step. While it works, a second bar under the bench's says **Scattering … for the sweep: step 7 of 20**, with its percentage, and the Scattering tab shows the same line and bar. A run made out of date by an edit is stopped between steps of its work rather than left to finish, and the worker, with the answers it can combine, stays ready for the next.
+
+For a 1550 nm fibre laser of 50 mW focused on a 1 µm silica sphere, a 20-step sweep of the polarisation angle took about 100 s a cycle; it now takes 3 s for the first cycle and nothing for the next, and one edit of the angle about 0.2 s. With the sphere as a dipole array (10 across, 912 dipoles), the first cycle went from about 108 s to 4 s. A 200 nm × 1 µm rod (4000 dipoles) tilted in 10 steps went from about 10 s a step to 1 s, the next cycle again kept. The trap is found only when the Trap tab is read or the particle is put where the trap holds it, as its search was most of a sphere's time.
 
 ### Rayleigh, one dipole
 

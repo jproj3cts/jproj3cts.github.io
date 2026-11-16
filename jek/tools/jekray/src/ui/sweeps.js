@@ -21,6 +21,7 @@ import { checkpoint } from './tabs.js';
 import { scheduleSave } from '../io/autosave.js';
 import { FW, TW, WORKERS_OK, fieldWorker, fwProject, fwRequest, fwUnpackRun, newAppWorker } from '../page/workers.js';
 import { track } from '../io/usage.js';
+import { particlesAhead, particlesAheadDone, particlesAheadNow, scatActivity, scatWork, scatterAheadStop } from "./scatter.js";
 
 /* ---------- Sweeps: each value oscillates on one shared clock ----------
    value = From + (To − From) · shape(f·T + phase/360), so phases are relative
@@ -101,7 +102,20 @@ export function allSweeps() {
 function startLoop() {
   playStep = null;
   if (!animFrame) { animLast = null; animFrame = requestAnimationFrame(tick); }
+  scatWork.letFinish = () => playing.size > 0;
+  if (!sweepJob && !renderedPeriod()) aheadPlain();
   syncPanel(); updateSweepButtons();
+}
+/* Sweeps playing on steps of their own (no field rendered ahead), all at one rate and number of steps: the particles'
+   scattering for each step solved ahead, as the play will set it (ui/optimise.js tick), so a step that takes longer to
+   solve than it is shown is ready when it comes round. A sweep gliding (no steps) is solved as it goes. */
+function aheadPlain() {
+  const list = [...playing.values()].map(p => [getEl(p.id), p.path]).filter(([e, p]) => e && e.sweeps && e.sweeps[p]);
+  if (!list.length || !project.elements.some(e => e.type === 'particle')) return;
+  const sw0 = list[0][0].sweeps[list[0][1]];
+  if (!(sw0.steps > 0) || list.some(([e, p]) => e.sweeps[p].steps !== sw0.steps || e.sweeps[p].freq !== sw0.freq)) return;
+  const n = sw0.steps;
+  particlesAhead(list, n, (e, p, i) => stepValue(e.sweeps[p], i, n, 1 / e.sweeps[p].freq), () => list.every(([e, p]) => getEl(e.id) && e.sweeps && e.sweeps[p] && playing.has(sweepKey(e, p))));
 }
 export function play(el, path) {
   const sw = el.sweeps && el.sweeps[path];
@@ -214,13 +228,13 @@ export function cancelJobFor(el, path) {
 export function pause(el, path) {
   cancelJobFor(el, path);
   playing.delete(sweepKey(el, path));
-  if (!playing.size) dropTraceStore();
+  if (!playing.size) { dropTraceStore(); scatterAheadStop(); }
   syncPanel(); updateSweepButtons(); scheduleSave();
 }
 export function pauseAll() {
   if (sweepJob) sweepJob.cancel();
   if (!playing.size) return;
-  playing.clear(); dropTraceStore();
+  playing.clear(); dropTraceStore(); scatterAheadStop();
   syncPanel(); updateSweepButtons(); scheduleSave();
 }
 export function syncPhases() {
@@ -333,6 +347,8 @@ function renderSweepFrames(list, onDone) {
   const saved = list.map(([el, path]) => getPath(el, path));
   const n = sweepFrames(list);
   framesLast = n;
+  // the particles' scattering for every step, solved ahead on their own worker beside the field (ui/scatter.js)
+  particlesAhead(list, n, (e, p, i) => stepValue(e.sweeps[p], i, n, period), () => list.every(([e, p]) => getEl(e.id) && e.sweeps && e.sweeps[p]));
   sweepVol.begin();
   // every step already rendered (played before, paused, played again): straight on, no render pass
   {
@@ -356,7 +372,7 @@ function renderSweepFrames(list, onDone) {
   sweepJob = job;
   const finish = ok => {
     if (sweepJob !== job) return;
-    sweepJob = null;
+    sweepJob = null; particlesAheadDone();
     list.forEach(([el, path], k) => { if (getEl(el.id)) setParam(el, path, saved[k]); });
     if (ok) fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period: cyc(), n, ref: job.ref };
     changed(false);
@@ -439,6 +455,8 @@ function renderSweepFrames(list, onDone) {
       traceScene();
       requestRender(); syncPanel();
       yield;
+      // (no scattering worker: the particles' answers for this step, here)
+      if (TEST_MODE || !WORKERS_OK) { particlesAheadNow(i, n); yield; }
       const srcs = popSources();
       if (srcs.length) {
         traceScene();
@@ -602,7 +620,7 @@ export function benchFrame(key) {
    second and says what the slowest thing in progress is. Steps it can count show a filling
    bar, the rest a moving one. It shows only once a job has run for a moment, so quick ones
    do not flicker it. */
-function activityNow() {
+export function activityNow() {
   if (sweepJob) {
     const j = sweepJob, what = j.stage === 'the bench' ? 'the bench' : j.stage && j.stage !== 'tracing' ? j.stage : '';
     const eta = sweepEta(j);
@@ -622,34 +640,41 @@ function activityNow() {
   const text = jobs.join(', ');
   return { text: 'Computing ' + text, frac: null };
 }
-const activity = { box: null, text: null, bar: null, since: 0, now: false, shown: 0 };
+/* two bars: what the bench is working out, and below it, apart, the particles' scattering (ui/scatter.js scatActivity:
+   a sweep's steps solved ahead, or a solve on show), so a slow particle is seen to be at work beside the field */
+const activity = { box: null, text: null, bar: null, since: 0, now: false, shown: 0, cls: '' };
+const scatBar = { box: null, text: null, bar: null, since: 0, now: false, shown: 0, cls: ' rt-act-scat' };
 /* for a job about to block the page: show the bar straight away, skipping the usual delay */
 export function showActivityNow() { if (TEST_MODE) return; activity.now = true; updateActivity(); }
 export function updateActivity() {
-  const a = activityNow(), now = performance.now();
+  barShow(activity, activityNow());
+  barShow(scatBar, scatActivity());
+}
+function barShow(B, a) {
+  const now = performance.now();
   if (!a) {
-    activity.since = 0;
+    B.since = 0;
     // once up, it stays long enough to read rather than flashing
-    if (activity.box && !activity.box.hidden && now - activity.shown > 400) activity.box.hidden = true;
+    if (B.box && !B.box.hidden && now - B.shown > 400) B.box.hidden = true;
     return;
   }
-  if (!activity.since) activity.since = now;
-  if (now - activity.since < 250 && !activity.now) return;
-  activity.now = false;
-  if (!activity.box) {
-    activity.label = h('span');
-    activity.pct = h('span', { class: 'rt-act-pct' });
-    activity.text = h('span', { class: 'rt-act-text' }, activity.label, activity.pct);
-    activity.bar = h('i');
-    activity.box = h('div', { class: 'rt-activity', role: 'status', 'aria-live': 'polite' }, activity.text, h('div', { class: 'rt-act-bar' }, activity.bar));
-    document.getElementById('stage').append(activity.box);
+  if (!B.since) B.since = now;
+  if (now - B.since < 250 && !B.now) return;
+  B.now = false;
+  if (!B.box) {
+    B.label = h('span');
+    B.pct = h('span', { class: 'rt-act-pct' });
+    B.text = h('span', { class: 'rt-act-text' }, B.label, B.pct);
+    B.bar = h('i');
+    B.box = h('div', { class: 'rt-activity' + B.cls, role: 'status', 'aria-live': 'polite' }, B.text, h('div', { class: 'rt-act-bar' }, B.bar));
+    document.getElementById('stage').append(B.box);
   }
-  if (activity.box.hidden) activity.shown = now;
-  activity.box.hidden = false;
-  if (activity.label.textContent !== a.text) activity.label.textContent = a.text;
+  if (B.box.hidden) B.shown = now;
+  B.box.hidden = false;
+  if (B.label.textContent !== a.text) B.label.textContent = a.text;
   const pct = a.frac === null ? '' : Math.round(100 * clamp(a.frac, 0, 1)) + '%';
-  if (activity.pct.textContent !== pct) activity.pct.textContent = pct;
-  activity.box.classList.toggle('indeterminate', a.frac === null);
-  activity.bar.style.width = a.frac === null ? '' : (100 * clamp(a.frac, 0, 1)).toFixed(1) + '%';
+  if (B.pct.textContent !== pct) B.pct.textContent = pct;
+  B.box.classList.toggle('indeterminate', a.frac === null);
+  B.bar.style.width = a.frac === null ? '' : (100 * clamp(a.frac, 0, 1)).toFixed(1) + '%';
 }
 

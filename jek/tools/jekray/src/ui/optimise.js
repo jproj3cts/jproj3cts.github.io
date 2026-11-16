@@ -507,7 +507,10 @@ export function tick(t) {
     // gliding one, where each step's trace is kept, on steps fine enough to look smooth (up to
     // about 60 a second) so that each comes round again
     const st = !P && sw.steps ? sw.steps * sw.freq : !P && traceStoreOn() ? clamp(Math.round(60 / sw.freq), 120, 600) * sw.freq : 0;
-    setParam(el, p.path, P ? stepValue(sw, tq, fieldRendered.n, P) : clockValueAt(sw, st ? Math.round(clockT * st) / st : tq));
+    // (a sweep of its own steps: the step by its number in the cycle, as stepValue has it, so each cycle comes back to the very
+    // same values, and a particle's answers solved ahead for them are found: ui/scatter.js particlesAhead)
+    const own = !P && sw.steps > 0 ? Math.round(clockT * st) : null;
+    setParam(el, p.path, P ? stepValue(sw, tq, fieldRendered.n, P) : own !== null ? stepValue(sw, ((own % sw.steps) + sw.steps) % sw.steps, sw.steps, 1 / sw.freq) : clockValueAt(sw, st ? Math.round(clockT * st) / st : tq));
   }
   // traced before the panels look: a screen's field is found by the bench as traced, and a
   // trace a step behind its parts asks for a field no step has (worked out live, every step)

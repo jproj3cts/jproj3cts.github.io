@@ -533,7 +533,7 @@ One small particle at a point of the bench: a sphere, a rod or a spheroid, in wh
 | trapMed | `"bench"` | "bench" (the index where the light is), "vacuum", "air" (with trapP) or "water". |
 | trapShape | `"sphere"` | "sphere", "cylinder" (a rod with flat ends), "capsule" (a rod with round ends) or "spheroid". |
 | trapLen | `1000` | nm: a rod’s or spheroid’s whole length along its axis. |
-| trapTilt | `0` | degrees: its axis tilted up out of the bench plane (90: straight up). |
+| trapTilt | `0` | degrees: its axis tilted up out of the bench plane (90: straight up; past 90 it leans back over, to 180). |
 | trapP | `1013.25` | mbar: the air’s pressure, for trapMed "air". |
 | trapT | `295` | K: the temperature the trap’s depth is compared with. |
 | scatModel | `"auto"` | "auto" (Mie for a sphere, a dipole array for other shapes, Rayleigh when tiny), "rayleigh", "mie" or "dda". |

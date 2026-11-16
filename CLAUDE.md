@@ -7,7 +7,7 @@ conventions; `jek/tools/jekray/README.md` has the tool's module rules, `jek/tool
 ## Working rules
 Several people work on this repository, each with their own Claude sessions. The owner is jproj3cts.
 - **Work on a branch and open a pull request into `main`.** `main` is protected: a pull request, an approving review
-  and green CI are needed to merge, and changes to the paths in `.github/CODEOWNERS` need the owner's review. Never try
+  and green CI are needed to merge, and every pull request needs the owner's review (`.github/CODEOWNERS`). Never try
   to push to `main` directly or to get round the protection. The owner may push to `main`, and in the owner's own
   sessions asks first every time (an earlier "yes" does not carry over).
 - Before a pull request is merged, merge `origin/main` into the branch (never rebase or force-push a shared branch),

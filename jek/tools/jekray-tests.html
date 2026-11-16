@@ -12924,7 +12924,7 @@ const TESTS = [
   },
   {
     name: 'The scattered field is drawn in 2D and 3D when asked for, and costs nothing when not',
-    why: 'a particle in a wide beam polarised across the bench plane (its pattern even round it in the plane), a detector 6 mm ahead, the fan off. With scatField on the 2D bench glows about the particle (the picture differs from the one without it in a ring 1 to 3.5 mm out, behind the particle where no ray is); with it off (and in a bench saved before it, with no scatField) the pixels are the same as each other. In 3D it has its volume with it on and none off. The time of a 640 × 360 picture and of a 3D frame with it on and off is logged (1 when all hold)',
+    why: 'a particle in a wide beam polarised across the bench plane (its pattern even round it in the plane), a detector 6 mm ahead, the fan off. With scatField on the 2D bench glows about the particle (the picture differs from the one without it in a ring 1 to 3.5 mm out, behind the particle where no ray is), in its own cool colours (the glow there is bluer than it is red, on the dark bench or on paper, where the 1550 nm light is pink); with it off (and in a bench saved before it, with no scatField) the pixels are the same as each other. In 3D it has its volume with it on and none off. The time of a 640 × 360 picture and of a 3D frame with it on and off is logged (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r))), doc = rigDoc(), cv = doc.getElementById('bench');
@@ -12940,13 +12940,13 @@ const TESTS = [
       };
       const A = await shot(true), B = await shot(false), C = await shot(undefined);
       // behind the particle (x < 0, off the beam's line) in a ring 1 to 3.5 mm out: the field; and B and C alike everywhere
-      let behind = 0, same = 0;
+      let behind = 0, same = 0, aR = 0, aB = 0;
       for (let y = 0; y < A.n; y++) for (let x = 0; x < A.n; x++) {
         const o = 4 * (y * A.n + x), dx = (x - A.n / 2) / A.n * 8, dy = (y - A.n / 2) / A.n * 8, r = Math.hypot(dx, dy);
         same += Math.abs(B.d[o] - C.d[o]) + Math.abs(B.d[o + 1] - C.d[o + 1]) + Math.abs(B.d[o + 2] - C.d[o + 2]);
-        if (dx < 0 && Math.abs(dy) > 1 && r > 1 && r < 3.5) behind += Math.abs(A.d[o] - B.d[o]) + Math.abs(A.d[o + 1] - B.d[o + 1]) + Math.abs(A.d[o + 2] - B.d[o + 2]);
+        if (dx < 0 && Math.abs(dy) > 1 && r > 1 && r < 3.5) { behind += Math.abs(A.d[o] - B.d[o]) + Math.abs(A.d[o + 1] - B.d[o + 1]) + Math.abs(A.d[o + 2] - B.d[o + 2]); aR += A.d[o]; aB += A.d[o + 2]; }
       }
-      const two = behind > 5000 && same === 0;
+      const two = behind > 5000 && same === 0 && aB > 1.1 * aR;
       // the cost: a picture of the bench, on and off
       const time = async sf => { load(sf); await frame(); const t0 = performance.now(); for (let i = 0; i < 3; i++) await J.renderPNG({ width: 640, height: 360 }); return (performance.now() - t0) / 3; };
       const t2on = await time(true), t2off = await time(false);
@@ -12960,7 +12960,49 @@ const TESTS = [
         three = !!V1 && V1.vols === 1 && V1.quad && !!V0 && V0.vols === 0;
       } finally { await J.view3d.set(false); }
       console.log('scattered field cost', JSON.stringify({ png2d: { on: +t2on.toFixed(1), off: +t2off.toFixed(1) }, frame3d: { on: t3on && +t3on.toFixed(2), off: t3off && +t3off.toFixed(2) } }));
-      if (!(two && three)) console.log('particle field', JSON.stringify({ two, behind, same, three, V1, V0 }));
+      if (!(two && three)) console.log('particle field', JSON.stringify({ two, behind, same, aR, aB, three, V1, V0 }));
+      return two && three ? 1 : 0;
+    },
+  },
+  {
+    name: 'With its scattered field drawn, a particle’s rays fade, the beam is drawn as it was, and the 3D key gives the field’s own scale',
+    why: 'a particle in a wide beam, a lens 4 mm ahead that collimates its cone onto a detector 8 mm ahead. On the 2D bench (the fan off) the cone’s rays past the lens, where the field does not reach, are fainter with the field on (under 0.6 of their light without it) but still there, and upstream of the field’s reach the beam’s pixels are the same with it on and off. In 3D the fan and the cones are drawn at under half their opacity with it on and as before with it off; the key has a second scale, the particle’s scattered light, with it on and none with it off; and pointing just above the particle reads the scattered light there (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r))), doc = rigDoc(), cv = doc.getElementById('bench');
+      const els = (sf, fan) => [src({ name: 'L', x: -30, wavelength: 1550, gauss: true, w0: 0.5, z0: 0, width: 1.6, rays: 1, pol: 's', power: 100, popN: 256 }),
+        { type: 'particle', name: 'P', x: 0, y: 0, angle: 90, trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum', scatFan: fan, scatField: sf, scatLight: sf !== null },
+        { type: 'mask', name: 'Lens', x: 4, y: 0, angle: 0, length: 8, amp: '1', delay: '-(sqrt(r^2+16)-4)/lambda', preset: 'custom' },
+        { type: 'detector', name: 'D', x: 8, y: 0, angle: 180, length: 8 }];
+      const load = (sf, fan) => J.load(bench('particle rays', els(sf, fan), { minPower: 1e-6, view: { cx: -10, cy: 0, scale: 12 }, light: { rays: true, envelope: true, field: false, byPower: true } }));
+      // the bench's pixels over a box of the bench (mm)
+      const box = async (x0, x1, y0, y1) => {
+        const r = cv.getBoundingClientRect(), k = cv.width / r.width, px = x => (r.width / 2 + (x + 10) * 12) * k, py = y => (r.height / 2 - y * 12) * k;
+        const X0 = Math.round(px(x0)), Y0 = Math.round(py(y1)), w = Math.round(px(x1)) - X0, hh = Math.round(py(y0)) - Y0;
+        return cv.getContext('2d').getImageData(X0, Y0, w, hh).data;
+      };
+      const shot = async sf => { load(sf, false); await frame(); await frame(); return { up: await box(-28.5, -26, -1.5, 1.5), past: [await box(5, 7.5, 1.2, 3.5), await box(5, 7.5, -3.5, -1.2)] }; };
+      // (the rays' share of those pixels: against the same bench with no scattered light at all)
+      const on = await shot(true), off = await shot(false), none = await shot(null);
+      const diff = (a, b) => a.reduce((s2, v, i) => s2 + (i % 4 === 3 ? 0 : Math.abs(v - b[i])), 0);
+      const pOn = diff(on.past[0], none.past[0]) + diff(on.past[1], none.past[1]), pOff = diff(off.past[0], none.past[0]) + diff(off.past[1], none.past[1]), up = diff(on.up, off.up);
+      // (the beam is there: its pixels are not all the bench's own colour)
+      let lo = 255, hi = 0; for (let i = 0; i < off.up.length; i += 4) { lo = Math.min(lo, off.up[i + 1]); hi = Math.max(hi, off.up[i + 1]); }
+      const upLit = hi - lo;
+      const two = pOff > 2000 && pOn > 0.05 * pOff && pOn < 0.6 * pOff && up === 0 && upLit > 30;
+      let three = false, S0 = null, S1 = null, K0 = null, K1 = null, rd = null;
+      try {
+        load(false, true);
+        await J.view3d.set(true);
+        S0 = J.view3d.scatLight(); K0 = J.view3d.scatField();
+        J.set('P', { scatField: true }); J.redraw(); await frame();
+        S1 = J.view3d.scatLight(); K1 = J.view3d.scatField();
+        const s = J.view3d.pointOnScreen([0, 0, 78]);
+        rd = s && J.view3d.readAt(s.x, s.y);
+        three = !!S0 && !!S1 && S0.fanA > 0 && S1.fanA > 0 && S1.fanA < 0.5 * S0.fanA && S0.coneA > 0 && S1.coneA > 0 && S1.coneA < 0.5 * S0.coneA
+          && !!K0 && K0.key === null && !!K1 && /Scattered by P/.test(K1.key || '') && !!rd && !!rd.scat && rd.scat.L > 0 && /Scattered/.test(rd.text || '');
+      } finally { await J.view3d.set(false); }
+      if (!(two && three)) console.log('particle rays', JSON.stringify({ two, pOn, pOff, up, upLit, three, S0, S1, K0, K1, rd }));
       return two && three ? 1 : 0;
     },
   },

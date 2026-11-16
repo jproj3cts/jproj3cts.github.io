@@ -194,6 +194,27 @@ describe('webhook', () => {
     expect(calls.length).toBe(n);
   });
 
+  it('keeps the plan a subscription was recorded with when its price’s lookup key has moved to a newer price', async () => {
+    const s = await signedIn();
+    makeSub('sub_k', s.workspaceId, { key: 'academic_monthly' });
+    await deliver('customer.subscription.created', subs.sub_k);
+    const planNow = async () => (await env.DB.prepare('SELECT plan FROM subscriptions WHERE workspace_id = ?').bind(s.workspaceId).first()).plan;
+    expect(await planNow()).toBe('academic');
+    // the key gone from the old price (transferred to a new one), then renamed keeping its start: academic either way
+    subs.sub_k.items.data[0].price.lookup_key = null;
+    await deliver('customer.subscription.updated', subs.sub_k);
+    expect(await planNow()).toBe('academic');
+    subs.sub_k.items.data[0].price.lookup_key = 'academic_monthly_gbp_only';
+    await deliver('customer.subscription.updated', subs.sub_k);
+    expect(await planNow()).toBe('academic');
+    // a subscription first seen on a price with no key has nothing to go by: an individual plan, as before
+    const t = await signedIn();
+    makeSub('sub_n', t.workspaceId);
+    subs.sub_n.items.data[0].price.lookup_key = null;
+    await deliver('customer.subscription.created', subs.sub_n);
+    expect((await env.DB.prepare('SELECT plan FROM subscriptions WHERE workspace_id = ?').bind(t.workspaceId).first()).plan).toBe('individual');
+  });
+
   it('ignores subscriptions with no workspace, or an unknown one', async () => {
     makeSub('sub_d', 'x', { meta: false });
     expect((await deliver('customer.subscription.updated', subs.sub_d)).status).toBe(200);

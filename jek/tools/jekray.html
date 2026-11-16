@@ -17949,10 +17949,12 @@ const portsInUse = () => new Set((project.fibres || []).flatMap(F => [pkey(...F.
 /* A fibre's path, in bench coordinates: cubic segments from port to port through its nodes.
    It leaves each port along the port's direction, ta and tb mm (or a length that suits the
    span); each node has an in handle h1 and an out handle h2, offsets from it, as in a
-   drawing program. endB, a point, stands in for the far port while a fibre is being laid. */
+   drawing program. endB, a point, stands in for the far port while a fibre is being laid. minHandle (mm), when given,
+   is the least length of a handle set by itself, in place of 24 px at the bench's zoom: the 3D view gives it, so its
+   routes do not hang on how the 2D bench happens to be zoomed (unset when a bench opens straight in 3D). */
 // a node's handle as an offset: one left out, or set to null (a script writing a path), is none
 const hnd = v => Array.isArray(v) && v.length === 2 && isFinite(v[0]) && isFinite(v[1]) ? v : [0, 0];
-function fibreSegs(F, endB) {
+function fibreSegs(F, endB, minHandle) {
   const A = getEl(F.a[0]);
   if (!A) return null;
   const pa = portWorld(A, F.a[1]);
@@ -17961,7 +17963,7 @@ function fibreSegs(F, endB) {
   if (F.route === 'square') return squareSegs(F, pa, pb, endB);
   const nodes = F.path || [], s0 = V().scale;
   const P = [[pa.x, pa.y], ...nodes.map(n => [n.x, n.y]), endB || [pb.x, pb.y]];
-  const auto = i => Math.max(24 / s0, 0.4 * Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]));
+  const auto = i => Math.max(minHandle > 0 ? minHandle : 24 / s0, 0.4 * Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]));
   const segs = [];
   for (let i = 0; i < P.length - 1; i++) {
     const ta = F.ta != null ? F.ta : auto(0);
@@ -24614,6 +24616,7 @@ const V3D = (() => {
      lie on the table (a waveguide stays at its chips' height), rising to each port; a fibre carrying light glows its colour */
   /* the fibres, cables and waveguides: each tube kept while its route is the same (a sweep's step, a trace, moves none of
      them: made again for each, they cost an orbit its frames), its colour and glow set afresh */
+  const FIBRE_HANDLE_3D = 6;          // mm: a route's own handles at their shortest in 3D, whatever the 2D zoom
   function wires(G) {
     for (const o of [...G.children]) G.remove(o);
     const kept = R.wireCache || (R.wireCache = new Map()), usedW = new Set();
@@ -24621,7 +24624,7 @@ const V3D = (() => {
     const list = (project.fibres || []).filter(F => on.has(F.a[0]) && on.has(F.b[0]));
     const lights = list.map(F => F.wire || F.wg ? { mw: 0 } : fibreLight(F)), topMw = Math.max(1e-30, ...lights.map(l => l.mw));
     list.forEach((F, i) => {
-      let segs = null; try { segs = fibreSegs(F); } catch (e) { segs = null; }
+      let segs = null; try { segs = fibreSegs(F, null, FIBRE_HANDLE_3D); } catch (e) { segs = null; }
       if (!segs || !segs.length) return;
       const xy = [];
       for (const [p0, c1, c2, p3] of segs) for (let k = xy.length ? 1 : 0; k <= 16; k++) {
@@ -25817,7 +25820,7 @@ const V3D = (() => {
   /* the point of a fibre's route nearest a point on the table: its segment and where along it */
   const fibreNear = (F, X, Y) => {
     let best = null;
-    (fibreSegs(F) || []).forEach((C, k) => { for (let i = 0; i <= 60; i++) { const [x, y] = bez(C, i / 60), d = Math.hypot(x - X, y - Y); if (!best || d < best.d) best = { k, t: i / 60, d }; } });
+    (fibreSegs(F, null, FIBRE_HANDLE_3D) || []).forEach((C, k) => { for (let i = 0; i <= 60; i++) { const [x, y] = bez(C, i / 60), d = Math.hypot(x - X, y - Y); if (!best || d < best.d) best = { k, t: i / 60, d }; } });
     return best;
   };
   function inCube(n) { const c = cubeRect(); return n.px >= c.x && n.px <= c.x + c.w && n.py >= c.y && n.py <= c.y + c.h; }
@@ -26356,6 +26359,8 @@ const V3D = (() => {
       fieldSegs() { if (!R || !R.vol) return null; return R.vol.segs.map(s => { const P = volPlanes(s); return { two: s.two, coh: s.coh, o: s.o, e: s.e, n0: s.n, ta: s.ta, tb: s.tb, ts: [...s.ts], rmax: [...s.rmax], peak: s.peak, pl: P.pl.map(v => v.toArray()), ext: P.ext }; }); },
       // how many times the view has been drawn, and the tubes the cables and fibres are drawn with (kept while their route is)
       draws: () => (R && R.draws) || 0,
+      // each fibre's tube as drawn: the box round it on the bench (mm), by the fibre's id
+      fibreBoxes() { if (!R) return null; sync(); const out = {}; for (const [id, c] of R.wireCache || []) { const g = c.obj.geometry; g.computeBoundingBox(); const b = g.boundingBox; out[id] = [b.min.x, b.min.y, b.max.x, b.max.y].map(v => +v.toFixed(3)); } return out; },
       // a particle's scattered field as drawn (scatVolMeshes): its volumes; and what one frame takes, the GPU's work finished (ms)
       scatField: () => { if (!R || !active()) return null; sync(); const k = D.vkey.querySelector('b.sc'); return { vols: (R.scatVols || []).length, quad: R.groups.light.children.some(o => o.userData.volQuad), key: D.vkey.hidden || !k ? null : D.vkey.textContent }; },
       // what pointing at a canvas point reads (css px from its top left): the beam's line and the scattered field's
@@ -60670,6 +60675,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
 const NEWS = [
   ['1.1', APP_DATE, [
     'A <b>Particle</b> is far quicker to sweep and to edit. Its scattering is linear in its light, so once two polarisations are solved every other polarisation and power is their combination, checked on the field and never assumed: a 20-step sweep of a fibre laser’s polarisation on a 1 µm sphere went from about 100 s a cycle to 3 s, and as a dipole array from 108 s to 4 s. Every answer is kept, so a sweep’s next cycle, and a value typed back, show at once. A sweep solves the particle’s steps ahead, beside the field, with a bar of its own under the bench’s (“Scattering … step 7 of 20”) and in the Scattering tab, and each frame shows its own step. The dipole array sums its dipoles by FFT and starts each solve from the nearest answer (a 4000-dipole rod: 10 s a step to 1 s), the trap is found only when the Trap tab is read, a solve made out of date is stopped rather than left to run, and a rod’s <b>Axis tilt</b> goes past 90° to 180°, so a tilt sweep can carry it through upright. Numbers typed in a panel reach the bench once typing pauses, so a key never waits on a slow bench.',
+    'Fibres no longer swing out in great loops in 3D when a bench opens straight there: their routes in 3D no longer depend on how the 2D bench is zoomed.',
     'Right-click a part and choose <b>Suppress</b> to take it out of the bench until it is wanted again, as CAD suppresses a feature: it is not drawn, in 2D or 3D, a click does not pick it, and nothing meets it: the light passes where it stood, and the fibres and wires plugged into it count as unplugged at its end. Several selected suppress together. The Bench panel\u2019s list keeps it, struck through: right-click it for <b>Unsuppress</b>. Undo, the file and share links keep it; in a script, <code>J.suppress(name, on)</code>.',
     'A <b>Particle</b> can draw an estimate of its scattered field, as the diffracted field is drawn, on the bench and in 3D: tick <b>Draw an estimate of its scattered field</b> on its Scattering tab. It is the far-field pattern falling off as 1/r², stopped at the first part each direction meets, the intensity alone, on a log scale of its own (the scattered light is a millionth of the beam or less), so the beam is drawn as it was. It has cool colours of its own (navy to cyan on the dark bench), told apart from the beam where they overlap; the 3D key gives its scale under the beam’s, and pointing at it reads it; and while it is drawn the particle’s fan and cone rays are faded to 30% so they do not clutter it. Off unless asked for.',
     'A part hidden by its eye in the bench list is hidden on the 2D bench as well as in 3D, its name with it, and a click there no longer picks it; the light still meets it, and chosen in the list it is drawn faintly. A <b>Particle</b>\u2019s sign shrinks with the bench when zoomed out (never larger than 1 mm there), so it no longer dwarfs the parts round it.',

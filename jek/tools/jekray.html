@@ -17089,7 +17089,8 @@ function drawRays(stale) {
   if (figure && figure.noLight) return;                                  // a figure with the light left out
   const rays = stale && TW.rays ? TW.rays : lastTrace.rays;
   if (rays.length < RAY_LAYER_MIN || exporting || typeof document.createElement !== 'function') { drawRaysOn(ctx, rays); return; }
-  const frameKey = [W, H, DPR, project.tab, lightLayer, byPowerOn(), lightOf().rayWidth || 0, !!lightOf().glow].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
+  // (while sweeps play the rays change every frame: drawn at the screen's own resolution then, and finer once they stop)
+  const moving = hooks.playing(), frameKey = [W, H, DPR, project.tab, lightLayer, byPowerOn(), lightOf().rayWidth || 0, !!lightOf().glow, moving].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
   // while the view is moving (a pan or a zoom), the layer drawn a moment ago is moved and
   // scaled to match, and drawn afresh once the view has settled
   if (rayLayer.rays === rays && rayLayer.frame === frameKey && rayLayer.key !== key && !rayLayer.settled) {
@@ -17108,7 +17109,7 @@ function drawRays(stale) {
     // the rays are drawn at twice the resolution and scaled down (on all but the largest
     // screens), so where a fan's lines converge to under a pixel apart the beats between
     // lines and pixels (moiré) average out
-    const ss = rayLayer.ss = canvas.width * canvas.height <= 4.5e6 ? 2 : 1;
+    const ss = rayLayer.ss = !moving && canvas.width * canvas.height <= 4.5e6 ? 2 : 1;
     if (cv.width !== canvas.width * ss || cv.height !== canvas.height * ss) { cv.width = canvas.width * ss; cv.height = canvas.height * ss; }
     const c = cv.getContext('2d');
     c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cv.width, cv.height);
@@ -20198,14 +20199,14 @@ function pause(el, path) {
   cancelJobFor(el, path);
   playing.delete(sweepKey(el, path));
   if (!playing.size) { dropTraceStore(); scatterAheadStop(); holdEnd(); }
-  syncPanel(); updateSweepButtons(); scheduleSave();
+  syncPanel(); updateSweepButtons(); scheduleSave(); requestRender();         // (drawn again: the rays finer once nothing plays)
 }
 function pauseAll() {
   if (sweepJob) sweepJob.cancel();
   holdEnd();
   if (!playing.size) return;
   playing.clear(); dropTraceStore(); scatterAheadStop();
-  syncPanel(); updateSweepButtons(); scheduleSave();
+  syncPanel(); updateSweepButtons(); scheduleSave(); requestRender();
 }
 function syncPhases() {
   const list = allSweeps();

@@ -6532,6 +6532,109 @@ const TESTS = [
     },
   },
   {
+    name: 'A sweep predicted to render for longer than the limit holds the bench and shows only its bars until the cycle is ready',
+    why: 'a lens swept across a beam shown as its field, 8 steps rendered ahead, with the limit (SWEEP_HOLD_S, 30 s) lowered so the first step’s time predicts more than it: from then on no frame is drawn (the bench stays as it was), the bar says it plays once all of it is ready and pulses, and when the cycle is done the hold lets go and the sweep plays; with the limit as it is, the same sweep draws its steps as it renders them, as before (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const mk = (x = 40) => bench('hold', [
+        { type: 'source', id: 'S', name: 'Laser', x: 0, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 633, rays: 1, popN: 128 },
+        { type: 'lens', id: 'L', name: 'Lens', x, y: 0, diameter: 12.7, surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }],
+          sweeps: { y: { min: -1, max: 1, freq: 0.5, phase: 0, wave: 'sine', field: true, steps: 8 } } },
+        { type: 'screen', id: 'Sc', name: 'Screen', x: 120, y: 0, angle: 180, length: 10 }], { light: { rays: false, envelope: false, field: true, scale: 'lin' } });
+      const watch = async done => {
+        // while it renders: the frames drawn while held, the bar's text and pulse
+        const o = { held: false, drawnHeld: 0, heldAt: null, said: false, pulsed: false, drewWhileRendering: 0 };
+        let busy = true, last = null;
+        done.then(() => { busy = false; });
+        while (busy) {
+          const h = J.sweepHold(), bars = J.activityBars();
+          if (h.holding) { if (!o.held) { o.held = true; o.heldAt = h.drawn; } o.drawnHeld = h.drawn - o.heldAt; if (/plays once all of it is ready/.test(bars[0].text)) o.said = true; if (bars[0].busy) o.pulsed = true; }
+          else if (last !== null && h.drawn > last) o.drewWhileRendering++;
+          last = h.drawn;
+          await new Promise(r => setTimeout(r, 0));
+        }
+        return o;
+      };
+      try {
+        // under the limit: as before, its steps drawn as they render, no hold
+        J.load(mk());
+        let p = J.sweepPlay('Lens', 'y');
+        const quick = await watch(p); J.sweepPause();
+        // over it: held
+        J.load(mk(41)); J.sweepHoldLimit(1e-6);
+        p = J.sweepPlay('Lens', 'y');
+        const slow = await watch(p);
+        const after = J.sweepHold(), playing = await p;
+        // then it plays: frames drawn again
+        const d0 = J.sweepHold().drawn; for (let i = 0; i < 10; i++) await new Promise(r => rigWin().requestAnimationFrame(() => r()));
+        const plays = J.sweepHold().drawn > d0 && playing > 0 && !after.holding;
+        const ok = !quick.held && quick.drewWhileRendering > 0 && slow.held && slow.drawnHeld === 0 && slow.said && slow.pulsed && plays;
+        if (!ok) console.log('sweep hold', JSON.stringify({ quick, slow, after, playing, plays }));
+        return ok ? 1 : 0;
+      } finally { J.sweepHoldLimit(0); J.sweepPause(); }
+    },
+  },
+  {
+    name: 'Pause lets a held sweep go at once',
+    why: 'the same long render held, paused part way: the hold ends there and then, nothing plays, and the bench is drawn again (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('hold pause', [
+        { type: 'source', id: 'S', name: 'Laser', x: 0, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 633, rays: 1, popN: 128 },
+        { type: 'lens', id: 'L', name: 'Lens', x: 40, y: 0, diameter: 12.7, surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }],
+          sweeps: { y: { min: -1, max: 1, freq: 0.5, phase: 0, wave: 'sine', field: true, steps: 12 } } },
+        { type: 'screen', id: 'Sc', name: 'Screen', x: 120, y: 0, angle: 180, length: 10 }], { light: { rays: false, envelope: false, field: true, scale: 'lin' } }));
+      J.sweepHoldLimit(1e-6);
+      try {
+        const p = J.sweepPlay('Lens', 'y');
+        const t0 = performance.now();
+        while (!J.sweepHold().holding && performance.now() - t0 < 20000) await new Promise(r => setTimeout(r, 0));
+        const held = J.sweepHold().holding, dHeld = J.sweepHold().drawn;
+        J.sweepPause();
+        const let_go = !J.sweepHold().holding, n = await p;
+        for (let i = 0; i < 4; i++) await new Promise(r => rigWin().requestAnimationFrame(() => r()));
+        const drawn = J.sweepHold().drawn > dHeld;
+        if (!(held && let_go && n === 0 && drawn)) console.log('hold pause', { held, let_go, n, drawn });
+        return held && let_go && n === 0 && drawn ? 1 : 0;
+      } finally { J.sweepHoldLimit(0); J.sweepPause(); }
+    },
+  },
+  {
+    name: 'Progress bars pulse while their work goes on, stop when it is done, and breathe instead with reduced motion',
+    why: 'the bench’s activity bar while a sweep renders carries rt-busy, and its fill’s highlight is the rt-sweep animation, moved by transform; once done it loses rt-busy at once. The stylesheet’s reduced-motion rule turns the sweep off and breathes the fill instead (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('bars', [
+        { type: 'source', id: 'S', name: 'Laser', x: 0, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 633, rays: 1, popN: 128 },
+        { type: 'lens', id: 'L', name: 'Lens', x: 40, y: 0, diameter: 12.7, surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }],
+          sweeps: { y: { min: -1, max: 1, freq: 0.5, phase: 0, wave: 'sine', field: true, steps: 6 } } },
+        { type: 'screen', id: 'Sc', name: 'Screen', x: 120, y: 0, angle: 180, length: 10 }], { light: { rays: false, envelope: false, field: true, scale: 'lin' } }));
+      const doc = rigDoc(), win = rigWin();
+      let busySeen = false, anim = '', moved = false;
+      try {
+        const p = J.sweepPlay('Lens', 'y');
+        let busy = true; p.then(() => { busy = false; });
+        while (busy) {
+          const b = J.activityBars()[0];
+          if (b.busy) {
+            busySeen = true;
+            const i = doc.querySelector('.rt-activity:not(.rt-act-scat) .rt-act-bar.rt-busy > i');
+            if (i) { const cs = win.getComputedStyle(i, '::after'); anim = cs.animationName; moved = /rt-sweep/.test(anim) && cs.content !== 'none'; }
+          }
+          await new Promise(r => setTimeout(r, 0));
+        }
+        J.sweepPause();
+        await new Promise(r => setTimeout(r, 50));
+        const after = J.activityBars()[0], stopped = !after.busy;
+        // the reduced-motion rule: no sweep, a breathing fill
+        let reduced = false;
+        for (const sh of doc.styleSheets) { let rules; try { rules = sh.cssRules; } catch (e) { continue; } for (const r of rules) if (r.media && /prefers-reduced-motion: reduce/.test(r.media.mediaText) && /\.rt-busy > i::after/.test(r.cssText) && /animation: (none|auto)|display: none/.test(r.cssText) && /rt-breathe/.test(r.cssText)) reduced = true; }
+        if (!(busySeen && moved && stopped && reduced)) console.log('bars', { busySeen, anim, moved, stopped, reduced });
+        return busySeen && moved && stopped && reduced ? 1 : 0;
+      } finally { J.sweepPause(); }
+    },
+  },
+  {
     name: 'A rendered sweep plays with a screen open, finding every step\u2019s field',
     why: 'a lens swept across a beam shown as its field, rendered at 6 steps a cycle, played with the screen\u2019s Diffraction tab open, then paused and played again: the screen fields worked out on the spot while it plays (none: each step\u2019s was rendered)',
     want: 0, tol: 0, unit: '',

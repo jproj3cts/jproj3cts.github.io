@@ -75,7 +75,7 @@ The 3D view is a view of the same bench: select a part and its panel opens as us
 
 ## Settings and sweeps
 
-Every number in a panel can be typed or dragged. Beside most is the sweep button, **∿**: it moves the value back and forth over a range, and the bench follows as it plays. A number typed reaches the bench once you pause typing (about a seventh of a second) or press Enter, so typing never waits on a slow bench. A swept number shows its sweep folded to one line with Play; click the line, or ∿, to edit it. That is the quickest way to see how a system depends on one thing. The **Sweeps** menu plays and pauses every sweep, and holds **Optimise the bench…** and **Tolerance the bench…**, an optimiser and a Monte Carlo study over the swept values.
+Every number in a panel can be typed or dragged. Beside most is the sweep button, **∿**: it moves the value back and forth over a range, and the bench follows as it plays. A number typed reaches the bench once you pause typing (about a seventh of a second) or press Enter, so typing never waits on a slow bench. A swept number shows its sweep folded to one line with Play; click the line, or ∿, to edit it. That is the quickest way to see how a system depends on one thing. A sweep that renders its diffracted field ahead and would take longer than 30 seconds to do it shows only its progress bar, with the time left, until the whole cycle is ready, then plays it smoothly ([Sweeps](/jek/docs/jekray/concepts/#sweeps)). The **Sweeps** menu plays and pauses every sweep, and holds **Optimise the bench…** and **Tolerance the bench…**, an optimiser and a Monte Carlo study over the swept values.
 
 ## Saving and sharing
 

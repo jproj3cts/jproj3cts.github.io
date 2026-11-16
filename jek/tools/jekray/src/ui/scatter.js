@@ -219,6 +219,8 @@ export function scatActivity() {
   }
   return null;
 }
+/* the steps solved ahead on the worker, for a sweep's estimate (ui/sweeps.js): seconds so far, steps done and in all; null when none are */
+export function scatAheadEta() { const A = SCW.ahead; return A && !A.page ? { dt: (performance.now() - A.t0) / 1000, done: A.done, of: A.of } : null; }
 /* every step solved ahead dropped (the sweep stopped or rendered again) */
 export function scatterAheadStop() {
   for (const q of SCW.queue) if (q.proj && q.resolve) q.resolve(null);
@@ -493,7 +495,7 @@ export function scatterSection(el) {
     return;
   }
   const status = h('div', { class: 'rt-scatrun', role: 'status', 'aria-live': 'polite', style: 'display:none;align-items:center;flex-wrap:wrap;gap:0.6rem;margin-top:0.6rem;font-size:0.8125rem;color:var(--jek-ink-soft)' });
-  const bar = h('progress', { class: 'rt-scatbar', max: 1, 'aria-label': 'Scattering progress', style: 'flex:1;min-width:4rem;height:0.4rem;accent-color:var(--jek-cyan)' });
+  const fill = h('i'), bar = h('div', { class: 'rt-pbar rt-scatbar', role: 'progressbar', 'aria-label': 'Scattering progress', style: 'flex:1;min-width:4rem' }, fill);
   const box = h('div', { class: 'rt-readout' });
   const views = [['in', 'In the bench plane'], ['out', 'Out of the plane'], ['map', 'Every direction']];
   const tabs = h('div', { class: 'rt-inline', style: 'margin:0.5rem 0 0.3rem;flex-wrap:wrap;column-gap:0.8rem;row-gap:0.2rem' });
@@ -556,7 +558,10 @@ export function scatterSection(el) {
       status.style.display = st.length ? 'flex' : 'none';
     }
     bar.hidden = !st.length || !A.busy && !SCW.ahead;
-    if (frac === null) bar.removeAttribute('value'); else bar.value = Math.max(0, Math.min(1, frac));
+    // (pulsing while it works: style.css .rt-busy)
+    bar.classList.toggle('rt-busy', !bar.hidden); bar.classList.toggle('rt-indet', frac === null);
+    fill.style.width = frac === null ? '0' : (100 * Math.max(0, Math.min(1, frac))).toFixed(1) + '%';
+    if (frac === null) bar.removeAttribute('aria-valuenow'); else bar.setAttribute('aria-valuenow', String(Math.round(100 * Math.max(0, Math.min(1, frac)))));
     box.style.opacity = A.busy && S ? '0.55' : '';              // figures from before the last change, while their run is redone
     // (a Particle part: after its own figures, where its scattered light goes on the bench)
     const rows = (S ? scatterRows(el, S) : []).concat(isPart && (S || A.none) ? caughtRows(el) : []);

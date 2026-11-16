@@ -1193,8 +1193,14 @@ export function getCss(v) {
   return cssCache[v];
 }
 
+/* A sweep's render held (ui/sweeps.js: one predicted to take long shows its bars alone until the whole cycle is ready):
+   the bench, 2D and 3D, stays as it was drawn. drawCount: the frames drawn (the tests read it). */
+let drawHeld = () => false;
+export function setDrawHeld(f) { drawHeld = f; }
+export let drawCount = 0;
 export function render() {
-  if (!W || !H) return;
+  if (!W || !H || drawHeld()) return;
+  drawCount++;
   // a view newly on the screen (a bench opened, a tab switched to) is the one a later resize keeps in place, once the
   // bench is the size it is drawn at (a resize still to come, as the panels change, leaves the new view as saved)
   if (V() !== benchMidView) { const r = stage.getBoundingClientRect(); if (r.width === W && r.height === H) { benchMid = r.left + r.width / 2; benchMidView = V(); } }

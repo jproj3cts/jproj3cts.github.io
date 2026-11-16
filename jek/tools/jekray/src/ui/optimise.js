@@ -8,7 +8,7 @@ import { getPath, setParam } from '../state/params.js';
 import {
   allSweeps, animLast, clockT, clockValueAt, fieldRendered, pauseAll, playStep, playing,
   renderedPeriod, sampleShown, setAnimFrame, setAnimLast, setClockT, setPlayStep, setStepSince,
-  stepSince, stepValue, sweepJob
+  stepSince, stepValue, sweepHoldTick, sweepJob
 } from './sweeps.js';
 import { detectorReading, fibreCoupling } from '../engines/fibre-face.js';
 import { syncPanel } from './panel.js';
@@ -479,6 +479,8 @@ export function stopSweepsFor(el, prefix) {
 }
 export function tick(t) {
   if (!playing.size) { setAnimFrame(null); return; }
+  // (a long render held: nothing moves until the whole cycle is ready, the clock with it)
+  if (sweepHoldTick()) { setAnimLast(t); setAnimFrame(requestAnimationFrame(tick)); return; }
   const dt = animLast === null ? 0 : Math.min(0.1, (t - animLast) / 1000);
   setAnimLast(t);
   setClockT(clockT + (dt));

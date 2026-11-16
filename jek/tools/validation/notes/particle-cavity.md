@@ -4,7 +4,7 @@ Paused on 16 November 2026 at the owner's request. This note is the place to pic
 
 Everything here is reached only through the Particle part. The empty cavity's own solve (`engines/cavity.js`) was not changed by any of it.
 
-## What is on main (d73c20b4)
+## What is on main
 
 - **The mode solve** (`engines/scatter-cavity.js`) for a stable, unclipped, non-degenerate two-mirror cavity. It is checked against `validation/scripts/scatter_cavity.py` in the validation case `scatter-cavity` (452 checks, all pass).
 - **The degeneracy rule.** A cavity is degenerate if the modes q orders up (q up to 6) resonate within three linewidths of TEM00. This was changed from the first rule with the owner's agreement.
@@ -16,13 +16,15 @@ Everything here is reached only through the Particle part. The empty cavity's ow
 
   The weight's convention was fixed by checks outside both codes: a Fresnel propagation (`gouy1d.py`) and a mode-by-mode count (`modal.py`).
 
-## On the feature branch `claude/ecstatic-maxwell-ymsuji`, not on main
+## The warning flags (on main since 16 November 2026)
 
-1. **`7a110260`: two warnings in the Scattering tab.** Full suite passed on it (Node 595, browser 758).
-   - `pupilFar`: a degenerate cavity more than 0.25 rad of round-trip Gouy phase from re-imaging.
-   - `modeNear`: the mode solve with transverse modes stepping by under 1 rad a round trip.
-   - Both come from `cavUnchecked` in `scatter-cavity.js`.
-2. **`5faea4af`: round 6, the mode solve near degeneracy.** Node 599 and browser 758 passed in the agent's worktree. **The whole validation page was not run on it**: that was the next step when the work stopped. Before this commit goes to main, run the validation page, rebuild every app and run the full suite.
+Two warnings in the Scattering tab, from `cavUnchecked` in `scatter-cavity.js`:
+- `pupilFar`: a degenerate cavity more than 0.25 rad of round-trip Gouy phase from re-imaging.
+- `modeNear`: the mode solve with transverse modes stepping by under 1 rad a round trip.
+
+## Round 6: on the feature branch `claude/ecstatic-maxwell-ymsuji` only
+
+Round 6 (the mode solve near degeneracy, first commit `5faea4af`) is held back from main: main carries a revert of it, and the feature branch carries the revert of that revert. Node and browser suites pass with it, but **the whole validation page has not been run on it**. Before it goes to main: run the validation page, rebuild every app, run the full suite, then merge the branch (its revert of the revert brings round 6 with it).
 
 ## Round 6 in short
 

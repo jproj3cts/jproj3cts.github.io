@@ -6600,7 +6600,7 @@ const TESTS = [
     },
   },
   {
-    name: 'Progress bars pulse while their work goes on, stop when it is done, and breathe instead with reduced motion',
+    name: 'Progress bars pulse while their work goes on, stop when it is done, breathe instead with reduced motion, and sit clear of the rail',
     why: 'the bench’s activity bar while a sweep renders carries rt-busy, and its fill’s highlight is the rt-sweep animation, moved by transform; once done it loses rt-busy at once. The stylesheet’s reduced-motion rule turns the sweep off and breathes the fill instead (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
@@ -6610,7 +6610,7 @@ const TESTS = [
           sweeps: { y: { min: -1, max: 1, freq: 0.5, phase: 0, wave: 'sine', field: true, steps: 6 } } },
         { type: 'screen', id: 'Sc', name: 'Screen', x: 120, y: 0, angle: 180, length: 10 }], { light: { rays: false, envelope: false, field: true, scale: 'lin' } }));
       const doc = rigDoc(), win = rigWin();
-      let busySeen = false, anim = '', moved = false;
+      let busySeen = false, anim = '', moved = false, clear = true;
       try {
         const p = J.sweepPlay('Lens', 'y');
         let busy = true; p.then(() => { busy = false; });
@@ -6620,6 +6620,10 @@ const TESTS = [
             busySeen = true;
             const i = doc.querySelector('.rt-activity:not(.rt-act-scat) .rt-act-bar.rt-busy > i');
             if (i) { const cs = win.getComputedStyle(i, '::after'); anim = cs.animationName; moved = /rt-sweep/.test(anim) && cs.content !== 'none'; }
+            // the bars in their own dock, clear of the parts rail and of every button on the bench
+            const dk = doc.querySelector('.rt-actdock'), D = dk && dk.getBoundingClientRect(), meet = r => r.width && r.height && !(r.right <= D.left || r.left >= D.right || r.bottom <= D.top || r.top >= D.bottom);
+            if (!D || !D.height) clear = false;
+            else for (const e of doc.querySelectorAll('.rt-rail, #stage button, #stage input, #stage select, #stage a')) if (!dk.contains(e) && e.offsetParent && meet(e.getBoundingClientRect())) clear = false;
           }
           await new Promise(r => setTimeout(r, 0));
         }
@@ -6629,8 +6633,8 @@ const TESTS = [
         // the reduced-motion rule: no sweep, a breathing fill
         let reduced = false;
         for (const sh of doc.styleSheets) { let rules; try { rules = sh.cssRules; } catch (e) { continue; } for (const r of rules) if (r.media && /prefers-reduced-motion: reduce/.test(r.media.mediaText) && /\.rt-busy > i::after/.test(r.cssText) && /animation: (none|auto)|display: none/.test(r.cssText) && /rt-breathe/.test(r.cssText)) reduced = true; }
-        if (!(busySeen && moved && stopped && reduced)) console.log('bars', { busySeen, anim, moved, stopped, reduced });
-        return busySeen && moved && stopped && reduced ? 1 : 0;
+        if (!(busySeen && moved && stopped && reduced && clear)) console.log('bars', { busySeen, anim, moved, stopped, reduced, clear });
+        return busySeen && moved && stopped && reduced && clear ? 1 : 0;
       } finally { J.sweepPause(); }
     },
   },

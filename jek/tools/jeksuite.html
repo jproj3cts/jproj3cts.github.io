@@ -433,12 +433,17 @@
     font: inherit; font-size: 0.875rem; color: var(--jek-ink); cursor: pointer;
   }
   .rt-menu button:hover, .rt-menu button:focus-visible { background: var(--jek-well); outline: none; }
-  /* what is being worked out: top right of the bench, white, no box */
+  /* What is being worked out: the bars in a dock of their own at the bottom right of the bench, above its tab strip,
+     in the bench's overlay colours (as the 3D key), never over the parts rail at the top or anything that can be
+     clicked. ui/sweeps.js (placeBars) raises the dock above whatever else sits at the bottom there (the minimap, the 3D
+     key, the drawing hint, a note) and narrows it to the bench. */
+  .rt-actdock { position: absolute; z-index: 5; right: 0.6rem; bottom: 2.6rem; width: min(26rem, calc(100% - 3rem)); display: flex; flex-direction: column; gap: 0.3rem; pointer-events: none; }
+  .rt-actdock:empty { display: none; }
   .rt-activity {
-    position: absolute; z-index: 5; right: 7rem; top: 0.55rem; width: min(380px, 50%);
-    font-size: 0.72rem; color: rgba(255,255,255,0.85); text-align: right; pointer-events: none;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    box-sizing: border-box; padding: 4px 8px 6px; border-radius: 4px; font-size: 0.72rem; text-align: right; pointer-events: none;
+    color: var(--rt-over-ink); background: var(--rt-over); border: 1px solid var(--rt-over-line);
   }
+  .rt-activity[hidden] { display: none; }
   /* a heavy field, said before it is worked out: top middle of the bench, with what would lighten it */
   .rt-heavy {
     position: absolute; z-index: 6; left: 50%; top: calc(var(--rt-top) + 0.6rem); transform: translateX(-50%); width: min(34rem, calc(100% - 2rem)); box-sizing: border-box;
@@ -452,13 +457,12 @@
   .rt-act-text { display: flex; justify-content: flex-end; gap: 0.5rem; margin-bottom: 0.3rem; line-height: 1.3; white-space: nowrap; }
   .rt-act-text span:first-child { overflow: hidden; text-overflow: ellipsis; }
   .rt-act-pct { font-family: var(--jek-mono); font-variant-numeric: tabular-nums; }
-  .rt-act-bar { position: relative; height: 2px; overflow: hidden; background: rgba(255,255,255,0.18); }
-  .rt-act-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--rt-surface); transition: width 0.15s linear; }
+  .rt-act-bar { position: relative; height: 2px; overflow: hidden; background: rgba(127,127,127,0.28); }
+  .rt-act-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--jek-orange, #f4793e); transition: width 0.15s linear; }
+  /* the particles' scattering: its own bar under the bench's, in the cool colour its scattered field is drawn in */
+  .rt-act-scat .rt-act-bar i { background: var(--jek-cyan, #4fc0d8); }
   /* moved by transform, which the browser keeps animating even while a long step holds the page */
   .rt-activity.indeterminate .rt-act-bar i { width: 30%; animation: rt-slide 1.2s ease-in-out infinite; will-change: transform; }
-  /* the particles' scattering: its own bar under the bench's, in the cool colour its scattered field is drawn in */
-  .rt-activity.rt-act-scat { top: 2.75rem; }
-  .rt-act-scat .rt-act-bar i { background: #7fd8ff; }
   @keyframes rt-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
   @media (prefers-reduced-motion: reduce) { .rt-activity.indeterminate .rt-act-bar i { animation: none; width: 100%; opacity: 0.45; } }
   /* Every progress bar pulses while its work goes on (class rt-busy on the track): a soft highlight sweeping left to right
@@ -477,12 +481,7 @@
   }
   /* (the whole track's pulse, where there is no fill to run along: in the fill's own colour, which shows on either theme) */
   .rt-busy.rt-indet::after { background: linear-gradient(90deg, transparent 0%, rgba(79,192,216,0) 25%, rgba(79,192,216,0.65) 50%, rgba(79,192,216,0) 75%, transparent 100%); }
-  .rt-act-bar.rt-busy.rt-indet::after { background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent); }
-  /* (in the light theme the bars' words and fill are dark: white was lost on the paper and the 3D room) */
-  :root[data-rt-theme="light"] .rt-activity { color: rgba(20,24,28,0.85); text-shadow: 0 1px 2px rgba(255,255,255,0.85); }
-  :root[data-rt-theme="light"] .rt-act-bar { background: rgba(20,24,28,0.15); }
-  :root[data-rt-theme="light"] .rt-activity:not(.rt-act-scat) .rt-act-bar i { background: rgba(20,24,28,0.7); }
-  :root[data-rt-theme="light"] .rt-act-scat .rt-act-bar i { background: #1f8fb0; }
+  .rt-act-bar.rt-busy.rt-indet::after { background: linear-gradient(90deg, transparent, rgba(244,121,62,0.6), transparent); }
   @keyframes rt-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
   @keyframes rt-breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
   @media (prefers-reduced-motion: reduce) {

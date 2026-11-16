@@ -721,6 +721,38 @@ export function updateActivity() {
   barShow(activity, activityNow());
   const s = scatActivity(), A = s && scatAheadEta(), left = A && A.done >= 1 ? leftText(A.dt / A.done * (A.of - A.done)) : '';
   barShow(scatBar, s && left ? Object.assign({}, s, { text: s.text + ' (' + left + ')' }) : s);
+  placeBars();
+}
+/* The bars' dock (style.css .rt-actdock): at the bottom right of the bench, above its tab strip, clear of the parts rail
+   at the top. Whatever else sits at the bottom of the bench across its width (the minimap, the 3D view's key, the
+   drawing hint, the measuring bar, a note, an embed's bar) puts it above them; it is never higher than just under the
+   rail, and never wider than the bench. */
+const DOCK_AVOID = '.rt-minimap, .rt-v3dkey, .rt-drawhint, .rt-measurebar, .rt-welcome, .rt-embedbar';
+function actDock() {
+  const stage = document.getElementById('stage');
+  let d = stage.querySelector(':scope > .rt-actdock');
+  if (!d) { d = h('div', { class: 'rt-actdock' }); stage.append(d); }
+  return d;
+}
+function placeBars() {
+  const stage = document.getElementById('stage'), d = stage && stage.querySelector(':scope > .rt-actdock');
+  if (!d || ![...d.children].some(c => !c.hidden)) return;
+  const S = stage.getBoundingClientRect(), base = 2.6 * 16, gap = 6;
+  d.style.bottom = base + 'px';
+  const D = d.getBoundingClientRect();
+  let bottom = base;
+  for (const o of stage.querySelectorAll(DOCK_AVOID)) {
+    if (o.hidden || !o.offsetParent || getComputedStyle(o).display === 'none' || getComputedStyle(o).visibility === 'hidden') continue;
+    const r = o.getBoundingClientRect();
+    if (!r.width || !r.height || r.right <= D.left || r.left >= D.right || r.top >= S.bottom) continue;
+    bottom = Math.max(bottom, S.bottom - r.top + gap);
+  }
+  // (on a phone the panel is a sheet over the bottom of the bench: above it)
+  for (const sheet of document.querySelectorAll('.rt-panel')) if (!sheet.hidden && sheet.offsetParent && getComputedStyle(sheet).position === 'absolute') { const r = sheet.getBoundingClientRect(); if (r.height && r.top < S.bottom && r.left < D.right && r.right > D.left) bottom = Math.max(bottom, S.bottom - r.top + gap); }
+  // (no higher than just under the rail and what the top overlays need: on a short bench it stays at its base)
+  const top = parseFloat(getComputedStyle(stage).getPropertyValue('--rt-top')) || 0;
+  if (S.height - bottom - D.height < top + gap) bottom = base;
+  d.style.bottom = bottom + 'px';
 }
 /* (the tests) the two bars drawn now, as they stand: shown, pulsing, what they say */
 export function activityBars() {
@@ -747,7 +779,8 @@ function barShow(B, a) {
     B.bar = h('i');
     B.track = h('div', { class: 'rt-act-bar' }, B.bar);
     B.box = h('div', { class: 'rt-activity' + B.cls, role: 'status', 'aria-live': 'polite' }, B.text, B.track);
-    document.getElementById('stage').append(B.box);
+    // (in the bars' own dock, the bench's first, the scattering's under it)
+    if (B === activity) actDock().prepend(B.box); else actDock().append(B.box);
   }
   if (B.box.hidden) B.shown = now;
   B.box.hidden = false;

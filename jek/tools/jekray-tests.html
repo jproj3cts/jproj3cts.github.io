@@ -12921,13 +12921,15 @@ const TESTS = [
       const dragged = Math.abs(el.x - 1.5) < 0.05 && Math.abs(el.y - 0.75) < 0.05;
       J.set(name, { x: 1, y: 0 }); J.select(name); await frame();
       const tabs = [...doc.querySelectorAll('#panel .rt-tab')].map(b => b.textContent), hasTabs = ['Particle', 'Trap', 'Scattering'].every(t => tabs.includes(t));
-      const own = /Send its scattered light to the parts/.test(doc.getElementById('panel').textContent) && /Diameter \(nm\)/.test(doc.getElementById('panel').textContent);
+      // (its light's switches are on the Scattering tab, not its own)
+      const own = !/Send its scattered light to the parts/.test(doc.getElementById('panel').textContent) && /Diameter \(nm\)/.test(doc.getElementById('panel').textContent);
       const tab = t => { [...doc.querySelectorAll('#panel .rt-tab')].find(b => b.textContent === t).click(); };
       tab('Trap'); await frame(); await frame();
       const trap = /Frequencies/.test(doc.getElementById('panel').textContent) && /Depth/.test(doc.getElementById('panel').textContent);
       tab('Scattering'); await frame(); await frame();
       const text = doc.getElementById('panel').textContent;
-      const scat = /Lorenz–Mie/.test(text) && /Caught by Obj/.test(text) && /Not collected/.test(text) && /Where the part is/.test(text);
+      const scat = /Lorenz–Mie/.test(text) && /Caught by Obj/.test(text) && /Not collected/.test(text) && /Where the part is/.test(text)
+        && /On the bench\s*Send its scattered light to the parts\s*Draw the scattered light in every direction\s*Draw an estimate of its scattered field/.test(text);
       // with its light off the trace has the rays it had without the particle
       J.set(name, { scatLight: false }); await frame();
       const same = J.traceInfo().rays === rays0;
@@ -13059,7 +13061,7 @@ const TESTS = [
   },
   {
     name: 'With its scattered field drawn, a particle’s rays fade, the beam is drawn as it was, and the 3D key gives the field’s own scale',
-    why: 'a particle in a wide beam, a lens 4 mm ahead that collimates its cone onto a detector 8 mm ahead. On the 2D bench (the fan off) the cone’s rays past the lens, where the field does not reach, are fainter with the field on (under 0.6 of their light without it) but still there, and upstream of the field’s reach the beam’s pixels are the same with it on and off. In 3D the fan and the cones are drawn at under half their opacity with it on and as before with it off; the key has a second scale, the particle’s scattered light, with it on and none with it off; and pointing just above the particle reads the scattered light there (1 when all hold)',
+    why: 'a particle in a wide beam, a lens 4 mm ahead that collimates its cone onto a detector 8 mm ahead. On the 2D bench (the fan off) the cone’s rays past the lens, where the field does not reach, are fainter with the field on (under 0.6 of their pink without it, where the field’s blue glow now goes on past the lens too), and upstream of the field’s reach the beam’s pixels are the same with it on and off. In 3D the fan and the cones are drawn at under half their opacity with it on and as before with it off; the key has a second scale, the particle’s scattered light, with it on and none with it off; and pointing just above the particle reads the scattered light there (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r))), doc = rigDoc(), cv = doc.getElementById('bench');
@@ -13078,11 +13080,13 @@ const TESTS = [
       // (the rays' share of those pixels: against the same bench with no scattered light at all)
       const on = await shot(true), off = await shot(false), none = await shot(null);
       const diff = (a, b) => a.reduce((s2, v, i) => s2 + (i % 4 === 3 ? 0 : Math.abs(v - b[i])), 0);
-      const pOn = diff(on.past[0], none.past[0]) + diff(on.past[1], none.past[1]), pOff = diff(off.past[0], none.past[0]) + diff(off.past[1], none.past[1]), up = diff(on.up, off.up);
+      // (the rays are pink, the glow the field draws there now, past the lens, is blue: the rays by their pinkness, red less green)
+      const pink = (a, b) => { let m = 0; for (let i = 0; i < a.length; i += 4) m += (a[i] - a[i + 1]) - (b[i] - b[i + 1]); return m; };
+      const pOn = pink(on.past[0], none.past[0]) + pink(on.past[1], none.past[1]), pOff = pink(off.past[0], none.past[0]) + pink(off.past[1], none.past[1]), up = diff(on.up, off.up);
       // (the beam is there: its pixels are not all the bench's own colour)
       let lo = 255, hi = 0; for (let i = 0; i < off.up.length; i += 4) { lo = Math.min(lo, off.up[i + 1]); hi = Math.max(hi, off.up[i + 1]); }
       const upLit = hi - lo;
-      const two = pOff > 2000 && pOn > 0.05 * pOff && pOn < 0.6 * pOff && up === 0 && upLit > 30;
+      const two = pOff > 2000 && pOn < 0.6 * pOff && up === 0 && upLit > 30;
       let three = false, S0 = null, S1 = null, K0 = null, K1 = null, rd = null;
       try {
         load(false, true);
@@ -13097,6 +13101,52 @@ const TESTS = [
       } finally { await J.view3d.set(false); }
       if (!(two && three)) console.log('particle rays', JSON.stringify({ two, pOn, pOff, up, upLit, three, S0, S1, K0, K1, rd }));
       return two && three ? 1 : 0;
+    },
+  },
+  {
+    name: 'The scattered field goes on through a lens as a glow from its cone’s rays, and follows the particle’s Scale',
+    why: 'a particle in a wide beam polarised out of the bench plane (so its light goes evenly round it in the plane), a lens 5 mm to the side that collimates its cone onto a detector 11 mm out, the fan off. Past the lens, where the 1/r² picture stops, the bench is bluer with the field on (its own ramp, the sum of blue less red over the pixels between the lens and the detector up by more than 2000) and not with it off (no bluer than with no scattered light at all); upstream of the field’s reach the beam’s pixels are the same on and off. The Scale set to Linear changes the picture past the particle and the 3D key says linear; set back to Logarithmic the pixels are as they were; and no trace is run by either (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r))), doc = rigDoc(), cv = doc.getElementById('bench');
+      const els = (sf, light) => [src({ name: 'L', x: -30, wavelength: 1550, gauss: true, w0: 0.5, z0: 0, width: 1.6, rays: 1, pol: 's', power: 100, popN: 256 }),
+        { type: 'particle', name: 'P', x: 0, y: 0, angle: 90, trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum', scatFan: false, scatField: sf, scatLight: light },
+        { type: 'mask', name: 'Lens', x: 0, y: 5, angle: 90, length: 8, amp: '1', delay: '-(sqrt(r^2+25)-5)/lambda', preset: 'custom' },
+        { type: 'detector', name: 'D', x: 0, y: 11, angle: 270, length: 10 }];
+      const load = (sf, light) => J.load(bench('particle through', els(sf, light), { minPower: 1e-6, view: { cx: -10, cy: 0, scale: 12 }, light: { rays: true, envelope: true, field: false, byPower: true } }));
+      const box = (x0, x1, y0, y1) => {
+        const r = cv.getBoundingClientRect(), k = cv.width / r.width, px = x => (r.width / 2 + (x + 10) * 12) * k, py = y => (r.height / 2 - y * 12) * k;
+        const X0 = Math.round(px(x0)), Y0 = Math.round(py(y1));
+        return cv.getContext('2d').getImageData(X0, Y0, Math.round(px(x1)) - X0, Math.round(py(y0)) - Y0).data;
+      };
+      const blue = d => { let m = 0; for (let i = 0; i < d.length; i += 4) m += d[i + 2] - d[i]; return m; };
+      const shot = async (sf, light) => { load(sf, light); await frame(); await frame(); return { past: box(-3, 3, 6.5, 10), near: box(-4, -1.5, -1, 1.5), up: box(-28.5, -26, -1.5, 1.5) }; };
+      const on = await shot(true, true), off = await shot(false, true), none = await shot(false, false);
+      const diff = (a, b) => a.reduce((s2, v, i) => s2 + (i % 4 === 3 ? 0 : Math.abs(v - b[i])), 0);
+      const Mon = blue(on.past), Moff = blue(off.past), Mnone = blue(none.past);
+      const through = Mon - Moff > 2000 && Moff <= Mnone + 200 && diff(on.up, off.up) === 0;
+      // the Scale, as the Scattering tab sets it: linear and back, with no trace run
+      load(true, true); J.select('P'); await frame();
+      [...doc.querySelectorAll('#panel .rt-tab')].find(b => b.textContent === 'Scattering').click(); await frame(); await frame();
+      const setScale = v => { const sel = [...doc.querySelectorAll('#panel select')].find(q => [...q.options].some(o => o.value === 'lin')); sel.value = v; sel.dispatchEvent(new Event('change')); };
+      await frame();
+      const n0 = J.traceInfo().count, L0 = box(-4, -1.5, -1, 1.5);
+      setScale('lin'); await frame(); await frame();
+      const L1 = box(-4, -1.5, -1, 1.5);
+      setScale('log'); await frame(); await frame();
+      const L2 = box(-4, -1.5, -1, 1.5), n1 = J.traceInfo().count;
+      const scale = diff(L0, L1) > 2000 && diff(L0, L2) === 0 && n1 === n0;
+      let three = false, K = null;
+      try {
+        await J.view3d.set(true);
+        setScale('lin'); J.redraw(); await frame();
+        K = [J.view3d.scatField().key];
+        setScale('log'); J.redraw(); await frame();
+        K.push(J.view3d.scatField().key);
+        three = /linear/.test(K[0] || '') && /log \(20 dB\)/.test(K[1] || '');
+      } finally { await J.view3d.set(false); }
+      if (!(through && scale && three)) console.log('particle through', JSON.stringify({ through, Mon, Moff, Mnone, up: diff(on.up, off.up), scale, d1: diff(L0, L1), d2: diff(L0, L2), n0, n1, three, K }));
+      return through && scale && three ? 1 : 0;
     },
   },
   {

@@ -92,3 +92,41 @@ test('off (the default): no field, and nothing more probed', async () => {
   await open([laser(), particle({ x: 0.003 }), det()]);
   assert.equal(TR.lastTrace.scat.parts.p.probed, off + SF.SF_RING + SF.SF_NT * SF.SF_NP);
 });
+
+test('past a lens: the light the cone carries on, from its rays as tubes, joins the 1/r² picture and keeps its power', async () => {
+  // an ideal lens 20 mm to the side, focal length 20 mm: the cone comes out collimated onto a detector 60 mm out
+  const lens = { id: 'L', type: 'mask', name: 'L', x: 0, y: 20, angle: 90, length: 20, amp: '1', delay: '-(sqrt(r^2+400)-20)/lambda', preset: 'custom' };
+  await open([laser(), particle({ scatFan: false }), lens, det({ x: 0, y: 60, angle: 270, length: 30 })]);
+  const F = TR.lastTrace.scat.fans.find(f => f.part === 'p'), G = F.field;
+  const C = F.through.find(c => c.rays.length > 100);
+  assert.ok(C, 'the lens’s cone goes on');
+  let worst = 0, flat = 0, n = 0;
+  for (const r of C.rays) {
+    const s = r.s, m = s.length / 5;
+    // where it leaves the lens, against the 1/r² picture a hair before it, along the same direction: the tube turned by
+    // the lens is cut square to its new way, so wider by 1 / cos of the turn (the irradiance across it is that much less)
+    const d = [s[0] - F.pos[0], s[1] - F.pos[1], s[2] - F.pos[2]], dl = Math.hypot(...d), e = [s[5] - s[0], s[6] - s[1], s[7] - s[2]], el = Math.hypot(...e);
+    const turn = (d[0] * e[0] + d[1] * e[1] + d[2] * e[2]) / (dl * el), want = turn * SF.scatFieldAt(G, 0.999 * d[0], 0.999 * d[1], 0.999 * d[2]);
+    if (want > 0 && r.ri < 6) { worst = Math.max(worst, rel(s[3], want)); n++; }
+    // collimated: as bright all the way on
+    for (let o = 5; o < s.length; o += 5) flat = Math.max(flat, rel(s[o + 3], s[3]));
+    assert.ok(m >= 2 && Math.abs(s[5 * (m - 1) + 1] - 60) < 1e-6, 'to the detector');
+  }
+  assert.ok(n > 50 && worst < 0.03, 'joins the 1/r² picture at the lens: ' + worst + ' over ' + n);
+  assert.ok(flat < 1e-3, 'collimated, as bright all the way: ' + flat);
+  // power: each tube's irradiance times its area is the power its ray carries, which add up to what the lens catches
+  const caught = TR.lastTrace.scat.parts.p.rows.find(r => r.id === 'L').P;
+  let P = 0; for (const r of C.rays) P += r.s[3] * Math.PI * r.s[4] * r.s[4] / 4;
+  assert.ok(rel(P, caught) < 0.05, 'the tubes carry the cone’s power: ' + P + ' against ' + caught);
+  // with the field off there is nothing past the lens
+  await open([laser(), particle({ scatFan: false, scatField: false, x: 0.002 }), lens, det({ x: 0, y: 60, angle: 270, length: 30 })]);
+  assert.equal(TR.lastTrace.scat.fans.find(f => f.part === 'p').through, undefined);
+});
+
+test('the Scale: linear from nought to the top, or logarithmic over its decades', () => {
+  const G = { top: 2, dec: 4 };
+  assert.equal(SF.scatFieldLevel(G, 1, true), 0.5);
+  assert.equal(SF.scatFieldLevel(G, 4, true), 1);
+  assert.equal(SF.scatFieldLevel(G, 2e-2, false), 0.5);
+  assert.equal(SF.scatFieldLevel(G, 0, true), 0);
+});

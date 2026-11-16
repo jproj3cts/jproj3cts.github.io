@@ -11248,10 +11248,10 @@ const PARTICLE = {
       scatModel: '"auto" (Mie for a sphere, a dipole array for other shapes, Rayleigh when tiny), "rayleigh", "mie" or "dda".', scatDip: 'dipoles across the smallest dimension of a dipole array (0 chooses).',
       scatAt: '"part": the particle is where the part is; "trap": where the optical trap nearest the part holds it.', scatDx: 'µm: moved from there across the strongest beam, in the bench plane (across it level, for a beam that rises or descends).', scatDy: 'µm: moved up out of the plane (up from the beam, square to it, for a beam that rises or descends).', scatDz: 'µm: moved along the beam.',
       scatNA: 'the numerical aperture of the cone the Scattering tab’s Collected figure is for.', scatDir: 'that cone’s direction: "fwd", "back", "side", "up" or "angle" (with scatAng).', scatAng: 'degrees: the cone’s direction on the bench, for scatDir "angle".',
-      scatScale: '"log" or "lin": the pattern plots’ scale.', scatView: '"in" (the bench plane), "out" (the plane out of it through the beam) or "map" (every direction).',
+      scatScale: '"log" or "lin": the pattern plots’ scale, and the scattered field picture’s (scatField) on the bench.', scatView: '"in" (the bench plane), "out" (the plane out of it through the beam) or "map" (every direction).',
       scatLight: 'true puts the scattered light on the bench: a cone to each part with a clear line to the particle, with the far field’s amplitude, phase and polarisation, coherent with the driving laser. false leaves the bench as it is without it.',
       scatFan: 'true draws a faint fan of the scattered light in every direction, as bright as the pattern is; a picture only, never part of a reading.',
-      scatField: 'true draws an estimate of the scattered field as the diffracted field is drawn (2D and 3D): the far-field pattern falling off as 1/r², stopped at the first part each direction meets, intensity only, on a log scale of its own (40 dB on the bench, 20 dB in 3D, whatever the beam’s); a picture only, never part of a reading. Default false.' },
+      scatField: 'true draws an estimate of the scattered field as the diffracted field is drawn (2D and 3D): the far-field pattern falling off as 1/r² as far as the first part each direction meets, and past a part that passes it on the light the cones’ rays carry (each ray’s power over its tube), intensity only, on a scale of its own, scatScale’s (log: 40 dB on the bench, 20 dB in 3D; or linear), whatever the beam’s; a picture only, never part of a reading. Default false.' },
   },
 };
 
@@ -14404,7 +14404,7 @@ const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + scatRevNow() + '|' + 
 // what changes nothing in the light: a part's name and where it is written, its import notes, drawings; where a
 // fibre component or a chip part sits (their networks are solved by what joins what: a fibre's length is its own
 // setting), and the way a fibre or waveguide is drawn across the bench
-const COSMETIC = new Set(['hide3d', 'label', 'name', 'assumed', 'design', 'source', 'lineColour', 'fillColour']);
+const COSMETIC = new Set(['hide3d', 'label', 'name', 'assumed', 'design', 'source', 'lineColour', 'fillColour', 'scatScale']);   // (scatScale: a particle's plots and pictures)
 const PLACED = new Set(['x', 'y', 'angle']), DRAWN = new Set(['path', 'ta', 'tb', 'route']);
 function keyCut(k, v) {
   if (COSMETIC.has(k)) return undefined;
@@ -24497,7 +24497,7 @@ const V3D = (() => {
     show();
     if (!active() || !R) return;
     resize();
-    const key = traceKeyNow() + '|' + netKey() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale : '');
+    const key = traceKeyNow() + '|' + netKey() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale : '') + '|' + scatVolKey();   // (a particle's Scale changes no trace)
     if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
     if (R.camTab !== project.tab) { if (tool && tool.off && R.camTab !== null) tool.off(); R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
     // (and where the selected parts are and how they are turned, so their handles follow them, through an undo too)
@@ -25357,9 +25357,10 @@ const V3D = (() => {
       float v = texture2D(uAcc, vU).r;
       if (uDec > 0.0) v = clamp(1.0 + log(max(v, 1e-12)) / log(10.0) / uDec, 0.0, 1.0); else v = clamp(v, 0.0, 1.0);
       // a particle's scattered field, on its own log scale and in its own colours (scatRamp), laid under the beam's light
-      float w = uS > 0.0 ? clamp(1.0 + log(max(texture2D(uScat, vU).r, 1e-12)) / log(10.0) / uDecS, 0.0, 1.0) : 0.0;
+      // (uDecS 0: the particle's Scale is linear)
+      float ws = uS > 0.0 ? texture2D(uScat, vU).r : 0.0, w = uDecS > 0.0 ? clamp(1.0 + log(max(ws, 1e-12)) / log(10.0) / uDecS, 0.0, 1.0) : clamp(ws, 0.0, 1.0);
       if (v <= 0.002 && w <= 0.002) discard;
-      float a = v > 0.002 ? clamp(0.25 + 0.75 * v, 0.0, 0.92) * smoothstep(0.0, 0.06, v) : 0.0, aw = w > 0.002 ? clamp(0.25 + 0.75 * w, 0.0, 0.92) * smoothstep(0.0, 0.06, w) : 0.0;
+      float a = v > 0.002 ? clamp(0.25 + 0.75 * v, 0.0, 0.92) * smoothstep(0.0, 0.06, v) : 0.0, aw = w > 0.002 ? clamp(0.95 * w, 0.0, 0.92) : 0.0;   // (the scattered light fades out at its floor, not into a dark tint over the beam)
       float at = a + aw * (1.0 - a);
       gl_FragColor = vec4((texture2D(uMap, vec2(v, 0.5)).rgb * a + texture2D(uMapS, vec2(w, 0.5)).rgb * aw * (1.0 - a)) / max(at, 1e-6), at);
     }`;
@@ -25432,6 +25433,7 @@ const V3D = (() => {
     q.frustumCulled = false; q.renderOrder = 2; q.userData.volQuad = true;
     q.onBeforeRender = () => {
       const u = q.material.uniforms, sc = R.scatVols && R.scatVols.length && R.scatRT;
+      u.uDecS.value = sc && scatLin(R.scatVols[0].userData.scatVol) ? 0 : SF_DEC / 2;
       u.uAcc.value = R.volRT ? R.volRT.texture : null; u.uScat.value = sc ? R.scatRT.texture : u.uAcc.value; u.uS.value = sc ? 1 : 0;
     };
     G.add(q);
@@ -25472,7 +25474,10 @@ const V3D = (() => {
       gl_FragColor = vec4(sum / b * uK, 0.0, 0.0, 1.0);
     }`;
   const SVOL_VS = 'varying vec3 vP; void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
-  const scatVolKey = () => ((lastTrace.scat && lastTrace.scat.fans) || []).map(F => F.field ? F.part + ':' + F.field.top : '').join();
+  const scatVolKey = () => ((lastTrace.scat && lastTrace.scat.fans) || []).map(F => F.field ? F.part + ':' + F.field.top + ':' + scatLin(F) : '').join();
+  // a particle's Scale (the Scattering tab's, scatScale): linear, or logarithmic over half the bench's decades (the light
+  // along a line of sight falls as 1/b where the irradiance falls as 1/b², so the glow reaches as far as on the bench)
+  const scatLin = F => (getEl(F.part) || {}).scatScale === 'lin';
   function scatVolMeshes(G) {
     for (const F of (lastTrace.scat && lastTrace.scat.fans) || []) {
       const S = F.field;
@@ -25499,7 +25504,61 @@ const V3D = (() => {
         if (R.volRT) { m.uniforms.uDepth.value = R.volRT.depthTexture; m.uniforms.uRes.value.set(R.volRT.width, R.volRT.height); }
       };
       G.add(o);
+      if (F.through && F.through.length) scatThroughMesh(G, F);
     }
+  }
+  /* Past the parts (the field's `through`: engines/scatter-field.js scatThrough): each ray of a cone that goes on as a
+     ribbon facing the eye, as wide as its tube, carrying the light a line of sight through a round tube of it adds up
+     (E d sqrt(1 - u²) across it, u from -1 to 1), into the scattered field's own buffer and on its scale, so where the
+     light enters a part it joins the volume's. A tube narrower than SF_RIB mm is drawn that wide with the same light in it
+     (a thread under a pixel would flicker); a solid part in front hides it (the depth pass). */
+  const SF_RIB = 0.08;
+  const RIB_VS = `
+    attribute vec3 aQ; attribute float aSide, aV, aW; varying float vV, vU;
+    void main() {
+      vec4 p = modelViewMatrix * vec4(position, 1.0), q = modelViewMatrix * vec4(aQ, 1.0);
+      vec3 t = q.xyz - p.xyz, n = cross(t, p.xyz);
+      float l = length(n);
+      n = l > 1e-12 ? n / l : vec3(0.0, 1.0, 0.0);
+      p.xyz += n * aSide * 0.5 * aW;
+      vV = aV; vU = aSide;
+      gl_Position = projectionMatrix * p;
+    }`;
+  const RIB_FS = `
+    uniform sampler2D uDepth; uniform vec2 uRes; varying float vV, vU;
+    void main() {
+      if (gl_FragCoord.z > texture2D(uDepth, gl_FragCoord.xy / uRes).r) discard;
+      gl_FragColor = vec4(vV * sqrt(max(0.0, 1.0 - vU * vU)), 0.0, 0.0, 1.0);
+    }`;
+  function scatThroughMesh(G, F) {
+    const S = F.field, pos = [], q = [], side = [], val = [], wid = [], idx = [];
+    let nv = 0;
+    for (const c of F.through) for (const r of c.rays) {
+      const s = r.s, n = s.length / 5;
+      for (let m = 0; m + 1 < n; m++) {
+        const a = 5 * m, b = 5 * (m + 1);
+        if (s[a] === s[b] && s[a + 1] === s[b + 1] && s[a + 2] === s[b + 2]) continue;
+        // each end: its place, the other end (the ribbon's way), which edge, and its light on the field's scale
+        for (const [o, oo, sg] of [[a, b, 1], [a, b, -1], [b, a, -1], [b, a, 1]]) {
+          const d = s[o + 4], w = Math.max(d, SF_RIB);
+          pos.push(s[o], s[o + 1], s[o + 2]); q.push(s[oo], s[oo + 1], s[oo + 2]); side.push(sg); wid.push(w);
+          val.push(s[o + 3] * d * d / w / S.line);
+        }
+        idx.push(nv, nv + 1, nv + 2, nv, nv + 2, nv + 3); nv += 4;
+      }
+    }
+    if (!nv) return;
+    const geo = new T.BufferGeometry();
+    geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setAttribute('aQ', new T.Float32BufferAttribute(q, 3));
+    geo.setAttribute('aSide', new T.Float32BufferAttribute(side, 1)); geo.setAttribute('aV', new T.Float32BufferAttribute(val, 1)); geo.setAttribute('aW', new T.Float32BufferAttribute(wid, 1));
+    geo.setIndex(idx);
+    const m = new T.ShaderMaterial({ vertexShader: RIB_VS, fragmentShader: RIB_FS, transparent: true, depthWrite: false, depthTest: false, side: T.DoubleSide,
+      blending: T.CustomBlending, blendEquation: T.AddEquation, blendSrc: T.OneFactor, blendDst: T.OneFactor,
+      uniforms: { uDepth: { value: null }, uRes: { value: new T.Vector2(1, 1) } } });
+    const o = new T.Mesh(geo, m);
+    o.frustumCulled = false; o.layers.set(2); o.userData.scatThru = F;
+    o.onBeforeRender = () => { if (R.volRT) { m.uniforms.uDepth.value = R.volRT.depthTexture; m.uniforms.uRes.value.set(R.volRT.width, R.volRT.height); } };
+    G.add(o);
   }
   /* the volumes' light, added up into a buffer the size of the view before the scene is drawn: first the
      depth of what is solid (so a part in front of a beam hides it), then each volume, its light added */
@@ -25552,9 +25611,10 @@ const V3D = (() => {
     // a particle's scattered field (scatVolMeshes): its own colours and scale, the light along a line of sight in W/mm as its
     // pass adds it up; its top the strongest direction's, seen passing rTop from the particle (the field's `line`)
     if (sv) {
-      const F = sv[0].userData.scatVol, G = F.field, el = getEl(F.part), d3 = G.dec3;
+      const F = sv[0].userData.scatVol, G = F.field, el = getEl(F.part), d3 = G.dec3, lin = scatLin(F);
       parts.push(h('b', { class: 'sc', title: 'An estimate of the light the particle scatters (its far-field pattern over r\u00b2, stopped at the first part each direction meets), added up along each line of sight, on a log scale of its own: the scattered light is far fainter than the beam' + (sv.length > 1 ? '. The scale is the first particle\u2019s; each has its own' : '') },
-        'Scattered by ' + (el ? el.name : 'the particle') + ', along the line of sight, log (' + d3 * 10 + ' dB)'), bar(v => scatRamp(v, benchLight())), tks([[0, G.line * 10 ** -d3], [0.5, G.line * 10 ** (-d3 / 2)], [1, G.line]]));
+        'Scattered by ' + (el ? el.name : 'the particle') + ', along the line of sight, ' + (lin ? 'linear' : 'log (' + d3 * 10 + ' dB)')), bar(v => scatRamp(v, benchLight())),
+        tks(lin ? [[0, 0], [0.5, G.line / 2], [1, G.line]] : [[0, G.line * 10 ** -d3], [0.5, G.line * 10 ** (-d3 / 2)], [1, G.line]]));
     }
     if (R.vol || sv) parts.push(D.vread = h('div', { class: 'rd' }, 'Point at the light to read it'));
     D.vkey.replaceChildren(...parts);
@@ -29422,11 +29482,9 @@ function particleParams(el) {
   if (!sph) rows.append(param('Length (nm)', el, 'trapLen'), param('Axis tilt up (°)', el, 'trapTilt'));
   rows.append(selectField('Medium', [['bench', 'As on the bench'], ['vacuum', 'Vacuum'], ['air', 'Air, at a pressure'], ['water', 'Water']], () => el.trapMed, v => { el.trapMed = v; }));
   if (el.trapMed === 'air') rows.append(param('Pressure (mbar)', el, 'trapP'));
-  const check = (key, text) => { const c = h('input', { type: 'checkbox' }); c.checked = el[key] !== false; c.onchange = () => { checkpoint(); el[key] = c.checked; changed(true); }; return h('label', { class: 'rt-check wide' }, c, text); };
-  rows.append(check('scatLight', 'Send its scattered light to the parts'), check('scatFan', 'Draw the scattered light in every direction'));
   panel.append(h('h3', null, 'Particle'), rows);
   panel.append(helpLine('A point of the bench: the light passes it untouched, and what it scatters goes to the parts that can see it.', ['The particle is ' + (METAL_NAMES[el.trapMat] || el.trapMat) + ', in whatever light reaches where it is put. The part’s angle is the direction of a rod’s or spheroid’s axis in the bench plane. Its Scattering tab gives its cross-sections, the power it scatters and where that goes; its Trap tab the optical trap the light makes for it. ',
-    'With its scattered light sent to the parts, each part with a clear line to the particle is sent a cone of rays that carry the scattered field along them: its power in that solid angle, its polarisation and its phase, as light of the laser that drives the particle. A lens collimates the cone, a photodetector reads it and adds it to the unscattered beam as a field, a fibre takes its overlap with its mode. The faint fan in every direction is a picture only: it is as bright as the pattern is along each ray and is never part of a reading. ',
+    'With its scattered light sent to the parts (its Scattering tab, On the bench), each part with a clear line to the particle is sent a cone of rays that carry the scattered field along them: its power in that solid angle, its polarisation and its phase, as light of the laser that drives the particle. A lens collimates the cone, a photodetector reads it and adds it to the unscattered beam as a field, a fibre takes its overlap with its mode. The faint fan in every direction is a picture only: it is as bright as the pattern is along each ray and is never part of a reading. ',
     'The particle and everything the light meets are in each other’s far field. Light that comes back to the particle is not scattered again, and two particles do not light each other.'], 'note', 'margin-top:0.5rem'));
 }
 function particlePanel(el) {
@@ -38363,39 +38421,88 @@ function flipLens(el) {
    own cool ramp (scatRamp), not the light's colour, so it is told from the beam where they overlap. An image in the bench's own millimetres over what of the field's square is in view (and a quarter of a view
    more each way), at about two of the screen's pixels to its own, kept while the view stays inside it at about that scale:
    a pan or a zoom draws the same image moved. A particle without it costs nothing here. */
-const SF_IMG = new WeakMap();                   // a field -> { key, x0, y0, x1, y1, mmpp, cv }
+const SF_IMG = new WeakMap();
+/* A fan's light past the parts in the bench plane (its field's `through`, engines/scatter-field.js scatThrough): the strips
+   between neighbouring rays of each cone's two spokes nearest the plane (ring by ring out from the axis on either side,
+   and across the axis between the two first rings), a quad for each step along them, its irradiance the four corners'
+   mean; and the box (mm) the field and they cover. Kept with the fan. */
+const SF_STRIPS = new WeakMap();
+function scatStrips(F) {
+  let T = SF_STRIPS.get(F);
+  if (T) return T;
+  const G = F.field, P = F.pos, bb = [P[0] - G.R, P[1] - G.R, P[0] + G.R, P[1] + G.R], quads = [];
+  for (const c of F.through || []) {
+    const half = c.nP / 2, side = j => c.rays.filter(r => r.sj === j).sort((a, b) => a.ri - b.ri);
+    const line = side(half).reverse().concat(side(0));
+    for (let i = 0; i + 1 < line.length; i++) {
+      const A = line[i].s, B = line[i + 1].s, n = Math.min(A.length, B.length) / 5;
+      if (Math.abs(line[i].ri - line[i + 1].ri) > 1) continue;
+      for (let m = 0; m + 1 < n; m++) {
+        const a = 5 * m, b = 5 * (m + 1);
+        if (Math.hypot(A[b] - A[a], A[b + 1] - A[a + 1]) === 0 && Math.hypot(B[b] - B[a], B[b + 1] - B[a + 1]) === 0) continue;
+        quads.push([A[a], A[a + 1], A[b], A[b + 1], B[b], B[b + 1], B[a], B[a + 1], 0.25 * (A[a + 3] + A[b + 3] + B[a + 3] + B[b + 3])]);
+      }
+    }
+    for (const r of c.rays) for (let o = 0; o < r.s.length; o += 5) { bb[0] = Math.min(bb[0], r.s[o]); bb[1] = Math.min(bb[1], r.s[o + 1]); bb[2] = Math.max(bb[2], r.s[o]); bb[3] = Math.max(bb[3], r.s[o + 1]); }
+  }
+  T = { quads, bb };
+  SF_STRIPS.set(F, T);
+  return T;
+}                   // a field -> { key, x0, y0, x1, y1, mmpp, cv }
 function drawScatField() {
   const SC = lastTrace.scat;
   if (!SC || !SC.fans) return;
   for (const F of SC.fans) {
     const G = F.field;
     if (!G || F.bench !== project.tab || !(G.top > 0)) continue;
-    const v = V(), k = v.scale, P = F.pos, hw = W / 2 / k, hh = H / 2 / k;
-    // in view: the field's square cut to the view
-    const vx0 = Math.max(P[0] - G.R, v.cx - hw), vx1 = Math.min(P[0] + G.R, v.cx + hw), vy0 = Math.max(P[1] - G.R, v.cy - hh), vy1 = Math.min(P[1] + G.R, v.cy + hh);
+    const v = V(), k = v.scale, P = F.pos, hw = W / 2 / k, hh = H / 2 / k, T = scatStrips(F), E = T.bb;
+    // in view: the field's square (and where its light goes on past the parts) cut to the view
+    const vx0 = Math.max(E[0], v.cx - hw), vx1 = Math.min(E[2], v.cx + hw), vy0 = Math.max(E[1], v.cy - hh), vy1 = Math.min(E[3], v.cy + hh);
     if (!(vx1 > vx0 && vy1 > vy0)) continue;
-    const want = 2 / (k * DPR), key = String(lightLayer);
+    const lin = (getEl(F.part) || {}).scatScale === 'lin', want = 2 / (k * DPR), key = lightLayer + '|' + lin;
     let C = SF_IMG.get(G);
-    if (!C || C.key !== key || C.mmpp > 1.5 * want || C.mmpp < want / 1.5 || C.x0 > vx0 || C.x1 < vx1 || C.y0 > vy0 || C.y1 < vy1) {
-      const x0 = Math.max(P[0] - G.R, v.cx - 1.5 * hw), x1 = Math.min(P[0] + G.R, v.cx + 1.5 * hw), y0 = Math.max(P[1] - G.R, v.cy - 1.5 * hh), y1 = Math.min(P[1] + G.R, v.cy + 1.5 * hh);
+    if (!C || C.key !== key || C.want > 1.5 * want || C.want < want / 1.5 || C.x0 > vx0 || C.x1 < vx1 || C.y0 > vy0 || C.y1 < vy1) {
+      const x0 = Math.max(E[0], v.cx - 1.5 * hw), x1 = Math.min(E[2], v.cx + 1.5 * hw), y0 = Math.max(E[1], v.cy - 1.5 * hh), y1 = Math.min(E[3], v.cy + 1.5 * hh);
       // (at most about 250 thousand pixels: past that, coarser)
       const mmpp = Math.max(want, Math.sqrt((x1 - x0) * (y1 - y0) / 2.5e5)), nx = Math.max(1, Math.ceil((x1 - x0) / mmpp)), ny = Math.max(1, Math.ceil((y1 - y0) / mmpp));
       const cv = C && C.cv && C.cv.width === nx && C.cv.height === ny ? C.cv : document.createElement('canvas');
       cv.width = nx; cv.height = ny;
       const lut = new Uint8Array(768);
       for (let c = 0; c < 256; c++) lut.set(scatRamp(c / 255, lightLayer), 3 * c);
-      const g = cv.getContext('2d'), img = g.createImageData(nx, ny), d = img.data, px = (x1 - x0) / nx, py = (y1 - y0) / ny;
+      const g = cv.getContext('2d'), px = (x1 - x0) / nx, py = (y1 - y0) / ny;
+      // past the parts: the strips between the cones' rays in the bench plane, each as bright as the light it carries, laid
+      // down first as levels (grey, the brighter kept where two meet, each a little wider than it is so no seam shows)
+      let lv = null;
+      if (T.quads.length) {
+        g.save();
+        g.clearRect(0, 0, nx, ny);
+        g.globalCompositeOperation = 'lighten';
+        g.setTransform(1 / px, 0, 0, -1 / py, -x0 / px, y1 / py);
+        g.lineWidth = 1.5 * px; g.lineJoin = 'round';
+        for (const Q of T.quads) {
+          const a = scatFieldLevel(G, Q[8], lin);
+          if (!(a > 0)) continue;
+          const c = Math.max(1, Math.round(255 * a));
+          g.fillStyle = g.strokeStyle = 'rgb(' + c + ',' + c + ',' + c + ')';
+          g.beginPath(); g.moveTo(Q[0], Q[1]); g.lineTo(Q[2], Q[3]); g.lineTo(Q[4], Q[5]); g.lineTo(Q[6], Q[7]); g.closePath(); g.fill(); g.stroke();
+        }
+        g.restore();
+        lv = g.getImageData(0, 0, nx, ny).data;
+      }
+      const img = g.createImageData(nx, ny), d = img.data;
       for (let j = 0; j < ny; j++) {
         const dy = y1 - (j + 0.5) * py - P[1];
         for (let i = 0; i < nx; i++) {
-          const a = scatFieldLevel(G, scatPlaneAt(G, x0 + (i + 0.5) * px - P[0], dy));
+          const o = 4 * (j * nx + i);
+          // the 1/r² picture, or where the light has gone on past a part, that (they meet where it enters the part)
+          const a = Math.max(scatFieldLevel(G, scatPlaneAt(G, x0 + (i + 0.5) * px - P[0], dy), lin), lv && lv[o + 3] ? lv[o] / 255 : 0);
           if (!(a > 0)) continue;
-          const o = 4 * (j * nx + i), c = 3 * Math.round(255 * a);
+          const c = 3 * Math.round(255 * a);
           d[o] = lut[c]; d[o + 1] = lut[c + 1]; d[o + 2] = lut[c + 2]; d[o + 3] = Math.round(255 * glowA(0.95 * a));
         }
       }
       g.putImageData(img, 0, 0);
-      C = { key, x0, y0, x1, y1, mmpp: px, cv };
+      C = { key, x0, y0, x1, y1, want, cv };      // (want: the scale it was made for, which a coarser image past its cap still is)
       SF_IMG.set(G, C);
     }
     ctx.save();
@@ -38702,7 +38809,7 @@ function scatterRows(el, S) {
    scattered power and the power, as launched into the part's aperture) and one for what no part catches */
 function caughtRows(el) {
   const R = lastTrace.scat && lastTrace.scat.parts && lastTrace.scat.parts[el.id], rows = [];
-  if (el.scatLight === false) return [['On the bench', 'Its scattered light is not sent to the parts (the Particle tab turns it on).']];
+  if (el.scatLight === false) return [['On the bench', 'Its scattered light is not sent to the parts (On the bench, below, turns it on).']];
   if (!R || R.state === 'dark' || R.state === 'none') return rows;
   if (R.state === 'wait') return [['On the bench', 'Working out the scattered light…']];
   for (const r of R.rows) rows.push(['Caught by ' + r.name, scatPct(r.share) + ' of the scattered power, ' + scatPw(r.P) + (r.followed ? '' : ' (not traced on: only the ' + R.rows.filter(q => q.followed).length + ' parts that catch most are)')]);
@@ -38846,16 +38953,19 @@ function scatterSection(el) {
   if (el.scatDir === 'angle') scale.append(param('Direction (°)', el, 'scatAng'));
   scale.append(helpLine('The Collected figure is for this lens alone: the particle is lit by every beam through it whatever is set here.'));
   if (isPart) {
-    // the scattered field's picture (engines/scatter-field.js): off unless asked for, its scale its own
-    const c = h('input', { type: 'checkbox' }), sfLine = h('div', { class: 'rt-note', style: 'font-size:0.75rem;color:var(--jek-ink-soft);margin-top:0.15rem' });
-    c.checked = !!el.scatField;
-    c.onchange = () => { checkpoint(); el.scatField = c.checked; changed(true); };
-    scale.append(h('label', { class: 'rt-check wide' }, c, 'Draw an estimate of its scattered field'), sfLine,
-      helpLine('The far-field pattern falling off as 1/r², drawn as the diffracted field is, in cool colours on a scale of its own.', ['Drawn on the bench and in 3D as the diffracted field is, in a ramp of its own (navy to cyan to white on the dark bench, pale cyan to navy on paper) so it is told from the beam, from the pattern the plots show: the irradiance along each direction is the power scattered into a unit solid angle over the distance squared, and it stops at the first part that direction meets, as the rays do. ',
-        'It is the intensity alone, with no fringes against the beam (they are a wavelength apart), and the far field alone, which holds from a few micrometres out. The scattered light is a millionth of the beam or less, so it has a log scale of its own (40 dB on the bench, 20 dB in 3D, where the light is added along each line of sight), which changes nothing of how the beam is drawn. A picture: no reading takes it.'], 'note'));
+    // on the bench: what is sent to the parts, then how it is drawn (the fan; the field's picture, engines/scatter-field.js,
+    // off unless asked for, on the Scale above)
+    const check = (key, text, on) => { const c = h('input', { type: 'checkbox' }); c.checked = on(); c.onchange = () => { checkpoint(); el[key] = c.checked; changed(true); }; return h('label', { class: 'rt-check wide' }, c, text); };
+    const sfLine = h('div', { class: 'rt-note', style: 'font-size:0.75rem;color:var(--jek-ink-soft);margin-top:0.15rem' });
+    scale.append(h('h4', { style: 'margin:0.6rem 0 0.1rem;font-size:0.8125rem' }, 'On the bench'),
+      check('scatLight', 'Send its scattered light to the parts', () => el.scatLight !== false),
+      check('scatFan', 'Draw the scattered light in every direction', () => el.scatFan !== false),
+      check('scatField', 'Draw an estimate of its scattered field', () => !!el.scatField), sfLine,
+      helpLine('The far-field pattern falling off as 1/r², and past the parts the light the cones carry on, drawn as the diffracted field is, in cool colours on the Scale above.', ['Drawn on the bench and in 3D as the diffracted field is, in a ramp of its own (navy to cyan to white on the dark bench, pale cyan to navy on paper) so it is told from the beam, from the pattern the plots show: the irradiance along each direction is the power scattered into a unit solid angle over the distance squared, as far as the first part that direction meets. Past a part that passes it on (a lens, a window) it is the light the cones\u2019 rays carry, each ray\u2019s power over the tube it and its neighbours bound, joining the 1/r\u00b2 picture where it enters the part. ',
+        'It is the intensity alone, with no fringes against the beam (they are a wavelength apart), the far field alone, which holds from a few micrometres out, and past the parts the rays\u2019 geometry alone, with no diffraction. The scattered light is a millionth of the beam or less, so it has a scale of its own, the Scale above: logarithmic over ' + SCAT_DB + ' dB on the bench (and ' + SCAT_DB / 2 + ' dB in 3D, where the light is added along each line of sight and so falls as 1/r, not 1/r\u00b2: the light reaches as far), or linear. It changes nothing of how the beam is drawn. A picture: no reading takes it.'], 'note'));
     bindSync(sfLine, () => {
       const G = el.scatField && lastTrace.scat && ((lastTrace.scat.fans || []).find(F => F.part === el.id) || {}).field;
-      const t = G ? 'Its scale: ' + scatSig(G.top, 3) + ' W/mm² at the top (' + fmtLen(G.rTop) + ' out along the brightest direction), to ' + G.dec * 10 + ' dB below, out to ' + fmtLen(G.R) + '.' : '';
+      const lin = el.scatScale === 'lin', t = G ? 'Its scale: ' + (lin ? 'linear, 0 to ' : '') + scatSig(G.top, 3) + ' W/mm² at the top (' + fmtLen(G.rTop) + ' out along the brightest direction)' + (lin ? '' : ', to ' + G.dec * 10 + ' dB below') + ', out to ' + fmtLen(G.R) + '.' : '';
       // with the ramp it is drawn in on the bench (scatRamp), floor to top
       if (sfLine.dataset.t !== t + benchLight()) {
         sfLine.dataset.t = t + benchLight();
@@ -47159,8 +47269,84 @@ function scatFieldAt(G, dx, dy, dz) {
   const a = G.grid[i * G.nP + j0] * (1 - fp) + G.grid[i * G.nP + j1] * fp, b = G.grid[(i + 1) * G.nP + j0] * (1 - fp) + G.grid[(i + 1) * G.nP + j1] * fp;
   return (a * (1 - ft) + b * ft) / (r * r);
 }
-/* an irradiance on the 2D scale: 0 (the floor) to 1 (the top and above) */
-const scatFieldLevel = (G, v) => v > 0 && G.top > 0 ? Math.max(0, Math.min(1, 1 + Math.log10(v / G.top) / G.dec)) : 0;
+/* an irradiance on the 2D scale: 0 (the floor) to 1 (the top and above); logarithmic over G.dec decades, or with lin
+   (the particle's scatScale 'lin', the Scattering tab's Scale) linear from nought to the top */
+const scatFieldLevel = (G, v, lin) => !(v > 0 && G.top > 0) ? 0 : lin ? Math.min(1, v / G.top) : Math.max(0, Math.min(1, 1 + Math.log10(v / G.top) / G.dec));
+
+/* ---------- Past the first part: the light the cones carry on ----------
+   The 1/r² picture ends at the first part each direction meets. A part that passes the light on (a lens, a window, a
+   splitter) does so in the cones' rays, which the trace follows on to whatever stops them (engines/scatter-light.js).
+   Past the first part the picture is made from those rays, as tubes: each ray of a cone stands for the solid angle sa it
+   was launched into, and its neighbours in the cone's grid (the next ring out, the next spoke round) bound its tube. Where
+   the ray is, the tube's cross-section is rho |a x b|, a and b the steps square to the ray to the two neighbours (each
+   on its own path between the same two faces) (the same face crossed, the same share of the way between two), rho = sa / |da x db| from the launch
+   directions (da, db the same steps a unit from the particle), so that by the particle the tube is sa r², and the irradiance, the ray's power over its tube, is what the
+   1/r² picture has: the two join where the light enters the part. The ray's power is its weight against its cone's
+   strongest (the trace's own, Fresnel losses and all). An estimate of where the light goes and how bright it is, from the
+   rays' geometry: no diffraction, so at a focus it is as narrow as the rays make it (held to SF_DMIN across).
+   For each cone: its rays that go on past their first part, each as samples along its way from there, SF_SUB to a stretch
+   between two faces, [x, y, z, E (W/mm²), d (the tube's diameter, mm)] each, and the ray's place in the grid. */
+const SF_SUB = 8;
+const SF_DMIN = 0.02;                 // mm: the narrowest a tube is taken to be
+const SF_GROW = 20;                   // and the most it may widen past the first face before it is taken to have lost its neighbours
+/* the step from p to where the stretch k of a neighbour (Q, points by threes) crosses the plane through p square to (ux,
+   uy, uz), into out; false where the stretch runs along that plane */
+function sfAcross(Q, k, p, ux, uy, uz, out) {
+  const ex = Q[3 * k + 3] - Q[3 * k], ey = Q[3 * k + 4] - Q[3 * k + 1], ez = Q[3 * k + 5] - Q[3 * k + 2], den = ex * ux + ey * uy + ez * uz;
+  if (!(Math.abs(den) > 1e-12 * Math.hypot(ex, ey, ez) * Math.hypot(ux, uy, uz))) return false;
+  const tau = -((Q[3 * k] - p[0]) * ux + (Q[3 * k + 1] - p[1]) * uy + (Q[3 * k + 2] - p[2]) * uz) / den;
+  out[0] = Q[3 * k] + tau * ex - p[0]; out[1] = Q[3 * k + 1] + tau * ey - p[1]; out[2] = Q[3 * k + 2] + tau * ez - p[2];
+  return true;
+}
+const sfCross = (a, b) => Math.hypot(a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]);
+/* v: a cone's virtual source (its vRays, each with ri, sj, sa, d; vLp its strongest ray's power, mW; scat.grid); rays: the
+   trace's rays of that source ({ pts, zs, w, rid }) */
+function scatThrough(v, rays) {
+  const g = v.scat && v.scat.grid;
+  if (!g || !v.vRays || !(v.vLp > 0)) return null;
+  const nP = g.nP, top = v.vLp * 1e-3;
+  // each ray of the cone by its place in the grid: its main branch (the one that carries most) as a list of points
+  const at = new Map();
+  for (const r of rays) {
+    const id = String(r.rid), V = v.vRays[+id.slice(id.lastIndexOf(':') + 1)];
+    if (!V || V.off || !r.pts || r.pts.length < 6) continue;
+    const key = V.ri * 4096 + V.sj, o = at.get(key);
+    if (o && o.r.w >= r.w) continue;
+    const n = r.pts.length >> 1, P = new Float64Array(3 * n);
+    for (let i = 0; i < n; i++) { P[3 * i] = r.pts[2 * i]; P[3 * i + 1] = r.pts[2 * i + 1]; P[3 * i + 2] = r.zs ? r.zs[i] : 0; }
+    at.set(key, { r, V, P, n });
+  }
+  const out = [];
+  for (const R0 of at.values()) {
+    const { V, P, n } = R0;
+    const ring = at.get((V.ri + 1) * 4096 + V.sj) || at.get((V.ri - 1) * 4096 + V.sj);
+    const spoke = at.get(V.ri * 4096 + (V.sj + 1) % nP) || at.get(V.ri * 4096 + (V.sj - 1 + nP) % nP);
+    if (!ring || !spoke || !(V.sa > 0)) continue;
+    // (at the launch: the neighbours' directions where they cross the plane square to this ray a unit from the particle)
+    const at1 = W => { const c = W[0] * V.d[0] + W[1] * V.d[1] + W[2] * V.d[2]; return [0, 1, 2].map(q => W[q] / c - V.d[q]); };
+    const c0 = sfCross(at1(ring.V.d), at1(spoke.V.d));
+    const m = Math.min(n, ring.n, spoke.n);
+    if (!(c0 > 0) || m < 3) continue;
+    const rho = V.sa / c0, Pw = R0.r.w * top, S = new Float32Array(5 * (m - 2) * (SF_SUB + 1)), p = [0, 0, 0], a = [0, 0, 0], b = [0, 0, 0];
+    let o = 0, d1 = 0;
+    // from the first face on: the stretches between faces 1 .. m-1 (a ray whose neighbours went another way, meeting
+    // other faces, shows as a tube grown past SF_GROW times what it was at the first face: it ends there)
+    stretch: for (let k = 1; k < m - 1; k++) for (let s = 0; s <= SF_SUB; s++) {
+      const t = s / SF_SUB;
+      for (let q = 0; q < 3; q++) p[q] = P[3 * k + q] + t * (P[3 * k + 3 + q] - P[3 * k + q]);
+      // the steps to the neighbours square to the ray: where each neighbour's own stretch (as a line) crosses the plane
+      // through this point square to the ray (a neighbour meets a face nearer or further on, and is followed to that plane)
+      const ux = P[3 * k + 3] - P[3 * k], uy = P[3 * k + 4] - P[3 * k + 1], uz = P[3 * k + 5] - P[3 * k + 2];
+      if (!sfAcross(ring.P, k, p, ux, uy, uz, a) || !sfAcross(spoke.P, k, p, ux, uy, uz, b)) break stretch;
+      const A = Math.max(rho * sfCross(a, b), Math.PI * SF_DMIN * SF_DMIN / 4), dd = Math.sqrt(4 * A / Math.PI);
+      if (!d1) d1 = dd;
+      else if (dd > SF_GROW * d1) break stretch;
+      S[o] = p[0]; S[o + 1] = p[1]; S[o + 2] = p[2]; S[o + 3] = Pw / A; S[o + 4] = dd; o += 5;
+    }
+    if (o > 5) out.push({ ri: V.ri, sj: V.sj, s: o < S.length ? S.slice(0, o) : S });
+  }
+  return out.length ? { nP, nR: g.th.length, rays: out } : null;
+}
 /* ---------- A particle's scattered light, put back on the bench ----------
    A Particle part's scattering answer (engines/scatter.js) holds the far field's complex amplitude over the sphere
    of directions, a launch each. The trace puts that light on the bench in two steps (see the end of traceSceneOnce).
@@ -47508,6 +47694,12 @@ function scatterLaunch(surfsBy) {
         R.parts[st.el.id] = { state: st.state, key: st.key, pos: st.pos || null, Psca, rows, caught: got, lost: Math.max(0, Psca - got), lostShare: Psca > 0 ? Math.max(0, 1 - got / Psca) : 0,
           cones: st.cones.map(v => v.id), probed: st.probeKept ? 0 : st.dirs ? st.dirs.length : 0, launched: st.cones.concat(st.waveSrc).reduce((a, v) => a + v.vRays.length, 0) };
         for (const v of st.cones) v.scat.P = v.vRays.reduce((a, r) => a + (r.off ? 0 : r.pw), 0);
+        // the field's picture past the first part: the light the cones carry on, from their rays (scatter-field.js, scatThrough)
+        if (st.fan && st.fan.field) {
+          const by = new Map();
+          for (const r of lastTrace.rays || []) if (r.sc && r.src.startsWith(st.el.id + '~s')) { if (!by.has(r.src)) by.set(r.src, []); by.get(r.src).push(r); }
+          st.fan.through = st.cones.map(v => by.has(v.id) ? scatThrough(v, by.get(v.id)) : null).filter(Boolean);
+        }
         if (st.fan) R.fans.push(st.fan);
       }
       return R;
@@ -60679,7 +60871,7 @@ const NEWS = [
     'A <b>Particle</b> is far quicker to sweep and to edit. Its scattering is linear in its light, so once two polarisations are solved every other polarisation and power is their combination, checked on the field and never assumed: a 20-step sweep of a fibre laser’s polarisation on a 1 µm sphere went from about 100 s a cycle to 3 s, and as a dipole array from 108 s to 4 s. Every answer is kept, so a sweep’s next cycle, and a value typed back, show at once. A sweep solves the particle’s steps ahead, beside the field, with a bar of its own under the bench’s (“Scattering … step 7 of 20”) and in the Scattering tab, and each frame shows its own step. The dipole array sums its dipoles by FFT and starts each solve from the nearest answer (a 4000-dipole rod: 10 s a step to 1 s), the trap is found only when the Trap tab is read, a solve made out of date is stopped rather than left to run, and a rod’s <b>Axis tilt</b> goes past 90° to 180°, so a tilt sweep can carry it through upright. Numbers typed in a panel reach the bench once typing pauses, so a key never waits on a slow bench.',
     'Fibres no longer swing out in great loops in 3D when a bench opens straight there: their routes in 3D no longer depend on how the 2D bench is zoomed.',
     'Right-click a part and choose <b>Suppress</b> to take it out of the bench until it is wanted again, as CAD suppresses a feature: it is not drawn, in 2D or 3D, a click does not pick it, and nothing meets it: the light passes where it stood, and the fibres and wires plugged into it count as unplugged at its end. Several selected suppress together. The Bench panel\u2019s list keeps it, struck through: right-click it for <b>Unsuppress</b>. Undo, the file and share links keep it; in a script, <code>J.suppress(name, on)</code>.',
-    'A <b>Particle</b> can draw an estimate of its scattered field, as the diffracted field is drawn, on the bench and in 3D: tick <b>Draw an estimate of its scattered field</b> on its Scattering tab. It is the far-field pattern falling off as 1/r², stopped at the first part each direction meets, the intensity alone, on a log scale of its own (the scattered light is a millionth of the beam or less), so the beam is drawn as it was. It has cool colours of its own (navy to cyan on the dark bench), told apart from the beam where they overlap; the 3D key gives its scale under the beam’s, and pointing at it reads it; and while it is drawn the particle’s fan and cone rays are faded to 30% so they do not clutter it. Off unless asked for.',
+    'A <b>Particle</b> can draw an estimate of its scattered field, as the diffracted field is drawn, on the bench and in 3D: tick <b>Draw an estimate of its scattered field</b> on its Scattering tab. It is the far-field pattern falling off as 1/r², stopped at the first part each direction meets, the intensity alone, on a log scale of its own (the scattered light is a millionth of the beam or less), so the beam is drawn as it was. It has cool colours of its own (navy to cyan on the dark bench), told apart from the beam where they overlap; the 3D key gives its scale under the beam’s, and pointing at it reads it; and while it is drawn the particle’s fan and cone rays are faded to 30% so they do not clutter it. Past a lens, or any part that passes it on, it goes on as a glow drawn from the cone\u2019s rays (each ray\u2019s power over the tube it and its neighbours bound), joining the picture where the light enters the part and on the same scale. It follows the Scattering tab\u2019s <b>Scale</b>, logarithmic or linear. Off unless asked for. The switches for a particle\u2019s light on the bench (sending it to the parts, the fan, this picture) are together on its Scattering tab, under <b>On the bench</b>.',
     'A part hidden by its eye in the bench list is hidden on the 2D bench as well as in 3D, its name with it, and a click there no longer picks it; the light still meets it, and chosen in the list it is drawn faintly. A <b>Particle</b>\u2019s sign shrinks with the bench when zoomed out (never larger than 1 mm there), so it no longer dwarfs the parts round it.',
     'A <b>Particle</b> inside a two-mirror cavity is solved in the cavity\u2019s own Hermite-Gauss modes: its light that goes round and comes back drives it again, every round trip at once, by Mie, the dipole array or the single dipole. The Scattering tab gives how far it moves the cavity\u2019s resonance and how much it widens it, and the detectors behind either mirror read the cavity with the particle in it. A ring, or a cavity clipped or out of line, keeps the warning.',
     'A <b>Particle</b> in a concentric or confocal cavity, or one near them, is solved too: the mirrors bring its light back re-imaged, so it is solved over the directions it sends onto them, each traced round the cavity by the bench\u2019s tracer (the mirrors\u2019 shape, rims, coatings and placing), every return of it followed until it fades. The detectors read the cavity with the particle in it. A cavity of small Fresnel number gets a note that the rims are taken as hard edges.',

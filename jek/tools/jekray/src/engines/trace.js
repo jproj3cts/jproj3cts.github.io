@@ -469,7 +469,7 @@ export const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + scatRevNow() +
 // what changes nothing in the light: a part's name and where it is written, its import notes, drawings; where a
 // fibre component or a chip part sits (their networks are solved by what joins what: a fibre's length is its own
 // setting), and the way a fibre or waveguide is drawn across the bench
-const COSMETIC = new Set(['hide3d', 'label', 'name', 'assumed', 'design', 'source', 'lineColour', 'fillColour']);
+const COSMETIC = new Set(['hide3d', 'label', 'name', 'assumed', 'design', 'source', 'lineColour', 'fillColour', 'scatScale']);   // (scatScale: a particle's plots and pictures)
 const PLACED = new Set(['x', 'y', 'angle']), DRAWN = new Set(['path', 'ta', 'tb', 'route']);
 function keyCut(k, v) {
   if (COSMETIC.has(k)) return undefined;

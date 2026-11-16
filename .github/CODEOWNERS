@@ -1,5 +1,7 @@
-# Paths that need the owner's review before a pull request can merge (with "Require review from Code Owners" on in
-# main's ruleset). Everything else needs one approving review from anyone with write access.
+# Every change needs the owner's review before a pull request can merge (with "Require review from Code Owners" on in
+# main's ruleset). The paths below are the same owner's, listed so it is clear which are the sensitive ones if the
+# catch-all line is ever taken out (then the rest needs one approving review from anyone with write access).
+*                                           @jproj3cts
 
 # accounts, billing and Stripe; the shop's fulfilment
 /jek-api/                                   @jproj3cts

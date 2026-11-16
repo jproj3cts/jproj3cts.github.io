@@ -17,8 +17,8 @@ Changes reach `main`, and so the live site, only through a pull request that the
 2. Claude builds the pages it touches, runs the tests, and commits under your name.
 3. Ask Claude to open a pull request. The template asks for the test counts and anything the deploy needs.
 4. CI runs on the pull request (about 7 minutes). It must pass before the pull request can merge.
-5. The owner reviews and merges. Changes to accounts, billing, the API, CI and the legal pages always need the
-   owner's review (`.github/CODEOWNERS`).
+5. The owner reviews and merges. Every pull request needs the owner's approval (`.github/CODEOWNERS`), so nothing
+   reaches `main` without it.
 
 The API and the shop worker are deployed by the owner by hand. If your change needs a deploy, a migration or a new
 secret, say so in the pull request.

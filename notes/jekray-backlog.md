@@ -24,6 +24,12 @@ together when the owner lifts the pause. Nothing on this list has been started u
    ranges past a setting's own limits; fly mode, 2D/3D switches and panel changes during a render; first and last
    steps that are the same state. Cover the sweepable settings of the main part types on the example benches, in 2D
    and 3D, and leave a browser check for each failure found.
+5. **A photodetector's plot stays empty while a sweep plays.** The owner's bench: the Particle rod's "Axis tilt up"
+   swept −180 → 180° in 60 steps with the field rendered. The detector's panel shows its readings (DC 0.2622 mW, beats
+   at 1 GHz and 2 GHz with swing and phase), but its plot (V against "time, last 3 ns (rolling)") draws nothing. The
+   owner expected it to plot. Find whether the plot is empty because the signal is drawn on a ns time axis while the
+   sweep moves on a seconds scale, or because the sweep's kept steps or worker traces do not feed it. Decide with the
+   owner what it should show during a sweep: the reading against the swept value, or a rolling history.
 
 ## Also outstanding
 

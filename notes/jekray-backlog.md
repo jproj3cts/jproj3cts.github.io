@@ -1,0 +1,25 @@
+# JEKray: issues logged while changes are paused
+
+Changes are paused at the owner's request (17 November 2026). Issues are logged here as they come up and done
+together when the owner lifts the pause. Nothing on this list has been started unless it says so.
+
+## Logged
+
+1. **Changing a sweep's Steps while it plays or pre-renders crashes the page.** Seen on a Particle rod's "Axis tilt up"
+   sweep, 0 → 180°, 18 steps, "Render the diffracted field" ticked, in 3D. Cause not yet found. Likely suspects:
+   per-step stores (rendered frames, kept traces, kept 3D light, particle answers) or a worker job still indexed by the
+   old step count.
+2. **Steps, From and To should apply only when the edit is finished** (Enter or leaving the box), not on each
+   keystroke. Each change discards and restarts a long render.
+
+## Also outstanding
+
+- **Particle in a cavity, round 6** (the mode solve near degeneracy): on `claude/ecstatic-maxwell-ymsuji`, not on main.
+  It needs the whole validation page run before main. Record: `jek/tools/validation/notes/particle-cavity.md`.
+- **Smoothness, what remains:**
+  - the first cycle of a rod sweep builds each step's 3D light once (about 120 ms a step);
+  - particle and fibre benches trace on the page when a drag is let go;
+  - Fabry–Perot in 3D runs about 1 s of field FFTs while orbiting;
+  - the mm-wave horn panels take 0.7–1.0 s to open;
+  - opening a bench takes 1.7–2.1 s.
+- **Share links lose the bench's Light settings** (`shareData()` never writes `light`), found while building Suppress.

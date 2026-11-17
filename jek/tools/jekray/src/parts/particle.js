@@ -38,6 +38,7 @@ export const PARTICLE = {
       scatLight: e.scatLight !== false,                            // its scattered light on the bench, to the parts that catch it
       scatFan: e.scatFan !== false,                                // and the faint fan in every direction (a picture only)
       scatField: e.scatField === true,                             // an estimate of its scattered field, drawn as the diffracted field is (a picture only)
+      scatShape3d: e.scatShape3d === true,                         // its radiation pattern as a surface in the 3D view (a picture only)
       // moved off a screen that held it (particleFromScreen): that screen, until the first trace puts the particle where the
       // screen's strongest beam met it (engines/scatter-light.js, placeFromScreen)
       ...(e.fromScreen && typeof e.fromScreen === 'object' && typeof e.fromScreen.id === 'string' ? { fromScreen: { id: e.fromScreen.id, angle: num(e.fromScreen.angle, 0) } } : {}),
@@ -55,6 +56,7 @@ export const PARTICLE = {
       scatScale: '"lin", "log30", "log" (the default), "log60" or "log90" (logarithmic over 30, 40, 60 or 90 dB): the pattern plots’ scale, and the scattered field picture’s (scatField) on the bench, where in 3D the light along a line of sight is on half the dB.', scatView: '"in" (the bench plane), "out" (the plane out of it through the beam) or "map" (every direction).',
       scatLight: 'true puts the scattered light on the bench: a cone to each part with a clear line to the particle, with the far field’s amplitude, phase and polarisation, coherent with the driving laser. false leaves the bench as it is without it.',
       scatFan: 'true draws a faint fan of the scattered light in every direction, as bright as the pattern is; a picture only, never part of a reading.',
+      scatShape3d: 'true draws the particle’s radiation pattern in the 3D view: a see-through surface about it whose distance from it each way is the scattered intensity that way against the strongest, on a linear scale whatever scatScale, its largest radius five times the particle’s sign (never more than 5 mm on the bench); it turns with the particle. A picture only, drawn while scatLight is on. Default false.',
       scatField: 'true draws an estimate of the scattered field as the diffracted field is drawn (2D and 3D): the far-field pattern falling off as 1/r² as far as the first part each direction meets, and past a part that passes it on the light the cones’ rays carry (each ray’s power over its tube), intensity only, on a scale of its own, scatScale’s (on the bench its dB, in 3D half of them; or linear), whatever the beam’s; a picture only, never part of a reading. Default false.' },
   },
 };

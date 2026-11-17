@@ -770,9 +770,13 @@ export const V3D = (() => {
     ax.traverse(o => { o.castShadow = false; });          // a sign, not a body on the table
     return ax;
   }
+  // the sign's length (mm) at a distance d along the view, as particleSizes sizes it
+  const particleLen = (k, d) => { const s = k * Math.abs(d); return Math.max(1e-4, Math.max(Math.min(s, PARTICLE_MM3), s * PARTICLE_MIN3 / PARTICLE_PX)); };
   function particleSizes(camera) {
-    const k = 2 * Math.tan(camera.fov * deg / 2) / Math.max(1, R.h) * PARTICLE_PX, v = new T.Vector3();
-    for (const p of R.groups.parts.children) for (const o of p.children) if (o.userData.particle) { const d = v.copy(p.position).sub(camera.position).dot(camera.getWorldDirection(new T.Vector3())); { const s = k * Math.abs(d); o.scale.setScalar(Math.max(1e-4, Math.max(Math.min(s, PARTICLE_MM3), s * PARTICLE_MIN3 / PARTICLE_PX))); } }
+    const k = 2 * Math.tan(camera.fov * deg / 2) / Math.max(1, R.h) * PARTICLE_PX, v = new T.Vector3(), w = camera.getWorldDirection(new T.Vector3());
+    for (const p of R.groups.parts.children) for (const o of p.children) if (o.userData.particle) o.scale.setScalar(particleLen(k, v.copy(p.position).sub(camera.position).dot(w)));
+    // a particle's radiation pattern (scatLobeMeshes): its largest radius LOBE_K signs
+    if (R.groups.light) for (const o of R.groups.light.children) if (o.userData.lobe) o.scale.setScalar(LOBE_K * Math.max(1e-4, Math.min(k * Math.abs(v.copy(o.position).sub(camera.position).dot(w)), PARTICLE_MM3)));   // (the sign's length close in, never more than its 1 mm: 5 mm at most, smaller with the bench zoomed out)
   }
   /* the pieces of a placed part that keep to the bench's directions, turned back by the part's own turn */
   const benchAxes = p => { for (const o of p.children) if (o.userData.benchAxis) { const [az, tl] = o.userData.benchAxis; o.quaternion.copy(p.quaternion).invert().multiply(new T.Quaternion().setFromEuler(new T.Euler(0, -tl, az, 'ZYX'))); } };
@@ -1086,6 +1090,7 @@ export const V3D = (() => {
     });
     if (lightOf().field && R.vol) volMeshes(G);
     scatVolMeshes(G);
+    scatLobeMeshes(G);
     if (G.children.some(o => o.userData.vol || o.userData.scatVol)) volQuad(G);
   }
   // a segment's planes as the renderer's clipping planes (the world is the bench's frame, in mm)
@@ -1291,6 +1296,39 @@ export const V3D = (() => {
   // a particle's Scale (the Scattering tab's, scatScale), in dB on the bench (0: linear); in 3D logarithmic over half of
   // them (the light along a line of sight falls as 1/b where the irradiance falls as 1/b², so the glow reaches as far)
   const scatDb = F => scatDbOf((getEl(F.part) || {}).scatScale);
+  /* A particle's radiation pattern (its scatShape3d: lastTrace.scat.fans[].lobe, engines/scatter-field.js scatLobeBuild) as a
+     surface about it: in each direction as far out as the intensity that way against the strongest (linear, whatever the
+     Scale), its largest radius LOBE_K times the particle's sign (particleSizes, each frame: about 180 px close in, never
+     more than 5 mm on the bench, and with the bench zoomed out that size on the bench). See-through and lit, so its shape reads, in the scattered field's colours, brighter
+     where it reaches further; a part in front hides it. It turns with the particle, as its far field does. */
+  const LOBE_K = 5;
+  function scatLobeMeshes(G) {
+    const paper = benchLight();
+    for (const F of (lastTrace.scat && lastTrace.scat.fans) || []) {
+      const L = F.lobe;
+      if (!L || F.bench !== project.tab) continue;
+      const nT = L.nT, nP = L.nP, pos = new Float32Array(3 * nT * (nP + 1)), colr = new Float32Array(3 * nT * (nP + 1)), idx = [];
+      for (let i = 0; i < nT; i++) {
+        const t = Math.PI * i / (nT - 1), st = Math.sin(t), ct = Math.cos(t);
+        for (let j = 0; j <= nP; j++) {
+          const a = 2 * Math.PI * j / nP, r = L.I[i * nP + (j % nP)], o = 3 * (i * (nP + 1) + j), c = scatRamp(0.25 + 0.6 * r, paper);
+          pos[o] = r * st * Math.cos(a); pos[o + 1] = r * st * Math.sin(a); pos[o + 2] = r * ct;
+          colr[o] = c[0] / 255; colr[o + 1] = c[1] / 255; colr[o + 2] = c[2] / 255;
+        }
+      }
+      for (let i = 0; i < nT - 1; i++) for (let j = 0; j < nP; j++) { const a = i * (nP + 1) + j, b = a + nP + 1; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+      const geo = new T.BufferGeometry();
+      geo.setAttribute('position', new T.BufferAttribute(pos, 3)); geo.setAttribute('color', new T.BufferAttribute(colr, 3)); geo.setIndex(idx);
+      geo.computeVertexNormals();
+      const m = new T.MeshStandardMaterial({ vertexColors: true, transparent: true, opacity: paper ? 0.62 : 0.5, roughness: 0.45, metalness: 0, side: T.DoubleSide, depthWrite: false,
+        emissive: col(paper ? 0x000000 : 0x0b3a66), emissiveIntensity: paper ? 0 : 0.6 });
+      const o = new T.Mesh(geo, m);
+      o.position.set(F.pos[0], F.pos[1], F.pos[2]);
+      o.renderOrder = 3; o.castShadow = false; o.receiveShadow = false;
+      o.userData.lobe = F;
+      G.add(o);
+    }
+  }
   function scatVolMeshes(G) {
     for (const F of (lastTrace.scat && lastTrace.scat.fans) || []) {
       const S = F.field;
@@ -2257,6 +2295,7 @@ export const V3D = (() => {
       // each fibre's tube as drawn: the box round it on the bench (mm), by the fibre's id
       fibreBoxes() { if (!R) return null; sync(); const out = {}; for (const [id, c] of R.wireCache || []) { const g = c.obj.geometry; g.computeBoundingBox(); const b = g.boundingBox; out[id] = [b.min.x, b.min.y, b.max.x, b.max.y].map(v => +v.toFixed(3)); } return out; },
       // a particle's scattered field as drawn (scatVolMeshes): its volumes; and what one frame takes, the GPU's work finished (ms)
+      lobe: () => { if (!R || !active()) return null; sync(); const ms = R.groups.light.children.filter(o => o.userData.lobe); return { n: ms.length, scale: ms.length ? ms[0].scale.x : 0, sum: ms.reduce((a, o) => { const p = o.geometry.attributes.position.array; let q = 0; for (let i = 0; i < p.length; i++) q += Math.abs(p[i]) * (1 + (i % 7)); return a + q; }, 0) }; },
       scatField: () => { if (!R || !active()) return null; sync(); const k = D.vkey.querySelector('b.sc'); return { vols: (R.scatVols || []).length, sig: (R.scatVols || []).map(o => { const g = o.userData.scatVol && o.userData.scatVol.field && o.userData.scatVol.field.grid; let s = 0; if (g) for (let i = 0; i < g.length; i += 7) s += g[i] * (1 + i % 13); return s; }).join(), quad: R.groups.light.children.some(o => o.userData.volQuad), key: D.vkey.hidden || !k ? null : D.vkey.textContent }; },
       // what pointing at a canvas point reads (css px from its top left): the beam's line and the scattered field's
       readAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), e = { clientX: b.left + px, clientY: b.top + py }, q = scatUnder(e), r = R.vol ? volUnder(e) : null; readVol(e); return { beam: r && { L: r.L }, scat: q && { L: q.L, I: q.I, p: q.p }, text: D.vread ? D.vread.textContent : null }; },

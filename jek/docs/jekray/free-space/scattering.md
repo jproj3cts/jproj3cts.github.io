@@ -18,7 +18,7 @@ Add a Particle from the parts list (Active and atomic) and put it where the ligh
 - The part's **Angle** is the direction of a rod's or spheroid's axis in the bench plane, and **Axis tilt** its tilt up out of the plane. A tilt of 90° stands the rod upright, and past 90° (to 180°) it leans back over, so a sweep of the tilt can carry it through upright.
 - **Medium**: the bench's where the light is, vacuum, air or water.
 
-The Scattering tab has the **Model** (Auto, Rayleigh, Mie or Dipole array), **Where it is** (where the part is, or where the Trap tab finds the particle held) with three offsets across the beam, up and along it. Under the figure are its **Scale** (Linear, or Logarithmic over 30, 40, 60 or 90 dB; 40 dB is the default, and the scale benches saved before these choices keep) and the **Collection lens NA** and **Collection lens faces** of the Collected figure: a notional lens, which changes that figure alone. The particle is lit by every beam through it whatever they are set to. Under them, **On the bench** has **Send its scattered light to the parts**, **Draw the scattered light in every direction** and **Draw an estimate of its scattered field**, described [below](#scattered-light-on-the-bench).
+The Scattering tab has the **Model** (Auto, Rayleigh, Mie or Dipole array), **Where it is** (where the part is, or where the Trap tab finds the particle held) with three offsets across the beam, up and along it. Under the figure are its **Scale** (Linear, or Logarithmic over 30, 40, 60 or 90 dB; 40 dB is the default, and the scale benches saved before these choices keep) and the **Collection lens NA** and **Collection lens faces** of the Collected figure: a notional lens, which changes that figure alone. The particle is lit by every beam through it whatever they are set to. Under them, **On the bench** has **Send its scattered light to the parts**, **Draw the scattered light in every direction**, **Draw an estimate of its scattered field** and **Draw its radiation pattern in 3D**, described [below](#scattered-light-on-the-bench).
 
 On the bench the particle is drawn as a sign 16 pixels long, and in the 3D view 36 pixels long, in its shape and at its orientation. Zoomed out it shrinks with the bench, never larger than 1 mm there, down to 6 pixels (10 in 3D). At its true size it would not show on a bench measured in millimetres.
 
@@ -190,6 +190,12 @@ It is an estimate:
 - A direction's stop is that of the nearest probed direction, so a part's edge is drawn to within half a degree on the bench and 5 degrees in 3D.
 - Past the first part it is the rays' geometry, with no diffraction, and only where a cone goes: light a part passes on outside every cone is not drawn.
 - It is a picture. No reading uses it.
+
+### The radiation pattern in 3D
+
+**Draw its radiation pattern in 3D**, under **On the bench** on the Scattering tab, draws a see-through surface about the particle in the 3D view. Its distance from the particle in each direction is the scattered intensity that way against the strongest, so a lobe twice as long scatters twice as much. A small sphere draws a doughnut whose hole points along the polarisation, and a rod's lobes turn with its tilt and its angle on the bench. The scale is always linear, whatever the **Scale** above it is set to.
+
+The surface is drawn from the pattern over every direction, 49 steps from straight up to straight down by 96 round, in the scattered field's colours, brighter where it reaches further. A part in front of it hides it. Its largest radius is five times the particle's sign: about 180 pixels close in, and never more than 5 mm on the bench when you zoom out. It follows a sweep step by step. It is off unless you turn it on, it is saved with the bench, and it needs **Send its scattered light to the parts** on. The 2D bench does not show it. It is a picture: no reading uses it.
 
 The cones are drawn as rays. With **Draw light by its power** on they are drawn at the faintest step that shows, because by power they would not show beside the beam at all. The 2D bench draws the two spokes of each cone nearest the bench plane, and the 3D view draws every ray.
 

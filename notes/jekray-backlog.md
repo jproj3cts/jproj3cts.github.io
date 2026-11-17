@@ -13,6 +13,9 @@ together when the owner lifts the pause. Nothing on this list has been started u
    keystroke. Each change discards and restarts a long render.
 3. **Going into fly mode while a sweep with a particle's scattered light is rendering breaks it.** Reported by the
    owner. What "breaks" looks like (stops, wrong picture, crash) is still to be found.
+   The owner then said it may instead be **sweeping the rod's tilt all the way to 360°**. Note: "Axis tilt up" was
+   widened to ±180° on 16 November; a sweep ending at 360° goes past that range, so check how the value is clamped or
+   wrapped mid-sweep (repeated or jumping steps, kept answers, the 3D sign), as well as fly mode on its own.
 
 ## Also outstanding
 

@@ -467,22 +467,44 @@ export function makeKernel(oc) {
     }
     return fresh(fid, shape, f => { if (f.IsSame(first)) return fid + '.' + capA; if (f.IsSame(last)) return fid + '.' + capB; const s = sideNames.get(hash(f)); return s && s[0].IsSame(f) ? s[1] : null; });
   }
+  /* a body copied (moved by nothing, as a copy), edges and corners its own, its faces keeping their names */
+  function ownBody(b) {
+    const cp = T(new oc.BRepBuilderAPI_Transform(b.shape, T(new oc.gp_Trsf()), true, false));
+    return mkBody(b.id, cp.Shape(), b.faces.map(f => oc.TopoDS.Face(cp.ModifiedShape(f))), b.names);
+  }
+  const checksOut = s => { try { return T(new oc.BRepCheck_Analyzer(s, true, false)).IsValid(); } catch (err) { return true; } };
+  /* a boolean of bodies, its faces that lie on one surface merged into one face. The merging changes edges in
+     place, the boolean's and those it shares with what went in, and where small pieces meet a face along arcs it
+     can leave a solid the kernel's check fails (and a part that fails it can be rounded or bevelled nowhere). So the
+     boolean is made on copies of the bodies, and if the merged result fails the check it is made again on fresh
+     copies and kept as it came (checked once: the check is as slow as the boolean). run(bodies) makes the boolean
+     and returns it; the result is { op, bodies }, the copies its names are carried from. */
+  function booleanOf(bodies, run) {
+    let ins = bodies.map(ownBody), op = run(ins);
+    op.SimplifyResult(true, true, 1e-6);
+    if (!checksOut(op.Shape())) { ins = bodies.map(ownBody); op = run(ins); }
+    return { op, bodies: ins };
+  }
   /* bodies fused into one (names carried) */
   function fuseAll(bodies, fid, id) {
     if (bodies.length === 1) return Object.assign({}, bodies[0], { id: id || bodies[0].id });
-    const op = T(new oc.BRepAlgoAPI_Fuse());
-    op.SetArguments(listFrom([bodies[0].shape])); op.SetTools(listFrom(bodies.slice(1).map(b => b.shape))); op.Build(prog());
-    if (!op.IsDone()) throw new Error('the pieces could not be joined');
-    op.SimplifyResult(true, true, 1e-6);
-    const shape = op.Shape(), c = carried(op, bodies, shape, fid);
+    const { op, bodies: ins } = booleanOf(bodies, bs => {
+      const op = T(new oc.BRepAlgoAPI_Fuse());
+      op.SetArguments(listFrom([bs[0].shape])); op.SetTools(listFrom(bs.slice(1).map(b => b.shape))); op.Build(prog());
+      if (!op.IsDone()) throw new Error('the pieces could not be joined');
+      return op;
+    });
+    const shape = op.Shape(), c = carried(op, ins, shape, fid);
     return mkBody(id || bodies[0].id, shape, c.faces, c.names);
   }
   function cutBody(target, tool, fid, kind) {
-    const op = T(kind === 'common' ? new oc.BRepAlgoAPI_Common() : new oc.BRepAlgoAPI_Cut());
-    op.SetArguments(listFrom([target.shape])); op.SetTools(listFrom([tool.shape])); op.Build(prog());
-    if (!op.IsDone()) throw new Error(kind === 'common' ? 'the intersection could not be made' : 'the cut could not be made');
-    op.SimplifyResult(true, true, 1e-6);
-    const shape = op.Shape(), c = carried(op, [target, tool], shape, fid);
+    const { op, bodies: ins } = booleanOf([target, tool], ([a, b]) => {
+      const op = T(kind === 'common' ? new oc.BRepAlgoAPI_Common() : new oc.BRepAlgoAPI_Cut());
+      op.SetArguments(listFrom([a.shape])); op.SetTools(listFrom([b.shape])); op.Build(prog());
+      if (!op.IsDone()) throw new Error(kind === 'common' ? 'the intersection could not be made' : 'the cut could not be made');
+      return op;
+    });
+    const shape = op.Shape(), c = carried(op, ins, shape, fid);
     return mkBody(target.id, shape, c.faces, c.names);
   }
   const touches = (a, b) => distance(a.shape, b.shape).d < 1e-6;
@@ -960,11 +982,11 @@ export function makeKernel(oc) {
       };
       let got = build(ordered), kept = ordered;
       if (!got && ordered.length > 1) {
-        // not all of them together: those that can be rounded on their own, taken one more at a time while the
-        // solid stays sound (a whole face chosen has edges the radius fits and edges it does not: small holes, thin walls)
-        const alone = ordered.filter(j => build([j]));
+        // not all of them together: taken one more at a time while the solid stays sound, an edge that cannot be
+        // done (alone or with those before it) left out (a whole face chosen has edges the radius fits and edges it
+        // does not: small holes, thin walls). One try for each edge: each costs as much as the whole
         kept = [];
-        for (const j of alone) { const tryIt = build(kept.concat([j])); if (tryIt) { kept = kept.concat([j]); got = tryIt; } }
+        for (const j of ordered) { const tryIt = build(kept.concat([j])); if (tryIt) { kept = kept.concat([j]); got = tryIt; } }
       }
       if (!got) throw new Error('the ' + kind + ' could not be made: the ' + (kind === 'fillet' ? 'radius' : 'distance') + ' may be too big for the edges chosen');
       used += kept.length; skipped += ordered.length - kept.length;

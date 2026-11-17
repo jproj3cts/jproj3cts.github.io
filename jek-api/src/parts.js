@@ -1,8 +1,9 @@
 // My parts: parts and assemblies kept to use on any bench (see migration 0007).
 //
-// A part is what the app copies: one or more elements and the fibres between
-// them, checked here only for its shape and size, as a bench is (the app reads
-// it as it reads a pasted clip). Listing and using parts needs no plan, as
+// A part is what the app copies: in JEKray one or more elements and the fibres
+// between them (the app reads it as it reads a pasted clip); in JEKcad a part of
+// a Part Studio, kept with the whole Part Studio it is made in (palette 'cad').
+// Each is checked here only for its shape and size, as a bench is. Listing and using parts needs no plan, as
 // reading benches does not; keeping a new one, renaming and deleting need the
 // rights that saving a bench needs.
 
@@ -12,7 +13,7 @@ import { ApiError, newId, now } from './util.js';
 export const MAX_PART = 256 * 1024;
 export const MAX_ICON = 24 * 1024;
 export const MAX_PARTS = 500;
-const PALETTES = new Set(['free', 'fibre', 'elec', 'pic']);
+const PALETTES = new Set(['free', 'fibre', 'elec', 'pic', 'cad']);
 const bytes = (s) => new TextEncoder().encode(s).length;
 
 function partContent(c) {
@@ -23,6 +24,13 @@ function partContent(c) {
     d = JSON.parse(c);
   } catch {
     throw new ApiError(400, 'bad_part', 'That is not a part.');
+  }
+  if (d && d.format === 'jekcad-part') {
+    const st = d.studio;
+    if (typeof d.part !== 'string' || !d.part || d.part.length > 80 || !st || typeof st !== 'object' || Array.isArray(st) || !Array.isArray(st.features)) {
+      throw new ApiError(400, 'bad_part', 'That is not a part.');
+    }
+    return c;
   }
   if (!d || d.format !== 'jekray-clip' || !Array.isArray(d.elements) || !d.elements.length || d.elements.length > 200 ||
       !d.elements.every((e) => e && typeof e === 'object' && !Array.isArray(e)) || (d.fibres !== undefined && !Array.isArray(d.fibres))) {
@@ -74,6 +82,7 @@ export async function create(req, env, user, wsId) {
   canWrite(a);
   const body = await readJson(req);
   const content = partContent(body.content);
+  const cad = JSON.parse(content).format === 'jekcad-part';
   const icon = partIcon(body.icon);
   const n = (await env.DB.prepare('SELECT COUNT(*) AS n FROM parts WHERE workspace_id = ?').bind(a.ws).first()).n;
   if (n >= MAX_PARTS) throw new ApiError(409, 'too_many', `A library can hold ${MAX_PARTS} parts; delete some first.`);
@@ -81,7 +90,7 @@ export async function create(req, env, user, wsId) {
   const t = now();
   const p = {
     id: newId(), workspace_id: a.ws, name: cleanName(body.name, 'My part'), summary: cleanName(body.summary, 'Part').slice(0, 60),
-    palette: PALETTES.has(body.palette) ? body.palette : 'free', size_bytes: bytes(content), icon, created_at: t, updated_at: t,
+    palette: cad ? 'cad' : PALETTES.has(body.palette) && body.palette !== 'cad' ? body.palette : 'free', size_bytes: bytes(content), icon, created_at: t, updated_at: t,
   };
   await env.DB.prepare(
     `INSERT INTO parts (id, workspace_id, name, summary, palette, content, size_bytes, icon, created_at, created_by, updated_at)

@@ -3,8 +3,12 @@ import { h } from '../../../jekray/src/ui/dom.js';
 /* ==========================================================================
    The version, and what is new in it (Help › What’s new)
    ========================================================================== */
-export const APP_VERSION = '0.10.0';
+export const APP_VERSION = '0.11.0';
 export const NEWS = [
+  { v: '0.11.0', date: '17 Nov 2026', items: [
+    '<b>My parts</b>: a part’s ⋯ menu in a Part Studio has Save to My parts. An Assembly’s Insert lists the parts kept there, and inserting one brings its Part Studio into the document as a tab.',
+    'Fixed: on some parts, every fillet and chamfer failed after an extrude or a cut, whatever the size.',
+  ] },
   { v: '0.10.0', date: '16 Nov 2026', items: [
     'Sketching locks to where two shapes cross: two of the sketch’s, a shape and an edge of the model, or two edges of the model. The point is held on both.',
     '<b>Tapped and clearance holes</b>: pick an ISO metric size (M1.6 to M24) and the hole is drilled to suit. <b>Thread</b> notes a thread on a hole or a shaft that is already there.',

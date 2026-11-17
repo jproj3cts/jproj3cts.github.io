@@ -121,7 +121,12 @@ export function normFile(d) {
       if (!t || typeof t !== 'object') continue;
       if (t.kind === 'drawing') tabs.push(Object.assign(normDrawing(t, tabs.filter(x => x.kind === 'drawing').length + 1), { id: tid(t) }));
       else if (t.kind === 'assembly') tabs.push(Object.assign(normAsm(t, tabs.filter(x => x.kind === 'assembly').length + 1), { id: tid(t) }));
-      else { const s = normDoc(t); tabs.push(Object.assign(s, { id: tid(t), kind: 'studio', name: isStr(t.name, 120) && t.name.trim() ? t.name : 'Part Studio ' + (tabs.filter(x => x.kind === 'studio').length + 1) })); }
+      else {
+        const s = normDoc(t);
+        // (a Part Studio brought in from My parts: which part of the library, and its version then)
+        const mine = t.mine && isStr(t.mine.id, 60) && t.mine.id && Number.isFinite(t.mine.at) ? { mine: { id: t.mine.id, at: t.mine.at } } : {};
+        tabs.push(Object.assign(s, { id: tid(t), kind: 'studio', name: isStr(t.name, 120) && t.name.trim() ? t.name : 'Part Studio ' + (tabs.filter(x => x.kind === 'studio').length + 1) }, mine));
+      }
     }
   } else { const s = normDoc(d); tabs.push(Object.assign(s, { id: tid({}), kind: 'studio', name: 'Part Studio 1' })); }
   if (!tabs.some(t => t.kind === 'studio')) tabs.unshift(Object.assign(normDoc({}), { id: tid({}), kind: 'studio', name: 'Part Studio 1' }));

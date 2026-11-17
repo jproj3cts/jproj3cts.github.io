@@ -1027,6 +1027,49 @@ export async function check(pw, base, shots) {
       const r = await routed(app), last = r.opened.slice(-1)[0];
       ok('Opened by its link in ' + app + ': handed to JEKcad’s tab', last && last[0] === '/jek/tools/jekcad.html#cloud=bcad' && last[1] === 'jekcad', JSON.stringify(r.opened));
     }
+    // My parts: a part of a Part Studio kept there (with its Part Studio, marked cad), then an Assembly's Insert lists
+    // it (and not a JEKray part kept beside it); inserting it brings its Part Studio in as a tab, once, and the part
+    {
+      const q = await b.newPage({ viewport: { width: 1200, height: 800 } });
+      let kept = null; const lib = [{ id: 'pray', name: 'A lens', summary: 'Lens', palette: 'free', updated_at: 1 }];
+      await q.route('http://localhost:8787/**', r => {
+        const req = r.request(), path = new URL(req.url()).pathname, cors = { 'Access-Control-Allow-Origin': req.headers().origin || '*', 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'Content-Type, If-Match', 'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE' };
+        if (req.method() === 'OPTIONS') return r.fulfill({ status: 204, headers: cors });
+        let body = {}, status = 200;
+        if (path === '/v1/me') body = me;
+        else if (path === '/v1/workspaces/w_me/parts' && req.method() === 'POST') { const d = JSON.parse(req.postData()); kept = { id: 'pcad', name: d.name, summary: d.summary, palette: d.palette, icon: d.icon, content: d.content, updated_at: 5 }; lib.push(kept); body = kept; status = 201; }
+        else if (path === '/v1/workspaces/w_me/parts') body = { parts: lib.map(({ content, ...m }) => m), active: true };
+        else if (path === '/v1/parts/pcad') body = kept;
+        return r.fulfill({ status, contentType: 'application/json', headers: cors, body: JSON.stringify(body) });
+      });
+      q.on('dialog', d => d.accept('Bracket block'));
+      await q.goto(base + '/jek/tools/jekcad.html');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      await q.waitForTimeout(1500);
+      const d = newDoc(), sk = rectSketch(d, 30, 10);
+      d.features.push(sk, newFeature(d, 'extrude', { sketch: sk.id, regions: [[1, 1]], depth: '5' }));
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d));
+      await settled(q);
+      const partId = await q.evaluate(() => window.JEKcad.app.result.parts[0].id);
+      await q.evaluate(id => window.JEKcad.keepCadPart(id, 'Part 1'), partId);
+      const sent = kept ? { name: kept.name, palette: kept.palette, icon: /^data:image\/png/.test(kept.icon || ''), c: JSON.parse(kept.content) } : null;
+      await q.evaluate(() => window.JEKcad.addTab('assembly')); await q.waitForTimeout(300);
+      await q.click('[data-asm="insert"]');
+      await q.waitForSelector('[data-mine="pcad"]', { timeout: 15000 }).catch(() => {});
+      const rows = await q.evaluate(() => [...document.querySelectorAll('[data-mine]')].map(x => x.dataset.mine));
+      const studiosNow = () => q.evaluate(() => { const f = window.JEKcad.file(), A = f.tabs.find(t => t.kind === 'assembly'); return { studios: f.tabs.filter(t => t.kind === 'studio').map(t => [t.name, t.mine ? t.mine.id : null]), inst: A.instances.map(I => [f.tabs.find(t => t.id === I.studio).name, I.part]) }; });
+      await q.click('[data-mine="pcad"]');
+      await q.waitForFunction(() => window.JEKcad.file().tabs.find(t => t.kind === 'assembly').instances.length === 1, null, { timeout: 15000 }).catch(() => {});
+      const one = await studiosNow();
+      await q.click('[data-mine="pcad"]');
+      await q.waitForFunction(() => window.JEKcad.file().tabs.find(t => t.kind === 'assembly').instances.length === 2, null, { timeout: 15000 }).catch(() => {});
+      const two = await studiosNow();
+      const kept2 = await q.evaluate(() => JSON.parse(window.JEKcad.text()).tabs.find(t => t.mine));
+      await q.close();
+      ok('My parts: a part kept with its Part Studio (marked cad, with a picture); Insert lists it alone, brings its Part Studio in as a tab once, and puts the part in each time', sent && sent.name === 'Bracket block' && sent.palette === 'cad' && sent.icon && sent.c.format === 'jekcad-part' && sent.c.part === partId && sent.c.studio.features.length === 2 && !sent.c.studio.id
+        && rows.join() === 'pcad' && one.studios.length === 2 && one.studios[1][0] === 'Bracket block' && one.studios[1][1] === 'pcad' && one.inst.length === 1 && one.inst[0][0] === 'Bracket block' && one.inst[0][1] === partId
+        && two.studios.length === 2 && two.inst.length === 2 && kept2 && kept2.mine.id === 'pcad', JSON.stringify([sent && { ...sent, c: sent.c.part }, rows, one, two, kept2 && kept2.mine]));
+    }
   } catch (err) { ok('The suite ran to its end', false, err.message.split('\n').slice(0, 3).join(' ')); } finally { await b.close(); }
   return out;
 }

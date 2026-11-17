@@ -60,7 +60,7 @@ const closeHomeMenu = () => closeMenu();
 const openHomeMenu = (btn, items) => openMenu(btn, items);
 const jsonBody = body => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const shortUrl = id => location.origin + '/s/' + id;
-const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', elec: 'Circuits', rf: 'RF', pic: 'Photonic', draw: 'Draw', model: 'Model' };
+const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', elec: 'Circuits', rf: 'RF', pic: 'Photonic', draw: 'Draw', model: 'Model', cad: 'JEKcad' };
 let homeSeq = 0, homeRO = null;
 /* ---------- an app's launch page ----------
    The rail's apps open the app's page here (#app=<id>), not the app: what it does, its benches alone (the same folders,
@@ -586,7 +586,8 @@ export async function fillHome() {
     crumbs.replaceChildren(link(top, go('folder', null)), sep, P.q ? partsName + ': “' + P.q + '”' : partsName);
     const cards = list.map(p => {
       const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + p.name, title: 'More' }, '⋯');
-      const add = () => toast('On a JEKray bench: + Add part › ★ My parts › “' + p.name + '”');
+      const cad = p.palette === 'cad', where = cad ? 'in a JEKcad Assembly, from Insert › My parts' : 'on a JEKray bench, from + Add part › ★ My parts';
+      const add = () => toast(cad ? 'In a JEKcad Assembly: Insert › My parts › “' + p.name + '”' : 'On a JEKray bench: + Add part › ★ My parts › “' + p.name + '”');
       const pname = h('b', { class: 'rt-hname', title: p.name }, p.name);
       more.addEventListener('click', () => openHomeMenu(more, [
         ['How to add it', 'open', add],
@@ -597,7 +598,7 @@ export async function fillHome() {
         })] : null,
         writer ? ['Delete…', 'trash', () => { if (confirm('Delete “' + p.name + '” from ' + partsName + '? Benches it was added to keep their copies.')) homeSay(() => api('/v1/parts/' + p.id, { method: 'DELETE' }), 'Deleted “' + p.name + '”')(); }, 'danger'] : null]));
       return h('div', { class: 'rt-hcard rt-hpart', 'data-part': p.id },
-        h('button', { type: 'button', class: 'rt-hopen', title: '“' + p.name + '”: added on a JEKray bench, from + Add part › ★ My parts', onclick: add },
+        h('button', { type: 'button', class: 'rt-hopen', title: '“' + p.name + '”: added ' + where, onclick: add },
           p.icon ? h('img', { class: 'thumb icon', src: p.icon, alt: '' }) : h('span', { class: 'thumb rt-nopic' }, 'No picture')),
         h('div', { class: 'rt-hinfo' },
           pname,
@@ -607,7 +608,7 @@ export async function fillHome() {
     });
     box.replaceChildren(...(cards.length ? [h('div', { class: 'rt-hgrid' }, ...cards)]
       : [h('p', { class: 'rt-hempty' }, P.q ? 'No part matches “' + P.q + '”.'
-        : 'No parts kept yet. On the bench, set up a part as you want it (a lens of your own, a tuned laser) or a whole assembly, select it, right-click and choose Save to My parts; or import lens files there with Import .zmx files. They are then on every bench, under + Add part › My parts and the rail’s ★.')]),
+        : 'No parts kept yet. On the bench, set up a part as you want it (a lens of your own, a tuned laser) or a whole assembly, select it, right-click and choose Save to My parts; or import lens files there with Import .zmx files. They are then on every bench, under + Add part › My parts and the rail’s ★. In JEKcad, a part’s ⋯ menu in a Part Studio has Save to My parts, and an Assembly’s Insert lists them.')]),
       helpLine('Your parts, on every bench and on any computer.', ['Parts you keep are on every bench, on any computer: under + Add part › ★ My parts, in its search, and behind the ★ on the bench’s parts rail. Deleting a part here leaves the benches it was added to as they are.'], 'rt-subsmall'));
     return;
   }

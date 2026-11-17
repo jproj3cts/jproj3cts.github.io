@@ -39,7 +39,9 @@ behind JEKray's shim (`page/kernel.js`), or on the dev page the modules as a mod
   `carryRegions` in `core/sketch-tools.js`). Dimensions drawn on the model, and typed there, are `modelDims` and
   `modelDimEdit`; fly mode is `flyStart` in `view3d.js` (a perspective camera of its own).
 - `src/io/`: files and autosave, STEP import, exports (`files.js`); the account's hooks (`cad-account.js`: the
-  account itself is JEKray's `io/account.js`, shared); cloud part studios (`cloud.js`, as JEKion's).
+  account itself is JEKray's `io/account.js`, shared); cloud part studios (`cloud.js`, as JEKion's); My parts (`cad-parts.js`:
+  a part kept with its whole Part Studio, `{ format: 'jekcad-part', part, studio }`, palette `cad` in the API's parts
+  library, which JEKray's My parts leaves out; an Assembly's Insert brings its Part Studio in as a tab marked `mine`).
 
 Shared from JEKray: `core/constants.js`, `core/hooks.js`, `core/src-tag.js`, `worker/shim.js`, `ui/pro.js`,
 `ui/dom.js`, `io/usage.js`, `io/account.js`.

@@ -35,6 +35,17 @@ The first part put in is fixed where its Part Studio has it. The others are set 
 
 A part in an assembly is the part in its Part Studio. Change the Part Studio and every assembly that uses the part shows the change.
 
+## Parts from My parts
+
+A part made in another document can be kept in My parts and put in any assembly.
+
+1. In the Part Studio, click **⋯** on the part's row and choose **Save to My parts…**. Give it a name. The whole Part Studio is kept with it.
+2. In an Assembly, click **Insert**. Your kept parts are listed under My parts, below the document's own Part Studios. Click one to put it in.
+
+The first time a kept part is inserted, its Part Studio comes into the document as a tab of its own, named after the part. Inserting it again uses the same tab. The tab is a copy: change it here and the part in My parts stays as it was. Keep the part again and the next insert brings in the new version as another tab.
+
+Keeping parts needs JEKrayPro, as My parts does in JEKray. Inserting them needs only to be signed in. JEKsuite's My parts lists JEKcad's parts beside JEKray's; each app shows only its own.
+
 ## Mates
 
 A mate joins a face, an edge or a corner of one part to one of another. Click a mate in the bar, click on the part that should move, then on the part it goes to, and click **✓ Mate**.

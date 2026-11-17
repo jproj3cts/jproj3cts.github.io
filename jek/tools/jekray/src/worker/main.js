@@ -65,6 +65,7 @@ export function workerMain() {
         out = J ? { key: J.key + '|' + el.length + cavLoadKey(), r: detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })) } : null;
       } else if (kind === 'cavity') {
         popRun(lastTrace.beams, allSources(), {});
+        out = true;                                      // (done: the cavities it solved come with it, as cav; none may be)
       } else if (kind === 'step') {
         // a sweep's step for the render pool: the swept values set as the page sets them, then its fields
         for (const [id, path, v] of args.sets) { const el = getEl(id); if (el) setParam(el, path, v); }

@@ -48,6 +48,19 @@ describe('My parts', () => {
     expect((await lib(s)).parts).toEqual([]);
   });
 
+  it('keeps a JEKcad part, with its Part Studio, marked cad whatever palette is sent', async () => {
+    const s = await pro('Ada');
+    const cad = JSON.stringify({ format: 'jekcad-part', version: 1, part: 'fext1', studio: { format: 'jekcad', version: 1, features: [] } });
+    const r = await save(s, { name: 'Bracket', summary: 'JEKcad part', palette: 'free', content: cad });
+    expect([r.status, r.body.palette]).toEqual([201, 'cad']);
+    expect((await json(await call(`/v1/parts/${r.body.id}`, { token: s.token }))).body.content).toBe(cad);
+    // a JEKray part cannot be marked cad, and a JEKcad part needs its part and its studio's features
+    expect((await save(s, { name: 'Lens', palette: 'cad', content: clip() })).body.palette).toBe('free');
+    for (const bad of [{ part: '', studio: { features: [] } }, { part: 'f', studio: {} }, { part: 'f', studio: [] }, { part: 'f' }]) {
+      expect((await save(s, { name: 'x', content: JSON.stringify({ format: 'jekcad-part', ...bad }) })).status).toBe(400);
+    }
+  });
+
   it('keeping needs a plan; listing, using and deleting do not', async () => {
     const s = await pro('Ada');
     const p = (await save(s, { name: 'Kept', content: clip() })).body;

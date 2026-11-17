@@ -30,6 +30,12 @@ together when the owner lifts the pause. Nothing on this list has been started u
    owner expected it to plot. Find whether the plot is empty because the signal is drawn on a ns time axis while the
    sweep moves on a seconds scale, or because the sweep's kept steps or worker traces do not feed it. Decide with the
    owner what it should show during a sweep: the reading against the swept value, or a rolling history.
+6. **Showing a hidden part during a sweep froze the page.** On the owner's Levisense bench (second version, kept
+   locally at the session scratchpad as owner/Levisense_Setup2.jekray; never commit it), with a sweep playing on the
+   Particle (Screen 2 particle), the owner clicked the eye to show the STL object "FL-CUBE63CF - FL-CUBE63CF" (a cube
+   that sits round the particle; the other STL objects stayed hidden, Holder and Base suppressed). The page froze.
+   Likely suspects: unhiding a large STL mesh rebuilds the 3D scene and every kept step's light at once, or the cube
+   now catches the particle's scattered light and its cones and field picture are worked out again for every step.
 
 ## Also outstanding
 

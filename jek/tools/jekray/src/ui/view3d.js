@@ -26,7 +26,7 @@ import {
 import { groupOf } from './drawings.js';
 import { mateSpread, poseCarry, poseSnap, poseTurn } from '../core/mates.js';
 import { snapVal } from './pointer.js';
-import { SW, fieldHeld, swAsk, swDrop, swPool, swRelease, renderedPeriod, sweepJob, sweepVol } from './sweeps.js';
+import { SW, fieldHeld, playing, swAsk, swDrop, swPool, swRelease, renderedPeriod, sweepJob, sweepVol } from './sweeps.js';
 import { qW } from '../engines/fibre-face.js';
 import { renderPanel, syncPanel } from './panel.js';
 import { h } from './dom.js';
@@ -1283,7 +1283,11 @@ export const V3D = (() => {
       gl_FragColor = vec4(sum / b * uK, 0.0, 0.0, 1.0);
     }`;
   const SVOL_VS = 'varying vec3 vP; void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
-  const scatVolKey = () => ((lastTrace.scat && lastTrace.scat.fans) || []).map(F => F.field ? F.part + ':' + F.field.top + ':' + scatDb(F) : '').join();
+  // (each field picture by its own identity: a particle turned keeps the same brightest value, so its top alone would
+  // leave the glow of an earlier step in place, or a light layer kept for an earlier step brought back)
+  const SVOL_IDS = new WeakMap(); let svolSeq = 0;
+  const svolId = G => { let k = SVOL_IDS.get(G); if (!k) SVOL_IDS.set(G, (k = ++svolSeq)); return k; };
+  const scatVolKey = () => ((lastTrace.scat && lastTrace.scat.fans) || []).map(F => F.field ? F.part + ':' + svolId(F.field) + ':' + F.field.top + ':' + scatDb(F) : '').join();
   // a particle's Scale (the Scattering tab's, scatScale), in dB on the bench (0: linear); in 3D logarithmic over half of
   // them (the light along a line of sight falls as 1/b where the irradiance falls as 1/b², so the glow reaches as far)
   const scatDb = F => scatDbOf((getEl(F.part) || {}).scatScale);
@@ -1373,12 +1377,26 @@ export const V3D = (() => {
   }
   /* the volumes' light, added up into a buffer the size of the view before the scene is drawn: first the
      depth of what is solid (so a part in front of a beam hides it), then each volume, its light added */
-  function volPass() {
+  /* While the view turns, pans or zooms, or a sweep plays, the glow is worked out at half the size each way (a quarter of
+     the GPU's work: its march through the volumes is most of a frame's), laid over the picture smoothly; once the view
+     holds still for VOL_STILL_MS, it is drawn again at full size. (A picture saved is always full size; in the tests a sweep
+     playing does not lower it.) */
+  const VOL_STILL_MS = 220;
+  function camMoved() { R.camMoved = performance.now(); }
+  function volScale(full) {
+    if (full) return 1;
+    const now = performance.now(), moving = now - (R.camMoved || -1e9) < VOL_STILL_MS, play = playing.size > 0 && !TEST_MODE;
+    if (moving) { clearTimeout(R.volSharp); R.volSharp = setTimeout(need0, VOL_STILL_MS - (now - R.camMoved) + 20); }
+    return moving || play ? 0.5 : 1;
+  }
+  function volPass(full) {
     const ms = R.volMeshes, sv = R.scatVols;
     if ((!ms || !ms.length) && (!sv || !sv.length)) return;
-    const { gl, scene, camera } = R, sz = gl.getDrawingBufferSize(new T.Vector2());
+    const { gl, scene, camera } = R, sz = gl.getDrawingBufferSize(new T.Vector2()), f = volScale(full);
+    sz.set(Math.max(1, Math.round(sz.x * f)), Math.max(1, Math.round(sz.y * f)));
     // (its depth a texture, which a particle's scattered field reads: see scatVolMeshes)
-    if (!R.volRT) R.volRT = new T.WebGLRenderTarget(sz.x, sz.y, { type: T.HalfFloatType, depthBuffer: true, depthTexture: new T.DepthTexture(sz.x, sz.y), minFilter: T.NearestFilter, magFilter: T.NearestFilter });
+    // (read through linear filtering: at full size each pixel is a texel's centre, the same as nearest; at half, smooth)
+    if (!R.volRT) R.volRT = new T.WebGLRenderTarget(sz.x, sz.y, { type: T.HalfFloatType, depthBuffer: true, depthTexture: new T.DepthTexture(sz.x, sz.y), minFilter: T.LinearFilter, magFilter: T.LinearFilter });
     else if (R.volRT.width !== sz.x || R.volRT.height !== sz.y) R.volRT.setSize(sz.x, sz.y);
     const hid = [];
     scene.traverse(o => {
@@ -1395,7 +1413,7 @@ export const V3D = (() => {
     for (const o of hid) o.visible = true;
     camera.layers.set(1); gl.render(scene, camera); camera.layers.set(0);
     if (sv && sv.length) {
-      if (!R.scatRT) R.scatRT = new T.WebGLRenderTarget(sz.x, sz.y, { type: T.HalfFloatType, depthBuffer: false, minFilter: T.NearestFilter, magFilter: T.NearestFilter });
+      if (!R.scatRT) R.scatRT = new T.WebGLRenderTarget(sz.x, sz.y, { type: T.HalfFloatType, depthBuffer: false, minFilter: T.LinearFilter, magFilter: T.LinearFilter });
       else if (R.scatRT.width !== sz.x || R.scatRT.height !== sz.y) R.scatRT.setSize(sz.x, sz.y);
       gl.setRenderTarget(R.scatRT); gl.clear(true, false, false);
       camera.layers.set(2); gl.render(scene, camera); camera.layers.set(0);
@@ -1631,7 +1649,7 @@ export const V3D = (() => {
       if (R.anim !== id) return;
       const u = Math.min(1, (performance.now() - t1) / dur), e = u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2;
       const tt = t0.clone().lerp(t, e), dd = d0.clone().normalize().applyQuaternion(I.clone().slerp(q, e)).multiplyScalar(l0 + (l1 - l0) * e);
-      R.camera.position.copy(tt).add(dd); R.target.copy(tt); aim(); draw();
+      R.camera.position.copy(tt).add(dd); R.target.copy(tt); aim(); if (u < 1) camMoved(); draw();
       if (u < 1) requestAnimationFrame(step); else { R.anim = null; keepCam(); }
     };
     step();
@@ -1741,6 +1759,7 @@ export const V3D = (() => {
     go(R.target.clone().add(dir.multiplyScalar(dist)), R.target.clone(), true);
   }
   function orbit(dx, dy, pivot) {
+    camMoved();
     const cam = R.camera, k = 0.008;
     const rot = (axis, a) => { const q = new T.Quaternion().setFromAxisAngle(axis, a); for (const v of [cam.position, R.target]) v.sub(pivot).applyQuaternion(q).add(pivot); };
     rot(new T.Vector3(0, 0, 1), -dx * k);
@@ -1753,12 +1772,14 @@ export const V3D = (() => {
     aim();
   }
   function pan(dx, dy, depthAt) {
+    camMoved();
     const cam = R.camera, d = depthAt ? cam.position.distanceTo(depthAt) : cam.position.distanceTo(R.target);
     const k = 2 * d * Math.tan(cam.fov * deg / 2) / R.h, right = new T.Vector3().setFromMatrixColumn(cam.matrixWorld, 0), up = new T.Vector3().setFromMatrixColumn(cam.matrixWorld, 1);
     const m = right.multiplyScalar(-dx * k).add(up.multiplyScalar(dy * k));
     cam.position.add(m); R.target.add(m); cam.updateMatrixWorld();
   }
   function zoom(f, at) {
+    camMoved();
     const P = at || R.target, cam = R.camera;
     if (cam.position.distanceTo(P) * f < 5 && f < 1) return;
     cam.position.sub(P).multiplyScalar(f).add(P); R.target.sub(P).multiplyScalar(f).add(P); cam.updateMatrixWorld();
@@ -2010,6 +2031,9 @@ export const V3D = (() => {
       keepCam(); need();
     }, { passive: false });
     window.addEventListener('resize', () => { if (R && active()) { resize(); requestRender(); } });
+    // the bench's own size, as a panel opens or closes beside it: the picture is drawn again at once at its new shape,
+    // whether or not the bench is drawn just now (a sweep held while its steps are worked out draws nothing new)
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { if (R && active()) { resize(); need(); requestRender(); } }).observe(D.stage);
   }
   /* The 3D view's keys: F fits, Shift+1 to 7 the standard views; the 2D view's own keys that mean
      nothing here (measure, pan with Space) are left alone */
@@ -2039,7 +2063,7 @@ export const V3D = (() => {
     if (!R) return;
     if (!accountGate('save a picture of the 3D view')) return;
     const { gl, scene, camera } = R;
-    gl.setViewport(0, 0, R.w, R.h); gl.setScissorTest(false); gl.setClearColor(new T.Color(sceneBg()), 1); gl.clear(); volPass(); gl.render(scene, camera);
+    gl.setViewport(0, 0, R.w, R.h); gl.setScissorTest(false); gl.setClearColor(new T.Color(sceneBg()), 1); gl.clear(); volPass(true); gl.render(scene, camera);
     D.cv.toBlob(b => {
       if (!b) return;
       const a = h('a', { href: URL.createObjectURL(b), download: (project.name || 'bench').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') + '-' + benchName(project.tab).replace(/\s+/g, '-') + '-3d.png' });
@@ -2170,7 +2194,7 @@ export const V3D = (() => {
   function flyTurn(dx, dy) {
     const [yaw, pitch] = flyPose();
     flySet(yaw - dx * 0.0022, pitch - dy * 0.0022);
-    flyLook(); need();
+    camMoved(); flyLook(); need();
   }
   function flyStep(t) {
     if (!fly) return;
@@ -2183,7 +2207,7 @@ export const V3D = (() => {
       .addScaledVector(up, (K.has('u') ? 1 : 0) - (K.has('d') ? 1 : 0));
     if (m.lengthSq() > 0 && dt > 0) {
       R.camera.position.addScaledVector(m.normalize(), fly.speed * (K.has('fast') ? 4 : 1) * dt);
-      flyLook(); need();
+      camMoved(); flyLook(); need();
     }
     fly.raf = requestAnimationFrame(flyStep);
   }
@@ -2233,7 +2257,7 @@ export const V3D = (() => {
       // each fibre's tube as drawn: the box round it on the bench (mm), by the fibre's id
       fibreBoxes() { if (!R) return null; sync(); const out = {}; for (const [id, c] of R.wireCache || []) { const g = c.obj.geometry; g.computeBoundingBox(); const b = g.boundingBox; out[id] = [b.min.x, b.min.y, b.max.x, b.max.y].map(v => +v.toFixed(3)); } return out; },
       // a particle's scattered field as drawn (scatVolMeshes): its volumes; and what one frame takes, the GPU's work finished (ms)
-      scatField: () => { if (!R || !active()) return null; sync(); const k = D.vkey.querySelector('b.sc'); return { vols: (R.scatVols || []).length, quad: R.groups.light.children.some(o => o.userData.volQuad), key: D.vkey.hidden || !k ? null : D.vkey.textContent }; },
+      scatField: () => { if (!R || !active()) return null; sync(); const k = D.vkey.querySelector('b.sc'); return { vols: (R.scatVols || []).length, sig: (R.scatVols || []).map(o => { const g = o.userData.scatVol && o.userData.scatVol.field && o.userData.scatVol.field.grid; let s = 0; if (g) for (let i = 0; i < g.length; i += 7) s += g[i] * (1 + i % 13); return s; }).join(), quad: R.groups.light.children.some(o => o.userData.volQuad), key: D.vkey.hidden || !k ? null : D.vkey.textContent }; },
       // what pointing at a canvas point reads (css px from its top left): the beam's line and the scattered field's
       readAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), e = { clientX: b.left + px, clientY: b.top + py }, q = scatUnder(e), r = R.vol ? volUnder(e) : null; readVol(e); return { beam: r && { L: r.L }, scat: q && { L: q.L, I: q.I, p: q.p }, text: D.vread ? D.vread.textContent : null }; },
       drawMs(n = 5) { if (!R || !active()) return null; sync(); draw(); const g = R.gl.getContext(); g.finish(); const t0 = performance.now(); for (let i = 0; i < n; i++) draw(); g.finish(); return (performance.now() - t0) / n; },

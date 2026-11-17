@@ -6575,6 +6575,45 @@ const TESTS = [
     },
   },
   {
+    name: 'A held sweep keeps the bench at its true shape when the bench changes size',
+    why: 'while a sweep is held (its steps still being worked out) the bench draws no new frame; a panel opening or closing beside it changed its size and left the old picture stretched, or a cleared 2D canvas: the picture is now drawn again at the new size, 2D and 3D, with the sweep still held (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const rig = document.getElementById('rig'), doc = rig.contentDocument, w0 = rig.style.width;
+      const mk = () => bench('hold resize', [
+        { type: 'source', id: 'S', name: 'Laser', x: 0, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 633, rays: 1, popN: 128 },
+        // (a lens place no other check uses, so nothing kept from before makes the sweep ready at once)
+        { type: 'lens', id: 'L', name: 'Lens', x: 41.37 + Math.random() * 0.01, y: 0, diameter: 12.7, surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }],
+          sweeps: { y: { min: -1, max: 1, freq: 0.5, phase: 0, wave: 'sine', field: true, steps: 8 } } },
+        { type: 'screen', id: 'Sc', name: 'Screen', x: 120, y: 0, angle: 180, length: 10 }], { light: { rays: true, envelope: false, field: true, scale: 'lin' } });
+      const frames = n => (async () => { for (let i = 0; i < n; i++) await new Promise(r => rigWin().requestAnimationFrame(() => r())); })();
+      const shape = sel => { const c = [...doc.querySelectorAll(sel)].find(x => x.offsetParent !== null); return c ? { a: c.width / c.height, b: c.clientWidth / c.clientHeight, inked: (() => { try { const g = c.getContext('2d'); if (!g) return true; const d = g.getImageData(0, 0, c.width, c.height).data; for (let i = 3; i < d.length; i += 4 * 97) if (d[i]) return true; return false; } catch (e) { return true; } })() } : null; };
+      const out = {};
+      try {
+        for (const three of [false, true]) {
+          J.load(mk()); await J.view3d.set(three); J.sweepHoldLimit(1e-6);
+          const p = J.sweepPlay('Lens', 'y');
+          let t = 0; while (!J.sweepHold().holding && t++ < 400) await new Promise(r => setTimeout(r, 5));
+          const held = J.sweepHold().holding;
+          // (a panel beside the bench opened, as a click on a part or the side tab does: the window keeps its size)
+          const tab = doc.getElementById('btnSideTab'), w0b = doc.getElementById('bench').clientWidth; tab.click(); await frames(4);
+          const moved = doc.getElementById('bench').clientWidth !== w0b;
+          const sel = three ? 'canvas.rt-v3d' : 'canvas#bench';
+          const s1 = shape(sel), stillHeld = J.sweepHold().holding;
+          tab.click(); await frames(4);
+          const s2 = shape(sel);
+          J.sweepHoldLimit(0); J.sweepPause(); await p.catch(() => 0);
+          const ok1 = held && stillHeld && s1 && s2 && Math.abs(s1.a - s1.b) / s1.b < 0.02 && Math.abs(s2.a - s2.b) / s2.b < 0.02 && s1.inked && s2.inked;
+          out[three ? '3d' : '2d'] = { held, stillHeld, moved, s1, s2, ok: ok1 };
+          if (!ok1) J.note && J.note('held resize ' + JSON.stringify(out));
+        }
+        const ok = out['2d'].ok && out['3d'].ok;
+        if (!ok) { console.log('held resize', JSON.stringify(out)); throw new Error('held resize ' + JSON.stringify(out)); }
+        return ok ? 1 : 0;
+      } finally { rig.style.width = w0; J.sweepHoldLimit(0); J.sweepPause(); await J.view3d.set(false); }
+    },
+  },
+  {
     name: 'A sweep rendered ahead plays from what it kept: no trace or solve a frame once round, within a frame budget, keeping its time',
     why: 'a lens swept across a beam shown as its field, 8 steps rendered ahead, with a particle in the light: after one cycle every step’s trace (and the particle’s answer) is kept, so a second cycle traces nothing and solves nothing, its frames come at least 8 a second (generous, for CI), and the steps it shows move with the clock (a step the screen cannot keep up with is skipped, not waited for) (1 when all hold)',
     want: 1, tol: 0, unit: '',
@@ -12892,6 +12931,28 @@ const TESTS = [
     },
   },
   {
+    name: 'In 3D a rod’s scattered glow turns with it while its tilt sweeps',
+    why: 'the owner’s case: a rod tilted step by step with its scattered field drawn in 3D; a turned rod keeps the same brightest value, so the glow, kept by that value alone, stayed as the first step drew it. Each step’s glow is now its own: over a cycle the drawn glow changes with the tilt (1 when at least four different glows are drawn in ten steps)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const raf = () => new Promise(r => rigWin().requestAnimationFrame(() => r()));
+      J.load(bench('rod sweep 3d', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol: 'p', power: 50, popN: 64 }),
+        { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+1)-1)/lambda' },
+        particleAt({ name: 'S', x: 1, trapMat: 'Fused silica', trapShape: 'cylinder', trapR: 60, trapLen: 600, scatDip: 5, trapMed: 'vacuum', scatField: true,
+          sweeps: { trapTilt: { min: 0, max: 90, freq: 1, phase: 0, wave: 'ramp', field: true, steps: 10 } } })], { minPower: 1e-6, light: { rays: false, envelope: false, field: true, scale: 'lin' } }));
+      const sigs = new Map();
+      try {
+        await J.view3d.set(true);
+        await J.sweepPlay('S', 'trapTilt');
+        const t0 = performance.now();
+        while (performance.now() - t0 < 25000 && sigs.size < 10) { await raf(); const f = J.view3d.scatField(); if (f && f.sig) sigs.set(J.byName('S').trapTilt, f.sig); }
+        const distinct = new Set(sigs.values()).size;
+        if (distinct < 4) console.log('rod glow 3d', JSON.stringify([...sigs]));
+        return distinct >= 4 ? 1 : 0;
+      } finally { J.sweepPause(); await J.view3d.set(false); }
+    },
+  },
+  {
     name: 'A key typed in a number box returns at once; the bench takes the value once typing pauses',
     why: 'typing is kept apart from the bench: each key sets the value at once and returns within a frame’s budget (50 ms here, generous for CI), and the trace, panel and workers follow EDIT_SETTLE (140 ms) after the last key, or at once on Enter; one Undo step for the edit (1 when all hold)',
     want: 1, tol: 0, unit: '',
@@ -13415,6 +13476,88 @@ const TESTS = [
       const neither = !('fillColour' in J.byName('L')) && !('fillColour' in J.byName('M'));
       if (!(shown && set && undone && redone && cleared && back && mixed && both && neither)) console.log('colours panel', { shown, set, undone, redone, cleared, back, mixed, both, neither, heads, states });
       return shown && set && undone && redone && cleared && back && mixed && both && neither ? 1 : 0;
+    },
+  },
+  { group: 'Smoothness' },
+  {
+    name: 'A field sweep whose frames would not fit in memory renders every so many steps, keeps within the budget, and plays',
+    why: 'a 2D field through a lens swept in x over 12 steps, the field rendered: once with the usual budget (every step kept), then, its range moved so the frames are new, with the budget lowered to three and a half steps’ frames. It renders every sixth step (two kept, 85% of the budget at most), what the frames take stays within the budget, and the sweep plays. The levitated-trap example’s own sweep (240 steps of about 140 MB) closed the tab before: it ran the page out of memory',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const bench = { format: 'jekray', version: 1, light: { rays: true, envelope: false, field: true, scale: 'lin', byPower: true }, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, rays: 11, width: 4, gauss: true, w0: 1, popModel: '2d', popN: 64 },
+        { type: 'lens', id: 'L', name: 'L', x: 0, y: 0, angle: 0, f: 50, length: 20, sweeps: { x: { min: -2, max: 2, freq: 1, phase: 0, wave: 'triangle', field: true, steps: 12 } } },
+        { type: 'mirror', id: 'M', name: 'M', x: 60, y: 0, angle: 30, length: 20 }] };
+      try {
+        J.load(bench); J.frameBudget(0);
+        const b0 = J.frameBudget(), n0 = b0.frames;
+        await J.sweepPlay('L', 'x'); J.sweepPause();
+        const b1 = J.frameBudget(), per = (b1.bytes - b0.bytes) / Math.max(1, b1.frames - n0), whole = b1.kept === null && b1.frames - n0 >= 10;   // (a triangle's two ends are one field)
+        J.byName('L').sweeps.x.min = -1.5;
+        const budget = 3.5 * per;
+        J.frameBudget(budget);
+        await J.sweepPlay('L', 'x');
+        const b2 = J.frameBudget(), playing = Math.round(12 * J.renderedSteps()) === 2;     // (playing over the two steps it kept: a share of the 12)
+        const ok = whole && per > 0 && b2.kept === 2 && b2.bytes <= budget && playing;
+        if (!ok) console.log('frames budget', JSON.stringify({ per, b0, b1, b2, budget, found: J.renderedSteps() }));
+        return ok ? 1 : 0;
+      } finally { J.sweepPause(); J.frameBudget(0); }
+    },
+  },
+  {
+    name: 'Dragging a part, typing a value and playing a sweep keep the page free: no task on it longer than 200 ms',
+    why: 'the page as a reader has it (its workers on, not the test rig), in a frame of its own, with each example: michelson and fabry-perot in 2D. A part is dragged for 1.5 s by pointer events a frame apart, a number typed into its panel a key at a time, the bench’s sweeps played for 2.5 s; every task on the page’s thread over 50 ms is recorded (PerformanceObserver, longtask). The worst must stay under 200 ms: twice the 100 ms within which a reply to a hand feels immediate, for the slower computers that run the tests. Here a long task is a stall the hand feels, whatever caused it',
+    want: 1, tol: 0, unit: '',
+    run: async () => {
+      const dev = /[?&]dev=1/.test(location.search), wait = ms => new Promise(r => setTimeout(r, ms));
+      const worst = {};
+      for (const demo of ['michelson', 'fabry-perot']) {
+        const f = document.createElement('iframe');
+        f.style.cssText = 'position:absolute;left:-5000px;top:0;width:1200px;height:800px;border:0';
+        f.src = '/jek/tools/' + (dev ? 'jekray-dev.html' : 'jekray.html') + '?smooth#demo=' + demo;
+        document.body.append(f);
+        try {
+          const W = f.contentWindow;
+          for (let i = 0; i < 300 && !(W.JEKray && W.JEKray.benches && W.JEKray.view3d && W.document.querySelector('#bench')); i++) await wait(100);
+          const J = W.JEKray;
+          await wait(2500);
+          if (J.view3d.on()) J.view3d.set(false);
+          await wait(1500);
+          const lt = [];
+          const ob = new W.PerformanceObserver(l => { for (const e of l.getEntries()) lt.push(Math.round(e.duration)); });
+          ob.observe({ type: 'longtask' });
+          const raf = () => new Promise(r => W.requestAnimationFrame(() => r()));
+          // a part dragged: the first that is neither a source nor a drawing, from its middle
+          const d = JSON.parse(JSON.stringify(J.serialize())), els = d.elements || [], P = els.find(e => e.type !== 'source' && e.type !== 'draw' && !e.locked) || els[0];
+          const cv = W.document.getElementById('bench'), b = cv.getBoundingClientRect(), v = J.setView({});
+          const x0 = b.left + b.width / 2 + (P.x - v.cx) * v.scale, y0 = b.top + b.height / 2 - (P.y - v.cy) * v.scale;
+          const ev = (type, x, y, o) => cv.dispatchEvent(new W.PointerEvent(type, Object.assign({ pointerId: 9, pointerType: 'mouse', button: 0, buttons: 1, bubbles: true, cancelable: true, clientX: x, clientY: y }, o || {})));
+          ev('pointerdown', x0, y0);
+          const t0 = performance.now(); let k = 0;
+          while (performance.now() - t0 < 1500) { k++; ev('pointermove', x0 + 30 * Math.sin(k / 9), y0 + 20 * Math.sin(k / 7)); await raf(); }
+          const moved = J.byName(P.name).x !== P.x || J.byName(P.name).y !== P.y;
+          ev('pointerup', x0, y0, { buttons: 0 });
+          await wait(1200);
+          // a number typed into the panel, a key at a time
+          const inp = [...W.document.querySelectorAll('#panel input[inputmode=decimal]')].find(x => x.offsetParent);
+          if (inp) {
+            inp.focus(); inp.value = '';
+            for (const ch of String(Math.round((Number(inp.placeholder) || 10) + 3.5) + '.5')) { inp.value += ch; inp.dispatchEvent(new W.Event('input', { bubbles: true })); await wait(90); }
+            inp.dispatchEvent(new W.Event('change', { bubbles: true })); inp.blur();
+          }
+          await wait(1200);
+          // the bench's sweeps played (where it has any), then paused
+          const play = W.document.getElementById('btnPlayAll');
+          let played = null;
+          if (play && !play.disabled) { play.click(); await wait(2500); played = W.document.getElementById('btnPauseAll').disabled === false; J.sweepPause(); }
+          await wait(1200);
+          ob.disconnect();
+          worst[demo] = { worst: Math.max(0, ...lt), n: lt.length, moved, typed: !!inp, played };
+        } finally { f.remove(); }
+      }
+      const ok = Object.values(worst).every(w => w.worst < 200 && w.moved && w.typed && w.played !== false);
+      console.log('smoothness: worst task (ms)', JSON.stringify(worst));
+      return ok ? 1 : 0;
     },
   },
 ];

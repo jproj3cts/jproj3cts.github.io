@@ -8,7 +8,7 @@ import { getEl } from '../state/elements.js';
 import { modDelta } from '../engines/mods.js';
 import { SCAT_NHARD, SCAT_NMAX, particleTrapNow, scatCache, scatFind, scatKeep, scatStore, scatterNow, scatterPrep, scatterRun, setScatMode, trapKeep, trapKeyOf, trapKept } from '../engines/scatter.js';
 import { popRun } from '../engines/beam-tree.js';
-import { lastTrace } from '../engines/trace.js';
+import { lastTrace, lastTraceMs, offerTrace } from '../engines/trace.js';
 import { trapReport } from '../engines/screen-stats.js';
 import { project } from '../state/project.js';
 import { DPR, H, W, benchLight, ctx, getCss, glowA, glowOp, inkA, lightLayer, requestRender, sx, sy } from './render.js';
@@ -17,6 +17,7 @@ import { bindSync, helpLine, panel, param, selectField, syncPanel, vs } from './
 import { h } from './dom.js';
 import { axisFont, drawAxes, magma, plotArea, plotCsv, plotSaveRow, scatRamp } from './plots.js';
 import { WORKERS_OK, fwProject, midDrag, newAppWorker } from '../page/workers.js';
+import { TRACE_SHARE_MS, traceAhead } from './sweeps.js';
 import { changed } from './actions.js';
 import { checkpoint } from './tabs.js';
 
@@ -75,7 +76,8 @@ export function drawScatField() {
       cv.width = nx; cv.height = ny;
       const lut = new Uint8Array(768);
       for (let c = 0; c < 256; c++) lut.set(scatRamp(c / 255, lightLayer), 3 * c);
-      const g = cv.getContext('2d'), px = (x1 - x0) / nx, py = (y1 - y0) / ny;
+      // (read back as it is drawn: kept in memory, not on the GPU, so the read does not wait on it)
+      const g = cv.getContext('2d', { willReadFrequently: true }), px = (x1 - x0) / nx, py = (y1 - y0) / ny;
       // past the parts: the strips between the cones' rays in the bench plane, each as bright as the light it carries, laid
       // down first as levels (grey, the brighter kept where two meet, each a little wider than it is so no seam shows)
       let lv = null;
@@ -144,6 +146,9 @@ function scatWorker() {
       // (a Particle part's answer is what the bench's trace launches its scattered light from: kept, the bench is drawn again)
       // (a step solved ahead is kept for when the sweep gets there, not put on show)
       if (o.S && o.key) { if (J.proj) scatStore(o.key, o.S); else scatKeep(J.elId, o.key, o.S); SCW.done++; requestRender(); }
+      // (on a bench slow to trace, the bench traced there with the answer: a sweep's step kept for when it plays (ui/sweeps.js),
+      // the bench as it is now offered for its next trace, so the page need not trace it again for the answer)
+      if (o.trace) { if (J.proj) traceAhead(o.trace); else if (o.S && o.key) offerTrace(o.trace.rest, o.trace.T, o.trace.ms, o.trace.V); }
       if (o.T !== undefined && o.key) { trapKeep(trapKeyOf(o.key), o.T); requestRender(); }
       if (J.resolve) J.resolve(o.cancelled ? null : o);
       syncPanel(); scatPump();
@@ -190,7 +195,7 @@ function scatPump() {
     // (one asked for live: still wanted only if the bench still asks for it)
     if (!w || (!q.proj && (!scatterPrep(el) || scatterPrep(el).key !== q.key))) { if (q.resolve) q.resolve(null); syncPanel(); scatPump(); return; }
     SCW.job = Object.assign(q, { id: ++SCW.seq, t0: performance.now(), prog: null });
-    w.postMessage({ id: SCW.job.id, kind: q.kind, args: { id: q.elId, sets: q.sets || null, trap: false }, proj: q.proj || fwProject(), mods: modDelta(w) });
+    w.postMessage({ id: SCW.job.id, kind: q.kind, args: { id: q.elId, sets: q.sets || null, trap: false, trace: !!q.trace }, proj: q.proj || fwProject(), mods: modDelta(w) });
     syncPanel();
   }, SCW.queue[0].proj ? 0 : 120);
 }
@@ -198,7 +203,7 @@ function scatPump() {
    is replaced, and one running for a state the bench has left is dropped */
 function scatWant(el, key, kind) {
   SCW.queue = SCW.queue.filter(q => q.proj || q.elId !== el.id || q.kind !== kind);
-  const live = { kind, elId: el.id, key };
+  const live = { kind, elId: el.id, key, trace: kind === 'scatter' && lastTraceMs > TRACE_SHARE_MS };
   // (live work goes before a sweep's steps solved ahead)
   const at = SCW.queue.findIndex(q => q.proj);
   if (at < 0) SCW.queue.push(live); else SCW.queue.splice(at, 0, live);
@@ -210,26 +215,31 @@ function scatWant(el, key, kind) {
 }
 /* A sweep's step solved ahead: the bench as it is (proj) with the step's values set (sets: [id, path, value]); resolves
    with { key, S }, or null when it was dropped */
-export function scatterAhead(elId, proj, sets) {
+export function scatterAhead(elId, proj, sets, trace) {
   if (TEST_MODE || SCW.failed || !WORKERS_OK || !scatWorker()) return null;
-  return new Promise((resolve, reject) => { SCW.queue.push({ kind: 'scatter', elId, key: null, proj, sets, resolve, reject }); scatPump(); });
+  return new Promise((resolve, reject) => { SCW.queue.push({ kind: 'scatter', elId, key: null, proj, sets, trace, resolve, reject }); scatPump(); });
 }
 /* A sweep's steps solved ahead for every Particle part whose light is on, one after another on the scattering worker
    (beside the field's workers), each answer kept by its key (engines/scatter.js scatKept) so that each step, played,
-   finds its own. valueAt(el, path, i) the step's value, as the sweep will set it; live() false once the sweep is gone.
+   finds its own. valueAt(el, path, i) the step's value, as the sweep will set it; live() false once the sweep is gone;
+   wanted(i), if given, false for a step the render will not keep (ui/sweeps.js renderStride).
    Its progress is SCW.ahead, which the activity bar reads. On the page alone (no workers, the tests) the steps are
    solved where the field's own render does them (particlesAheadNow). */
-export async function particlesAhead(list, n, valueAt, live) {
+export async function particlesAhead(list, n, valueAt, live, wanted) {
   const parts = project.elements.filter(e => e.type === 'particle' && e.scatLight !== false && scatterPrep(e));
   if (!parts.length || TEST_MODE || SCW.failed || !WORKERS_OK || !scatWorker()) return;
   scatterAheadStop();
   const run = SCW.ahead = { i: 0, n, done: 0, of: n * parts.length, t0: performance.now(), names: parts.map(e => e.name) };
-  const proj = fwProject();
+  // (on a bench slow to trace, each step's trace comes back with its answer, the last particle's of the step, so that the
+  // page need not trace the step when it plays: TRACE_SHARE_MS in ui/sweeps.js)
+  const proj = fwProject(), slow = lastTraceMs > TRACE_SHARE_MS;
   try {
-    for (let i = 0; i < n; i++) for (const el of parts) {
+    for (let i = 0; i < n; i++) for (const [k, el] of parts.entries()) {
       if (SCW.ahead !== run || !live()) { if (SCW.ahead === run) SCW.ahead = null; return; }
+      // (a step the render does not keep: not solved, and not counted in what is left)
+      if (wanted && !wanted(i)) { run.of--; continue; }
       run.i = i;
-      await scatterAhead(el.id, proj, list.map(([e, p]) => [e.id, p, valueAt(e, p, i)]));
+      await scatterAhead(el.id, proj, list.map(([e, p]) => [e.id, p, valueAt(e, p, i)]), slow && k === parts.length - 1);
       if (SCW.ahead !== run) return;
       run.done++;
       syncPanel();
@@ -348,6 +358,7 @@ const FLAG_TEXT = {
   highIndex: 'An index this far from the medium’s (|m| above 2.5) is hard for a dipole array: it converges slowly and its error can reach tens of percent. For a sphere, Mie is exact.',
   rayleighBig: 'This particle is too large for a single dipole (|m|k·size/2 above 0.5): Rayleigh is shown because it was asked for.',
   mieNotSphere: 'Mie is for a sphere: shown for the sphere of this particle’s volume, not its shape.',
+  mieShape: 'Mie is for spheres: the dipole array is used for this shape, so its scattering follows the shape and how it is turned.',
   medium: 'The medium set here is not the bench’s where the light is: the focus is the bench’s, the wavelength in the medium the one set.',
   varies: 'The beam changes across the particle but is taken as one plane wave (it is too gently focused for the vector focus model, above NA 0.3): rough for this size.',
   skipped: 'A beam through here was left out: no field could be taken for it.',

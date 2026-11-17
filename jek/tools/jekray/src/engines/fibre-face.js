@@ -2,7 +2,7 @@ import { BEAM_Z, clamp } from '../core/constants.js';
 import { C_NM_GHZ, responsivity, rfBeam } from '../core/rf.js';
 import { HORN_FIELDS } from '../core/horns.js';
 import { cohGamma, cohModes, lagOf, splitRoot } from '../core/coherence.js';
-import { hermite, m2Of } from '../core/pulses.js';
+import { m2Of } from '../core/pulses.js';
 import { fanFromGauss, srcModes } from '../core/beams-hom.js';
 import { deg } from '../state/project.js';
 import { beamOn, benchNms, getEl } from '../state/elements.js';
@@ -172,6 +172,41 @@ export function arrivalWindow(arr, a) {
 /* One arrival's s and p field at a point (u along the face, v out of the plane), in power
    per unit face area, in the field's e^{-ikz} convention */
 const QM_FACE = new WeakMap();
+/* an arrival's own: 1/q and the widths both ways, their Gouy phases and the amplitude's two factors that do not change
+   across the face, each worked out exactly as at every point before (so the field is the same to the last digit), kept
+   while the arrival's q's, wavelength and slope are the ones they were worked out from */
+const ARR_CONSTS = new WeakMap();
+/* the Hermite polynomials H_0 to H_n at u, into the table given, by the very recurrence core/pulses.js hermite takes for each
+   (so each is the same to the last digit), in one pass rather than one for every mode; and a mode list's highest order
+   across (0) or up (1) */
+const HX = { a: new Float64Array(16) }, HY = { a: new Float64Array(16) };
+export function hermites(T, n, u) {
+  if (T.a.length <= n) T.a = new Float64Array(2 * n + 2);
+  const H = T.a;
+  H[0] = 1;
+  if (n >= 1) H[1] = 2 * u;
+  for (let k = 1; k < n; k++) H[k + 1] = 2 * u * H[k] - 2 * k * H[k - 1];
+  return H;
+}
+const ORDERS = new WeakMap();
+function maxOrder(comps, j) {
+  let o = ORDERS.get(comps);
+  if (!o) { o = [0, 0]; for (const c of comps) { o[0] = Math.max(o[0], c[0]); o[1] = Math.max(o[1], c[1]); } ORDERS.set(comps, o); }
+  return o[j];
+}
+function arrivalConsts(A, cT) {
+  const C0 = ARR_CONSTS.get(A);
+  if (C0 && C0.qx === A.qx && C0.qy === A.qy && C0.q0 === A.qx[0] && C0.q1 === A.qx[1] && C0.q2 === A.qy[0] && C0.q3 === A.qy[1] && C0.lam0 === A.lam0 && C0.cT === cT && C0.comps === A.comps) return C0;
+  const iq = q => { const d = q[0] * q[0] + q[1] * q[1]; return [q[0] / d, -q[1] / d]; };
+  const wx = qW(A.qx, A.lam0), wy = qW(A.qy, A.lam0), nrm = [];
+  const C = { qx: A.qx, qy: A.qy, q0: A.qx[0], q1: A.qx[1], q2: A.qy[0], q3: A.qy[1], lam0: A.lam0, cT, comps: A.comps,
+    ix: iq(A.qx), iy: iq(A.qy), wx, wy, gx: Math.atan2(A.qx[1], A.qx[0]), gy: Math.atan2(A.qy[1], A.qy[0]),
+    sa: Math.sqrt(2 / (Math.PI * wx * wy)), sc: Math.sqrt(cT),
+    // a Hermite-Gauss mode's norm, sqrt(2^(m+n) m! n!)
+    norm: (ci, mx, my) => { if (nrm[ci] === undefined) { let f = 1; for (let i = 2; i <= mx; i++) f *= i; for (let i = 2; i <= my; i++) f *= i; nrm[ci] = Math.sqrt(Math.pow(2, mx + my) * f); } return nrm[ci]; } };
+  ARR_CONSTS.set(A, C);
+  return C;
+}
 export function arrivalField(A, u, v0) {
   // the face's point against the beam's own cross-section: across it level (x), and up it square
   // to that (y); a beam arriving sloped out of the plane has its footprint stretched up the face
@@ -193,9 +228,10 @@ export function arrivalField(A, u, v0) {
     const ph = -0.5 * k * (ia[0] * x1 * x1 + ib[0] * y1 * y1) - k * (A.opl + du * A.ldy * hx + (A.vs ? dv * ez : 0)) - 0.5 * M.psi[0] - 0.5 * M.psi[1];
     const amp0 = Math.sqrt(2 / (Math.PI * wa * wb)) * Math.exp(re) * Math.sqrt(cT);
     let c = 0, sn = 0;
+    const hX = hermites(HX, maxOrder(M.comps, 0), Math.SQRT2 * x1 / wa), hY = hermites(HY, maxOrder(M.comps, 1), Math.SQRT2 * y1 / wb);
     for (let ci = 0; ci < M.comps.length; ci++) {
       const [mx, my, ar, ai] = M.comps[ci];
-      const a = amp0 * hermite(mx, Math.SQRT2 * x1 / wa) * hermite(my, Math.SQRT2 * y1 / wb) * F.norm[ci];
+      const a = amp0 * hX[mx] * hY[my] * F.norm[ci];
       const p2 = ph - mx * M.psi[0] - my * M.psi[1], er = a * Math.cos(p2), ei = a * Math.sin(p2);
       c += er * ar - ei * ai; sn += er * ai + ei * ar;
     }
@@ -211,23 +247,23 @@ export function arrivalField(A, u, v0) {
     const c = amp0 * Math.cos(ph), sn = amp0 * Math.sin(ph), J = A.J;
     return [c * J[0] + sn * J[1], sn * J[0] - c * J[1], c * J[2] + sn * J[3], sn * J[2] - c * J[3]];
   }
-  const iq = q => { const d = q[0] * q[0] + q[1] * q[1]; return [q[0] / d, -q[1] / d]; };
-  const ix = iq(A.qx), iy = iq(A.qy);
-  const wx = qW(A.qx, A.lam0), wy = qW(A.qy, A.lam0);
+  // (what is the same at every point of the face, worked out once an arrival: an overlap samples thousands of points)
+  const C = arrivalConsts(A, cT);
+  const { ix, iy, wx, wy, gx, gy } = C;
   // exp(-i k x^2 / 2q): the real part of 1/q curves it, the imaginary part is the envelope
   const re = -0.5 * k * (-ix[1] * xb * xb - iy[1] * v * v);
-  const gx = Math.atan2(A.qx[1], A.qx[0]), gy = Math.atan2(A.qy[1], A.qy[0]);
   // and its phase, by how far along the beam the point is (a tilted arrival's fringes)
   const ph = -0.5 * k * (ix[0] * xb * xb + iy[0] * v * v) - k * (A.opl + du * A.ldy * hx + (A.vs ? dv * ez : 0)) - 0.5 * gx - 0.5 * gy;
-  const amp0 = Math.sqrt(2 / (Math.PI * wx * wy)) * Math.exp(re) * Math.sqrt(cT);
+  const amp0 = C.sa * Math.exp(re) * C.sc;
   let c, sn;
   if (!A.comps) { c = amp0 * Math.cos(ph); sn = amp0 * Math.sin(ph); }
   else {
     // the Hermite-Gauss modes, each with its own Gouy phase, added with their amplitudes
     c = 0; sn = 0;
-    for (const [mx, my, ar, ai] of A.comps) {
-      let f = 1; for (let i = 2; i <= mx; i++) f *= i; for (let i = 2; i <= my; i++) f *= i;
-      const a = amp0 * hermite(mx, Math.SQRT2 * xb / wx) * hermite(my, Math.SQRT2 * v / wy) / Math.sqrt(Math.pow(2, mx + my) * f);
+    const hX = hermites(HX, maxOrder(A.comps, 0), Math.SQRT2 * xb / wx), hY = hermites(HY, maxOrder(A.comps, 1), Math.SQRT2 * v / wy);
+    for (let ci = 0; ci < A.comps.length; ci++) {
+      const [mx, my, ar, ai] = A.comps[ci];
+      const a = amp0 * hX[mx] * hY[my] / C.norm(ci, mx, my);
       const p2 = ph - mx * gx - my * gy, er = a * Math.cos(p2), ei = a * Math.sin(p2);
       c += er * ar - ei * ai; sn += er * ai + ei * ar;
     }
@@ -748,6 +784,23 @@ export function fibreCoupling(el) {
    (a dual-polarisation horn, or one feeding a bolometer) takes each by the co-polar field.
    Fields of one launch add; separate launches add as powers. In mW, and the share; and by
    source (lines), for a mixer behind it. */
+const HORN_GRIDS = new Map();
+function hornGrid(H, kind, a, N, L, d, wa) {
+  const key = [kind, a, N, L, d, H.field ? '' : wa].join('|');
+  let G = HORN_GRIDS.get(key);
+  if (G && G.H === H) { HORN_GRIDS.delete(key); HORN_GRIDS.set(key, G); return G; }
+  const mc = new Float64Array(N * N), mx = new Float64Array(N * N), rr = new Float64Array(N * N);
+  let pm = 0;
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    const u = -L + (i + 0.5) * d, v = -L + (j + 0.5) * d, o = i * N + j;
+    const F = H.field ? H.field(u / a, v / a) : [Math.exp(-(u * u + v * v) / (wa * wa)), 0];
+    mc[o] = F[0]; mx[o] = F[1]; rr[o] = u * u + v * v; pm += F[0] * F[0] + F[1] * F[1];
+  }
+  G = { H, mc, mx, rr, pm };
+  HORN_GRIDS.set(key, G);
+  while (HORN_GRIDS.size > 8) HORN_GRIDS.delete(HORN_GRIDS.keys().next().value);
+  return G;
+}
 export function rfCoupling(el) {
   return deviceMemo(el, () => {
     const arr = faceArrivals(el);
@@ -759,14 +812,9 @@ export function rfCoupling(el) {
     for (const G of groupsOf(arr)) {
       const nm = G[0].nm, B = rfBeam(rf, C_NM_GHZ / nm), wa = B.wa, k = 2 * Math.PI / B.lam, L = H.field ? 1.02 * ext * a : 3.5 * wa, d = 2 * L / N;
       beam = B;
-      // the mode on the grid, [co, cross] at each point, of unit power
-      const mc = new Float64Array(N * N), mx = new Float64Array(N * N), rr = new Float64Array(N * N);
-      let pm = 0;
-      for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
-        const u = -L + (i + 0.5) * d, v = -L + (j + 0.5) * d, o = i * N + j;
-        const F = H.field ? H.field(u / a, v / a) : [Math.exp(-(u * u + v * v) / (wa * wa)), 0];
-        mc[o] = F[0]; mx[o] = F[1]; rr[o] = u * u + v * v; pm += F[0] * F[0] + F[1] * F[1];
-      }
+      // the mode on the grid, [co, cross] at each point, of unit power (the same for the same horn and grid: kept, as it
+      // is asked for again at every trace while a part is dragged or a sweep plays)
+      const { mc, mx, rr, pm } = hornGrid(H, rf.kind, a, N, L, d, wa);
       const mAmp = 1 / Math.sqrt(pm * d * d);
       let cr = 0, ci = 0, pin = 0;
       let c2r = 0, c2i = 0;                                 // the other polarisation, when the horn takes both

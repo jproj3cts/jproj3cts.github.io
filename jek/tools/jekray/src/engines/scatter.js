@@ -219,6 +219,8 @@ export function scatterModel(el, P, k, mAbs) {
   const want = SCAT_MODELS.includes(el.scatModel) ? el.scatModel : 'auto', sphere = P.shape === 'sphere';
   const tiny = mAbs * k * Math.max(P.D, P.L) / 2 <= SCAT_TINY;
   if (want === 'auto') return { model: tiny ? 'rayleigh' : sphere ? 'mie' : 'dda', auto: true };
+  // Mie is a sphere's: asked of another shape it is the dipole array, which takes the shape, and the tab says so
+  if (want === 'mie' && !sphere) return { model: 'dda', auto: false, mieShape: true };
   return { model: want, auto: false };
 }
 /* A particle's own scattered light that a retro-reflector brings back to it (the beam it scatters from comes back on itself:
@@ -354,6 +356,7 @@ export function* scatterGen(el, R, opts) {
   const az = (particleAz(el) || 0) * deg, tl = (el.trapTilt || 0) * deg, axis = [Math.cos(tl) * Math.cos(az), Math.cos(tl) * Math.sin(az), Math.sin(tl)];
   const body = frameOn(axis);
   const flags = [];
+  if (pick.mieShape) flags.push('mieShape');
   if (Math.abs(nMed - nBench) > 1e-3) flags.push('medium');
   if (W.notes.varies) flags.push('varies');
   if (TB.skipped.length) flags.push('skipped');

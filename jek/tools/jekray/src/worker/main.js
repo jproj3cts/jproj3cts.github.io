@@ -1,6 +1,6 @@
 import { fibreSPMLater } from '../core/pulses.js';
-import { allSources, getEl, loadProject } from '../state/elements.js';
-import { lastTrace, lastTraceMs, traceScene } from '../engines/trace.js';
+import { VSRC, allSources, getEl, loadProject } from '../state/elements.js';
+import { lastTrace, lastTraceMs, setLastTraceKey, traceKeepable, traceKeyRestNow, traceScene } from '../engines/trace.js';
 import { setParam } from '../state/params.js';
 import { modAbsorb } from '../engines/mods.js';
 import { popLeg } from '../engines/field.js';
@@ -23,6 +23,13 @@ function volOut(R, key, vol, transfer) {
   const V = volData(R.segs, vol.tab, vol.bb, null);
   for (const v of V.segs) transfer.push(v.I.buffer, v.ts.buffer, v.rmax.buffer);
   return { key, tab: vol.tab, bb: volLightBox(vol.bb, lastTrace.beams, popSources()), V };
+}
+/* A sweep's step as traced here, for the page to keep for when the step plays (engines/trace.js keepTraceFrom), so that it
+   is not traced again there: the bench's key as it stands after the trace, the trace, how long it took and the sources a
+   fibre tip made; copied now, before any field run on it. None while a particle's answer is still to come here (one the
+   page would not keep). */
+function stepTrace() {
+  return traceKeepable(lastTrace) ? structuredClone({ rest: traceKeyRestNow(), T: lastTrace, ms: lastTraceMs, V: [...VSRC.values()] }) : null;
 }
 export function workerMain() {
   let bench = { key: null, R: null }, wLoad = null;
@@ -62,10 +69,13 @@ export function workerMain() {
         // a sweep's step for the render pool: the swept values set as the page sets them, then its fields
         for (const [id, path, v] of args.sets) { const el = getEl(id); if (el) setParam(el, path, v); }
         traceScene();
+        // (asked for on a bench slow to trace: the step's trace too, as it stands before the fields are run on it)
+        const tr = args.trace ? stepTrace() : null;
         const srcs = popSources();
         const R = srcs.length ? popRun(lastTrace.beams, srcs, { draw: true }) : null, key = R && popKeyOf(lastTrace.beams, srcs);
         out = { bench: R ? { key, R: fwPackRun(R, transfer) } : null, vol: R && args.vol ? volOut(R, key, args.vol, transfer) : null,
-          screens: (args.ids || []).map(id => { const el = getEl(id), J = el && popScreenPrep(el); return J ? { key: J.key, D: fwPackD(popDiffraction(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }))) } : null; }) };
+          screens: (args.ids || []).map(id => { const el = getEl(id), J = el && popScreenPrep(el); return J ? { key: J.key, D: fwPackD(popDiffraction(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }))) } : null; }),
+          trace: tr };
       } else if (kind === 'antenna') {
         // an RF lens as an antenna: its far field, its tolerance or its scan, the bench traced again as they need
         const el = getEl(args.id);
@@ -133,8 +143,10 @@ export function workerMain() {
       const R = popRun(lastTrace.beams, J.srcs, { keep: J.keep, bare: true });
       if (kind === 'trap') { self.postMessage({ id, ok: true, out: { key: J.key, T: particleTrapRaw(el, R) } }); return; }
       // (an answer this worker has worked out before, a state come back to: sent again as it is)
+      // (a sweep's step solved ahead on a bench slow to trace: the step traced again here with its answer, and sent with it)
+      const traced = () => { if (!args.trace) return null; setLastTraceKey(null); traceScene(); return stepTrace(); };
       const was = scatFind(el.id, J.key, true);
-      if (was && (was.S.trapRaw || !args.trap)) { self.postMessage({ id, ok: true, out: { key: J.key, S: was.S } }); return; }
+      if (was && (was.S.trapRaw || !args.trap)) { self.postMessage({ id, ok: true, out: { key: J.key, S: was.S, trace: traced() } }); return; }
       const g = scatterGen(el, R, { trap: !!args.trap });
       // (its progress ten times a second, and each new stage as it starts, however short the one before it was; a slice of
       // about 40 ms at a time, a cancel heard between them)
@@ -147,7 +159,7 @@ export function workerMain() {
       }
       cancelled.delete(id);
       if (r.value && !r.value.error) scatKeep(el.id, J.key, r.value, true);
-      self.postMessage({ id, ok: true, out: { key: J.key, S: r.value } });
+      self.postMessage({ id, ok: true, out: { key: J.key, S: r.value, trace: r.value && !r.value.error ? traced() : null } });
     } catch (err) {
       self.postMessage({ id, ok: false, err: String((err && err.stack) || err) });
     }

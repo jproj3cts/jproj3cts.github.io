@@ -241,6 +241,8 @@ test('bench: Auto takes Mie for a sphere, the dipole array for a rod, one dipole
   assert.equal(pick({}), 'mie'); assert.equal(pick({ trapShape: 'cylinder', trapR: 100 }), 'dda'); assert.equal(pick({ trapShape: 'capsule', trapR: 100 }), 'dda');
   assert.equal(pick({ trapR: 5 }), 'rayleigh'); assert.equal(pick({ trapShape: 'spheroid', trapR: 2, trapLen: 20 }), 'rayleigh');
   assert.equal(pick({ scatModel: 'dda' }), 'dda'); assert.equal(pick({ trapR: 5, scatModel: 'mie' }), 'mie');
+  // Mie asked of a rod or a spheroid, however small, is the dipole array: Mie is a sphere's
+  assert.equal(pick({ trapShape: 'cylinder', trapR: 100, scatModel: 'mie' }), 'dda'); assert.equal(pick({ trapShape: 'spheroid', trapR: 2, trapLen: 20, scatModel: 'mie' }), 'dda');
 });
 test('bench: a collimated beam is one plane wave, and the sphere’s powers are its cross-section times the light there', async () => {
   const S = await scat([laser({ w0: 0.5 }), particle({})]);
@@ -322,7 +324,8 @@ test('bench: two beams of one laser add as fields, and a rod runs as a dipole ar
   // lying across the beam it sends its light into the plane square to its axis: little along the axis
   assert.ok(flat.cutIn.I[90] < 0.3 * flat.cutIn.I[0] && Math.abs(flat.cutIn.I[90] / flat.cutIn.I[270] - 1) < 1e-6);
   near(particleOf({ trapShape: 'cylinder', trapR: 100, trapLen: 1000 }).rEq, Math.cbrt(0.75 * 100 * 100 * 1000), 1e-12, 'the sphere of its volume');
-  // Mie asked of a rod is the sphere of its volume, and says so
-  const eq = await scat([laser({ w0: 0.5 }), particle({ trapShape: 'cylinder', trapR: 100, trapLen: 1000, scatModel: 'mie' })]);
-  assert.ok(eq.flags.includes('mieNotSphere') && Math.abs(eq.x - eq.k * eq.rEq * 1e-9) < 1e-12);
+  // Mie asked of a rod is the dipole array, which follows the rod's shape and turn, and says so: the same rod as Auto's
+  const eq = await scat([laser({ w0: 0.5 }), particle({ trapShape: 'cylinder', trapR: 100, trapLen: 1000, trapAz: 90, trapTilt: 0, scatDip: 8, scatModel: 'mie' })]);
+  assert.ok(eq.model === 'dda' && eq.flags.includes('mieShape') && !eq.flags.includes('mieNotSphere'), JSON.stringify([eq.model, eq.flags]));
+  near(eq.Csca, flat.Csca, 1e-9, 'as the dipole array asked for');
 });

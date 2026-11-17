@@ -476,14 +476,13 @@ export function makeKernel(oc) {
   /* a boolean of bodies, its faces that lie on one surface merged into one face. The merging changes edges in
      place, the boolean's and those it shares with what went in, and where small pieces meet a face along arcs it
      can leave a solid the kernel's check fails (and a part that fails it can be rounded or bevelled nowhere). So the
-     boolean is made on copies of the bodies, and if the merging spoils a sound result it is made again on fresh
-     copies and kept as it came. run(bodies) makes the boolean and returns it; the result is { op, bodies }, the
-     copies its names are carried from. */
+     boolean is made on copies of the bodies, and if the merged result fails the check it is made again on fresh
+     copies and kept as it came (checked once: the check is as slow as the boolean). run(bodies) makes the boolean
+     and returns it; the result is { op, bodies }, the copies its names are carried from. */
   function booleanOf(bodies, run) {
     let ins = bodies.map(ownBody), op = run(ins);
-    const sound = checksOut(op.Shape());
     op.SimplifyResult(true, true, 1e-6);
-    if (sound && !checksOut(op.Shape())) { ins = bodies.map(ownBody); op = run(ins); }
+    if (!checksOut(op.Shape())) { ins = bodies.map(ownBody); op = run(ins); }
     return { op, bodies: ins };
   }
   /* bodies fused into one (names carried) */
@@ -983,11 +982,11 @@ export function makeKernel(oc) {
       };
       let got = build(ordered), kept = ordered;
       if (!got && ordered.length > 1) {
-        // not all of them together: those that can be rounded on their own, taken one more at a time while the
-        // solid stays sound (a whole face chosen has edges the radius fits and edges it does not: small holes, thin walls)
-        const alone = ordered.filter(j => build([j]));
+        // not all of them together: taken one more at a time while the solid stays sound, an edge that cannot be
+        // done (alone or with those before it) left out (a whole face chosen has edges the radius fits and edges it
+        // does not: small holes, thin walls). One try for each edge: each costs as much as the whole
         kept = [];
-        for (const j of alone) { const tryIt = build(kept.concat([j])); if (tryIt) { kept = kept.concat([j]); got = tryIt; } }
+        for (const j of ordered) { const tryIt = build(kept.concat([j])); if (tryIt) { kept = kept.concat([j]); got = tryIt; } }
       }
       if (!got) throw new Error('the ' + kind + ' could not be made: the ' + (kind === 'fillet' ? 'radius' : 'distance') + ' may be too big for the edges chosen');
       used += kept.length; skipped += ordered.length - kept.length;

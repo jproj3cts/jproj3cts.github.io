@@ -55,3 +55,81 @@ test('the examples’ sweeps are kept: most benches take their steps’ traces a
   if (process.env.SHOW) console.log('# kept', KEPT.length, 'not', MISSED.join(', '));
   assert.ok(KEPT.length >= 0.75 * demos.length, KEPT.length + ' of ' + demos.length + ' (not: ' + MISSED.join(', ') + ')');
 });
+
+/* A step's trace made by a sweep's render or scattering worker (worker/main.js stepTrace) crosses to the page as a copy, is
+   kept there (keepTraceFrom), and is shown when the step plays in place of tracing it on the page: it must be the full
+   recompute at that step, to the last digit, with the sources a fibre tip made pointing back to the page's own parts.
+   Here the "worker" is this same engine; the copy is the structured clone postMessage makes. A copy filed under another
+   bench is kept under that bench, and never taken for this one. */
+const BT = await import('../../src/engines/beam-tree.js');
+const FROM = [], NOT = [];
+for (const f of demos) {
+  test('a worker’s trace of a step, kept on the page, is the full recompute at it: ' + f, async () => {
+    await openBench(JSON.parse(fs.readFileSync(new URL(f, DIR), 'utf8')));
+    const P = pick();
+    if (!P) return;
+    const [el, path, a, b] = P, mid = (a + b) / 2;
+    const was = hooks.playing;
+    try {
+      hooks.playing = () => false;
+      // the step traced from nothing: what a worker would send (its first trace there), and the recompute to match
+      setParam(el, path, mid); const want = fresh(), wantKey = BT.popKeyOf(TR.lastTrace.beams, BT.popSources());
+      if (!TR.traceKeepable(TR.lastTrace)) { NOT.push(f); return; }
+      const msg = structuredClone({ rest: TR.traceKeyRestNow(), T: TR.lastTrace, ms: TR.lastTraceMs, V: [...EL.VSRC.values()] });
+      // the page elsewhere meanwhile, then playing: the copy kept, and the step played
+      setParam(el, path, a); TR.setLastTraceKey(null); TR.traceScene();
+      hooks.playing = () => true; TR.dropTraceStore();
+      if (!TR.traceStoreOn()) { NOT.push(f); return; }
+      const other = structuredClone(msg);
+      assert.equal(TR.keepTraceFrom('{"another bench"}' + other.rest, other.T, other.ms, other.V), true);
+      assert.equal(TR.keepTraceFrom(msg.rest, msg.T, msg.ms, msg.V), true, 'kept');
+      const hits = TR.traceStoreHits;
+      setParam(el, path, mid); TR.traceScene();
+      const hit = TR.traceStoreHits > hits && TR.lastTrace === msg.T;
+      if (hit) FROM.push(f); else NOT.push(f);
+      assert.equal([...EL.VSRC.keys()].sort().join(), want.v, 'the sources it made');
+      { const g = shown(TR.lastTrace); let i = 0; while (i < g.length && g[i] === want.s[i]) i++; assert.ok(g === want.s, 'the trace shown equals a full recompute' + (hit ? ' (the worker’s, kept)' : '') + (g === want.s ? '' : ' at ' + i + ': ' + want.s.slice(Math.max(0, i - 200), i + 80) + ' /// ' + g.slice(Math.max(0, i - 200), i + 80))); }
+      assert.equal(BT.popKeyOf(TR.lastTrace.beams, BT.popSources()), wantKey, 'the field is looked up under the same key');
+      for (const v of EL.VSRC.values()) if (v.vRoot && v.vRoot !== v && ST.project.elements.some(e => e.id === v.vRoot.id)) assert.ok(ST.project.elements.includes(v.vRoot), 'a fibre tip’s source points back to the page’s own laser');
+    } finally { hooks.playing = was; TR.dropTraceStore(); }
+  });
+}
+/* The same for a trace offered for the bench as it is now (offerTrace: the scattering worker's, with a particle's answer
+   it has just worked out), taken by the next trace whether or not a sweep plays; one offered for another bench is not. */
+const OFFERED = [];
+for (const f of demos) {
+  test('a trace offered from a worker for the bench as it is is the full recompute: ' + f, async () => {
+    await openBench(JSON.parse(fs.readFileSync(new URL(f, DIR), 'utf8')));
+    const P = pick();
+    if (!P) return;
+    const [el, path, a, b] = P, mid = (a + b) / 2;
+    const was = hooks.playing;
+    try {
+      hooks.playing = () => false;
+      setParam(el, path, mid); const want = fresh();
+      // (a bench whose traces carry state from one to the next, a laser's gain settling, takes none: nor is its recompute
+      // the same after other values)
+      if (!TR.traceKeepable(TR.lastTrace) || ST.project.elements.some(e => TR.TRACE_STATEFUL.has(e.type))) return;
+      const msg = structuredClone({ rest: TR.traceKeyRestNow(), T: TR.lastTrace, ms: TR.lastTraceMs, V: [...EL.VSRC.values()] });
+      setParam(el, path, a); TR.setLastTraceKey(null); TR.traceScene();
+      // offered for another bench: traced afresh
+      TR.offerTrace('{"another bench"}' + msg.rest, structuredClone(msg.T), msg.ms, structuredClone(msg.V));
+      setParam(el, path, b); TR.traceScene();
+      assert.notEqual(TR.lastTrace, msg.T);
+      // offered for the bench as it will be, then taken
+      TR.offerTrace(msg.rest, msg.T, msg.ms, msg.V);
+      setParam(el, path, mid); TR.traceScene();
+      const took = TR.lastTrace === msg.T;
+      if (took) OFFERED.push(f);
+      assert.equal([...EL.VSRC.keys()].sort().join(), want.v, 'the sources it made');
+      assert.ok(shown(TR.lastTrace) === want.s, 'the trace shown equals a full recompute' + (took ? ' (the offered one)' : ''));
+    } finally { hooks.playing = was; TR.dropTraceStore(); }
+  });
+}
+test('offered traces are taken on most benches', () => {
+  assert.ok(FROM.length > 0 && OFFERED.length >= 0.7 * demos.length, OFFERED.length + ' of ' + demos.length);
+});
+test('the workers’ traces are taken: most benches play their steps from them', () => {
+  if (process.env.SHOW) console.log('# taken', FROM.length, 'not', NOT.join(', '));
+  assert.ok(FROM.length >= 0.7 * demos.length, FROM.length + ' of ' + demos.length + ' (not: ' + NOT.join(', ') + ')');
+});

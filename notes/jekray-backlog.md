@@ -11,6 +11,8 @@ together when the owner lifts the pause. Nothing on this list has been started u
    old step count.
 2. **Steps, From and To should apply only when the edit is finished** (Enter or leaving the box), not on each
    keystroke. Each change discards and restarts a long render.
+3. **Going into fly mode while a sweep with a particle's scattered light is rendering breaks it.** Reported by the
+   owner. What "breaks" looks like (stops, wrong picture, crash) is still to be found.
 
 ## Also outstanding
 

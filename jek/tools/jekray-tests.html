@@ -6575,6 +6575,45 @@ const TESTS = [
     },
   },
   {
+    name: 'A held sweep keeps the bench at its true shape when the bench changes size',
+    why: 'while a sweep is held (its steps still being worked out) the bench draws no new frame; a panel opening or closing beside it changed its size and left the old picture stretched, or a cleared 2D canvas: the picture is now drawn again at the new size, 2D and 3D, with the sweep still held (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const rig = document.getElementById('rig'), doc = rig.contentDocument, w0 = rig.style.width;
+      const mk = () => bench('hold resize', [
+        { type: 'source', id: 'S', name: 'Laser', x: 0, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 633, rays: 1, popN: 128 },
+        // (a lens place no other check uses, so nothing kept from before makes the sweep ready at once)
+        { type: 'lens', id: 'L', name: 'Lens', x: 41.37 + Math.random() * 0.01, y: 0, diameter: 12.7, surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }],
+          sweeps: { y: { min: -1, max: 1, freq: 0.5, phase: 0, wave: 'sine', field: true, steps: 8 } } },
+        { type: 'screen', id: 'Sc', name: 'Screen', x: 120, y: 0, angle: 180, length: 10 }], { light: { rays: true, envelope: false, field: true, scale: 'lin' } });
+      const frames = n => (async () => { for (let i = 0; i < n; i++) await new Promise(r => rigWin().requestAnimationFrame(() => r())); })();
+      const shape = sel => { const c = [...doc.querySelectorAll(sel)].find(x => x.offsetParent !== null); return c ? { a: c.width / c.height, b: c.clientWidth / c.clientHeight, inked: (() => { try { const g = c.getContext('2d'); if (!g) return true; const d = g.getImageData(0, 0, c.width, c.height).data; for (let i = 3; i < d.length; i += 4 * 97) if (d[i]) return true; return false; } catch (e) { return true; } })() } : null; };
+      const out = {};
+      try {
+        for (const three of [false, true]) {
+          J.load(mk()); await J.view3d.set(three); J.sweepHoldLimit(1e-6);
+          const p = J.sweepPlay('Lens', 'y');
+          let t = 0; while (!J.sweepHold().holding && t++ < 400) await new Promise(r => setTimeout(r, 5));
+          const held = J.sweepHold().holding;
+          // (a panel beside the bench opened, as a click on a part or the side tab does: the window keeps its size)
+          const tab = doc.getElementById('btnSideTab'), w0b = doc.getElementById('bench').clientWidth; tab.click(); await frames(4);
+          const moved = doc.getElementById('bench').clientWidth !== w0b;
+          const sel = three ? 'canvas.rt-v3d' : 'canvas#bench';
+          const s1 = shape(sel), stillHeld = J.sweepHold().holding;
+          tab.click(); await frames(4);
+          const s2 = shape(sel);
+          J.sweepHoldLimit(0); J.sweepPause(); await p.catch(() => 0);
+          const ok1 = held && stillHeld && s1 && s2 && Math.abs(s1.a - s1.b) / s1.b < 0.02 && Math.abs(s2.a - s2.b) / s2.b < 0.02 && s1.inked && s2.inked;
+          out[three ? '3d' : '2d'] = { held, stillHeld, moved, s1, s2, ok: ok1 };
+          if (!ok1) J.note && J.note('held resize ' + JSON.stringify(out));
+        }
+        const ok = out['2d'].ok && out['3d'].ok;
+        if (!ok) { console.log('held resize', JSON.stringify(out)); throw new Error('held resize ' + JSON.stringify(out)); }
+        return ok ? 1 : 0;
+      } finally { rig.style.width = w0; J.sweepHoldLimit(0); J.sweepPause(); await J.view3d.set(false); }
+    },
+  },
+  {
     name: 'A sweep rendered ahead plays from what it kept: no trace or solve a frame once round, within a frame budget, keeping its time',
     why: 'a lens swept across a beam shown as its field, 8 steps rendered ahead, with a particle in the light: after one cycle every step’s trace (and the particle’s answer) is kept, so a second cycle traces nothing and solves nothing, its frames come at least 8 a second (generous, for CI), and the steps it shows move with the clock (a step the screen cannot keep up with is skipped, not waited for) (1 when all hold)',
     want: 1, tol: 0, unit: '',
@@ -12889,6 +12928,28 @@ const TESTS = [
         if (!(past && follows && kept)) console.log('rod sweep', JSON.stringify({ tilts: [...tilts], s0, s1, s2, follows }));
         return past && follows && kept ? 1 : 0;
       } finally { J.sweepPause(); }
+    },
+  },
+  {
+    name: 'In 3D a rod’s scattered glow turns with it while its tilt sweeps',
+    why: 'the owner’s case: a rod tilted step by step with its scattered field drawn in 3D; a turned rod keeps the same brightest value, so the glow, kept by that value alone, stayed as the first step drew it. Each step’s glow is now its own: over a cycle the drawn glow changes with the tilt (1 when at least four different glows are drawn in ten steps)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const raf = () => new Promise(r => rigWin().requestAnimationFrame(() => r()));
+      J.load(bench('rod sweep 3d', [src({ name: 'L', x: -20, wavelength: 1550, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol: 'p', power: 50, popN: 64 }),
+        { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+1)-1)/lambda' },
+        particleAt({ name: 'S', x: 1, trapMat: 'Fused silica', trapShape: 'cylinder', trapR: 60, trapLen: 600, scatDip: 5, trapMed: 'vacuum', scatField: true,
+          sweeps: { trapTilt: { min: 0, max: 90, freq: 1, phase: 0, wave: 'ramp', field: true, steps: 10 } } })], { minPower: 1e-6, light: { rays: false, envelope: false, field: true, scale: 'lin' } }));
+      const sigs = new Map();
+      try {
+        await J.view3d.set(true);
+        await J.sweepPlay('S', 'trapTilt');
+        const t0 = performance.now();
+        while (performance.now() - t0 < 25000 && sigs.size < 10) { await raf(); const f = J.view3d.scatField(); if (f && f.sig) sigs.set(J.byName('S').trapTilt, f.sig); }
+        const distinct = new Set(sigs.values()).size;
+        if (distinct < 4) console.log('rod glow 3d', JSON.stringify([...sigs]));
+        return distinct >= 4 ? 1 : 0;
+      } finally { J.sweepPause(); await J.view3d.set(false); }
     },
   },
   {

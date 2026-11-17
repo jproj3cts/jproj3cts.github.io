@@ -65,6 +65,7 @@ export function resize() {
   benchMid = mid; benchMidView = v;
   W = r.width; H = r.height;
   canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+  resizedSinceDraw = true;
   requestRender();
 }
 /* the tool is the whole window; the page itself does not scroll */
@@ -1197,10 +1198,13 @@ export function getCss(v) {
 /* A sweep's render held (ui/sweeps.js: one predicted to take long shows its bars alone until the whole cycle is ready):
    the bench, 2D and 3D, stays as it was drawn. drawCount: the frames drawn (the tests read it). */
 let drawHeld = () => false;
+// (a canvas just resized is cleared: it is drawn again at once, as it stands, even while a sweep is held)
+let resizedSinceDraw = false;
 export function setDrawHeld(f) { drawHeld = f; }
 export let drawCount = 0;
 export function render() {
-  if (!W || !H || drawHeld()) return;
+  if (!W || !H || (drawHeld() && !resizedSinceDraw)) return;
+  resizedSinceDraw = false;
   drawCount++;
   // a view newly on the screen (a bench opened, a tab switched to) is the one a later resize keeps in place, once the
   // bench is the size it is drawn at (a resize still to come, as the panels change, leaves the new view as saved)

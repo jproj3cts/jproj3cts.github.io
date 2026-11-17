@@ -1283,7 +1283,11 @@ export const V3D = (() => {
       gl_FragColor = vec4(sum / b * uK, 0.0, 0.0, 1.0);
     }`;
   const SVOL_VS = 'varying vec3 vP; void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
-  const scatVolKey = () => ((lastTrace.scat && lastTrace.scat.fans) || []).map(F => F.field ? F.part + ':' + F.field.top + ':' + scatDb(F) : '').join();
+  // (each field picture by its own identity: a particle turned keeps the same brightest value, so its top alone would
+  // leave the glow of an earlier step in place, or a light layer kept for an earlier step brought back)
+  const SVOL_IDS = new WeakMap(); let svolSeq = 0;
+  const svolId = G => { let k = SVOL_IDS.get(G); if (!k) SVOL_IDS.set(G, (k = ++svolSeq)); return k; };
+  const scatVolKey = () => ((lastTrace.scat && lastTrace.scat.fans) || []).map(F => F.field ? F.part + ':' + svolId(F.field) + ':' + F.field.top + ':' + scatDb(F) : '').join();
   // a particle's Scale (the Scattering tab's, scatScale), in dB on the bench (0: linear); in 3D logarithmic over half of
   // them (the light along a line of sight falls as 1/b where the irradiance falls as 1/b², so the glow reaches as far)
   const scatDb = F => scatDbOf((getEl(F.part) || {}).scatScale);
@@ -2010,6 +2014,9 @@ export const V3D = (() => {
       keepCam(); need();
     }, { passive: false });
     window.addEventListener('resize', () => { if (R && active()) { resize(); requestRender(); } });
+    // the bench's own size, as a panel opens or closes beside it: the picture is drawn again at once at its new shape,
+    // whether or not the bench is drawn just now (a sweep held while its steps are worked out draws nothing new)
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { if (R && active()) { resize(); need(); requestRender(); } }).observe(D.stage);
   }
   /* The 3D view's keys: F fits, Shift+1 to 7 the standard views; the 2D view's own keys that mean
      nothing here (measure, pan with Space) are left alone */
@@ -2233,7 +2240,7 @@ export const V3D = (() => {
       // each fibre's tube as drawn: the box round it on the bench (mm), by the fibre's id
       fibreBoxes() { if (!R) return null; sync(); const out = {}; for (const [id, c] of R.wireCache || []) { const g = c.obj.geometry; g.computeBoundingBox(); const b = g.boundingBox; out[id] = [b.min.x, b.min.y, b.max.x, b.max.y].map(v => +v.toFixed(3)); } return out; },
       // a particle's scattered field as drawn (scatVolMeshes): its volumes; and what one frame takes, the GPU's work finished (ms)
-      scatField: () => { if (!R || !active()) return null; sync(); const k = D.vkey.querySelector('b.sc'); return { vols: (R.scatVols || []).length, quad: R.groups.light.children.some(o => o.userData.volQuad), key: D.vkey.hidden || !k ? null : D.vkey.textContent }; },
+      scatField: () => { if (!R || !active()) return null; sync(); const k = D.vkey.querySelector('b.sc'); return { vols: (R.scatVols || []).length, sig: (R.scatVols || []).map(o => { const g = o.userData.scatVol && o.userData.scatVol.field && o.userData.scatVol.field.grid; let s = 0; if (g) for (let i = 0; i < g.length; i += 7) s += g[i] * (1 + i % 13); return s; }).join(), quad: R.groups.light.children.some(o => o.userData.volQuad), key: D.vkey.hidden || !k ? null : D.vkey.textContent }; },
       // what pointing at a canvas point reads (css px from its top left): the beam's line and the scattered field's
       readAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), e = { clientX: b.left + px, clientY: b.top + py }, q = scatUnder(e), r = R.vol ? volUnder(e) : null; readVol(e); return { beam: r && { L: r.L }, scat: q && { L: q.L, I: q.I, p: q.p }, text: D.vread ? D.vread.textContent : null }; },
       drawMs(n = 5) { if (!R || !active()) return null; sync(); draw(); const g = R.gl.getContext(); g.finish(); const t0 = performance.now(); for (let i = 0; i < n; i++) draw(); g.finish(); return (performance.now() - t0) / n; },

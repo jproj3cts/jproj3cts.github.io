@@ -16585,6 +16585,7 @@ function resize() {
   benchMid = mid; benchMidView = v;
   W = r.width; H = r.height;
   canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
+  resizedSinceDraw = true;
   requestRender();
 }
 /* the tool is the whole window; the page itself does not scroll */
@@ -17717,10 +17718,13 @@ function getCss(v) {
 /* A sweep's render held (ui/sweeps.js: one predicted to take long shows its bars alone until the whole cycle is ready):
    the bench, 2D and 3D, stays as it was drawn. drawCount: the frames drawn (the tests read it). */
 let drawHeld = () => false;
+// (a canvas just resized is cleared: it is drawn again at once, as it stands, even while a sweep is held)
+let resizedSinceDraw = false;
 function setDrawHeld(f) { drawHeld = f; }
 let drawCount = 0;
 function render() {
-  if (!W || !H || drawHeld()) return;
+  if (!W || !H || (drawHeld() && !resizedSinceDraw)) return;
+  resizedSinceDraw = false;
   drawCount++;
   // a view newly on the screen (a bench opened, a tab switched to) is the one a later resize keeps in place, once the
   // bench is the size it is drawn at (a resize still to come, as the panels change, leaves the new view as saved)
@@ -25642,7 +25646,11 @@ const V3D = (() => {
       gl_FragColor = vec4(sum / b * uK, 0.0, 0.0, 1.0);
     }`;
   const SVOL_VS = 'varying vec3 vP; void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
-  const scatVolKey = () => ((lastTrace.scat && lastTrace.scat.fans) || []).map(F => F.field ? F.part + ':' + F.field.top + ':' + scatDb(F) : '').join();
+  // (each field picture by its own identity: a particle turned keeps the same brightest value, so its top alone would
+  // leave the glow of an earlier step in place, or a light layer kept for an earlier step brought back)
+  const SVOL_IDS = new WeakMap(); let svolSeq = 0;
+  const svolId = G => { let k = SVOL_IDS.get(G); if (!k) SVOL_IDS.set(G, (k = ++svolSeq)); return k; };
+  const scatVolKey = () => ((lastTrace.scat && lastTrace.scat.fans) || []).map(F => F.field ? F.part + ':' + svolId(F.field) + ':' + F.field.top + ':' + scatDb(F) : '').join();
   // a particle's Scale (the Scattering tab's, scatScale), in dB on the bench (0: linear); in 3D logarithmic over half of
   // them (the light along a line of sight falls as 1/b where the irradiance falls as 1/b², so the glow reaches as far)
   const scatDb = F => scatDbOf((getEl(F.part) || {}).scatScale);
@@ -26369,6 +26377,9 @@ const V3D = (() => {
       keepCam(); need();
     }, { passive: false });
     window.addEventListener('resize', () => { if (R && active()) { resize(); requestRender(); } });
+    // the bench's own size, as a panel opens or closes beside it: the picture is drawn again at once at its new shape,
+    // whether or not the bench is drawn just now (a sweep held while its steps are worked out draws nothing new)
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { if (R && active()) { resize(); need(); requestRender(); } }).observe(D.stage);
   }
   /* The 3D view's keys: F fits, Shift+1 to 7 the standard views; the 2D view's own keys that mean
      nothing here (measure, pan with Space) are left alone */
@@ -26592,7 +26603,7 @@ const V3D = (() => {
       // each fibre's tube as drawn: the box round it on the bench (mm), by the fibre's id
       fibreBoxes() { if (!R) return null; sync(); const out = {}; for (const [id, c] of R.wireCache || []) { const g = c.obj.geometry; g.computeBoundingBox(); const b = g.boundingBox; out[id] = [b.min.x, b.min.y, b.max.x, b.max.y].map(v => +v.toFixed(3)); } return out; },
       // a particle's scattered field as drawn (scatVolMeshes): its volumes; and what one frame takes, the GPU's work finished (ms)
-      scatField: () => { if (!R || !active()) return null; sync(); const k = D.vkey.querySelector('b.sc'); return { vols: (R.scatVols || []).length, quad: R.groups.light.children.some(o => o.userData.volQuad), key: D.vkey.hidden || !k ? null : D.vkey.textContent }; },
+      scatField: () => { if (!R || !active()) return null; sync(); const k = D.vkey.querySelector('b.sc'); return { vols: (R.scatVols || []).length, sig: (R.scatVols || []).map(o => { const g = o.userData.scatVol && o.userData.scatVol.field && o.userData.scatVol.field.grid; let s = 0; if (g) for (let i = 0; i < g.length; i += 7) s += g[i] * (1 + i % 13); return s; }).join(), quad: R.groups.light.children.some(o => o.userData.volQuad), key: D.vkey.hidden || !k ? null : D.vkey.textContent }; },
       // what pointing at a canvas point reads (css px from its top left): the beam's line and the scattered field's
       readAt(px, py) { if (!R) return null; sync(); const b = D.cv.getBoundingClientRect(), e = { clientX: b.left + px, clientY: b.top + py }, q = scatUnder(e), r = R.vol ? volUnder(e) : null; readVol(e); return { beam: r && { L: r.L }, scat: q && { L: q.L, I: q.I, p: q.p }, text: D.vread ? D.vread.textContent : null }; },
       drawMs(n = 5) { if (!R || !active()) return null; sync(); draw(); const g = R.gl.getContext(); g.finish(); const t0 = performance.now(); for (let i = 0; i < n; i++) draw(); g.finish(); return (performance.now() - t0) / n; },
@@ -61093,6 +61104,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'A sweep held while its steps are worked out no longer leaves the bench stretched or blank when a panel opens or closes beside it, in 2D or 3D.',
     'Sweeps play closer to real time. Each step’s trace is kept while a sweep plays, on benches with fibres, circuits and particles as well, so the next cycle, and a sweep played over its steps rendered ahead, draws them without tracing again. A kept trace is used only where it is exactly a fresh trace’s (checked on every example). A sweep that asks for more steps a second than the computer can draw skips steps to keep its time, and its panel says so. The rays are drawn at the screen’s resolution while it plays. A levitated-trap bench with its particle’s field drawn plays its pre-rendered 48-step polarisation sweep at about 35 frames a second in 2D, where it managed 8.',
     'A sweep whose work ahead (its diffracted field, a Particle’s scattering) is predicted to take longer than 30 seconds no longer plays its steps as they trickle in: the bench stays as it is and the progress bars say how long is left (“about 1 min 20 s left”), then the whole cycle plays smoothly. The prediction is made again as each step finishes, and Pause still stops it at once. Every progress bar now has a light running along it while its work goes on, so a slow one is plainly still working (with reduced motion, it breathes gently instead).',
     'A <b>Particle</b>\u2019s Dipoles across reads 0 as automatic, and says under it what automatic picks.',

@@ -58503,7 +58503,8 @@ function loadMine(force) {
   if (MINE.list && MINE.ws === ws && !force) return Promise.resolve(MINE.list);
   if (MINE.busy && !force) return MINE.busy;
   MINE.busy = api('/v1/workspaces/' + ws + '/parts')
-    .then(r => { Object.assign(MINE, { list: r.parts, ws, active: !!r.active }); return r.parts; })
+    // (JEKcad's parts are kept in the same library: they go into a JEKcad assembly, not on a bench)
+    .then(r => { const list = r.parts.filter(p => p.palette !== 'cad'); Object.assign(MINE, { list, ws, active: !!r.active }); return list; })
     .catch(() => MINE.list || [])
     .finally(() => { MINE.busy = null; });
   return MINE.busy;

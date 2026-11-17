@@ -16,6 +16,7 @@ import { exportDxf, exportParts, exportPdf, importStep, newDocument, openDocData
 import { wireCadAccount } from '../io/cad-account.js';
 import { cadOpenShare, cadOpenShort, cadReadShare, cadShare, cadShareHash, wireShare } from '../io/share.js';
 import { cloudPush, openCloudBench, openCloudList, wireCloud } from '../io/cloud.js';
+import { cadMineContent, insertCadPart, keepCadPart, wireCadParts } from '../io/cad-parts.js';
 import { kernelAsk } from '../page/kernel.js';
 import { APP_VERSION, wireNews } from './news.js';
 
@@ -31,7 +32,7 @@ const saved = restoreSaved();
 setFile(saved || {});
 on('icons', el => cadIcons(el));
 hooks.cadCloseDialog = () => closeDialog();
-wireMenus(); wireSketcher(); wireDialog(); wirePanel(); wireAssembly(); wireDrawing(); wirePointer(); wireFiles(); wireCube(); wireFly(); wireNews(); wireCadAccount(); wireShare(); wireCloud(); wireUsage();
+wireMenus(); wireSketcher(); wireDialog(); wirePanel(); wireAssembly(); wireDrawing(); wirePointer(); wireFiles(); wireCube(); wireFly(); wireNews(); wireCadAccount(); wireShare(); wireCloud(); wireCadParts(); wireUsage();
 /* the bar's buttons and menus */
 const click = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
 for (const b of document.querySelectorAll('[data-feature]')) b.addEventListener('click', () => { closeMenus(); openFeature(b.dataset.feature); });
@@ -127,6 +128,6 @@ window.JEKcad = {
   pickAt, pickHere, overlayPick, selectPick, project, toScreen, fit, viewFrom, setMode, png: viewPng, sketchOn: () => !!app.sketch,
   share: cadShare, shareHash: cadShareHash, readShare: cadReadShare, openShare: cadOpenShare,
   dr: DR, addOverall, deleteDim, drwPdf, drwDxf, fitSheet, removeView, setDrwTool, exportPdf, exportDxf,
-  as: AS, addTab, switchTab, renameTab, deleteTab, addInstance, poseInstance, mateOpen, matePick, mateApply, mateEdit, checkClash, triadPoints,
+  as: AS, addTab, switchTab, renameTab, deleteTab, addInstance, poseInstance, mateOpen, matePick, mateApply, mateEdit, checkClash, triadPoints, keepCadPart, insertCadPart, cadMineContent,
   flyStart, flyStop, flyTurn, cubePart, turnStep, deletePart, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
 };

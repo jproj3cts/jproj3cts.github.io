@@ -32,4 +32,5 @@ import './io/share.js';
 import './../../jekray/src/io/account.js';
 import './io/cad-account.js';
 import './io/cloud.js';
+import './io/cad-parts.js';
 import './ui/boot.js';

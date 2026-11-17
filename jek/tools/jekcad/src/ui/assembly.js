@@ -276,6 +276,8 @@ async function openInsert() {
       parts.forEach((p, i) => { const L = partLook(t, p.id, i); rows.push(h('button', { type: 'button', class: 'rt-btn cad-insrow', 'data-studio': t.id, 'data-part': p.id, onclick: () => { addInstance(t.id, p.id); toast('Put in ' + L.name + ': click more, or Close'); } }, h('span', { class: 'cad-swatch', style: 'background:' + L.colour }), L.name, h('span', { class: 'rt-subsmall' }, ' ' + fmtNum(p.volume / 1000, 3) + ' cm³'))); });
     }
   } catch (err) { rows.push(h('p', { class: 'rt-subsmall' }, 'A Part Studio could not be made: ' + err.message)); }
+  // and the parts kept in My parts (io/cad-parts.js), each brought in with its Part Studio
+  if (hooks.cadMineRows) { try { rows.push(...await hooks.cadMineRows()); } catch (err) { /* My parts not there: the studios' parts alone */ } }
   AS.insertBusy = false;
   box.replaceChildren(...rows);
 }

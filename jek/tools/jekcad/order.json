@@ -32,5 +32,6 @@
   "../../jekray/src/io/account.js",
   "io/cad-account.js",
   "io/cloud.js",
+  "io/cad-parts.js",
   "ui/boot.js"
 ]

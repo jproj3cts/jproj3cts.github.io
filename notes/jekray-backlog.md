@@ -19,6 +19,11 @@ together when the owner lifts the pause. Nothing on this list has been started u
    Also: **switching the same sweep's waveform to Ramp breaks it too.** A ramp jumps from the end back to the start,
    so with a 0 → 360° range the first and last steps are the same tilt. Check that case alongside items 1 and 2:
    changing a sweep's settings while it renders or plays may share one cause with the Steps crash.
+4. **A general search of sweeps with the diffracted field rendered, with no particle involved,** for the same kinds of
+   failure: changing Steps, From, To, the waveform (sine, ramp, …) or the frequency while the sweep renders or plays;
+   ranges past a setting's own limits; fly mode, 2D/3D switches and panel changes during a render; first and last
+   steps that are the same state. Cover the sweepable settings of the main part types on the example benches, in 2D
+   and 3D, and leave a browser check for each failure found.
 
 ## Also outstanding
 

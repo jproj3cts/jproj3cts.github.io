@@ -22,6 +22,7 @@ export const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'Turning the 3D view while a sweep plays its rendered field no longer stutters at each step. A sweep that comes back to a value (a triangle sweep of a rod\u2019s tilt, on its way up and down) had its light, the particle\u2019s scattered glow among it, built again at every step of every cycle; now each step\u2019s light is built once and then shown as it is. A cavity on the bench with no light to settle in is no longer solved again at every step, and the scattered light past the parts is built faster.',
     'A <b>Particle</b> can draw its radiation pattern in 3D: tick <b>Draw its radiation pattern in 3D</b> under On the bench on its Scattering tab. A see-through surface about the particle reaches out in each direction as far as it scatters that way, on a linear scale whatever the Scale, so a small sphere\u2019s doughnut and a rod\u2019s lobes can be seen, turning with the particle and following a sweep. Off unless asked for.',
     'A sweep held while its steps are worked out no longer leaves the bench stretched or blank when a panel opens or closes beside it, in 2D or 3D.',
     'A <b>Particle</b> made a rod or a spheroid with Model set to Mie now uses the dipole array, so its scattering follows its shape and how it is turned (Mie holds for a sphere only); the Scattering tab says so.',

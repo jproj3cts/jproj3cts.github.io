@@ -13301,6 +13301,31 @@ const TESTS = [
     },
   },
   {
+    name: 'A particle’s radiation pattern is drawn in 3D as a surface when asked for, and turns with the particle',
+    why: 'a fused-silica rod 300 nm across and 1 µm long in a wide beam polarised out of the plane. With scatShape3d on the 3D view has one surface about the particle, sized from its sign (five signs: never more than 5 mm); with it off, none. Two steps of its tilt, as a sweep sets them (0° and 60°), give two different surfaces (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const frame = () => new Promise(r => rigWin().requestAnimationFrame(() => rigWin().requestAnimationFrame(r)));
+      const els = on => [src({ name: 'L', x: -30, wavelength: 1550, gauss: true, w0: 0.5, z0: 0, width: 1.6, rays: 1, pol: 's', power: 100, popN: 256 }),
+        { type: 'particle', name: 'P', x: 0, y: 0, angle: 90, trapMat: 'Fused silica', trapShape: 'cylinder', trapR: 150, trapLen: 1000, trapMed: 'vacuum', scatFan: false, scatShape3d: on }];
+      let ok = false, A = null, B = null, C = null, D = null;
+      try {
+        J.load(bench('particle lobe', els(true), { minPower: 1e-6, light: { rays: true, envelope: true, field: false, byPower: true } }));
+        await J.view3d.set(true); await frame();
+        A = J.view3d.lobe();
+        J.setParam('P', 'trapTilt', 60); J.trace(); J.redraw(); await frame();
+        B = J.view3d.lobe();
+        J.setParam('P', 'trapTilt', 0); J.trace(); J.redraw(); await frame();
+        C = J.view3d.lobe();
+        J.set('P', { scatShape3d: false }); J.redraw(); await frame();
+        D = J.view3d.lobe();
+        ok = !!A && A.n === 1 && A.scale > 0 && A.scale <= 5 + 1e-9 && !!B && B.n === 1 && Math.abs(B.sum - A.sum) > 1e-3 * A.sum && !!C && Math.abs(C.sum - A.sum) < 1e-6 * A.sum && !!D && D.n === 0;
+      } finally { await J.view3d.set(false); }
+      if (!ok) console.log('particle lobe', JSON.stringify({ A, B, C, D }));
+      return ok ? 1 : 0;
+    },
+  },
+  {
     name: 'The scattered field goes on through a lens as a glow from its cone’s rays, and follows the particle’s Scale',
     why: 'a particle in a wide beam polarised out of the bench plane (so its light goes evenly round it in the plane), a lens 5 mm to the side that collimates its cone onto a detector 11 mm out, the fan off. Past the lens, where the 1/r² picture stops, the bench is bluer with the field on (its own ramp, the sum of blue less red over the pixels between the lens and the detector up by more than 2000) and not with it off (no bluer than with no scattered light at all); upstream of the field’s reach the beam’s pixels are the same on and off. The Scale offers Linear and 30, 60 and 90 dB (and an older bench’s own 40 dB, as saved); each changes the picture about the particle, each differently, and the 3D key says linear or half the dB along a line of sight (15, 30, 45; 20 for the older 40); set back to the older bench’s scale the pixels are as they were, and a bench saved before (no Scale) opens on it; no trace is run by any of it (1 when all hold)',
     want: 1, tol: 0, unit: '',
@@ -13481,7 +13506,7 @@ const TESTS = [
   { group: 'Smoothness' },
   {
     name: 'A field sweep whose frames would not fit in memory renders every so many steps, keeps within the budget, and plays',
-    why: 'a 2D field through a lens swept in x over 12 steps, the field rendered: once with the usual budget (every step kept), then, its range moved so the frames are new, with the budget lowered to three and a half steps’ frames. It renders every sixth step (two kept, 85% of the budget at most), what the frames take stays within the budget, and the sweep plays. The levitated-trap example’s own sweep (240 steps of about 140 MB) closed the tab before: it ran the page out of memory',
+    why: 'a 2D field through a lens swept in x over 12 steps, the field rendered, the frames earlier checks left dropped first (what a step takes is measured on this bench alone): once with the usual budget (every step kept), then, its range moved so the frames are new, with the budget lowered to three and a half steps’ frames. It renders every sixth step (two kept, 85% of the budget at most), both stay, what the frames take stays within the budget, and the sweep plays over them. The levitated-trap example’s own sweep (240 steps of about 140 MB) closed the tab before: it ran the page out of memory',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const bench = { format: 'jekray', version: 1, light: { rays: true, envelope: false, field: true, scale: 'lin', byPower: true }, elements: [
@@ -13489,7 +13514,8 @@ const TESTS = [
         { type: 'lens', id: 'L', name: 'L', x: 0, y: 0, angle: 0, f: 50, length: 20, sweeps: { x: { min: -2, max: 2, freq: 1, phase: 0, wave: 'triangle', field: true, steps: 12 } } },
         { type: 'mirror', id: 'M', name: 'M', x: 60, y: 0, angle: 30, length: 20 }] };
       try {
-        J.load(bench); J.frameBudget(0);
+        // (the frames earlier checks left are dropped: what one step takes is measured on this bench alone)
+        J.sweepPause(); J.load(bench); J.frameBudget(0, true);
         const b0 = J.frameBudget(), n0 = b0.frames;
         await J.sweepPlay('L', 'x'); J.sweepPause();
         const b1 = J.frameBudget(), per = (b1.bytes - b0.bytes) / Math.max(1, b1.frames - n0), whole = b1.kept === null && b1.frames - n0 >= 10;   // (a triangle's two ends are one field)
@@ -13497,8 +13523,9 @@ const TESTS = [
         const budget = 3.5 * per;
         J.frameBudget(budget);
         await J.sweepPlay('L', 'x');
+        // (the first cycle's frames are older than the second's and go first: both steps the second render kept are still there)
         const b2 = J.frameBudget(), playing = Math.round(12 * J.renderedSteps()) === 2;     // (playing over the two steps it kept: a share of the 12)
-        const ok = whole && per > 0 && b2.kept === 2 && b2.bytes <= budget && playing;
+        const ok = whole && per > 0 && b1.bytes > 0 && b2.kept === 2 && b2.frames >= 2 && b2.bytes <= budget && playing;
         if (!ok) console.log('frames budget', JSON.stringify({ per, b0, b1, b2, budget, found: J.renderedSteps() }));
         return ok ? 1 : 0;
       } finally { J.sweepPause(); J.frameBudget(0); }

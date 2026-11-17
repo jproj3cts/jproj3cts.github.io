@@ -550,6 +550,7 @@ One small particle at a point of the bench: a sphere, a rod or a spheroid, in wh
 | scatLight | `true` | true puts the scattered light on the bench: a cone to each part with a clear line to the particle, with the far field’s amplitude, phase and polarisation, coherent with the driving laser. false leaves the bench as it is without it. |
 | scatFan | `true` | true draws a faint fan of the scattered light in every direction, as bright as the pattern is; a picture only, never part of a reading. |
 | scatField | `false` | true draws an estimate of the scattered field as the diffracted field is drawn (2D and 3D): the far-field pattern falling off as 1/r² as far as the first part each direction meets, and past a part that passes it on the light the cones’ rays carry (each ray’s power over its tube), intensity only, on a scale of its own, scatScale’s (on the bench its dB, in 3D half of them; or linear), whatever the beam’s; a picture only, never part of a reading. Default false. |
+| scatShape3d | `false` | true draws the particle’s radiation pattern in the 3D view: a see-through surface about it whose distance from it each way is the scattered intensity that way against the strongest, on a linear scale whatever scatScale, its largest radius five times the particle’s sign (never more than 5 mm on the bench); it turns with the particle. A picture only, drawn while scatLight is on. Default false. |
 
 ### "link": Link plane
 

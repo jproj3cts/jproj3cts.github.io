@@ -187,3 +187,28 @@ export function scatThrough(v, rays) {
   }
   return out.length ? { nP, nR: g.th.length, rays: out } : null;
 }
+
+/* ---------- The radiation pattern as a surface (a Particle's scatShape3d) ----------
+   The scattered intensity over every direction, for the 3D view to draw as a surface about the particle whose distance
+   from it is the intensity that way against the strongest, on a linear scale whatever the Scale: a grid of SF_LOBE_NT
+   directions from straight up to straight down (theta, both poles included) by SF_LOBE_NP round (phi, from +x towards
+   +y), in the bench's own frame, so it turns with the particle as its far field does. */
+export const SF_LOBE_NT = 49, SF_LOBE_NP = 96;
+export function scatLobeDirs() {
+  const d = new Float64Array(3 * SF_LOBE_NT * SF_LOBE_NP);
+  for (let i = 0; i < SF_LOBE_NT; i++) {
+    const t = Math.PI * i / (SF_LOBE_NT - 1), s = Math.sin(t), c = Math.cos(t);
+    for (let j = 0; j < SF_LOBE_NP; j++) { const a = 2 * Math.PI * j / SF_LOBE_NP, o = 3 * (i * SF_LOBE_NP + j); d[o] = s * Math.cos(a); d[o + 1] = s * Math.sin(a); d[o + 2] = c; }
+  }
+  return d;
+}
+/* Fs: the far field along scatLobeDirs, 6 numbers a direction, one array per launch (added as powers): { nT, nP, I }
+   with I the intensity against the strongest direction's (0 to 1), or null with no light */
+export function scatLobeBuild(Fs) {
+  const n = SF_LOBE_NT * SF_LOBE_NP, I = new Float32Array(n);
+  let top = 0;
+  for (let i = 0; i < n; i++) { let s = 0; for (const F of Fs) for (let q = 0; q < 6; q++) s += F[6 * i + q] ** 2; I[i] = s; if (s > top) top = s; }
+  if (!(top > 0)) return null;
+  for (let i = 0; i < n; i++) I[i] /= top;
+  return { nT: SF_LOBE_NT, nP: SF_LOBE_NP, I };
+}

@@ -981,6 +981,34 @@ export async function check(pw, base, shots) {
       ok('A section clicked on the front view (held to the hole’s centre, 30) is hatched where it cuts; a detail round the tapped hole is twice the sheet’s scale and keeps its thread', views.kinds === 'front,top,right,iso,sectionA,detailB' && views.pos === 30 && views.cut === 2 && views.ds === 2 && views.tthreads === 1, JSON.stringify(views));
       ok('A tapped hole’s rim dimensions as its thread (M6×1), a plain hole as Ø8, two edges as their angle (90°); Export DXF writes an R12 file with the section named', dims === 'M6×1,Ø8,90°' && /AC1009/.test(dxf) && /\n1\nSECTION A-A\n/.test(dxf) && /\.dxf$/.test(dl ? dl.suggestedFilename() : '') && !qe.length, JSON.stringify([dims, dxf.slice(0, 30), dl && dl.suggestedFilename(), qe]));
     }
+    // a line's end locks to where two shapes cross: a circle and a line of the sketch, and a circle and an edge of the model
+    {
+      const q = await b.newPage({ viewport: { width: 1400, height: 880 } }), qe = [];
+      q.on('pageerror', e => qe.push(e.message));
+      await q.goto(base + '/jek/tools/jekcad.html?test');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      const settle = async () => { await q.waitForTimeout(250); await q.waitForFunction(() => !window.JEKcad.app.busy, null, { timeout: 20000 }).catch(() => {}); await q.waitForTimeout(150); };
+      const d = newDoc(), s1 = rectSketch(d, 40, 20);
+      d.features.push(s1, newFeature(d, 'extrude', { sketch: s1.id, regions: [[1, 1]], depth: '10', op: 'new' }));
+      const top = newFeature(d, 'plane', { ref: { std: 'top' }, offset: '10 mm' });
+      d.features.push(top, newFeature(d, 'sketch', { plane: { feature: top.id }, ents: [{ id: 'cc', t: 'circle', c: [40, 0], r: 10 }, { id: 'll', t: 'line', a: [20, 5], b: [60, 5] }], cons: [], dims: [] }));
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d)); await settle();
+      await q.evaluate(() => window.JEKcad.editFeature(3)); await q.waitForFunction(() => window.JEKcad.sketchOn() && window.JEKcad.app.sketch.F, null, { timeout: 15000 }).catch(() => {});
+      await q.waitForTimeout(300); await q.evaluate(() => window.JEKcad.fit()); await q.waitForTimeout(300);
+      const uvq = async uv => { const r = await q.evaluate(u => window.JEKcad.toScreen(u), uv); const box = await q.locator('#over').boundingBox(); return [box.x + r[0], box.y + r[1]]; };
+      const cl = async uv => { const a2 = await uvq(uv); await q.mouse.move(a2[0], a2[1], { steps: 3 }); await q.waitForTimeout(60); await q.mouse.click(a2[0], a2[1]); await q.waitForTimeout(100); };
+      await q.keyboard.press('l');
+      // the circle and the sketch's line cross at (40 − √75, 5); the pointer a couple of pixels off it
+      const X1 = 40 - Math.sqrt(75), px = await q.evaluate(() => 1 / window.JEKcad.view.h * 2 * window.JEKcad.view.hh);
+      await cl([10, 25]); await cl([X1 + 2 * px, 5 - 2 * px]);
+      await q.mouse.click(1300, 800, { button: 'right' }); await q.waitForTimeout(150);
+      // the circle and the model's top edge (y = 0, out to x = 40) cross at (30, 0)
+      await cl([15, 23]); await cl([30 + 2 * px, 1.5 * px]);
+      await q.mouse.click(1300, 800, { button: 'right' }); await q.waitForTimeout(150);
+      const got = await q.evaluate(() => { const f = window.JEKcad.app.sketch.f, ls = f.ents.filter(e => e.t === 'line' && e.id !== 'll' && !e.ref); return { ends: ls.map(e => e.b.map(v => +v.toFixed(6))), cons: f.cons.filter(c => c.t === 'oncurve').map(c => { const o = f.ents.find(e => e.id === c.r[1].e); return o ? o.t + (o.ref ? '*' : '') : '?'; }).sort().join() }; });
+      await q.close();
+      ok('A line’s end locks to where a circle crosses a line of the sketch, and to where it crosses an edge of the model, held on both', got.ends.length === 2 && near(got.ends[0][0], X1, 1e-6) && near(got.ends[0][1], 5, 1e-6) && near(got.ends[1][0], 30, 1e-6) && near(got.ends[1][1], 0, 1e-6) && got.cons === 'circle,circle,line,line*' && !qe.length, JSON.stringify([got, X1, qe]));
+    }
     // signed out for sure: looking is free, changing is not (Sketch asks for an account and nothing is started)
     {
       const q = await b.newPage({ viewport: { width: 1200, height: 800 } });

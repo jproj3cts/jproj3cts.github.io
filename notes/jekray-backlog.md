@@ -16,6 +16,9 @@ together when the owner lifts the pause. Nothing on this list has been started u
    The owner then said it may instead be **sweeping the rod's tilt all the way to 360°**. Note: "Axis tilt up" was
    widened to ±180° on 16 November; a sweep ending at 360° goes past that range, so check how the value is clamped or
    wrapped mid-sweep (repeated or jumping steps, kept answers, the 3D sign), as well as fly mode on its own.
+   Also: **switching the same sweep's waveform to Ramp breaks it too.** A ramp jumps from the end back to the start,
+   so with a 0 → 360° range the first and last steps are the same tilt. Check that case alongside items 1 and 2:
+   changing a sweep's settings while it renders or plays may share one cause with the Steps crash.
 
 ## Also outstanding
 

@@ -586,3 +586,22 @@ test('an extrude’s regions cut by the model’s edges: the part of a circle on
   d2.features.push(c2, newFeature(d2, 'extrude', { sketch: c2.id, regions: [[20, 10]], split: true, op: 'new', depth: '5' }));
   out = K.regen(d2); assert.ok(okAll(out), errorsOf(out).join('; ')); near(out.parts[out.parts.length - 1].volume, Math.PI * 25 * 5, 0.4);
 });
+
+/* a part from a real bench (a lens holder): four 0.8 mm pieces added round a hole, then cuts. Merging the
+   boolean's faces once left a solid the kernel's check failed, and then no edge of the part could be chamfered or
+   filleted at any size. */
+test('a chamfer and a fillet on a part whose booleans merge faces badly', async () => {
+  const fs = await import('node:fs'), { normFile } = await import('../../src/core/doc.js');
+  const K = await kernel(), doc = normFile(JSON.parse(fs.readFileSync(new URL('./fixtures/lens-holder.jekcad', import.meta.url)))).tabs[0];
+  let out = K.regen(doc);
+  assert.ok(okAll(out), errorsOf(out).join('; '));
+  for (const [type, size] of [['chamfer', { distance: '1' }], ['fillet', { radius: '1' }]]) {
+    const d = JSON.parse(JSON.stringify(doc));
+    // an outside edge of the base, 30 mm long along x at y = −5, z = 0
+    d.features.push(newFeature(d, type, Object.assign({ edges: K.refs([edgeNear(out, [0, -5, -2])]) }, size)));
+    const o = K.regen(d);
+    assert.ok(okAll(o), type + ': ' + errorsOf(o).join('; '));
+    assert.ok(vol(o) < vol(out) - 1, type + ' took material off');
+    out = K.regen(doc);
+  }
+});

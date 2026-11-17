@@ -490,9 +490,14 @@ export function traceScene() {
   // launches, a particle's cones), taken while its particles' answers are the very ones it was traced with
   const keep = traceStoreOn();
   const c = keep ? traceStore.get(traceKeyBase()) : null;
-  if (c && c.parts.every(([id, k]) => !k || scatFind(id, k, true))) {
+  // (or the one trace offered for the bench as it is now, from where a particle's answer was just worked out: offerTrace)
+  const o = traceOffer;
+  traceOffer = null;
+  const got = c && c.parts.every(([id, k]) => !k || scatFind(id, k, true)) ? c
+    : o && !MODS.packs.size && o.key === traceKeyBase() && o.parts.every(([id, k]) => !k || scatFind(id, k, true)) ? o : null;
+  if (got) {
     statsCache.clear(); diffCache.clear(); binCache.clear();
-    lastTrace = c.T; lastTraceKey = key; lastTraceMs = c.ms; setVSRC(c.V); traceStoreHits++;
+    lastTrace = got.T; lastTraceKey = key; lastTraceMs = got.ms; setVSRC(got.V); traceStoreHits++;
     afterTrace();
     return;
   }
@@ -518,19 +523,59 @@ export const TRACE_STATEFUL = new Set(['gain', 'cell']);
 let traceStoreTest = false;
 export function setTraceStoreTest(on) { traceStoreTest = !!on; dropTraceStore(); }
 export const traceStoreOn = () => (!TEST_MODE || traceStoreTest) && !IN_WORKER && hooks.playing() && !MODS.packs.size && !project.elements.some(e => TRACE_STATEFUL.has(e.type));
-function keepTrace(key, T, ms) {
+/* the particles' answers a trace was made with, [id, key] each, or null when one was still to come for it */
+function traceParts(T) {
   const P = (T.scat && T.scat.parts) || {}, parts = [];
   for (const [id, R] of Object.entries(P)) {
     if (R.state === 'ok') parts.push([id, R.key]);
-    else if (R.state !== 'dark' && R.state !== 'none') return;          // (an answer still to come: this trace is not the step's)
+    else if (R.state !== 'dark' && R.state !== 'none') return null;
   }
+  return parts;
+}
+function keepTrace(key, T, ms, V = VSRC) {
+  const parts = traceParts(T);
+  if (!parts) return;                    // (an answer still to come: this trace is not the step's)
   const n = (T.rays || []).length + 1;
   const was = traceStore.get(key);
   if (was) { traceStore.delete(key); traceStoreRays -= was.n; }
-  traceStore.set(key, { T, ms, n, V: VSRC, parts }); traceStoreRays += n;
+  traceStore.set(key, { T, ms, n, V, parts }); traceStoreRays += n;
   while (traceStoreRays > TRACE_STORE_RAYS && traceStore.size > 1) { const [k, v] = traceStore.entries().next().value; traceStore.delete(k); traceStoreRays -= v.n; }
 }
 export function dropTraceStore() { traceStore.clear(); traceStoreRays = 0; }
+/* whether a trace is one keepTrace would keep: every particle's answer was there for it (none still to come) */
+export const traceKeepable = T => !!T && !!traceParts(T);
+/* A step's trace done elsewhere (a sweep's render worker traces every step it renders: worker/main.js, ui/sweeps.js), kept
+   as the page's own would be, so that playing the step only draws it rather than tracing it again on the page. Filed by
+   the bench as the worker had it after the trace (traceKeyRest there, as keepTrace's here), so it is found only when the
+   page's bench is that very bench, with the particles' answers it was traced with; the sources a fibre tip made point
+   back to the page's own laser, as a trace here leaves them. Taken only while traces are kept (traceStoreOn), and never
+   over one the page traced itself. */
+export const traceKeyRestNow = () => traceKeyRest();
+export function keepTraceFrom(rest, T, ms, list) {
+  if (!traceStoreOn() || !T || typeof rest !== 'string') return false;
+  const key = loadGen + '|' + MODS.rev + '|' + rest;
+  if (traceStore.has(key)) return false;
+  keepTrace(key, T, ms, sourcesFrom(list));
+  return traceStore.has(key);
+}
+/* the sources a trace made elsewhere, by id, those from a laser on this page pointing back to it */
+function sourcesFrom(list) {
+  const V = new Map();
+  for (const v of list || []) {
+    if (v.vRoot && v.vRoot !== v && v.vRoot.id) { const root = project.elements.find(e => e.id === v.vRoot.id); if (root) v.vRoot = root; }
+    V.set(v.id, v);
+  }
+  return V;
+}
+/* A trace made elsewhere of the bench as it is now, offered for the next trace to take in place of tracing again: a
+   particle's answer worked out on the scattering worker comes with the bench traced there with it (ui/scatter.js), which
+   the page would otherwise trace again for itself as the answer arrives. Taken under the same conditions as a kept one
+   (traceScene): the very bench, with the very answers, nothing traced statefully; one trace at a time, used once. */
+let traceOffer = null;
+export function offerTrace(rest, T, ms, list) {
+  const parts = T && typeof rest === 'string' && !project.elements.some(e => TRACE_STATEFUL.has(e.type)) ? traceParts(T) : null;
+  traceOffer = parts ? { key: loadGen + '|' + MODS.rev + '|' + rest, T, ms, V: sourcesFrom(list), parts } : null;
+}
 /* light round loops through free space and the fibres: what the tips send out, carried from
    one pass of the trace to the next, and how many passes it has had */
 let tipCarry = null, tipPass = 0, traceDepth = 0;

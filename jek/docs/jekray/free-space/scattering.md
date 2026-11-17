@@ -103,7 +103,7 @@ A particle much smaller than the wavelength is a single dipole, $$\mathbf p = \a
 
 ### Auto
 
-Auto takes Mie for a sphere and the dipole array for any other shape. It takes Rayleigh only when the particle is tiny: $$|m|k$$ times half its longest dimension below 0.1. The tab names the model used with its figures: the size parameter, the number of dipoles, their spacing and $$|m|kd$$.
+Auto takes Mie for a sphere and the dipole array for any other shape. Mie chosen for a rod or a spheroid is the dipole array too, since Mie holds for a sphere alone, and the tab says so. It takes Rayleigh only when the particle is tiny: $$|m|k$$ times half its longest dimension below 0.1. The tab names the model used with its figures: the size parameter, the number of dipoles, their spacing and $$|m|kd$$.
 
 ## What the tab gives
 

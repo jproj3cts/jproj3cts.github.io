@@ -14,7 +14,7 @@ import { drawBarShown } from './drawings.js';
 import { SWEEP_STEPS_MAX, getPath, setParam } from '../state/params.js';
 import {
   WAVES, advOpen, fieldFramesOf, sweepStepsChanged, fieldPossible, isPlaying, jobHas, pause, play, setFieldRendered, swPool,
-  swRelease, sweepDefault, sweepEta, sweepFrac, sweepJob, sweepKey, sweepValue
+  fieldRendered, swRelease, sweepDefault, sweepEta, sweepFrac, sweepJob, sweepKey, sweepValue
 } from './sweeps.js';
 import { V3D } from './view3d.js';
 import { ELEC_UI } from './elec.js';
@@ -264,6 +264,8 @@ function sweepControls(el, path, sw, label) {
     const status = h('p', { class: 'rt-hint', style: 'margin:0.2rem 0 0' }), pfill = h('i'), pbar = h('div', { class: 'rt-pbar', role: 'progressbar', 'aria-label': 'Rendering the field', style: 'margin:0.25rem 0 0.1rem' }, pfill);
     bindSync(status, () => {
       status.textContent = rendering() ? 'Rendering the field: ' + (sweepJob.i + 1) + ' of ' + sweepJob.n + (sweepEta(sweepJob) ? ', ' + sweepEta(sweepJob) : '') + '\u2026'
+        : sw.field && isPlaying(el, path) && fieldRendered && fieldRendered.rate && fieldRendered.rate.achieved !== null && fieldRendered.rate.achieved < 0.85 * fieldRendered.rate.asked
+          ? 'Playing at about ' + Math.max(1, Math.round(fieldRendered.rate.achieved)) + ' of the ' + Math.round(fieldRendered.rate.asked) + ' steps a second it asks for: this computer draws no more, so steps are skipped and the cycle keeps its time.'
         : sw.field ? 'Play renders the field at ' + fieldFramesOf(sw) + ' points of the cycle (enough to play smoothly at its rate, unless Steps is set), on the bench and on every screen it reaches, then plays through them.'
         : '';
       status.hidden = !status.textContent;

@@ -493,7 +493,15 @@ export function tick(t) {
     // showing them half worked out (a step the renderer missed is worked out live, waited for)
     const n = fieldRendered.n, want = Math.round(clockT * n / P);
     if (playStep === null) { setPlayStep(want); setStepSince(t); }
-    if (want !== playStep && (sampleShown() || t - stepSince > 4000)) { setPlayStep(playStep + (Math.sign(want - playStep))); setStepSince(t); }
+    // the step the clock is at, once the one on show is drawn in full: steps the screen cannot keep up with are skipped, so
+    // the cycle keeps its time (a step still being worked out holds the clock, up to 4 s, as before). The rate it manages
+    // is kept on fieldRendered.rate, for the sweep's panel to say so.
+    if (want !== playStep && (sampleShown() || t - stepSince > 4000)) {
+      const R = fieldRendered.rate || (fieldRendered.rate = { t0: t, shown: 0, asked: n / P, achieved: null });
+      R.shown++; R.asked = n / P;
+      if (t - R.t0 > 1000) { R.achieved = R.shown * 1000 / (t - R.t0); R.t0 = t; R.shown = 0; }
+      setPlayStep(want); setStepSince(t);
+    }
     if (want !== playStep) setClockT((playStep + 0.49 * Math.sign(want - playStep)) * P / n);
     // the very sample the renderer took (same arithmetic, same cycle), so the keys match exactly;
     // while the render is still filling in, the nearest step before it that is there

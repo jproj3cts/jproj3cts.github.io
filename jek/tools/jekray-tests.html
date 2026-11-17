@@ -6575,6 +6575,35 @@ const TESTS = [
     },
   },
   {
+    name: 'A sweep rendered ahead plays from what it kept: no trace or solve a frame once round, within a frame budget, keeping its time',
+    why: 'a lens swept across a beam shown as its field, 8 steps rendered ahead, with a particle in the light: after one cycle every step’s trace (and the particle’s answer) is kept, so a second cycle traces nothing and solves nothing, its frames come at least 8 a second (generous, for CI), and the steps it shows move with the clock (a step the screen cannot keep up with is skipped, not waited for) (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load(bench('kept playback', [
+        { type: 'source', id: 'S', name: 'Laser', x: 0, y: 0, angle: 0, gauss: true, w0: 0.5, z0: 0, wavelength: 633, rays: 1, popN: 128 },
+        { type: 'lens', id: 'L', name: 'Lens', x: 40, y: 0, diameter: 12.7, surfaces: [{ R: 25.8 }, { R: null }], gaps: [3], materials: [{ glass: 'N-BK7' }],
+          sweeps: { y: { min: -1, max: 1, freq: 1, phase: 0, wave: 'sine', field: true, steps: 8 } } },
+        particleAt({ name: 'P', x: 70, trapMat: 'Fused silica', trapR: 100, trapMed: 'vacuum', scatModel: 'mie' }),
+        { type: 'screen', id: 'Sc', name: 'Screen', x: 120, y: 0, angle: 180, length: 10 }], { light: { rays: true, envelope: false, field: true, scale: 'lin' } }));
+      const raf = () => new Promise(r => rigWin().requestAnimationFrame(() => r()));
+      J.traceStoreTest(true);
+      try {
+        await J.sweepPlay('Lens', 'y');
+        // round once (each step traced and kept), then a cycle measured
+        let t0 = performance.now(); while (performance.now() - t0 < 1500) await raf();
+        const c0 = J.traceInfo().count, s0 = J.scatStats(), d0 = J.sweepHold().drawn, ys = new Set(), ts = [];
+        t0 = performance.now();
+        while (performance.now() - t0 < 1000) { await raf(); ts.push(performance.now()); ys.add(J.byName('Lens').y); }
+        const s1 = J.scatStats(), traces = J.traceInfo().count - c0, drawn = J.sweepHold().drawn - d0;
+        const dt = ts.slice(1).map((t, i) => t - ts[i]).sort((a, b) => a - b), med = dt[dt.length >> 1];
+        const solved = (s1.mieDone - s0.mieDone) + (s1.mieCombined - s0.mieCombined);
+        const ok = traces === 0 && solved === 0 && drawn >= 8 && med < 125 && ys.size >= 5;
+        if (!ok) console.log('kept playback', JSON.stringify({ traces, solved, drawn, med, steps: ys.size }));
+        return ok ? 1 : 0;
+      } finally { J.traceStoreTest(false); J.sweepPause(); }
+    },
+  },
+  {
     name: 'Pause lets a held sweep go at once',
     why: 'the same long render held, paused part way: the hold ends there and then, nothing plays, and the bench is drawn again (1 when all hold)',
     want: 1, tol: 0, unit: '',

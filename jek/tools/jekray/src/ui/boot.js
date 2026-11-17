@@ -19,7 +19,7 @@ import { VSRC, allSources, demoProject, getEl, loadProject, selected, serialize 
 import { onTab } from '../state/tabs.js';
 import { meshHull, parseSTL } from '../core/stl.js';
 import { compileMaskExpr, maskFns } from '../core/mask.js';
-import { lastTrace, lastTraceKey, lastTraceMs, setLastTraceKey, traceCount, traceKeyNow, traceScene, traceStore, traceStoreHits } from '../engines/trace.js';
+import { lastTrace, lastTraceKey, lastTraceMs, setLastTraceKey, traceCount, traceKeyNow, traceScene, setTraceStoreTest, traceStore, traceStoreHits } from '../engines/trace.js';
 import {
   beamPowerShare, benchStyleShown, bez, byPowerOn, fibreSegs, powerFade, powerTop, rayPowerShare, rayTops, handlePos, hornShape, requestRender, resize, segPlanes, selection,
   setSelection, sx, sy, toScr, wireRender, lightLayer, drawCount
@@ -229,6 +229,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // (tests) a sweep's long render held: the limit lowered (none: put back), and whether it holds now with the frames drawn so far; the bars as drawn
     sweepHoldLimit(s) { setSweepHoldLimit(s); },
     sweepHold() { return { holding: sweepHolding(), drawn: drawCount }; },
+    // (tests) a sweep's traces kept while it plays, as off the tests they are (TEST_MODE keeps none unless asked)
+    traceStoreTest(on) { setTraceStoreTest(on); },
     activityBars() { return activityBars(); },
     // the diffracted field as the 3D view takes it, worked out here: per segment its cuts along it, their reach and the irradiance on the axis (W/cm²)
     vol3d() { traceScene(); const srcs = popSources(); if (!srcs.length) return null; const t0 = performance.now(), R = popRun(lastTrace.beams, srcs, {}), t1 = performance.now(), V = volData(R.segs, project.tab, null); self.__volMs = [t1 - t0, performance.now() - t1];

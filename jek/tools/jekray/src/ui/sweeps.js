@@ -232,14 +232,14 @@ export function pause(el, path) {
   cancelJobFor(el, path);
   playing.delete(sweepKey(el, path));
   if (!playing.size) { dropTraceStore(); scatterAheadStop(); holdEnd(); }
-  syncPanel(); updateSweepButtons(); scheduleSave();
+  syncPanel(); updateSweepButtons(); scheduleSave(); requestRender();         // (drawn again: the rays finer once nothing plays)
 }
 export function pauseAll() {
   if (sweepJob) sweepJob.cancel();
   holdEnd();
   if (!playing.size) return;
   playing.clear(); dropTraceStore(); scatterAheadStop();
-  syncPanel(); updateSweepButtons(); scheduleSave();
+  syncPanel(); updateSweepButtons(); scheduleSave(); requestRender();
 }
 export function syncPhases() {
   const list = allSweeps();

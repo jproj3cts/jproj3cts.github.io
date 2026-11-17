@@ -17,7 +17,7 @@ import { wavelengthColour } from '../core/colour.js';
 import { PARTS } from '../parts/registry.js';
 import { deg, project } from '../state/project.js';
 import { faceAmps } from '../core/face-pol.js';
-import { scatRevNow } from './scatter.js';
+import { scatFind, scatRevNow } from './scatter.js';
 import { placeFromScreen, scatterLaunch } from './scatter-light.js';
 import { pmapLaunch, pmapStep } from './scatter-pupil-map.js';
 import { FREE_3D, VSRC, applySpins, beamOn, getEl, lampBody, lampEmits, lampRaysOf, lightOf, raysOn, setVSRC } from '../state/elements.js';
@@ -464,7 +464,11 @@ export function setLastTraceKey(v) { return (lastTraceKey = v); }
 /* RF parts met past their model (a grid or mesh with its pitch over the wavelength: a grating), by id, from the last trace */
 export const rfNotes = new Set();
 // (the bench's Show the rays among it: with it off, a Gaussian beam's rays are not traced at all, so ticking it traces again)
-export const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + scatRevNow() + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + (lightOf().rays !== false ? 'R' : '-') + '|' + project.benches.map(b => b.id).join(',') + '|' +
+export const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + scatRevNow() + '|' + traceKeyRest();
+/* the bench's key without the particles' answers' count: what a kept trace is filed under (traceStore), whose particles'
+   answers are looked up again when it is taken */
+const traceKeyBase = () => loadGen + '|' + MODS.rev + '|' + traceKeyRest();
+const traceKeyRest = () => project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + (lightOf().rays !== false ? 'R' : '-') + '|' + project.benches.map(b => b.id).join(',') + '|' +
   JSON.stringify(project.elements.filter(e => e.type !== 'elec' && e.type !== 'draw'), keyCut) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire), keyCut);
 // what changes nothing in the light: a part's name and where it is written, its import notes, drawings; where a
 // fibre component or a chip part sits (their networks are solved by what joins what: a fibre's length is its own
@@ -482,12 +486,13 @@ export function traceScene() {
   applySpins();                                  // a group turned about its pivot by its spin, first
   const key = traceKeyNow();
   if (key === lastTraceKey && lastTrace.beams) return;
-  // a sweep playing round again: each step's trace kept from the cycle before
+  // a sweep playing round again: each step's trace kept from the cycle before (with the sources it made: a fibre tip's
+  // launches, a particle's cones), taken while its particles' answers are the very ones it was traced with
   const keep = traceStoreOn();
-  if (keep && traceStore.has(key)) {
-    const c = traceStore.get(key);
+  const c = keep ? traceStore.get(traceKeyBase()) : null;
+  if (c && c.parts.every(([id, k]) => !k || scatFind(id, k, true))) {
     statsCache.clear(); diffCache.clear(); binCache.clear();
-    lastTrace = c.T; lastTraceKey = key; lastTraceMs = c.ms; traceStoreHits++;
+    lastTrace = c.T; lastTraceKey = key; lastTraceMs = c.ms; setVSRC(c.V); traceStoreHits++;
     afterTrace();
     return;
   }
@@ -497,19 +502,32 @@ export function traceScene() {
   // the key as the bench stands after it (a split source takes its laser's settings as it goes)
   lastTraceKey = traceKeyNow();
   lastTraceMs = performance.now() - t0;
-  if (keep) keepTrace(lastTraceKey, lastTrace, lastTraceMs);
+  if (keep) keepTrace(traceKeyBase(), lastTrace, lastTraceMs);
 }
-/* While a sweep plays, the traces of its steps are kept, so the second cycle and after only
-   draw them. Only a bench the trace worker can trace whole: nothing on it carries state from
-   one trace to the next (fibre networks, lasers, vapour cells); kept up to a few hundred
-   thousand rays' worth, dropped when the sweeps stop. */
+/* While a sweep plays, the traces of its steps are kept, so the second cycle and after (and a sweep played over steps
+   rendered ahead) only draw them. A trace is a function of the bench as its key has it: within one trace the fibre
+   network's light round its loops settles from nothing, a particle's scattered light comes from the answer kept for its
+   own key. Not where a trace starts from the one before it: a laser's gain settling, a vapour cell's holes burnt
+   (TRACE_STATEFUL), nor a mod's results. A trace whose particle had no answer yet for its state (stale, waiting) is not
+   kept. Up to a few hundred thousand rays' worth, dropped when the sweeps stop. (The tests can turn it on with
+   setTraceStoreTest: it is off in TEST_MODE otherwise.) */
 export const traceStore = new Map();
 export let traceStoreRays = 0, traceStoreHits = 0;
 const TRACE_STORE_RAYS = 400000;
-export const traceStoreOn = () => !TEST_MODE && !IN_WORKER && hooks.playing() && !(project.fibres || []).length && !VSRC.size && project.elements.every(e => TW_FREE.has(e.type));
+export const TRACE_STATEFUL = new Set(['gain', 'cell']);
+let traceStoreTest = false;
+export function setTraceStoreTest(on) { traceStoreTest = !!on; dropTraceStore(); }
+export const traceStoreOn = () => (!TEST_MODE || traceStoreTest) && !IN_WORKER && hooks.playing() && !MODS.packs.size && !project.elements.some(e => TRACE_STATEFUL.has(e.type));
 function keepTrace(key, T, ms) {
+  const P = (T.scat && T.scat.parts) || {}, parts = [];
+  for (const [id, R] of Object.entries(P)) {
+    if (R.state === 'ok') parts.push([id, R.key]);
+    else if (R.state !== 'dark' && R.state !== 'none') return;          // (an answer still to come: this trace is not the step's)
+  }
   const n = (T.rays || []).length + 1;
-  traceStore.set(key, { T, ms, n }); traceStoreRays += n;
+  const was = traceStore.get(key);
+  if (was) { traceStore.delete(key); traceStoreRays -= was.n; }
+  traceStore.set(key, { T, ms, n, V: VSRC, parts }); traceStoreRays += n;
   while (traceStoreRays > TRACE_STORE_RAYS && traceStore.size > 1) { const [k, v] = traceStore.entries().next().value; traceStore.delete(k); traceStoreRays -= v.n; }
 }
 export function dropTraceStore() { traceStore.clear(); traceStoreRays = 0; }

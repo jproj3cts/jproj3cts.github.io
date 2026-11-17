@@ -14426,7 +14426,11 @@ function setLastTraceKey(v) { return (lastTraceKey = v); }
 /* RF parts met past their model (a grid or mesh with its pitch over the wavelength: a grating), by id, from the last trace */
 const rfNotes = new Set();
 // (the bench's Show the rays among it: with it off, a Gaussian beam's rays are not traced at all, so ticking it traces again)
-const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + scatRevNow() + '|' + project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + (lightOf().rays !== false ? 'R' : '-') + '|' + project.benches.map(b => b.id).join(',') + '|' +
+const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + scatRevNow() + '|' + traceKeyRest();
+/* the bench's key without the particles' answers' count: what a kept trace is filed under (traceStore), whose particles'
+   answers are looked up again when it is taken */
+const traceKeyBase = () => loadGen + '|' + MODS.rev + '|' + traceKeyRest();
+const traceKeyRest = () => project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + (lightOf().rays !== false ? 'R' : '-') + '|' + project.benches.map(b => b.id).join(',') + '|' +
   JSON.stringify(project.elements.filter(e => e.type !== 'elec' && e.type !== 'draw'), keyCut) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire), keyCut);
 // what changes nothing in the light: a part's name and where it is written, its import notes, drawings; where a
 // fibre component or a chip part sits (their networks are solved by what joins what: a fibre's length is its own
@@ -14444,12 +14448,13 @@ function traceScene() {
   applySpins();                                  // a group turned about its pivot by its spin, first
   const key = traceKeyNow();
   if (key === lastTraceKey && lastTrace.beams) return;
-  // a sweep playing round again: each step's trace kept from the cycle before
+  // a sweep playing round again: each step's trace kept from the cycle before (with the sources it made: a fibre tip's
+  // launches, a particle's cones), taken while its particles' answers are the very ones it was traced with
   const keep = traceStoreOn();
-  if (keep && traceStore.has(key)) {
-    const c = traceStore.get(key);
+  const c = keep ? traceStore.get(traceKeyBase()) : null;
+  if (c && c.parts.every(([id, k]) => !k || scatFind(id, k, true))) {
     statsCache.clear(); diffCache.clear(); binCache.clear();
-    lastTrace = c.T; lastTraceKey = key; lastTraceMs = c.ms; traceStoreHits++;
+    lastTrace = c.T; lastTraceKey = key; lastTraceMs = c.ms; setVSRC(c.V); traceStoreHits++;
     afterTrace();
     return;
   }
@@ -14459,19 +14464,32 @@ function traceScene() {
   // the key as the bench stands after it (a split source takes its laser's settings as it goes)
   lastTraceKey = traceKeyNow();
   lastTraceMs = performance.now() - t0;
-  if (keep) keepTrace(lastTraceKey, lastTrace, lastTraceMs);
+  if (keep) keepTrace(traceKeyBase(), lastTrace, lastTraceMs);
 }
-/* While a sweep plays, the traces of its steps are kept, so the second cycle and after only
-   draw them. Only a bench the trace worker can trace whole: nothing on it carries state from
-   one trace to the next (fibre networks, lasers, vapour cells); kept up to a few hundred
-   thousand rays' worth, dropped when the sweeps stop. */
+/* While a sweep plays, the traces of its steps are kept, so the second cycle and after (and a sweep played over steps
+   rendered ahead) only draw them. A trace is a function of the bench as its key has it: within one trace the fibre
+   network's light round its loops settles from nothing, a particle's scattered light comes from the answer kept for its
+   own key. Not where a trace starts from the one before it: a laser's gain settling, a vapour cell's holes burnt
+   (TRACE_STATEFUL), nor a mod's results. A trace whose particle had no answer yet for its state (stale, waiting) is not
+   kept. Up to a few hundred thousand rays' worth, dropped when the sweeps stop. (The tests can turn it on with
+   setTraceStoreTest: it is off in TEST_MODE otherwise.) */
 const traceStore = new Map();
 let traceStoreRays = 0, traceStoreHits = 0;
 const TRACE_STORE_RAYS = 400000;
-const traceStoreOn = () => !TEST_MODE && !IN_WORKER && hooks.playing() && !(project.fibres || []).length && !VSRC.size && project.elements.every(e => TW_FREE.has(e.type));
+const TRACE_STATEFUL = new Set(['gain', 'cell']);
+let traceStoreTest = false;
+function setTraceStoreTest(on) { traceStoreTest = !!on; dropTraceStore(); }
+const traceStoreOn = () => (!TEST_MODE || traceStoreTest) && !IN_WORKER && hooks.playing() && !MODS.packs.size && !project.elements.some(e => TRACE_STATEFUL.has(e.type));
 function keepTrace(key, T, ms) {
+  const P = (T.scat && T.scat.parts) || {}, parts = [];
+  for (const [id, R] of Object.entries(P)) {
+    if (R.state === 'ok') parts.push([id, R.key]);
+    else if (R.state !== 'dark' && R.state !== 'none') return;          // (an answer still to come: this trace is not the step's)
+  }
   const n = (T.rays || []).length + 1;
-  traceStore.set(key, { T, ms, n }); traceStoreRays += n;
+  const was = traceStore.get(key);
+  if (was) { traceStore.delete(key); traceStoreRays -= was.n; }
+  traceStore.set(key, { T, ms, n, V: VSRC, parts }); traceStoreRays += n;
   while (traceStoreRays > TRACE_STORE_RAYS && traceStore.size > 1) { const [k, v] = traceStore.entries().next().value; traceStore.delete(k); traceStoreRays -= v.n; }
 }
 function dropTraceStore() { traceStore.clear(); traceStoreRays = 0; }
@@ -17073,7 +17091,8 @@ function drawRays(stale) {
   if (figure && figure.noLight) return;                                  // a figure with the light left out
   const rays = stale && TW.rays ? TW.rays : lastTrace.rays;
   if (rays.length < RAY_LAYER_MIN || exporting || typeof document.createElement !== 'function') { drawRaysOn(ctx, rays); return; }
-  const frameKey = [W, H, DPR, project.tab, lightLayer, byPowerOn(), lightOf().rayWidth || 0, !!lightOf().glow].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
+  // (while sweeps play the rays change every frame: drawn at the screen's own resolution then, and finer once they stop)
+  const moving = hooks.playing(), frameKey = [W, H, DPR, project.tab, lightLayer, byPowerOn(), lightOf().rayWidth || 0, !!lightOf().glow, moving].join('|'), key = [V().cx, V().cy, V().scale, frameKey].join('|');
   // while the view is moving (a pan or a zoom), the layer drawn a moment ago is moved and
   // scaled to match, and drawn afresh once the view has settled
   if (rayLayer.rays === rays && rayLayer.frame === frameKey && rayLayer.key !== key && !rayLayer.settled) {
@@ -17092,7 +17111,7 @@ function drawRays(stale) {
     // the rays are drawn at twice the resolution and scaled down (on all but the largest
     // screens), so where a fan's lines converge to under a pixel apart the beats between
     // lines and pixels (moiré) average out
-    const ss = rayLayer.ss = canvas.width * canvas.height <= 4.5e6 ? 2 : 1;
+    const ss = rayLayer.ss = !moving && canvas.width * canvas.height <= 4.5e6 ? 2 : 1;
     if (cv.width !== canvas.width * ss || cv.height !== canvas.height * ss) { cv.width = canvas.width * ss; cv.height = canvas.height * ss; }
     const c = cv.getContext('2d');
     c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cv.width, cv.height);
@@ -20182,14 +20201,14 @@ function pause(el, path) {
   cancelJobFor(el, path);
   playing.delete(sweepKey(el, path));
   if (!playing.size) { dropTraceStore(); scatterAheadStop(); holdEnd(); }
-  syncPanel(); updateSweepButtons(); scheduleSave();
+  syncPanel(); updateSweepButtons(); scheduleSave(); requestRender();         // (drawn again: the rays finer once nothing plays)
 }
 function pauseAll() {
   if (sweepJob) sweepJob.cancel();
   holdEnd();
   if (!playing.size) return;
   playing.clear(); dropTraceStore(); scatterAheadStop();
-  syncPanel(); updateSweepButtons(); scheduleSave();
+  syncPanel(); updateSweepButtons(); scheduleSave(); requestRender();
 }
 function syncPhases() {
   const list = allSweeps();
@@ -30828,7 +30847,15 @@ function tick(t) {
     // showing them half worked out (a step the renderer missed is worked out live, waited for)
     const n = fieldRendered.n, want = Math.round(clockT * n / P);
     if (playStep === null) { setPlayStep(want); setStepSince(t); }
-    if (want !== playStep && (sampleShown() || t - stepSince > 4000)) { setPlayStep(playStep + (Math.sign(want - playStep))); setStepSince(t); }
+    // the step the clock is at, once the one on show is drawn in full: steps the screen cannot keep up with are skipped, so
+    // the cycle keeps its time (a step still being worked out holds the clock, up to 4 s, as before). The rate it manages
+    // is kept on fieldRendered.rate, for the sweep's panel to say so.
+    if (want !== playStep && (sampleShown() || t - stepSince > 4000)) {
+      const R = fieldRendered.rate || (fieldRendered.rate = { t0: t, shown: 0, asked: n / P, achieved: null });
+      R.shown++; R.asked = n / P;
+      if (t - R.t0 > 1000) { R.achieved = R.shown * 1000 / (t - R.t0); R.t0 = t; R.shown = 0; }
+      setPlayStep(want); setStepSince(t);
+    }
     if (want !== playStep) setClockT((playStep + 0.49 * Math.sign(want - playStep)) * P / n);
     // the very sample the renderer took (same arithmetic, same cycle), so the keys match exactly;
     // while the render is still filling in, the nearest step before it that is there
@@ -31122,6 +31149,8 @@ function sweepControls(el, path, sw, label) {
     const status = h('p', { class: 'rt-hint', style: 'margin:0.2rem 0 0' }), pfill = h('i'), pbar = h('div', { class: 'rt-pbar', role: 'progressbar', 'aria-label': 'Rendering the field', style: 'margin:0.25rem 0 0.1rem' }, pfill);
     bindSync(status, () => {
       status.textContent = rendering() ? 'Rendering the field: ' + (sweepJob.i + 1) + ' of ' + sweepJob.n + (sweepEta(sweepJob) ? ', ' + sweepEta(sweepJob) : '') + '\u2026'
+        : sw.field && isPlaying(el, path) && fieldRendered && fieldRendered.rate && fieldRendered.rate.achieved !== null && fieldRendered.rate.achieved < 0.85 * fieldRendered.rate.asked
+          ? 'Playing at about ' + Math.max(1, Math.round(fieldRendered.rate.achieved)) + ' of the ' + Math.round(fieldRendered.rate.asked) + ' steps a second it asks for: this computer draws no more, so steps are skipped and the cycle keeps its time.'
         : sw.field ? 'Play renders the field at ' + fieldFramesOf(sw) + ' points of the cycle (enough to play smoothly at its rate, unless Steps is set), on the bench and on every screen it reaches, then plays through them.'
         : '';
       status.hidden = !status.textContent;
@@ -61143,6 +61172,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'Sweeps play closer to real time. Each step’s trace is kept while a sweep plays, on benches with fibres, circuits and particles as well, so the next cycle, and a sweep played over its steps rendered ahead, draws them without tracing again. A kept trace is used only where it is exactly a fresh trace’s (checked on every example). A sweep that asks for more steps a second than the computer can draw skips steps to keep its time, and its panel says so. The rays are drawn at the screen’s resolution while it plays. A levitated-trap bench with its particle’s field drawn plays its pre-rendered 48-step polarisation sweep at about 35 frames a second in 2D, where it managed 8.',
     'A sweep whose work ahead (its diffracted field, a Particle’s scattering) is predicted to take longer than 30 seconds no longer plays its steps as they trickle in: the bench stays as it is and the progress bars say how long is left (“about 1 min 20 s left”), then the whole cycle plays smoothly. The prediction is made again as each step finishes, and Pause still stops it at once. Every progress bar now has a light running along it while its work goes on, so a slow one is plainly still working (with reduced motion, it breathes gently instead).',
     'A <b>Particle</b>\u2019s Dipoles across reads 0 as automatic, and says under it what automatic picks.',
     'A <b>Particle</b> is far quicker to sweep and to edit. Its scattering is linear in its light, so once two polarisations are solved every other polarisation and power is their combination, checked on the field and never assumed: a 20-step sweep of a fibre laser’s polarisation on a 1 µm sphere went from about 100 s a cycle to 3 s, and as a dipole array from 108 s to 4 s. Every answer is kept, so a sweep’s next cycle, and a value typed back, show at once. A sweep solves the particle’s steps ahead, beside the field, with a bar of its own under the bench’s (“Scattering … step 7 of 20”) and in the Scattering tab, and each frame shows its own step. The dipole array sums its dipoles by FFT and starts each solve from the nearest answer (a 4000-dipole rod: 10 s a step to 1 s), the trap is found only when the Trap tab is read, a solve made out of date is stopped rather than left to run, and a rod’s <b>Axis tilt</b> goes past 90° to 180°, so a tilt sweep can carry it through upright. Numbers typed in a panel reach the bench once typing pauses, so a key never waits on a slow bench.',
@@ -64934,6 +64964,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // (tests) a sweep's long render held: the limit lowered (none: put back), and whether it holds now with the frames drawn so far; the bars as drawn
     sweepHoldLimit(s) { setSweepHoldLimit(s); },
     sweepHold() { return { holding: sweepHolding(), drawn: drawCount }; },
+    // (tests) a sweep's traces kept while it plays, as off the tests they are (TEST_MODE keeps none unless asked)
+    traceStoreTest(on) { setTraceStoreTest(on); },
     activityBars() { return activityBars(); },
     // the diffracted field as the 3D view takes it, worked out here: per segment its cuts along it, their reach and the irradiance on the axis (W/cm²)
     vol3d() { traceScene(); const srcs = popSources(); if (!srcs.length) return null; const t0 = performance.now(), R = popRun(lastTrace.beams, srcs, {}), t1 = performance.now(), V = volData(R.segs, project.tab, null); self.__volMs = [t1 - t0, performance.now() - t1];

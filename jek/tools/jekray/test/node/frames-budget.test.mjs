@@ -30,6 +30,28 @@ test('a 2D field run’s frame counts every segment’s starting field', async (
   assert.ok(SW.frameBytes(R) >= want, SW.frameBytes(R) + ' < ' + want);
 });
 
+test('past the budget the oldest frames go first, of whatever kind: a render’s own steps outlast older frames of another kind', () => {
+  const F = SW.fieldFrames, MB = 1e6, frame = () => ({ segs: [{ F0: { re: new Float64Array(MB / 8) } }] });   // 1 MB each
+  for (const m of Object.values(F)) m.clear();
+  try {
+    SW.setFrameBudget(4.5 * MB);
+    // older frames of two other kinds (a screen's, a close-up's), as earlier sweeps leave them
+    SW.keepFrame(F.screens, 's1', frame()); SW.keepFrame(F.closeup, 'c1', frame()); SW.keepFrame(F.screens, 's2', frame());
+    // a render's steps, of the bench: each over the budget goes to the oldest left, never to this render's earlier steps
+    SW.keepFrame(F.bench, 'b1', frame()); SW.keepFrame(F.bench, 'b2', frame());
+    assert.deepEqual([[...F.bench.keys()], [...F.screens.keys()], [...F.closeup.keys()]], [['b1', 'b2'], ['s2'], ['c1']]);
+    SW.keepFrame(F.bench, 'b3', frame()); SW.keepFrame(F.bench, 'b4', frame());
+    assert.deepEqual([...F.bench.keys()], ['b1', 'b2', 'b3', 'b4'], 'this render’s steps all kept');
+    assert.equal(F.screens.size + F.closeup.size, 0, 'the older frames of the other kinds gone first');
+    assert.ok(SW.framesBytes() <= 4.5 * MB);
+    // its own oldest next, then; the frame just kept always stays
+    SW.keepFrame(F.bench, 'b5', frame());
+    assert.deepEqual([...F.bench.keys()], ['b2', 'b3', 'b4', 'b5']);
+    SW.setFrameBudget(0.5 * MB); SW.keepFrame(F.screens, 's9', frame());
+    assert.deepEqual([[...F.bench.keys()], [...F.screens.keys()]], [[], ['s9']]);
+  } finally { SW.setFrameBudget(0); for (const m of Object.values(F)) m.clear(); }
+});
+
 test('a cycle too large to keep whole is rendered every so many steps, and what is kept then fits', () => {
   const B = SW.FRAME_BUDGET;
   assert.ok(B >= 384e6 && B <= 1.5e9);

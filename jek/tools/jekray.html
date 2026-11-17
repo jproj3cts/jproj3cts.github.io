@@ -20333,16 +20333,27 @@ function frameBytes(v) {
 const frameSize = v => { let b = frameSizes.get(v); if (b === undefined) { b = frameBytes(v); frameSizes.set(v, b); } return b; };
 function framesBytes() { let b = 0; for (const m of Object.values(fieldFrames)) for (const v of m.values()) b += frameSize(v); return b; }
 const keptNow = { bytes: 0 };                 // the bytes of the frames kept since a render's step began (stepDone)
+/* when each frame was kept (a count): past the budget the oldest of all three kinds goes first, so a render's own frames
+   outlast older ones of another kind (draining the kind just kept first lost this render's other steps to old screens) */
+const frameAges = new WeakMap();
+let frameAge = 0;
 function keepFrame(map, key, v) {
   map.delete(key); map.set(key, v);
+  frameAges.set(v, ++frameAge);
   keptNow.bytes += frameSize(v);
   // close-up pictures are big: two cycles' worth of them; the rest, a cycle at every readout at least; all of them within
   // the budget
   const cap = map === fieldFrames.closeup ? 2 * framesLast : Math.max(FIELD_KEEP, framesLast * (1 + fieldReadouts().length));
   while (map.size > cap) map.delete(map.keys().next().value);
   let total = framesBytes();
-  for (const m of [map, ...Object.values(fieldFrames).filter(m => m !== map)]) {
-    while (total > frameBudget && m.size > (m === map ? 1 : 0)) { const k = m.keys().next().value; total -= frameSize(m.get(k)); m.delete(k); }
+  while (total > frameBudget) {
+    // (each kind's first is its oldest: the oldest of those, never the frame just kept)
+    let at = null, age = Infinity;
+    for (const m of Object.values(fieldFrames)) {
+      for (const [k, f] of m) { if (f === v) continue; const a = frameAges.get(f) || 0; if (a < age) { age = a; at = [m, k]; } break; }
+    }
+    if (!at) break;
+    total -= frameSize(at[0].get(at[1])); at[0].delete(at[1]);
   }
 }
 /* The steps of a render apart, so that its cycle fits the budget: 1 (every step) unless a step's frames (stepBytes) times
@@ -20781,7 +20792,7 @@ function renderOnPool(pool, list, n, cyc, job, onDone) {
 /* a rendered bench field, put back together against the trace the page has for it, the first time it is drawn */
 function benchFrame(key) {
   const f = fieldFrames.bench.get(key);
-  if (f && f.packed) { const R = fwUnpackRun(f.packed, lastTrace.beams); frameSizes.set(R, frameSize(f)); fieldFrames.bench.set(key, R); return R; }
+  if (f && f.packed) { const R = fwUnpackRun(f.packed, lastTrace.beams); frameSizes.set(R, frameSize(f)); frameAges.set(R, frameAges.get(f) || 0); fieldFrames.bench.set(key, R); return R; }
   return f;
 }
 
@@ -65145,9 +65156,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     materialOptions: el => materialOptions(el.materials ? el.materials[0] : { glass: 'N-BK7' }, el.type === 'lens' && !!el.mmw),
     // the rendered frames kept: how many, and whether a screen's field as the bench is now is among them
     framesInfo(name) { const el = name && this.byName(name), J = el && popScreenPrep(el); return { live: liveScreens, bench: fieldFrames.bench.size, screens: fieldFrames.screens.size, has: J ? fieldFrames.screens.has(J.key) : null, key: J ? J.key.length + ':' + J.key.slice(0, 120) : null, keys: [...fieldFrames.screens.keys()].slice(0, 3).map(k => k.length + ':' + k.slice(0, 120)), full: J ? J.key : null, all: [...fieldFrames.screens.keys()] }; },
-    // (tests) the rendered frames' budget lowered (none: put back), and what they take now: { bytes, frames, kept } (kept: the
+    // (tests) the rendered frames' budget lowered (none: put back), every frame dropped first if asked, and what they take now: { bytes, frames, benchBytes, kept } (kept: the
     // steps a render too large for the budget kept, or null when it kept every one)
-    frameBudget(b) { if (b !== undefined) setFrameBudget(b); return { bytes: framesBytes(), frames: fieldFrames.bench.size, kept: fieldRendered && fieldRendered.done ? fieldRendered.done.size : null }; },
+    frameBudget(b, clear) { if (b !== undefined) setFrameBudget(b); if (clear) for (const m of Object.values(fieldFrames)) m.clear(); return { bytes: framesBytes(), frames: fieldFrames.bench.size, benchBytes: [...fieldFrames.bench.values()].reduce((a, f) => a + frameBytes(f), 0), kept: fieldRendered && fieldRendered.done ? fieldRendered.done.size : null }; },
     renderedSteps() {
       const P = renderedPeriod();
       if (!P) return -1;

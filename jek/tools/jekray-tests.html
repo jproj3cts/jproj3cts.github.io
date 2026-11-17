@@ -13481,7 +13481,7 @@ const TESTS = [
   { group: 'Smoothness' },
   {
     name: 'A field sweep whose frames would not fit in memory renders every so many steps, keeps within the budget, and plays',
-    why: 'a 2D field through a lens swept in x over 12 steps, the field rendered: once with the usual budget (every step kept), then, its range moved so the frames are new, with the budget lowered to three and a half steps’ frames. It renders every sixth step (two kept, 85% of the budget at most), what the frames take stays within the budget, and the sweep plays. The levitated-trap example’s own sweep (240 steps of about 140 MB) closed the tab before: it ran the page out of memory',
+    why: 'a 2D field through a lens swept in x over 12 steps, the field rendered, the frames earlier checks left dropped first (what a step takes is measured on this bench alone): once with the usual budget (every step kept), then, its range moved so the frames are new, with the budget lowered to three and a half steps’ frames. It renders every sixth step (two kept, 85% of the budget at most), both stay, what the frames take stays within the budget, and the sweep plays over them. The levitated-trap example’s own sweep (240 steps of about 140 MB) closed the tab before: it ran the page out of memory',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const bench = { format: 'jekray', version: 1, light: { rays: true, envelope: false, field: true, scale: 'lin', byPower: true }, elements: [
@@ -13489,7 +13489,8 @@ const TESTS = [
         { type: 'lens', id: 'L', name: 'L', x: 0, y: 0, angle: 0, f: 50, length: 20, sweeps: { x: { min: -2, max: 2, freq: 1, phase: 0, wave: 'triangle', field: true, steps: 12 } } },
         { type: 'mirror', id: 'M', name: 'M', x: 60, y: 0, angle: 30, length: 20 }] };
       try {
-        J.load(bench); J.frameBudget(0);
+        // (the frames earlier checks left are dropped: what one step takes is measured on this bench alone)
+        J.sweepPause(); J.load(bench); J.frameBudget(0, true);
         const b0 = J.frameBudget(), n0 = b0.frames;
         await J.sweepPlay('L', 'x'); J.sweepPause();
         const b1 = J.frameBudget(), per = (b1.bytes - b0.bytes) / Math.max(1, b1.frames - n0), whole = b1.kept === null && b1.frames - n0 >= 10;   // (a triangle's two ends are one field)
@@ -13497,8 +13498,9 @@ const TESTS = [
         const budget = 3.5 * per;
         J.frameBudget(budget);
         await J.sweepPlay('L', 'x');
+        // (the first cycle's frames are older than the second's and go first: both steps the second render kept are still there)
         const b2 = J.frameBudget(), playing = Math.round(12 * J.renderedSteps()) === 2;     // (playing over the two steps it kept: a share of the 12)
-        const ok = whole && per > 0 && b2.kept === 2 && b2.bytes <= budget && playing;
+        const ok = whole && per > 0 && b1.bytes > 0 && b2.kept === 2 && b2.frames >= 2 && b2.bytes <= budget && playing;
         if (!ok) console.log('frames budget', JSON.stringify({ per, b0, b1, b2, budget, found: J.renderedSteps() }));
         return ok ? 1 : 0;
       } finally { J.sweepPause(); J.frameBudget(0); }

@@ -28,7 +28,7 @@ import { hitTest, wirePointer } from './pointer.js';
 import { getPath, setParam } from '../state/params.js';
 import {
   fieldFrames, fieldHeld, fieldRendered, pauseAll, play, playAll, playing, renderedPeriod, showActivityNow,
-  activityBars, activityNow, framesBytes, setFrameBudget, setSweepHoldLimit, stepValue, sweepHolding, sweepJob, updateActivity
+  activityBars, activityNow, frameBytes, framesBytes, setFrameBudget, setSweepHoldLimit, stepValue, sweepHolding, sweepJob, updateActivity
 } from './sweeps.js';
 import { arrivalField, faceArrivals } from '../engines/fibre-face.js';
 import { portWorld, portsOf } from '../engines/fibre.js';
@@ -257,9 +257,9 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     materialOptions: el => materialOptions(el.materials ? el.materials[0] : { glass: 'N-BK7' }, el.type === 'lens' && !!el.mmw),
     // the rendered frames kept: how many, and whether a screen's field as the bench is now is among them
     framesInfo(name) { const el = name && this.byName(name), J = el && popScreenPrep(el); return { live: liveScreens, bench: fieldFrames.bench.size, screens: fieldFrames.screens.size, has: J ? fieldFrames.screens.has(J.key) : null, key: J ? J.key.length + ':' + J.key.slice(0, 120) : null, keys: [...fieldFrames.screens.keys()].slice(0, 3).map(k => k.length + ':' + k.slice(0, 120)), full: J ? J.key : null, all: [...fieldFrames.screens.keys()] }; },
-    // (tests) the rendered frames' budget lowered (none: put back), and what they take now: { bytes, frames, kept } (kept: the
+    // (tests) the rendered frames' budget lowered (none: put back), every frame dropped first if asked, and what they take now: { bytes, frames, benchBytes, kept } (kept: the
     // steps a render too large for the budget kept, or null when it kept every one)
-    frameBudget(b) { if (b !== undefined) setFrameBudget(b); return { bytes: framesBytes(), frames: fieldFrames.bench.size, kept: fieldRendered && fieldRendered.done ? fieldRendered.done.size : null }; },
+    frameBudget(b, clear) { if (b !== undefined) setFrameBudget(b); if (clear) for (const m of Object.values(fieldFrames)) m.clear(); return { bytes: framesBytes(), frames: fieldFrames.bench.size, benchBytes: [...fieldFrames.bench.values()].reduce((a, f) => a + frameBytes(f), 0), kept: fieldRendered && fieldRendered.done ? fieldRendered.done.size : null }; },
     renderedSteps() {
       const P = renderedPeriod();
       if (!P) return -1;

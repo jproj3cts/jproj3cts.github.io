@@ -12,7 +12,7 @@ import { beamFrame } from './phase-screen.js';
 import { scatCache, scatFind, scatModeNow, scatterNow, scatterPrep } from './scatter.js';
 import { beamFieldAt } from './fibre-face.js';
 import { cavLoadOf } from './scatter-cavity.js';
-import { scatFieldBuild, scatFieldDirs, scatThrough } from './scatter-field.js';
+import { scatFieldBuild, scatFieldDirs, scatLobeBuild, scatLobeDirs, scatThrough } from './scatter-field.js';
 
 /* ---------- A particle's scattered light, put back on the bench ----------
    A Particle part's scattering answer (engines/scatter.js) holds the far field's complex amplitude over the sphere
@@ -329,6 +329,8 @@ export function scatterLaunch(surfsBy) {
         const rays = new Float32Array(5 * nF);
         for (let i = 0; i < nF; i++) { const m = met0[i]; rays.set([st.dirs[i][0], st.dirs[i][1], st.dirs[i][2], m ? Math.min(m.t, 4 * reach) : reach, top > 0 ? I[i] / top : 0], 5 * i); }
         st.fan = { part: el.id, bench: el.bench, pos: st.pos, colour: wavelengthColour(st.launches[0].nm), nPlane: SC_PLANE, n: nF, rays, on: el.scatFan !== false };
+        // its radiation pattern as a surface for the 3D view (scatShape3d): the pattern over every direction, against its strongest
+        if (el.scatShape3d) { const ld = scatLobeDirs(); st.fan.lobe = scatLobeBuild(st.launches.map(La => farAt(S.far, La.L, ld))); }
         // the field's picture: the pattern along its own directions, each stopped where its probe ray met a part
         if (st.fieldAt !== undefined) {
           const nD = st.dirs.length - st.fieldAt, dd = new Float64Array(3 * nD);

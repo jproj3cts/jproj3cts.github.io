@@ -194,3 +194,34 @@ test('a glass lens to the side of the particle, at 90° to the beam: the light p
   assert.ok(n > 50 && far > 29, 'on to its detector: ' + n + ' rays, ' + far + ' mm');
   assert.ok(Pout / Pin > 0.85 && Pout / Pin < 1, 'the faces take their share: ' + Pout / Pin);
 });
+
+/* the radiation pattern as a surface (scatShape3d): its radius each way is the intensity that way against the strongest */
+test('the radiation-pattern surface: a small sphere’s doughnut, its hole along the polarisation, and a rod’s turning with its tilt', async () => {
+  const SL = await import('../../src/engines/scatter-light.js');
+  const lobeOf = async (pol, o = {}) => { await open([Object.assign(laser(), { pol }), particle(Object.assign({ scatShape3d: true, trapR: 20 }, o))]); return { L: TR.lastTrace.scat.fans.find(f => f.part === 'p').lobe, S: SC.scatCache.get('p').S }; };
+  const dirOf = (L, i) => { const it = Math.floor(i / L.nP), j = i % L.nP, t = Math.PI * it / (L.nT - 1), a = 2 * Math.PI * j / L.nP; return [Math.sin(t) * Math.cos(a), Math.sin(t) * Math.sin(a), Math.cos(t)]; };
+  // a 40 nm sphere is a dipole along the field: sin² of the angle from it, s (field upright) and p (field across the beam, level)
+  for (const [pol, e] of [['s', [0, 0, 1]], ['p', [0, 1, 0]]]) {
+    const { L } = await lobeOf(pol);
+    let worst = 0;
+    for (let i = 0; i < L.I.length; i++) { const d = dirOf(L, i), c = d[0] * e[0] + d[1] * e[1] + d[2] * e[2]; worst = Math.max(worst, Math.abs(L.I[i] - (1 - c * c))); }
+    assert.ok(worst < 0.02, pol + ': a doughnut about the field: ' + worst);
+  }
+  // a rod: the surface is the pattern the far field gives, against its strongest, linear whatever the Scale; and it turns with the tilt
+  const one = async tilt => {
+    const { L, S } = await lobeOf('s', { trapShape: 'cylinder', trapR: 150, trapLen: 1000, trapTilt: tilt, scatScale: 'log90' });
+    const F = SL.farAt(S.far, 0, SF.scatLobeDirs());
+    let top = 0; const I = new Float64Array(L.I.length);
+    for (let i = 0; i < I.length; i++) { for (let q = 0; q < 6; q++) I[i] += F[6 * i + q] ** 2; top = Math.max(top, I[i]); }
+    let worst = 0; for (let i = 0; i < I.length; i++) worst = Math.max(worst, Math.abs(L.I[i] - I[i] / top));
+    assert.ok(worst < 1e-5, 'the pattern itself, linear: ' + worst);
+    return L;
+  };
+  const A = await one(0), B = await one(90);
+  let most = 0; for (let i = 0; i < A.I.length; i++) most = Math.max(most, Math.abs(A.I[i] - B.I[i]));
+  assert.ok(most > 0.05, 'a rod’s pattern turns with its tilt: ' + most);
+  // off (the default): none
+  assert.equal(PARTS.particle.norm({ type: 'particle' }, {}).scatShape3d, false);
+  await open([laser(), particle({ trapR: 20, x: 0.002 })]);
+  assert.equal(TR.lastTrace.scat.fans.find(f => f.part === 'p').lobe, undefined);
+});

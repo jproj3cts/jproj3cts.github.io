@@ -348,6 +348,7 @@ const FLAG_TEXT = {
   highIndex: 'An index this far from the medium’s (|m| above 2.5) is hard for a dipole array: it converges slowly and its error can reach tens of percent. For a sphere, Mie is exact.',
   rayleighBig: 'This particle is too large for a single dipole (|m|k·size/2 above 0.5): Rayleigh is shown because it was asked for.',
   mieNotSphere: 'Mie is for a sphere: shown for the sphere of this particle’s volume, not its shape.',
+  mieShape: 'Mie is for spheres: the dipole array is used for this shape, so its scattering follows the shape and how it is turned.',
   medium: 'The medium set here is not the bench’s where the light is: the focus is the bench’s, the wavelength in the medium the one set.',
   varies: 'The beam changes across the particle but is taken as one plane wave (it is too gently focused for the vector focus model, above NA 0.3): rough for this size.',
   skipped: 'A beam through here was left out: no field could be taken for it.',

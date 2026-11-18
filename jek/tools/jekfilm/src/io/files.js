@@ -20,7 +20,7 @@ export function filmAutosave() {
 }
 export function filmKeepNow(handed) {
   if (TEST_MODE || EMBED) return;
-  // signed out, nothing is kept (the sign beside Save says so), but for the coating handed over to a sign-in
+  // (ui/pro.js keepHere: kept signed in or not, unless its switch says otherwise; the coating handed to a sign-in always)
   if (handed !== true && !keepHere()) { workChanged(); setStatus('not saved: a free account keeps your work'); return; }
   try { localStorage.setItem(FILM_STORE_KEY, filmText(film)); }
   catch (err) { setStatus('not kept: this browser blocks it'); }

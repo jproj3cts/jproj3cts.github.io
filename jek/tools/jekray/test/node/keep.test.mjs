@@ -10,17 +10,16 @@ const TOOLS = new URL('../../../', import.meta.url);
 const src = f => fs.readFileSync(new URL(f, TOOLS), 'utf8');
 const fnBody = (text, name) => { const i = text.indexOf('function ' + name + '('); assert.ok(i >= 0, name + ' is there'); return text.slice(i, text.indexOf('\n}', i)); };
 
-test('work is kept in the browser with no accounts here, or signed in; not signed out for sure, nor while the account is still looked up', () => {
-  const was = hooks.account, perf = globalThis.performance, at = t => { Object.defineProperty(globalThis, 'performance', { value: { now: () => t }, configurable: true }); };
+test('work is kept in the browser signed in or not (signed out too, so a bench shown to someone survives a reload)', () => {
+  const was = hooks.account;
   try {
-    at(1000);
-    hooks.account = () => ({ on: false, signedIn: false, known: false }); assert.equal(keepHere(), true, 'no accounts here');
-    hooks.account = () => ({ on: true, signedIn: true, known: true }); assert.equal(keepHere(), true, 'signed in');
-    hooks.account = () => ({ on: true, signedIn: false, known: true }); assert.equal(keepHere(), false, 'signed out');
-    hooks.account = () => ({ on: true, signedIn: false, known: false }); assert.equal(keepHere(), false, 'the account still looked up');
-    at(9000); assert.equal(keepHere(), true, 'the API has not answered: kept, as an export is let through');
-    hooks.account = () => ({ on: true, signedIn: false, known: true }); assert.equal(keepHere(), false, 'signed out, however long the page has been open');
-  } finally { hooks.account = was; Object.defineProperty(globalThis, 'performance', { value: perf, configurable: true }); }
+    for (const a of [{ on: false, signedIn: false, known: false }, { on: true, signedIn: true, known: true }, { on: true, signedIn: false, known: true }, { on: true, signedIn: false, known: false }]) {
+      hooks.account = () => a;
+      assert.equal(keepHere(), true, JSON.stringify(a));
+    }
+  } finally { hooks.account = was; }
+  // the one switch that would turn signed-out keeping off again
+  assert.match(src('jekray/src/ui/pro.js'), /const KEEP_SIGNED_OUT = true;/);
 });
 
 test('JEKray: the autosave, the earlier versions and Open recent each ask before they write', () => {
@@ -32,11 +31,11 @@ test('JEKray: the autosave, the earlier versions and Open recent each ask before
   assert.ok(recent.indexOf('keepHere()') >= 0 && recent.indexOf('keepHere()') < recent.indexOf('localStorage.setItem('), 'noteRecent');
 });
 
-test('JEKray signed out: Open recent lists no kept files, and Earlier versions asks for an account', () => {
+test('JEKray: Open recent lists kept files only where keepHere allows, and Earlier versions is open to all', () => {
   const fill = fnBody(src('jekray/src/io/recent.js'), 'fillRecent');
   assert.match(fill, /out = !keepHere\(\), list = readRecent\(\)\.filter\(r => !out \|\| r\.kind === 'example'\)/);
-  assert.match(src('jekray/src/ui/news.js'), /getElementById\('btnSnaps'\)\.addEventListener\('click', \(\) => \{ if \(!accountGate\(/);
-  assert.match(src('jekray/page.html'), /id="btnSnaps"[^>]*data-need="account"/);
+  assert.match(src('jekray/src/ui/news.js'), /getElementById\('btnSnaps'\)\.addEventListener\('click', \(\) => \{ fill\(\); dlg\.showModal\(\); \}\)/);
+  assert.doesNotMatch(src('jekray/page.html'), /id="btnSnaps"[^>]*data-need=/);
 });
 
 test('JEKion, JEKfilm and JEKcad: each autosave asks before it writes; the work handed to a sign-in is still written', () => {

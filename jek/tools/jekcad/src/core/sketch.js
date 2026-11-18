@@ -517,7 +517,10 @@ export function sketchRegions(ents, outline) {
       const L = adj.get(v), i = L.indexOf(u), w = L[(i - 1 + L.length) % L.length];
       u = v; v = w;
     }
-    if (cyc.length >= 3) cycles.push(Object.assign(cyc.map(i => verts[i]), { src: cs }));
+    // an edge gone along both ways in the one loop joins two loops and bounds nothing (a line from one hole to
+    // another, or from the rim in to a hole): taken out, its loop is the two it joined, as if it were not drawn
+    // (kept, the region has a slit along it and its solid a cut of no width, whose edges cannot be rounded)
+    for (const [c, s2] of unbridged(cyc, cs)) if (c.length >= 3) cycles.push(Object.assign(c.map(i => verts[i]), { src: s2 }));
   }
   const area = P => { let s = 0; for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length]; s += a[0] * b[1] - b[0] * a[1]; } return s / 2; };
   const faces = cycles.filter(c => area(c) > tol * tol).map(c => ({ outer: c, holes: [], a: area(c) }));
@@ -531,6 +534,17 @@ export function sketchRegions(ents, outline) {
   }
   for (const f of faces) f.pt = innerPoint(f, scale);
   return faces.map(f => ({ outer: f.outer, holes: f.holes, area: f.a - f.holes.reduce((s, h) => s - area(h), 0), pt: f.pt })).filter(f => f.pt);
+}
+/* a traced loop of vertices (edge k from cyc[k] to cyc[k + 1]) split where one edge is gone along both ways in it:
+   the loops on either side of it, each split again until none is left */
+function unbridged(cyc, cs) {
+  const n = cyc.length;
+  for (let k = 0; k < n; k++) for (let m = k + 1; m < n; m++) {
+    if (cyc[k] !== cyc[(m + 1) % n] || cyc[(k + 1) % n] !== cyc[m]) continue;
+    const inner = [cyc.slice(k + 1, m), cs.slice(k + 1, m)], outer = [cyc.slice(m + 1).concat(cyc.slice(0, k)), cs.slice(m + 1).concat(cs.slice(0, k))];
+    return [...unbridged(...inner), ...unbridged(...outer)];
+  }
+  return [[cyc, cs]];
 }
 export function inside(P, q) {
   let c = false;

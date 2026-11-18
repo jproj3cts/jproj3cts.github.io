@@ -69,6 +69,16 @@ together when the owner lifts the pause. Nothing on this list has been started u
 
    Note that the Instagram/recording use (glow, trails, wide rays) depends on it, and the scripting calls
    (`J.set`/`J.setView` options) may still need to reach the settings if the dialog goes.
+11. **Rename "Draw light by its power" and move it under the rays.** The owner finds the name unclear and would put it
+   with "Show the rays" in the Bench panel's Light section. What it does: each ray and each beam's envelope is drawn as
+   bright as the power it carries against the bench's brightest source (log over four decades, below 1e-4 not drawn).
+   It does not touch the diffracted field (Field intensity) or a particle's glow. So:
+   - a name that says that, e.g. "Fade weak rays and beams" or "Ray brightness follows power";
+   - placed under "Show the rays", indented if it suits;
+   - the help text, `figures.md` and `getting-started.md` updated.
+
+   Check with the owner that it should still govern the Gaussian beams' envelope too, since that sits under its own
+   tick. The saved field (`light.byPower`) stays, so benches open as before.
 
 ## Also outstanding
 

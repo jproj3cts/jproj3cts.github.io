@@ -148,9 +148,14 @@ export function schedulePop() {
 }
 
 /* The field overlay; returns the sources it drew, so their envelopes are only outlined */
+/* (tests) the bench's field as last drawn: its key, or null when none was (outlines only) */
+export const popShown = { key: null };
 export function drawPop() {
+  popShown.key = null;
   const srcs = popSources();
   if (!srcs.length) return new Set();
+  // a sweep playing while its field renders: the outlines show, and the field comes for every step at once
+  if (fieldHeld()) return new Set();
   // mid-drag the field is stale at every step: the outlines show, and it is worked out on release
   if (drag && drag.started && (drag.mode === 'move' || drag.mode === 'rotate') && !playing.size) return new Set();
   const key = popKeyOf(lastTrace.beams, srcs);
@@ -178,6 +183,7 @@ export function drawPop() {
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     clearTimeout(L.timer);
     L.timer = setTimeout(() => { L.settled = true; requestRender(); }, 200);
+    popShown.key = key;
     return shown;
   }
   if (!same || L.key !== key2) {
@@ -191,6 +197,7 @@ export function drawPop() {
   ctx.drawImage(L.cv, 0, 0);
   ctx.restore();
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  popShown.key = key;
   return shown;
 }
 const popLayer = { cv: null, R: null, T: null, frame: '', key: '', view: null, settled: true, timer: null };

@@ -246,7 +246,8 @@ export async function particlesAhead(list, n, valueAt, live, wanted) {
     }
   } catch (err) { /* the worker failed: the steps are worked out live */ }
   if (SCW.ahead === run) SCW.ahead = null;
-  syncPanel();
+  // (every step's answer in: the scattered light, held meanwhile, is added to the playing sweep now)
+  requestRender(); syncPanel();
 }
 /* the same on the page, for one step as the bench now stands (the render on the page sets each step's values) */
 export function particlesAheadNow(i, n) {
@@ -270,7 +271,7 @@ export function scatActivity() {
   const frac = P => !P ? 0 : P.stage === 'light' ? 0.05 : P.stage === 'dipoles' ? 0.1 + 0.75 * (P.combined ? 1 : Math.min(1, Math.max(0, Math.log(Math.max(P.resid, 1e-300)) / Math.log(P.tol || 1e-5)))) : P.stage === 'sphere' ? 0.5 : P.stage === 'pattern' ? 0.9 : 0;
   if (A) {
     const part = J && J.proj ? frac(J.prog) : 0;
-    return { text: 'Scattering' + (A.names.length === 1 ? ' by ' + A.names[0] : '') + ' for the sweep: step ' + (Math.min(A.n, A.i + 1)) + ' of ' + A.n + (J && J.proj && J.prog ? ', ' + stage(J.prog) : ''), frac: (A.done + part) / A.of };
+    return { text: 'Scattering' + (A.names.length === 1 ? ' by ' + A.names[0] : '') + ' for the sweep: step ' + (Math.min(A.n, A.i + 1)) + ' of ' + A.n + (J && J.proj && J.prog ? ', ' + stage(J.prog) : '') + (scatWork.letFinish() ? '; added once every step is solved' : ''), frac: (A.done + part) / A.of };
   }
   if (J && now - J.t0 > 250) {
     const el = getEl(J.elId), who = el ? el.name : 'the particle';
@@ -280,6 +281,9 @@ export function scatActivity() {
   return null;
 }
 /* the steps solved ahead on the worker, for a sweep's estimate (ui/sweeps.js): seconds so far, steps done and in all; null when none are */
+/* whether a sweep's steps are being solved ahead on the worker (not the page's own, the tests'): its scattered light is
+   held meanwhile (ui/sweeps.js scatLayerHeld) */
+export const scatAheadOn = () => !!(SCW.ahead && !SCW.ahead.page);
 export function scatAheadEta() { const A = SCW.ahead; return A && !A.page ? { dt: (performance.now() - A.t0) / 1000, done: A.done, of: A.of } : null; }
 /* every step solved ahead dropped (the sweep stopped or rendered again) */
 export function scatterAheadStop() {
@@ -431,6 +435,7 @@ function caughtRows(el) {
   if (el.scatLight === false) return [['On the bench', 'Its scattered light is not sent to the parts (On the bench, below, turns it on).']];
   if (!R || R.state === 'dark' || R.state === 'none') return rows;
   if (R.state === 'wait') return [['On the bench', 'Working out the scattered light…']];
+  if (R.state === 'held') return [['On the bench', 'Being worked out for every step of the sweep: added to it once all of them are']];
   for (const r of R.rows) rows.push(['Caught by ' + r.name, scatPct(r.share) + ' of the scattered power, ' + scatPw(r.P) + (r.followed ? '' : ' (not traced on: only the ' + R.rows.filter(q => q.followed).length + ' parts that catch most are)')]);
   rows.push(['Not collected', scatPct(R.lostShare) + ', ' + scatPw(R.lost) + (R.rows.length ? '' : ': no part has a clear line to the particle')]);
   if (R.state === 'stale') rows.push(['', 'From before the last change: being worked out again.']);

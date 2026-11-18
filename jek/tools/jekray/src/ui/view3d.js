@@ -2,7 +2,7 @@ import { particleAz } from '../core/traps.js';
 import { SPEC_L, SPEC_W } from '../parts/spectrometer.js';
 import { ffSag } from '../core/freeform.js';
 import { grinDesign } from '../core/grin.js';
-import { BEAM_Z, EMBED, TEST_MODE, clamp } from '../core/constants.js';
+import { BEAM_Z, TEST_MODE, clamp } from '../core/constants.js';
 import { fmtIrr, fmtLine } from '../core/format.js';
 import { MOD_COLOURS } from '../core/modulators.js';
 import { m2Of } from '../core/pulses.js';
@@ -300,13 +300,13 @@ export const V3D = (() => {
   const netKey = () => JSON.stringify([project.elements.filter(e => e.bench === project.tab && NET_3D.has(e.type)).map(e => [e.id, e.x, e.y, e.angle]), (project.fibres || []).map(F => [F.a, F.b, F.path, F.route, F.ta, F.tb]), (selFibre() || {}).id || '']);
   function sync() {
     init();
-    // a tab not yet shown either way opens in 3D (2D, once chosen, stays for the visit; the tests and embedded benches start in 2D)
-    if (D && !st.has(project.tab) && !TEST_MODE && !EMBED) { st.set(project.tab, { on: false }); setOn(true); return; }
+    // a tab not yet shown either way opens in 2D (3D, once chosen, stays for the visit; a share link made in 3D opens there)
+    if (D && !st.has(project.tab)) st.set(project.tab, { on: false });
     const s = tabState();
     show();
     if (!active() || !R) return;
     resize();
-    const key = traceKeyNow() + '|' + netKey() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale : '') + '|' + scatVolKey();   // (a particle's Scale changes no trace)
+    const key = traceKeyNow() + '|' + netKey() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale + (fieldHeld() ? 'h' : '') : '') + '|' + scatVolKey();   // (a particle's Scale changes no trace)
     if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
     if (R.camTab !== project.tab) { if (tool && tool.off && R.camTab !== null) tool.off(); R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
     // (and where the selected parts are and how they are turned, so their handles follow them, through an undo too)
@@ -918,7 +918,8 @@ export const V3D = (() => {
     const vb = R.boardBox, fb = lightOf().field && vb ? sweepVol.box() : null, held = !!fb && fieldHeld();
     let VL = !fb ? { data: null, busy: false } : held ? { data: null, busy: false } : volLater(fb.bb);
     const last = R.volLast && R.volLast.tab === project.tab && lightOnTab() ? R.volLast.data : null;
-    if (fb && !VL.data && (held || VL.busy) && last) VL = { data: last, busy: VL.busy };
+    // (held, a sweep's field still rendering: none, rather than the last, which lies where the beams no longer go)
+    if (fb && !VL.data && VL.busy && !held && last) VL = { data: last, busy: VL.busy };
     if (VL.data) R.volLast = { tab: project.tab, data: VL.data };
     R.vol = VL.data; R.volBusy = VL.busy;
     // (filed by the trace's light and the particle's scattered field it carries: a triangle sweep's step on the way up and its

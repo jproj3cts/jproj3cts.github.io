@@ -13503,6 +13503,95 @@ const TESTS = [
       return shown && set && undone && redone && cleared && back && mixed && both && neither ? 1 : 0;
     },
   },
+  { group: 'Sweeps in layers' },
+  {
+    name: 'A sweep follows the bench: with the field shown it plays at once without it and adds it for every step at once; with it off, none is rendered',
+    why: 'the page as a reader has it (workers on), in a frame of its own: a Gaussian beam (a 2D field) through a lens swept in y over 12 steps, the bench showing the diffracted field, the sweep saved with the old tick off (field: false). From Play on, the lens moves at once while the field renders on the workers, its bar up; no frame meanwhile draws any of the field (the beams’ outlines show); once every step is in, every frame of the next cycle draws it. Then the same bench with Light’s field off and the sweep saved with the old tick on (field: true): nothing is rendered and no field drawn (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async () => {
+      const dev = /[?&]dev=1/.test(location.search), wait = ms => new Promise(r => setTimeout(r, ms));
+      const mk = (field, tick) => ({ format: 'jekray', version: 1, light: { rays: true, envelope: false, field, scale: 'lin', byPower: true }, elements: [
+        { type: 'source', id: 'S', name: 'Laser', x: -60, y: 0, angle: 0, wavelength: 1064, power: 100, rays: 7, width: 2, gauss: true, w0: 0.4, popModel: '2d', popN: 96 },
+        { type: 'lens', id: 'L', name: 'Lens', x: -10, y: 0, angle: 0, f: 40, length: 20, sweeps: { y: { min: -1, max: 1, freq: 0.5, phase: 0, wave: 'triangle', field: tick, steps: 12 } } },
+        { type: 'mirror', id: 'M', name: 'Mirror', x: 50, y: 0, angle: 20, length: 25 },
+        { type: 'screen', id: 'D', name: 'Screen', x: 60, y: 40, angle: 250, length: 20 }] });
+      const f = document.createElement('iframe');
+      f.style.cssText = 'position:absolute;left:-5000px;top:0;width:900px;height:600px;border:0';
+      f.src = '/jek/tools/' + (dev ? 'jekray-dev.html' : 'jekray.html') + '?layers';
+      document.body.append(f);
+      try {
+        const W = f.contentWindow;
+        for (let i = 0; i < 300 && !(W.JEKray && W.JEKray.load && W.JEKray.layers); i++) await wait(100);
+        const J = W.JEKray, raf = () => new Promise(r => W.requestAnimationFrame(() => r()));
+        J.load(mk(true, false)); await wait(1500);
+        J.sweepPlay('Lens', 'y');
+        await raf(); await raf();
+        // rendering: playing, the lens moving, the bar up, no frame with the field
+        const ys = new Set(); let rendering = 0, drawnHeld = 0, bar = false, d0 = J.layers().drawn;
+        const t0 = performance.now();
+        while (J.layers().rendering && performance.now() - t0 < 120000) {
+          await raf(); const L = J.layers();
+          if (!L.rendering) break;
+          rendering++; ys.add(J.byName('Lens').y); if (L.fieldDrawn && L.drawn > d0) drawnHeld++; if (/Rendering the field/.test(J.activity().bench || '')) bar = true;
+        }
+        // then a cycle (2 s) and more: the field drawn at every frame
+        await raf(); await raf();
+        let after = 0, missing = 0; const t1 = performance.now(), ys2 = new Set();
+        while (performance.now() - t1 < 2500) { await raf(); after++; ys2.add(J.byName('Lens').y); if (!J.layers().fieldDrawn) missing++; }
+        J.sweepPause();
+        // the field off: nothing rendered, though the old tick is on
+        J.load(mk(false, true)); await wait(800);
+        J.sweepPlay('Lens', 'y');
+        let renderedOff = false, drawnOff = false; const t2 = performance.now();
+        while (performance.now() - t2 < 1500) { await raf(); const L = J.layers(); if (L.rendering) renderedOff = true; if (L.fieldDrawn) drawnOff = true; }
+        J.sweepPause();
+        const res = { rendering, moved: ys.size, drawnHeld, bar, after, missing, steps: ys2.size, renderedOff, drawnOff };
+        const ok = rendering >= 3 && ys.size >= 2 && drawnHeld === 0 && bar && after >= 10 && missing === 0 && ys2.size >= 6 && !renderedOff && !drawnOff;
+        console.log('sweep layers: field', JSON.stringify(res));
+        return ok ? 1 : 0;
+      } finally { f.remove(); }
+    },
+  },
+  {
+    name: 'With a particle the field is added for every step at once and the scattered light likewise, each when it is ready, the bars meanwhile',
+    why: 'the same reader’s page: a Gaussian beam through a lens swept in y over 8 steps onto a fused-silica sphere (Mie) and a screen, the field shown. While its steps are solved no trace on show launches the particle’s light (its state held: no step shows it and another not) and the scattering bar is up; while the field renders no frame draws it. Each is added when its last step is in, whichever first, and from then every frame has it (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async () => {
+      const dev = /[?&]dev=1/.test(location.search), wait = ms => new Promise(r => setTimeout(r, ms));
+      const bench = { format: 'jekray', version: 1, light: { rays: true, envelope: false, field: true, scale: 'lin', byPower: true }, elements: [
+        { type: 'source', id: 'S', name: 'Laser', x: -60, y: 0, angle: 0, wavelength: 1064, power: 100, rays: 7, width: 2, gauss: true, w0: 0.4, popN: 128 },
+        { type: 'lens', id: 'L', name: 'Lens', x: -20, y: 0, angle: 0, f: 30, length: 20, sweeps: { y: { min: -0.2, max: 0.2, freq: 0.5, phase: 0, wave: 'triangle', steps: 8 } } },
+        { type: 'particle', id: 'P', name: 'Sphere', x: 10, y: 0, angle: 90, trapShape: 'sphere', trapMat: 'Fused silica', trapR: 150, scatModel: 'mie', scatLight: true, scatField: true },
+        { type: 'screen', id: 'D', name: 'Screen', x: 60, y: 0, angle: 0, length: 20 }] };
+      const f = document.createElement('iframe');
+      f.style.cssText = 'position:absolute;left:-5000px;top:0;width:900px;height:600px;border:0';
+      f.src = '/jek/tools/' + (dev ? 'jekray-dev.html' : 'jekray.html') + '?layers';
+      document.body.append(f);
+      try {
+        const W = f.contentWindow;
+        for (let i = 0; i < 300 && !(W.JEKray && W.JEKray.load && W.JEKray.layers); i++) await wait(100);
+        const J = W.JEKray, raf = () => new Promise(r => W.requestAnimationFrame(() => r()));
+        J.load(bench); await wait(1500);
+        J.sweepPlay('Lens', 'y');
+        await raf(); await raf();
+        let frames = 0, scatBad = 0, fieldBad = 0, scatBar = false, heldSeen = 0, fieldAt = null, scatAt = null, fieldGap = 0, scatGap = 0; const d0 = J.layers().drawn, t0 = performance.now();
+        while (performance.now() - t0 < 120000) {
+          await raf(); frames++;
+          const L = J.layers(), now = performance.now() - t0;
+          if (L.scatHeld) { heldSeen++; if (L.scat.some(s => s === 'ok' || s === 'stale')) scatBad++; if (/Scattering/.test(J.activity().scat || '')) scatBar = true; }
+          else if (scatAt === null) scatAt = now; else if (!L.scat.every(s => s === 'ok')) scatGap++;
+          if (L.fieldHeld) { if (L.fieldDrawn && L.drawn > d0) fieldBad++; }
+          else if (fieldAt === null) fieldAt = now; else if (!L.fieldDrawn) fieldGap++;
+          if (fieldAt !== null && scatAt !== null && now > Math.max(fieldAt, scatAt) + 2500) break;
+        }
+        J.sweepPause();
+        const res = { frames, heldSeen, scatBad, scatBar, fieldBad, fieldAt, scatAt, fieldGap, scatGap };
+        const ok = heldSeen >= 2 && scatBad === 0 && scatBar && fieldBad === 0 && fieldAt !== null && scatAt !== null && fieldGap === 0 && scatGap === 0;
+        console.log('sweep layers: particle', JSON.stringify(res));
+        return ok ? 1 : 0;
+      } finally { f.remove(); }
+    },
+  },
   { group: 'Smoothness' },
   {
     name: 'A field sweep whose frames would not fit in memory renders every so many steps, keeps within the budget, and plays',

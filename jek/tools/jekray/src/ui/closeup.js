@@ -4,7 +4,7 @@ import { V, project } from '../state/project.js';
 import { fieldDec, lightOf } from '../state/elements.js';
 import { lastTrace } from '../engines/trace.js';
 import { H, W, ctx, getCss, glowOp, lightLayer, requestRender } from './render.js';
-import { benchFrame, fieldFrames } from './sweeps.js';
+import { benchFrame, fieldFrames, fieldHeld } from './sweeps.js';
 import { popKeyOf, popSources, popState } from '../engines/beam-tree.js';
 import { CLOSEUP_MM, CLOSEUP_STEP, closeupImage } from '../engines/closeup.js';
 import { schedulePop } from './heavy.js';
@@ -23,7 +23,7 @@ export function drawCloseup() {
   const s = V().scale, wmm = W / s;
   if (wmm >= CLOSEUP_MM) return false;
   const srcs = popSources();
-  if (!srcs.length) return false;
+  if (!srcs.length || fieldHeld()) return false;     // (a sweep's field still rendering: none shown)
   const key = popKeyOf(lastTrace.beams, srcs);
   if (key !== popState.key && fieldFrames.bench.has(key)) { popState.key = key; popState.result = benchFrame(key); popState.job = null; }
   if (key !== popState.key || !popState.result) { schedulePop(); return false; }

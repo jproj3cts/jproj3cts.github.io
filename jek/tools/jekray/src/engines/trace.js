@@ -464,10 +464,12 @@ export function setLastTraceKey(v) { return (lastTraceKey = v); }
 /* RF parts met past their model (a grid or mesh with its pitch over the wavelength: a grating), by id, from the last trace */
 export const rfNotes = new Set();
 // (the bench's Show the rays among it: with it off, a Gaussian beam's rays are not traced at all, so ticking it traces again)
-export const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + scatRevNow() + '|' + traceKeyRest();
+// (a sweep's particles' scattered light held while it is worked out for every step: a trace without it, kept apart)
+const heldMark = () => (hooks.scatHeld() ? 'H|' : '');
+export const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + scatRevNow() + '|' + heldMark() + traceKeyRest();
 /* the bench's key without the particles' answers' count: what a kept trace is filed under (traceStore), whose particles'
    answers are looked up again when it is taken */
-const traceKeyBase = () => loadGen + '|' + MODS.rev + '|' + traceKeyRest();
+const traceKeyBase = () => loadGen + '|' + MODS.rev + '|' + heldMark() + traceKeyRest();
 const traceKeyRest = () => project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + (lightOf().rays !== false ? 'R' : '-') + '|' + project.benches.map(b => b.id).join(',') + '|' +
   JSON.stringify(project.elements.filter(e => e.type !== 'elec' && e.type !== 'draw'), keyCut) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire), keyCut);
 // what changes nothing in the light: a part's name and where it is written, its import notes, drawings; where a
@@ -528,7 +530,7 @@ function traceParts(T) {
   const P = (T.scat && T.scat.parts) || {}, parts = [];
   for (const [id, R] of Object.entries(P)) {
     if (R.state === 'ok') parts.push([id, R.key]);
-    else if (R.state !== 'dark' && R.state !== 'none') return null;
+    else if (R.state !== 'dark' && R.state !== 'none' && R.state !== 'held') return null;
   }
   return parts;
 }

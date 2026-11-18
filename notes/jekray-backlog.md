@@ -59,6 +59,16 @@ together when the owner lifts the pause. Nothing on this list has been started u
    slice's field coloured by its wavelength and summed additively. The questions to settle: what the 3D key shows in
    that mode; how brightness maps (linear or log, as in 2D); the cost against the volume pass; how the particle's
    blue scattered glow sits beside it.
+10. **Possibly hide the "How the rays look…" dialog from users.** It is opened by the button of that name under Light in
+   the Bench panel and holds Fading trails, Rays glow and Ray width (Fine 1.2 px to 4 px). It says it is kept with the
+   bench and changes only how rays are drawn in 2D. The owner thinks it "might need to be hidden from users". To decide
+   with the owner:
+   - hide it entirely, keeping the settings for benches that already use them;
+   - move it behind an advanced or experimental switch;
+   - or fold the useful parts into the Light section.
+
+   Note that the Instagram/recording use (glow, trails, wide rays) depends on it, and the scripting calls
+   (`J.set`/`J.setView` options) may still need to reach the settings if the dialog goes.
 
 ## Also outstanding
 

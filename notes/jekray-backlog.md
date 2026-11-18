@@ -36,6 +36,14 @@ together when the owner lifts the pause. Nothing on this list has been started u
    that sits round the particle; the other STL objects stayed hidden, Holder and Base suppressed). The page froze.
    Likely suspects: unhiding a large STL mesh rebuilds the 3D scene and every kept step's light at once, or the cube
    now catches the particle's scattered light and its cones and field picture are worked out again for every step.
+7. **A sweep stutters and seizes up when a screen shows the diffraction pattern on its face.** The owner's
+   Mach–Zehnder bench (kept locally at the session scratchpad as owner/Mach-Zehnder_interferometer1.jekray): a 633 nm
+   Gaussian laser, two 50/50 cubes, two flat mirrors, two screens; the field on. Mirror A's angle is swept 120 → 150°
+   (sine, 0.25 Hz, field rendered) and the Combiner's tip −5 → 5° (sine, 0.25 Hz). It plays smoothly until Output 2 has
+   "Show the diffraction pattern on its face" ticked (`faceMap`); then it stutters and seizes up. Likely suspect: the
+   screen's face map is worked out again on the page for every frame (not rendered ahead or kept per step like the
+   bench's field), or the tip sweep, not rendered ahead, forces it live. No particle is involved, so this belongs with
+   item 4's general search.
 
 ## Also outstanding
 

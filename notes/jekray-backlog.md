@@ -52,6 +52,13 @@ together when the owner lifts the pause. Nothing on this list has been started u
    owner: likely one connector per side of the wall, i.e. each feedthrough a single port on its tab and the pair the
    two ends of one wire, signals going both ways, plus a clear note when its partner is missing. Check the fibre
    feedthrough (`engines/fibre.js`) and link planes for the same confusion, and keep old benches opening.
+9. **Look into the diffracted field in true colour in 3D, as an option.** The owner wants 3D to draw the field in the
+   light's own colours, as 2D does: the prism example's white light fanning into red through to cyan, where 3D now
+   draws each beam in the single magma ramp, so the spectrum's colours are lost. A new item, to be scoped with the
+   owner: a viewer or bench setting (e.g. Light › 3D field: "Brightness (magma)" / "True colour"), with each spectral
+   slice's field coloured by its wavelength and summed additively. The questions to settle: what the 3D key shows in
+   that mode; how brightness maps (linear or log, as in 2D); the cost against the volume pass; how the particle's
+   blue scattered glow sits beside it.
 
 ## Also outstanding
 

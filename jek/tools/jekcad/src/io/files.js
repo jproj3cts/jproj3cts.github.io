@@ -21,7 +21,7 @@ let saveTimer = null;
 export function scheduleSave() {
   if (TEST_MODE || EMBED) return;
   clearTimeout(saveTimer);
-  // (signed out, nothing is kept: a Part Studio cannot be changed then either)
+  // (ui/pro.js keepHere: kept signed in or not; signed out, a Part Studio cannot be changed anyway)
   saveTimer = setTimeout(() => { if (!keepHere()) return; try { localStorage.setItem(CAD_STORE_KEY, fileText()); setStatus(hooks.cadCloudLinked && hooks.cadCloudLinked() ? '' : 'Autosaved in this browser'); } catch (err) { setStatus('Not autosaved: this browser’s storage is full'); } }, SAVE_EVERY);
 }
 export function restoreSaved() {

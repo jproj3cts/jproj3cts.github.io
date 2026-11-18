@@ -87,3 +87,26 @@ test('the regions a cut takes by default take in the model’s holes; an added b
   assert.equal(cut.length, 2, 'the slot and the model’s hole: the drawn circle is still an island');
   assert.ok(cut.some(q => Math.hypot(q[0] + 20, q[1]) < 1e-3));
 });
+
+/* a line from one hole to another (as from a hole's centre to the next) encloses nothing: the region round the holes
+   has each hole as a hole of its own, and its solid no slit along the line, so the holes' rims can be rounded */
+test('a line joining two holes leaves no slit', async () => {
+  const doc = newDoc(), r = rectEnts([0, 0], [30, 10]);
+  const ents = r.ents.concat([{ id: 'ch1', t: 'circle', c: [8, 5], r: 1 }, { id: 'ch2', t: 'circle', c: [22, 5], r: 1 }, { id: 'lbr', t: 'line', a: [8, 5], b: [22, 5] }]);
+  const R = regionsOf(ents), plate = R.find(x => Math.abs(x.area - (300 - 2 * Math.PI)) < 0.05);
+  assert.ok(plate, 'the plate round the holes: ' + R.map(x => x.area.toFixed(2)).join(' '));
+  assert.equal(plate.holes.length, 2, 'two holes of their own');
+  for (const h of plate.holes) assert.ok(h.src.every(e => e.t === 'circle'), 'a hole is its circle alone, not the line');
+  const sk = newFeature(doc, 'sketch', { plane: { std: 'top' }, ents, cons: [], dims: [] });
+  doc.features.push(sk, newFeature(doc, 'extrude', { sketch: sk.id, regions: [plate.pt], depth: '2' }));
+  const K = await kernel();
+  let out = K.regen(doc);
+  assert.ok(out.features.every(f => f.ok), JSON.stringify(out.features.filter(f => !f.ok)));
+  assert.ok(Math.abs(out.parts[0].volume - 2 * (300 - 2 * Math.PI)) < 0.05, 'the plate: ' + out.parts[0].volume);
+  const p = out.parts[0], rims = K.refs(Array.from({ length: p.edgeGroups.length / 2 }, (_, index) => ({ part: p.id, kind: 'edge', index }))).filter(e => e.type === 'circle');
+  assert.equal(rims.length, 4, 'two rims each side');
+  doc.features.push(newFeature(doc, 'fillet', { edges: rims, radius: '0.5' }));
+  out = K.regen(doc);
+  const f = out.features.at(-1);
+  assert.ok(f.ok && !(f.info && f.info.skipped), 'every rim rounded: ' + JSON.stringify(f));
+});

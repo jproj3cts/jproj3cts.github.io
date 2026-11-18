@@ -83,18 +83,17 @@ export function needMark(el, need, what) {
 }
 export function needsShown() { for (const el of document.querySelectorAll('[data-need]')) needShow(el); keepSign(); if (keepSkipped && keepHere()) { keepSkipped = false; if (hooks.keepNow) hooks.keepNow(); } }
 
-/* ---- Nothing is kept without an account ----
-   Signed out, an app is there to try: the bench is not autosaved in the browser, no earlier versions or recent files
-   are kept, and leaving the page loses what was changed (with no question asked on the way out: most signed-out
-   visits only look). keepHere() says whether this browser may keep work: yes
-   with no accounts here, signed in, or when the API has not answered after the page's first seconds (as the exports'
-   gate lets through); no for someone signed out for sure, and for those first seconds while the account is looked
-   up (hooks.keepNow, the app's own autosave, is called once it is known to be allowed). Each app's autosave asks it
-   and calls workChanged(); the bench handed over to a sign-in (hooks.keepWork) is still
-   written, so it is there on the way back. The sign, beside the bar's Save, says the state and opens the sign-in. */
+/* ---- What this browser keeps ----
+   Every app keeps the work in the browser as it goes (its autosave, and in JEKray the earlier versions and Open
+   recent), signed in or not: someone showing a bench to someone else, signed out, finds it still there after a
+   reload. Saving it as a file and the cloud are what need an account. keepHere() is the one switch each of those
+   writes asks (test/node/keep.test.mjs checks that they do): KEEP_SIGNED_OUT false makes a signed-out visit keep
+   nothing again, with the sign beside Save (keepSign) saying so and opening the sign-in, as it did from 11 to 18
+   Nov 2026. */
+const KEEP_SIGNED_OUT = true;
 export function keepHere() {
   const a = hooks.account();
-  if (!a.on || a.signedIn) return true;
+  if (KEEP_SIGNED_OUT || !a.on || a.signedIn) return true;
   return a.known ? false : performance.now() >= 8000;
 }
 let tryChanged = false, keepSkipped = false;
@@ -106,7 +105,7 @@ export function workChanged() {
   keepSign();
 }
 export function keepSign() {
-  const a = hooks.account(), save = document.getElementById('btnSave'), out = a.on && a.known && !a.signedIn && save && save.dataset.need;
+  const a = hooks.account(), save = document.getElementById('btnSave'), out = !keepHere() && a.on && a.known && !a.signedIn && save && save.dataset.need;
   let el = document.getElementById('keepSign');
   if (!out) { if (el) el.remove(); tryChanged = false; return; }
   if (!el) {

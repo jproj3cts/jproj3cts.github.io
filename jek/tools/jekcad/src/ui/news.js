@@ -8,6 +8,7 @@ export const NEWS = [
   { v: '0.11.0', date: '17 Nov 2026', items: [
     '<b>My parts</b>: a part’s ⋯ menu in a Part Studio has Save to My parts. An Assembly’s Insert lists the parts kept there, and inserting one brings its Part Studio into the document as a tab.',
     'Fixed: on some parts, every fillet and chamfer failed after an extrude or a cut, whatever the size.',
+    'Fixed: a line in a sketch from one hole to another (a centre line not made construction) left a cut of no width in the solid, and the holes’ edges could not be filleted or chamfered.',
   ] },
   { v: '0.10.0', date: '16 Nov 2026', items: [
     'Sketching locks to where two shapes cross: two of the sketch’s, a shape and an edge of the model, or two edges of the model. The point is held on both.',

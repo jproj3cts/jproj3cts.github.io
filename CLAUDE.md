@@ -133,11 +133,11 @@ through `core/hooks.js`.
   CSV, data, .zmx, CAD) and saving the .jekray file (`saveFile`) need a free account: `accountGate(what)` in `ui/pro.js` opens each export function
   and shows the sign-in prompt (`exportSignIn` in `io/nudges.js`, counted as `export.*`); only someone signed out for
   sure is stopped (account unknown or API down: allowed). JEKion's .jekion file is the same, and its ions fly only
-  for someone signed in (`flyBar` in `jekion/src/ui/sim.js`: the fields are still solved and drawn). Signed out,
-  nothing is kept in the browser in any app (`keepHere()` in `ui/pro.js`, asked by each app's autosave, JEKray's
-  earlier versions and Open recent; what was stored before stays and still opens; the work handed to a sign-in,
-  `hooks.keepWork`, is still written); the sign beside the bar's Save (`keepSign`: Not kept, Not saved once
-  changed) opens the sign-in. `test/node/keep.test.mjs` checks each write asks first. Badges: `proMark` /
+  for someone signed in (`flyBar` in `jekion/src/ui/sim.js`: the fields are still solved and drawn). Every app keeps
+  the work in the browser signed in or not (each app's autosave, JEKray's earlier versions and Open recent), so a
+  bench shown to someone survives a reload; each of those writes asks `keepHere()` in `ui/pro.js`, whose
+  `KEEP_SIGNED_OUT` switch turns signed-out keeping off again (with the sign beside Save, `keepSign`, saying so);
+  `test/node/keep.test.mjs` checks each write asks. Badges: `proMark` /
   `acctMark` (or `data-need="pro|account" data-what` in `page.html`) give the Pro / Free account chip, redone live by
   `needsShown()` from `cloudGates`; menu items greyed by `gateItem` take the same chips. `test/node/pro-gate.test.mjs`
   checks from the syntax tree that each gated function opens with its gate, that every `downloadFile`/`download:` is

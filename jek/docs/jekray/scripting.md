@@ -134,7 +134,7 @@ The page exposes `window.JEKray` (the old name `JEKray2D` still works). Its func
 | `JEKray.asmPrescription(name)`, `JEKray.asmEfl(name)` | An assembly as the lens designer reads it, and its focal length. |
 | `JEKray.step(bytes, name, x, y, { as })` | A STEP file (its bytes) brought in as STL objects at x, y, as the import does: `as: 'parts'` (one each, grouped; the default) or `'one'`. Resolves with their names, the bodies, triangles and units. |
 | `JEKray.exportZmx(names)` | Parts as a lens file. |
-| `JEKray.sweepPlay(name, path)`, `JEKray.sweepPause()` | A sweep played and paused. |
+| `JEKray.sweepPlay(name, path)`, `JEKray.sweepPause()` | A sweep played and paused. It works out the diffracted field ahead when the bench shows it (Light), and the promise resolves once that is done; a sweep's old `field` flag, written by a script or saved in a file, is kept and ignored. |
 | `JEKray.typeLabel(name)`, `JEKray.benches()`, `JEKray.showTab(name)` | What a part is called, the bench tabs, and switching between them. |
 | `JEKray.set(name, props)`, `JEKray.setFibre(id, props)` | A part's fields, or a fibre's (its `path`, `bendR`, `turns`, ends…), changed as a file would give them, checked, and traced. A fibre's path nodes may be `{ x, y }`, their handles left out. |
 | `JEKray.rays()` | Every ray drawn, labelled: its source and wavelength, its polarisation (`'s'` or `'p'`, an unpolarised source's two halves), its weight now and at the start, its colour, the bench points it passes, the parts it `met` in order, its bounces, its final direction (`angle`, degrees). |

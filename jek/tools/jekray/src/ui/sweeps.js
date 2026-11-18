@@ -1,7 +1,7 @@
 import { IN_WORKER, TEST_MODE, clamp } from '../core/constants.js';
 import { spmAsked } from '../core/pulses.js';
 import { V, project, selectedId } from '../state/project.js';
-import { allSources, beamOn, fieldDec, getEl, lightOf } from '../state/elements.js';
+import { fieldDec, getEl, lightOf } from '../state/elements.js';
 import { dropTraceStore, keepTraceFrom, lastTrace, lastTraceMs, setLastTraceKey, traceScene } from '../engines/trace.js';
 import { H, W, requestRender, setDrawHeld } from './render.js';
 import { SWEEP_STEPS_MAX, getPath, setParam } from '../state/params.js';
@@ -21,7 +21,7 @@ import { checkpoint } from './tabs.js';
 import { scheduleSave } from '../io/autosave.js';
 import { FW, TW, WORKERS_OK, fieldWorker, fwProject, fwRequest, fwUnpackRun, newAppWorker } from '../page/workers.js';
 import { track } from '../io/usage.js';
-import { particlesAhead, particlesAheadDone, particlesAheadNow, scatActivity, scatAheadEta, scatWork, scatterAheadStop } from "./scatter.js";
+import { particlesAhead, particlesAheadDone, particlesAheadNow, scatActivity, scatAheadEta, scatAheadOn, scatWork, scatterAheadStop } from "./scatter.js";
 
 /* ---------- Sweeps: each value oscillates on one shared clock ----------
    value = From + (To − From) · shape(f·T + phase/360), so phases are relative
@@ -128,10 +128,9 @@ function aheadPlain() {
   const sw0 = list[0][0].sweeps[list[0][1]];
   if (!(sw0.steps > 0) || list.some(([e, p]) => e.sweeps[p].steps !== sw0.steps || e.sweeps[p].freq !== sw0.freq)) return;
   const n = sw0.steps;
-  // (its steps' solves predicted to take long: the play is held until they are all done, then it plays whole)
-  HOLD.plain = true; setDrawHeld(sweepHolding);
+  // (it plays at once; the particles' scattered light is added when every step's is solved: scatLayerHeld)
   const run = particlesAhead(list, n, (e, p, i) => stepValue(e.sweeps[p], i, n, 1 / e.sweeps[p].freq), () => list.every(([e, p]) => getEl(e.id) && e.sweeps && e.sweeps[p] && playing.has(sweepKey(e, p))));
-  Promise.resolve(run).then(() => { if (!sweepJob) holdEnd(); });
+  Promise.resolve(run).then(() => { requestRender(); syncPanel(); });
 }
 export function play(el, path) {
   const sw = el.sweeps && el.sweeps[path];
@@ -146,7 +145,7 @@ export function play(el, path) {
     sweepJob.quiet = true; sweepJob.cancel();
   }
   if (!list.some(([e, p]) => e.id === el.id && p === path)) list.push([el, path]);
-  if (list.some(([e, p]) => e.sweeps[p] && e.sweeps[p].field) && fieldWanted()) {
+  if (fieldWanted()) {
     playing.clear();
     renderSweepFrames(list, () => { for (const [e, p] of list) if (e !== el && getEl(e.id) && e.sweeps && e.sweeps[p]) playing.set(sweepKey(e, p), { id: e.id, path: p }); playNow(el, path); });
     return;
@@ -170,7 +169,7 @@ export function playAll() {
   const list = allSweeps();
   if (!list.length) return;
   if (sweepJob) { sweepJob.quiet = true; sweepJob.cancel(); }     // rendered again, for all of them
-  if (list.some(([e, p]) => e.sweeps[p].field) && fieldWanted()) {
+  if (fieldWanted()) {
     playing.clear();
     renderSweepFrames(list, playAllNow);
     return;
@@ -191,7 +190,7 @@ export function sweepStepsChanged() {
   fieldRendered = null;
   const job = sweepJob;
   const list = job ? job.list.filter(([e]) => getEl(e.id)) : [...playing.values()].map(p => [getEl(p.id), p.path]).filter(q => q[0]);
-  if (!list.length || !list.some(([e, p]) => e.sweeps && e.sweeps[p] && e.sweeps[p].field) || !fieldWanted()) return;
+  if (!list.length || !fieldWanted()) return;
   if (job) { job.quiet = true; job.cancel(); }
   playing.clear();
   renderSweepFrames(list, () => { for (const [el, path] of list) if (el.sweeps && el.sweeps[path]) playing.set(sweepKey(el, path), { id: el.id, path }); startLoop(); syncPanel(); updateSweepButtons(); });
@@ -376,6 +375,7 @@ export function renderedPeriod() {
 }
 /* the step on show is drawn in full: the bench's field and every open screen's are there */
 export function sampleShown() {
+  if (fieldHeld()) return true;                  // (the field still rendering: the step is shown without it)
   const srcs = popSources();
   // in 3D the bench's field is the 3D view's (the 2D one is not drawn there, so would never be in step: each step
   // would wait out its 4 s)
@@ -399,6 +399,8 @@ export function leftText(left) {
   return 'about ' + (left / 3600).toFixed(1) + ' h left';
 }
 /* ---------- A long render held ----------
+   (Only where the field is rendered before the sweep plays, not beside it: zoomed in to the close-up, a bench with
+   modules, no workers. Where it can play beside the render it plays at once, in layers: see fieldHeld.)
    A sweep whose work ahead (its field's frames, its particles' scattering) is predicted to take longer than SWEEP_HOLD_S
    does not play its steps as they trickle in: the bench is held as it was (render.js draws nothing new), the bars alone
    say how it goes, and the cycle plays once all of it is ready. The prediction is the time the steps worked out so far
@@ -455,13 +457,24 @@ export function sweepHoldTick() {
 const openScreens = () => project.elements.filter(e => (e.type === 'screen' || e.type === 'mirror') && (vs(e).screenTab === 'plots' || vs(e).screenTab === 'trap') &&
   (e.id === selectedId || pins.includes(e.id)));
 const fieldWanted = () => popSources().length > 0 || openScreens().length > 0;
-/* a sweep can work out the diffracted field (slow) wherever there is a Gaussian beam to diffract */
-export const fieldPossible = () => fieldWanted() || allSources().some(beamOn) || project.elements.some(e => e.type === 'fcomp' && e.kind === 'laser');
-/* While sweeps play and none of them has "Render the diffracted field" ticked, the field is held:
-   nothing new is worked out (the bench shows the beams' outlines, screens and photodiodes keep
-   their last field), so a sweep is quick unless the slow field is asked for. It is worked out
-   again when they stop. */
-export const fieldHeld = () => playing.size > 0 && !sweepJob && ![...playing.values()].some(({ id, path }) => { const e = getEl(id); return e && e.sweeps && e.sweeps[path] && e.sweeps[path].field; });
+/* ---------- A sweep plays in layers ----------
+   A sweep follows the bench's own Light settings: where the bench shows the diffracted field (Light › Show the
+   diffracted field, or a screen's or mirror's Diffraction tab open), the sweep renders it ahead for its steps; where it
+   does not, nothing of it is worked out. (A sweep saved with the old "Render the diffracted field" tick, field: true or
+   not, is read and left alone: the bench decides.) Playing starts at once with what is quick: the parts, the rays, the
+   beams' outlines, the readings and plots, each step's trace kept. The slow layers are worked out meanwhile on the
+   workers, each with its bar, and none of a layer is shown until every step of it is there; then it is added to the
+   playing sweep in one go, so no frame shows it for some steps and not others:
+   - the diffracted field (the bench's, the screens', in 3D its volume): while it renders the bench shows the beams'
+     outlines, as with the field off (fieldHeld). The field from before Play would lie where the beams no longer go;
+   - a particle's scattered light (its light to the parts, its glow, its radiation pattern in 3D): while its steps are
+     solved, none is launched (scatLayerHeld; the trace then has the particle's light held, kept apart from the full one).
+   Each is added as it is ready, whichever comes first. Where the field cannot be rendered beside the play (zoomed in
+   to the close-up, a bench with modules, no workers) it is rendered first and then played, as before (holdCheck). */
+export const fieldHeld = () => playing.size > 0 && !!(fieldRendered && fieldRendered.pending);
+export const scatLayerHeld = () => playing.size > 0 && scatAheadOn();
+/* whether a sweep works out the diffracted field: the bench shows it */
+export const sweepShowsField = () => fieldWanted();
 /* the elements whose diffracted field a sweep's frames work out: every screen, and a mirror
    whose Diffraction tab is open (a bench has many mirrors, and few are read) */
 const fieldReadouts = () => project.elements.filter(e => e.type === 'screen' || (e.type === 'mirror' && vs(e).screenTab === 'plots'));
@@ -527,6 +540,16 @@ function renderSweepFrames(list, onDone) {
   const gone = () => list.some(([el, path]) => !getEl(el.id) || !el.sweeps || !el.sweeps[path]);
   // several workers at once, each step whole on one of them, the page left alone (see swPool)
   const pool = !closeupOnShow() && swPool();
+  // the pool leaves the page's bench alone, so the sweep plays at once beside it, the field held until all of it is in
+  // (not with modules, whose results are asked for on the page at each step: rendered first there)
+  if (pool && !MODS.packs.size) {
+    job.layered = true;
+    fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period, n, ref: job.ref, pending: true };
+    list.forEach(([el, path], k) => setParam(el, path, saved[k]));
+    onDone();
+    renderOnPool(pool, list, n, cyc, job, onDone);
+    return;
+  }
   if (pool) { renderOnPool(pool, list, n, cyc, job, onDone); return; }
   if (fieldWorker()) {
     // the same, each field worked out in the worker while the page stays free
@@ -713,7 +736,7 @@ function renderOnPool(pool, list, n, cyc, job, onDone) {
   for (let st = 8; st >= 1; st >>= 1) for (let i = 0; i < n; i += st) if (!seen.has(i)) { seen.add(i); order.push(i); }
   let first = Math.ceil(n / 8);
   const done = job.done;
-  let next = 0, started = false;
+  let next = 0, started = !!job.layered;       // (layered: playing already)
   job.t0 = performance.now(); job.i0 = 0; job.i = -1; job.part = 0; job.pool = true;
   job.stage = pool.length > 1 ? pool.length + ' at once' : '';
   const play = () => { if (started || !live()) return; started = true; fieldRendered = { keys, period: cyc(), n, done, ref: job.ref }; onDone(); };
@@ -745,14 +768,16 @@ function renderOnPool(pool, list, n, cyc, job, onDone) {
         }
       }
       keptNow.bytes = 0;
-      holdCheck(job);
+      if (!job.layered) holdCheck(job);
       // (held: nothing plays until the whole cycle is there)
       if (!started && !HOLD.on && done.size >= first && order.slice(0, first).every(k => done.has(k))) play();
-      requestRender(); syncPanel();
+      // (layered: the field stays held until every step is in, so nothing is drawn of it meanwhile)
+      if (!job.layered) requestRender();
+      syncPanel();
     }
   };
   // stopped part way: what plays on is worked out live, not held to the coarse steps rendered so far
-  job.cancel = () => { if (!live()) return; sweepJob = null; swDrop(); holdEnd(); if (fieldRendered && fieldRendered.done === done) fieldRendered = null; changed(false); if (!job.quiet) toast('Stopped rendering the field'); };
+  job.cancel = () => { if (!live()) return; sweepJob = null; swDrop(); holdEnd(); if (fieldRendered && (fieldRendered.done === done || fieldRendered.pending)) fieldRendered = null; changed(false); if (!job.quiet) toast('Stopped rendering the field'); };
   Promise.all(pool.map(runOne)).then(() => {
     if (!live()) return;
     sweepJob = null; swRelease();
@@ -763,6 +788,8 @@ function renderOnPool(pool, list, n, cyc, job, onDone) {
     // a worker failed: the pool is not used again, and the render starts again the old way
     if (!live()) return;
     sweepJob = null;
+    // (playing beside it: the old way renders on the page's bench, so the play waits for it, as it did)
+    if (job.layered) { fieldRendered = null; playing.clear(); started = false; }
     // the workers stopped on purpose (the optimiser, Undo, a file opened): started again, not given up on
     if (err && err.stopped) { renderSweepFrames(list, started ? () => {} : onDone); return; }
     console.warn('JEKray render workers:', err && err.message);
@@ -788,7 +815,7 @@ export function activityNow() {
     const j = sweepJob, what = j.stage === 'the bench' ? 'the bench' : j.stage && j.stage !== 'tracing' ? j.stage : '';
     // (held: the time left on all of it, field and particles, and that it plays once ready)
     const eta = HOLD.on ? leftText(holdLeft(j)) : sweepEta(j);
-    return { text: 'Rendering the field for the sweep: step ' + (j.i + 1) + ' of ' + j.n + (what ? ', ' + what : '') + (eta ? ' (' + eta + ')' : '') + (HOLD.on ? '; it plays once all of it is ready' : ''),
+    return { text: 'Rendering the field for the sweep: step ' + (j.i + 1) + ' of ' + j.n + (what ? ', ' + what : '') + (eta ? ' (' + eta + ')' : '') + (HOLD.on ? '; it plays once all of it is ready' : j.layered ? '; added once every step is in' : ''),
       frac: (j.i + (j.part || 0) + (j.pool ? 1 : 0)) / j.n };
   }
   if (HOLD.on) { const A = scatAheadEta(), eta = leftText(holdLeft(null)); return { text: 'The sweep plays once its steps are worked out' + (eta ? ' (' + eta + ')' : ''), frac: A ? A.done / A.of : null }; }

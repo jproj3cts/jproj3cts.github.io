@@ -27,7 +27,7 @@ import {
 import { hitTest, wirePointer } from './pointer.js';
 import { getPath, setParam } from '../state/params.js';
 import {
-  fieldFrames, fieldHeld, fieldRendered, pauseAll, play, playAll, playing, renderedPeriod, showActivityNow,
+  fieldFrames, fieldHeld, fieldRendered, pauseAll, scatLayerHeld, play, playAll, playing, renderedPeriod, showActivityNow,
   activityBars, activityNow, frameBytes, framesBytes, setFrameBudget, setSweepHoldLimit, stepValue, sweepHolding, sweepJob, updateActivity
 } from './sweeps.js';
 import { arrivalField, faceArrivals } from '../engines/fibre-face.js';
@@ -53,7 +53,7 @@ import { popScreen } from '../engines/phase-screen.js';
 import { interp2, popGaussian2, popLeg2, popStats2, popSurface2 } from '../engines/field2d.js';
 import { popGroupCut, popGroups, popKeyOf, popRun, popSources, popStepCache, segW } from '../engines/beam-tree.js';
 import { closeupInfoAt, fieldAlongLine, fieldAtPoint, volData, volDisp } from '../engines/volume.js';
-import { HEAVY_MS, fieldCost } from './heavy.js';
+import { HEAVY_MS, fieldCost, popShown } from './heavy.js';
 import { popScreenPrep } from '../engines/diffraction.js';
 import { aberCache, aberrations, diffraction, liveScreens, popScreenCache } from '../engines/pd-cavity.js';
 import { pulseReport } from '../engines/pulse.js';
@@ -139,7 +139,7 @@ installHooks({
   requestRender, renderPanel, syncPanel, showActivityNow, cavityLater, toast,
   benchStyleShown: () => requestAnimationFrame(() => benchStyleShown()),
   view3dReset: () => { try { V3D.reset(); } catch (e) { /* not set up yet */ } },
-  playing: () => playing.size > 0, sweepJob: () => sweepJob, fieldHeld, frames: () => fieldFrames,
+  playing: () => playing.size > 0, sweepJob: () => sweepJob, fieldHeld, scatHeld: scatLayerHeld, frames: () => fieldFrames,
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
@@ -229,6 +229,10 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // (tests) a sweep's long render held: the limit lowered (none: put back), and whether it holds now with the frames drawn so far; the bars as drawn
     sweepHoldLimit(s) { setSweepHoldLimit(s); },
     sweepHold() { return { holding: sweepHolding(), drawn: drawCount }; },
+    // (tests) a sweep's layers: the field held (rendering beside the play) or drawn on the bench in the last frame, and
+    // a particle's scattered light held or launched in the trace on show; frames drawn so far
+    layers() { const P = (lastTrace.scat && lastTrace.scat.parts) || {}, st = Object.values(P).map(R => R.state);
+      return { rendering: !!sweepJob, fieldHeld: fieldHeld(), fieldDrawn: popShown.key !== null, scatHeld: scatLayerHeld(), scat: st, drawn: drawCount, playing: playing.size }; },
     // (tests) a sweep's traces kept while it plays, as off the tests they are (TEST_MODE keeps none unless asked)
     traceStoreTest(on) { setTraceStoreTest(on); },
     activityBars() { return activityBars(); },

@@ -8,6 +8,7 @@ import { deg, project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { PARTS } from '../parts/registry.js';
 import { lastTrace, polFrame, zOf } from './trace.js';
+import { hooks } from '../core/hooks.js';
 import { beamFrame } from './phase-screen.js';
 import { scatCache, scatFind, scatModeNow, scatterNow, scatterPrep } from './scatter.js';
 import { beamFieldAt } from './fibre-face.js';
@@ -177,6 +178,9 @@ export function scatterLaunch(surfsBy) {
     const job = scatterPrep(el);
     if (!job) { st.state = 'dark'; continue; }
     st.key = job.key;
+    // a sweep's scattered light being worked out for its steps: none launched, at any step, until every step's is there
+    // (ui/sweeps.js scatLayerHeld), so the light is added to the playing sweep all at once
+    if (hooks.scatHeld()) { st.state = 'held'; continue; }
     let c = scatFind(el.id, job.key, true) || scatCache.get(el.id);
     // (the trap is not worked out for the trace: the Trap tab, a script or particleTrapNow ask for it apart)
     if (!(c && c.key === job.key) && scatModeNow() === "sync") { scatterNow(el, { trap: false }); c = scatCache.get(el.id); }

@@ -20,7 +20,7 @@ export const AREAS = {
     demos: true,
     browser: ['Materials and dispersion', 'Paraxial optics', 'Geometric tracing', 'Fresnel, coatings and polarisation', 'Thin-film coatings', 'Optical path and interference', 'Gaussian beams',
       'Stops and masks on the field', 'Measurements and the ray fan', 'Off-axis apertures, near and far', 'Tolerancing', 'System, absorption and screens', 'A beam across an element’s edge',
-      'Working with several elements', 'Tracing', 'Aberrations', 'Masks as ideal lenses', 'Optimising several parameters', 'Optimiser stress', 'Heights', 'Surfaces: holes, stacks and mirror coatings', 'JEKfilm coatings on the faces', 'Parts in their own colours', 'Smoothness'],
+      'Working with several elements', 'Tracing', 'Aberrations', 'Masks as ideal lenses', 'Optimising several parameters', 'Optimiser stress', 'Heights', 'Surfaces: holes, stacks and mirror coatings', 'JEKfilm coatings on the faces', 'Parts in their own colours', 'Smoothness', 'Sweeps in layers'],
   },
   field: {
     what: 'the diffracted field: propagation, the close-up, vector focusing, coherence and the 3D field volume',

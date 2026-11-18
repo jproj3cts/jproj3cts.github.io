@@ -79,7 +79,7 @@ together when the owner lifts the pause. Nothing on this list has been started u
 
    Check with the owner that it should still govern the Gaussian beams' envelope too, since that sits under its own
    tick. The saved field (`light.byPower`) stays, so benches open as before.
-12. **Sweeps follow the bench's own Light settings, and fill in in layers as each is ready.** From the owner:
+12. **Done, on main 18 November 2026 (c81e7472).** Sweeps follow the bench's own Light settings, and fill in in layers as each is ready. From the owner:
    - **No tick box:** remove the sweep's own "Render the diffracted field" tick. A sweep plays with however the bench is
      set up: if the bench shows the diffracted field (Light › Show the diffracted field), the sweep sweeps it; if not,
      it doesn't. Old benches with the tick saved must open as before, the bench's setting deciding.

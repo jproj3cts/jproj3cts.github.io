@@ -2319,7 +2319,8 @@ const hooks = {
   // what the page is doing meanwhile
   playing: () => false,                 // a sweep is playing
   sweepJob: () => null,                 // a sweep's field is being rendered
-  fieldHeld: () => false,               // a sweep plays without the field
+  fieldHeld: () => false,               // a sweep plays while its field is still rendered: none shown
+  scatHeld: () => false,                // a sweep plays while its particles' scattering is still solved: none shown
   frames: () => null,                   // the sweep's rendered frames: { bench, screens, closeup } Maps
   // the field worker, when the page has one
   fieldWorker: () => null, fwRequest: () => Promise.reject(new Error('no field worker')), fwMismatch() {},

@@ -133,13 +133,14 @@ export const popScreenState = { jobs: new Map(), timer: null };
 export function diffractionLater(el) {
   const job = popScreenPrep(el);
   if (!job) return { D: null, busy: false };
+  // (a sweep plays while its field still renders: no screen shows any of it until every step's is there)
+  if (hooks.fieldHeld()) return { D: null, busy: true };
   const c = popScreenCache.get(el.id);
   if (c && c.key === job.key) return { D: c.D, busy: false };
   const F = hooks.frames(), fr = F && F.screens.get(job.key);
   if (fr) { popScreenCache.set(el.id, { key: job.key, D: fr }); return { D: fr, busy: false }; }
   if (TEST_MODE) return { D: diffraction(el), busy: false };
   if (hooks.sweepJob()) return { D: c ? c.D : null, busy: true };     // the sweep's renderer is on it
-  if (hooks.fieldHeld()) return { D: c ? c.D : null, busy: false };   // a sweep plays without the field: the last one stands
   const S = popScreenState, J0 = S.jobs.get(el.id);
   if (hooks.fieldWorker()) {
     // One field at a time per screen: while the bench keeps changing (a sweep playing, a

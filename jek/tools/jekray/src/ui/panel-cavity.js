@@ -5,6 +5,7 @@ import { allParts, deg, project, selectOne, selectedId, suppressedPart, typeLabe
 import { allSources, getEl, lightOf } from '../state/elements.js';
 import { curBench } from '../state/tabs.js';
 import { lastTrace } from '../engines/trace.js';
+import { hooks } from '../core/hooks.js';
 import { getCss, inkA, requestRender, selection } from './render.js';
 import { V3D } from './view3d.js';
 import { updateReadouts } from './readouts.js';
@@ -21,17 +22,31 @@ import { popRunGen } from '../engines/beam-tree.js';
 import { changed, partsListMenu } from './actions.js';
 import { checkpoint, selectEl } from './tabs.js';
 import { scheduleSave } from '../io/autosave.js';
-import { fieldWorker, fwRequest } from '../page/workers.js';
+import { cavByTrace, fieldWorker, fwRequest } from '../page/workers.js';
 
 /* A card with nothing solved yet starts a field run of the bench in the background, in
    slices, and the panels refresh when it is done */
 export let cavJob = null;
 export function cavityLater() {
   if (TEST_MODE || (cavJob && cavJob.trace === lastTrace)) return;
+  // a trace whose cavities were solved before (a sweep's step played again): taken as they were, nothing asked
+  // (a cavity the worker found nothing to solve in, no light in it, is kept as such: asked again at every step, it held the
+  // worker at work for nothing all the time a sweep played)
+  const kept = cavByTrace.get(lastTrace);
+  if (kept && findCavities().every(c => kept.has(c.id))) { let any = false; for (const [k, v] of kept) if (v) { cavSolved.set(k, v); any = true; } if (any) syncPanel(); return; }
+  // while a sweep plays, one being solved is let finish (kept for its step) rather than replaced at every step, which
+  // stopped the worker each time and never solved any
+  if (hooks.playing() && cavJob && !cavJob.done && cavJob.worker) return;
   if (fieldWorker()) {
-    const job = { trace: lastTrace };
+    const job = { trace: lastTrace, worker: true };
     cavJob = job;
-    fwRequest('cavity', 'cavity').then(() => { if (cavJob === job) { job.done = true; syncPanel(); } })
+    // (done: and if the bench moved on meanwhile, asked again for where it is now)
+    const asked = findCavities().map(c => c.id);
+    fwRequest('cavity', 'cavity').then(o => {
+      // (answered, not replaced: what it found for each cavity asked about kept with the trace, nothing for one it did not solve)
+      if (o === true) { const M = cavByTrace.get(job.trace) || new Map(); for (const id of asked) if (!M.has(id)) M.set(id, null); cavByTrace.set(job.trace, M); }
+      if (cavJob === job) { job.done = true; syncPanel(); if (job.trace !== lastTrace) cavityLater(); }
+    })
       .catch(() => { if (cavJob === job) cavJob = null; cavityLater(); });
     return;
   }

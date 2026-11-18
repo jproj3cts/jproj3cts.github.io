@@ -138,10 +138,17 @@ export function fwUnpackRun(R, beams) {
   }
   return R;
 }
+/* The cavities' steady states the worker solved, by the trace they were solved for: a sweep's steps come back as the very
+   traces kept for them (engines/trace.js traceStore), and a step played again takes its cavities from here rather than
+   asking the worker again (ui/panel-cavity.js cavityLater). Kept while the trace is. */
+export const cavByTrace = new WeakMap();
 function fwCavities(list, trace) {
-  if (trace !== lastTrace) return;
   const fix = r => { if (r) r.at = cavAtOf(r.H, r.m, r.beta); return r; };
-  for (const c of list) cavSolved.set(c.k, { eng: c.eng, delta: c.delta, mode: c.mode, trace, res: fix(c.res), others: c.others.map(o => ({ delta: o.delta, res: fix(o.res) })) });
+  const got = list.map(c => [c.k, { eng: c.eng, delta: c.delta, mode: c.mode, trace, res: fix(c.res), others: c.others.map(o => ({ delta: o.delta, res: fix(o.res) })) }]);
+  if (trace) { const M = cavByTrace.get(trace) || new Map(); for (const [k, v] of got) M.set(k, v); cavByTrace.set(trace, M); }
+  // (one for a trace the bench has moved on from is kept for it, not shown)
+  if (trace !== lastTrace) return;
+  for (const [k, v] of got) cavSolved.set(k, v);
   syncPanel();
 }
 

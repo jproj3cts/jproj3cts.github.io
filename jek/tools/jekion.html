@@ -5027,18 +5027,17 @@ function needMark(el, need, what) {
 }
 function needsShown() { for (const el of document.querySelectorAll('[data-need]')) needShow(el); keepSign(); if (keepSkipped && keepHere()) { keepSkipped = false; if (hooks.keepNow) hooks.keepNow(); } }
 
-/* ---- Nothing is kept without an account ----
-   Signed out, an app is there to try: the bench is not autosaved in the browser, no earlier versions or recent files
-   are kept, and leaving the page loses what was changed (with no question asked on the way out: most signed-out
-   visits only look). keepHere() says whether this browser may keep work: yes
-   with no accounts here, signed in, or when the API has not answered after the page's first seconds (as the exports'
-   gate lets through); no for someone signed out for sure, and for those first seconds while the account is looked
-   up (hooks.keepNow, the app's own autosave, is called once it is known to be allowed). Each app's autosave asks it
-   and calls workChanged(); the bench handed over to a sign-in (hooks.keepWork) is still
-   written, so it is there on the way back. The sign, beside the bar's Save, says the state and opens the sign-in. */
+/* ---- What this browser keeps ----
+   Every app keeps the work in the browser as it goes (its autosave, and in JEKray the earlier versions and Open
+   recent), signed in or not: someone showing a bench to someone else, signed out, finds it still there after a
+   reload. Saving it as a file and the cloud are what need an account. keepHere() is the one switch each of those
+   writes asks (test/node/keep.test.mjs checks that they do): KEEP_SIGNED_OUT false makes a signed-out visit keep
+   nothing again, with the sign beside Save (keepSign) saying so and opening the sign-in, as it did from 11 to 18
+   Nov 2026. */
+const KEEP_SIGNED_OUT = true;
 function keepHere() {
   const a = hooks.account();
-  if (!a.on || a.signedIn) return true;
+  if (KEEP_SIGNED_OUT || !a.on || a.signedIn) return true;
   return a.known ? false : performance.now() >= 8000;
 }
 let tryChanged = false, keepSkipped = false;
@@ -5050,7 +5049,7 @@ function workChanged() {
   keepSign();
 }
 function keepSign() {
-  const a = hooks.account(), save = document.getElementById('btnSave'), out = a.on && a.known && !a.signedIn && save && save.dataset.need;
+  const a = hooks.account(), save = document.getElementById('btnSave'), out = !keepHere() && a.on && a.known && !a.signedIn && save && save.dataset.need;
   let el = document.getElementById('keepSign');
   if (!out) { if (el) el.remove(); tryChanged = false; return; }
   if (!el) {
@@ -6895,7 +6894,6 @@ const NEWS = [
   ['1.0', APP_DATE, [
     '<b>Scripts and every data export need only a free account now</b>, and a free account keeps three share links. JEKrayPro is the cloud: benches saved online, with their history and forks.',
     '<b>Flying the ions and saving the .jekion file need a free account</b>. Drawing electrodes and seeing their fields need none. A <b>Free account</b> badge marks each until you are signed in.',
-    '<b>Signed out, nothing is kept</b>: the bench is not autosaved in this browser. <b>Not kept</b> beside Save says so and opens the sign-in; the bench comes with you.',
     '<b>JEKsuite</b>, the JEK hub: File \u203a My benches on JEKsuite opens <a href="/jek/tools/jeksuite.html" target="_blank">JEKsuite</a> in its own tab, with every cloud bench of every JEK app, JEKion\u2019s among them, labelled and filtered by app; a JEKion bench chosen there opens here. New there starts a JEKion bench, in the cloud when you can save there. Your account, plan and teams are there too.',
     '<b>JEKion 1.0, released</b>: a charged-particle trap simulator in the browser, alongside JEKray. Electrodes from the bodies of a STEP or STL file, the potential solved by multigrid in planar, cylindrical or three-dimensional symmetry, ions and electrons flown relativistically through it and a uniform magnetic field, with RF voltages, a background gas and space charge; detectors, splats, time-of-flight and energy spectra; a trap analysis giving Mathieu a and q, secular and Penning frequencies.',
     'Examples: an einzel lens, a quadrupole deflector, a linear time-of-flight, a reflectron, a quadrupole mass filter, a Paul trap and a Penning trap.',

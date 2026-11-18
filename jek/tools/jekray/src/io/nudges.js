@@ -54,7 +54,7 @@ export function exportSignIn(what) {
   nudgeTaken();
   const dlg = promptDialog('exportSignIn'), close = () => dlg.close();
   dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, /^keep/.test(what) ? 'Keeping your work needs a free account' : /^save the bench/.test(what) ? 'Saving the file needs a free account' : /^(export|save a picture|save plots|save a plot|make a part pack)/.test(what) ? 'Exporting needs a free account' : 'A free account is needed'),
-    h('p', null, 'Sign in to ' + what + '. Signed out, nothing is kept when you leave this page; the bench comes with you when you sign in.'),
+    h('p', null, 'Sign in to ' + what + '. The bench is kept in this browser meanwhile.'),
     freeLead('Create a free account or sign in.', 'Your bench stays here while you sign in.'),
     uniNote(),
     h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('export', close)),
@@ -109,8 +109,8 @@ export function returnNudge(again, arrived) {
     busy: invite || nudgeUp() || !!document.querySelector('dialog[open]'), arrived, last, now: Date.now() })) return;
   nudgeTaken();
   nudgeCard('returnNudge', 'return', 'Restored from this browser only', [
-    h('p', null, 'This bench was kept in this browser before. Signed out, changes to it are no longer kept: closing the page loses them.'),
-    freeLead('Create a free account to keep it, and to save it as a file.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
+    h('p', null, 'This bench is kept in this browser alone: clearing its data loses it, and your other devices do not have it.'),
+    freeLead('Create a free account to save it as a file.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
   () => []);
 }
 /* ---------- A free account offered in a note ----------

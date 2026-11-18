@@ -32,7 +32,7 @@ export function scheduleSave() {
   if (cloud) cloudChanged();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    // signed out, nothing is kept (ui/pro.js keepHere): the sign beside Save says so
+    // (ui/pro.js keepHere: kept signed in or not, unless its switch says otherwise; then the sign beside Save says so)
     if (!keepHere()) { workChanged(); setStatus('Not saved: a free account keeps your work'); return; }
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(serialize()));

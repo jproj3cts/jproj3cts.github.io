@@ -2053,7 +2053,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
               <div class="rt-menu rt-imenu" role="menu" id="recentMenu"></div>
             </div>
             <button type="button" role="menuitem" data-icon="gallery" data-click="btnExamples">Open an example…</button>
-            <button type="button" role="menuitem" id="btnSnaps" data-icon="history" data-need="account" data-what="see the earlier versions kept in this browser" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
+            <button type="button" role="menuitem" id="btnSnaps" data-icon="history" title="Versions this browser kept as you worked, and before you opened something else">Earlier versions…</button>
             <button type="button" role="menuitem" id="btnCloudList" class="rt-cloud" data-icon="cloud" hidden title="Every cloud bench, of every app, on JEKsuite (in its own tab)">My benches on JEKsuite…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" data-icon="save" data-click="btnSave" data-need="account" data-what="save the bench as a file">Save as .jekray<span class="k">Ctrl+S</span></button>
@@ -25417,8 +25417,10 @@ const V3D = (() => {
     lightSigs.set(Tr, v);
     return v;
   }
+  const LIGHT_KEEP = 128;                                 // a sweep's steps' light kept built (each a few meshes and textures)
   function build() {
     const G = R.groups;
+    R.builds = (R.builds || 0) + 1;
     disposeAll(G.sel);
     // the light: kept with its trace while a sweep plays (see traceStore), else made anew
     for (const o of [...G.light.children]) { G.light.remove(o); if (!o.userData.kept) disposeObj(o); }
@@ -25471,18 +25473,23 @@ const V3D = (() => {
     if (fb && !VL.data && (held || VL.busy) && last) VL = { data: last, busy: VL.busy };
     if (VL.data) R.volLast = { tab: project.tab, data: VL.data };
     R.vol = VL.data; R.volBusy = VL.busy;
-    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top, scatVolKey()].join('|'), sig = traceStoreOn() ? lightSig(lastTrace) : null, got = sig !== null ? lc.get(sig) : null;
-    if (got && got.k === lk) { for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; }
+    // (filed by the trace's light and the particle's scattered field it carries: a triangle sweep's step on the way up and its
+    // twin on the way down trace to the same light but each with a field of its own, and filed by the light alone the two
+    // took turns, the light built again at every step of every cycle)
+    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top, scatVolKey()].join('|'), sig0 = traceStoreOn() ? lightSig(lastTrace) : null;
+    const sig = sig0 !== null ? sig0 + '|' + scatVolKey() : null, got = sig !== null ? lc.get(sig) : null;
+    if (got && got.k === lk) { lc.delete(sig); lc.set(sig, got); for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; R.lightReused = (R.lightReused || 0) + 1; }
     else {
       if (got) { for (const o of got.objs) disposeObj(o); lc.delete(sig); }
       light(box, R.boardBox);
+      R.lightBuilt = (R.lightBuilt || 0) + 1;
       const objs = [...G.light.children];
       if (sig !== null) {
         for (const o of objs) o.userData.kept = true;
-        lc.set(sig, { k: lk, objs, nRays: R.nRays, nBeams: R.nBeams });
-        // only the light of the traces still kept is kept
+        lc.set(sig, { k: lk, objs, nRays: R.nRays, nBeams: R.nBeams, sig: sig0 });
+        // only the light of the traces still kept is kept, and no more than LIGHT_KEEP steps' worth (the oldest shown first out)
         const live = new Set([...traceStore.values()].map(c => lightSig(c.T)));
-        for (const [s2, v] of lc) if (s2 !== sig && !live.has(s2)) { for (const o of v.objs) disposeObj(o); lc.delete(s2); }
+        for (const [s2, v] of lc) if (s2 !== sig && (!live.has(v.sig) || lc.size > LIGHT_KEEP)) { for (const o of v.objs) disposeObj(o); lc.delete(s2); }
       }
     }
     R.volMeshes = G.light.children.filter(o => o.userData.vol);
@@ -25936,27 +25943,38 @@ const V3D = (() => {
       gl_FragColor = vec4(vV * sqrt(max(0.0, 1.0 - vU * vU)), 0.0, 0.0, 1.0);
     }`;
   function scatThroughMesh(G, F) {
-    const S = F.field, pos = [], q = [], side = [], val = [], wid = [], idx = [];
-    let nv = 0;
+    const S = F.field;
+    // (counted first, then written straight into typed arrays: a cone's rays past the parts are tens of thousands of quads,
+    // and the arrays built a number at a time took a tenth of a second for each step of a sweep, at its first cycle)
+    let nq = 0;
+    for (const c of F.through) for (const r of c.rays) {
+      const s = r.s, n = s.length / 5;
+      for (let m = 0; m + 1 < n; m++) { const a = 5 * m, b = 5 * (m + 1); if (!(s[a] === s[b] && s[a + 1] === s[b + 1] && s[a + 2] === s[b + 2])) nq++; }
+    }
+    if (!nq) return;
+    const pos = new Float32Array(12 * nq), q = new Float32Array(12 * nq), side = new Float32Array(4 * nq), val = new Float32Array(4 * nq), wid = new Float32Array(4 * nq);
+    const idx = 4 * nq > 65535 ? new Uint32Array(6 * nq) : new Uint16Array(6 * nq);
+    let nv = 0, ni = 0;
+    // each end: its place, the other end (the ribbon's way), which edge, and its light on the field's scale
+    const put = (s, o, oo, sg) => {
+      const d = s[o + 4], w = Math.max(d, SF_RIB), k = 3 * nv;
+      pos[k] = s[o]; pos[k + 1] = s[o + 1]; pos[k + 2] = s[o + 2]; q[k] = s[oo]; q[k + 1] = s[oo + 1]; q[k + 2] = s[oo + 2];
+      side[nv] = sg; wid[nv] = w; val[nv] = s[o + 3] * d * d / w / S.line; nv++;
+    };
     for (const c of F.through) for (const r of c.rays) {
       const s = r.s, n = s.length / 5;
       for (let m = 0; m + 1 < n; m++) {
         const a = 5 * m, b = 5 * (m + 1);
         if (s[a] === s[b] && s[a + 1] === s[b + 1] && s[a + 2] === s[b + 2]) continue;
-        // each end: its place, the other end (the ribbon's way), which edge, and its light on the field's scale
-        for (const [o, oo, sg] of [[a, b, 1], [a, b, -1], [b, a, -1], [b, a, 1]]) {
-          const d = s[o + 4], w = Math.max(d, SF_RIB);
-          pos.push(s[o], s[o + 1], s[o + 2]); q.push(s[oo], s[oo + 1], s[oo + 2]); side.push(sg); wid.push(w);
-          val.push(s[o + 3] * d * d / w / S.line);
-        }
-        idx.push(nv, nv + 1, nv + 2, nv, nv + 2, nv + 3); nv += 4;
+        const v0 = nv;
+        put(s, a, b, 1); put(s, a, b, -1); put(s, b, a, -1); put(s, b, a, 1);
+        idx[ni++] = v0; idx[ni++] = v0 + 1; idx[ni++] = v0 + 2; idx[ni++] = v0; idx[ni++] = v0 + 2; idx[ni++] = v0 + 3;
       }
     }
-    if (!nv) return;
     const geo = new T.BufferGeometry();
-    geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setAttribute('aQ', new T.Float32BufferAttribute(q, 3));
-    geo.setAttribute('aSide', new T.Float32BufferAttribute(side, 1)); geo.setAttribute('aV', new T.Float32BufferAttribute(val, 1)); geo.setAttribute('aW', new T.Float32BufferAttribute(wid, 1));
-    geo.setIndex(idx);
+    geo.setAttribute('position', new T.BufferAttribute(pos, 3)); geo.setAttribute('aQ', new T.BufferAttribute(q, 3));
+    geo.setAttribute('aSide', new T.BufferAttribute(side, 1)); geo.setAttribute('aV', new T.BufferAttribute(val, 1)); geo.setAttribute('aW', new T.BufferAttribute(wid, 1));
+    geo.setIndex(new T.BufferAttribute(idx, 1));
     const m = new T.ShaderMaterial({ vertexShader: RIB_VS, fragmentShader: RIB_FS, transparent: true, depthWrite: false, depthTest: false, side: T.DoubleSide,
       blending: T.CustomBlending, blendEquation: T.AddEquation, blendSrc: T.OneFactor, blendDst: T.OneFactor,
       uniforms: { uDepth: { value: null }, uRes: { value: new T.Vector2(1, 1) } } });
@@ -26844,6 +26862,9 @@ const V3D = (() => {
       fieldSegs() { if (!R || !R.vol) return null; return R.vol.segs.map(s => { const P = volPlanes(s); return { two: s.two, coh: s.coh, o: s.o, e: s.e, n0: s.n, ta: s.ta, tb: s.tb, ts: [...s.ts], rmax: [...s.rmax], peak: s.peak, pl: P.pl.map(v => v.toArray()), ext: P.ext }; }); },
       // how many times the view has been drawn, and the tubes the cables and fibres are drawn with (kept while their route is)
       draws: () => (R && R.draws) || 0,
+      // (tests) the scene brought up to date (builds), its light made anew (lightBuilt) or taken as kept for a sweep's step
+      // (lightReused), and the GPU's shader programs, geometries and textures alive
+      builds: () => R ? { builds: R.builds || 0, lightBuilt: R.lightBuilt || 0, lightReused: R.lightReused || 0, programs: ((R.gl.info && R.gl.info.programs) || []).length, geometries: R.gl.info.memory.geometries, textures: R.gl.info.memory.textures } : null,
       // each fibre's tube as drawn: the box round it on the bench (mm), by the fibre's id
       fibreBoxes() { if (!R) return null; sync(); const out = {}; for (const [id, c] of R.wireCache || []) { const g = c.obj.geometry; g.computeBoundingBox(); const b = g.boundingBox; out[id] = [b.min.x, b.min.y, b.max.x, b.max.y].map(v => +v.toFixed(3)); } return out; },
       // a particle's scattered field as drawn (scatVolMeshes): its volumes; and what one frame takes, the GPU's work finished (ms)
@@ -33116,18 +33137,17 @@ function needMark(el, need, what) {
 }
 function needsShown() { for (const el of document.querySelectorAll('[data-need]')) needShow(el); keepSign(); if (keepSkipped && keepHere()) { keepSkipped = false; if (hooks.keepNow) hooks.keepNow(); } }
 
-/* ---- Nothing is kept without an account ----
-   Signed out, an app is there to try: the bench is not autosaved in the browser, no earlier versions or recent files
-   are kept, and leaving the page loses what was changed (with no question asked on the way out: most signed-out
-   visits only look). keepHere() says whether this browser may keep work: yes
-   with no accounts here, signed in, or when the API has not answered after the page's first seconds (as the exports'
-   gate lets through); no for someone signed out for sure, and for those first seconds while the account is looked
-   up (hooks.keepNow, the app's own autosave, is called once it is known to be allowed). Each app's autosave asks it
-   and calls workChanged(); the bench handed over to a sign-in (hooks.keepWork) is still
-   written, so it is there on the way back. The sign, beside the bar's Save, says the state and opens the sign-in. */
+/* ---- What this browser keeps ----
+   Every app keeps the work in the browser as it goes (its autosave, and in JEKray the earlier versions and Open
+   recent), signed in or not: someone showing a bench to someone else, signed out, finds it still there after a
+   reload. Saving it as a file and the cloud are what need an account. keepHere() is the one switch each of those
+   writes asks (test/node/keep.test.mjs checks that they do): KEEP_SIGNED_OUT false makes a signed-out visit keep
+   nothing again, with the sign beside Save (keepSign) saying so and opening the sign-in, as it did from 11 to 18
+   Nov 2026. */
+const KEEP_SIGNED_OUT = true;
 function keepHere() {
   const a = hooks.account();
-  if (!a.on || a.signedIn) return true;
+  if (KEEP_SIGNED_OUT || !a.on || a.signedIn) return true;
   return a.known ? false : performance.now() >= 8000;
 }
 let tryChanged = false, keepSkipped = false;
@@ -33139,7 +33159,7 @@ function workChanged() {
   keepSign();
 }
 function keepSign() {
-  const a = hooks.account(), save = document.getElementById('btnSave'), out = a.on && a.known && !a.signedIn && save && save.dataset.need;
+  const a = hooks.account(), save = document.getElementById('btnSave'), out = !keepHere() && a.on && a.known && !a.signedIn && save && save.dataset.need;
   let el = document.getElementById('keepSign');
   if (!out) { if (el) el.remove(); tryChanged = false; return; }
   if (!el) {
@@ -39490,10 +39510,24 @@ function scatterSection(el) {
 let cavJob = null;
 function cavityLater() {
   if (TEST_MODE || (cavJob && cavJob.trace === lastTrace)) return;
+  // a trace whose cavities were solved before (a sweep's step played again): taken as they were, nothing asked
+  // (a cavity the worker found nothing to solve in, no light in it, is kept as such: asked again at every step, it held the
+  // worker at work for nothing all the time a sweep played)
+  const kept = cavByTrace.get(lastTrace);
+  if (kept && findCavities().every(c => kept.has(c.id))) { let any = false; for (const [k, v] of kept) if (v) { cavSolved.set(k, v); any = true; } if (any) syncPanel(); return; }
+  // while a sweep plays, one being solved is let finish (kept for its step) rather than replaced at every step, which
+  // stopped the worker each time and never solved any
+  if (hooks.playing() && cavJob && !cavJob.done && cavJob.worker) return;
   if (fieldWorker()) {
-    const job = { trace: lastTrace };
+    const job = { trace: lastTrace, worker: true };
     cavJob = job;
-    fwRequest('cavity', 'cavity').then(() => { if (cavJob === job) { job.done = true; syncPanel(); } })
+    // (done: and if the bench moved on meanwhile, asked again for where it is now)
+    const asked = findCavities().map(c => c.id);
+    fwRequest('cavity', 'cavity').then(o => {
+      // (answered, not replaced: what it found for each cavity asked about kept with the trace, nothing for one it did not solve)
+      if (o === true) { const M = cavByTrace.get(job.trace) || new Map(); for (const id of asked) if (!M.has(id)) M.set(id, null); cavByTrace.set(job.trace, M); }
+      if (cavJob === job) { job.done = true; syncPanel(); if (job.trace !== lastTrace) cavityLater(); }
+    })
       .catch(() => { if (cavJob === job) cavJob = null; cavityLater(); });
     return;
   }
@@ -61183,7 +61217,7 @@ function exportSignIn(what) {
   nudgeTaken();
   const dlg = promptDialog('exportSignIn'), close = () => dlg.close();
   dlg.replaceChildren(h('h2', { id: 'exportSignInTitle' }, /^keep/.test(what) ? 'Keeping your work needs a free account' : /^save the bench/.test(what) ? 'Saving the file needs a free account' : /^(export|save a picture|save plots|save a plot|make a part pack)/.test(what) ? 'Exporting needs a free account' : 'A free account is needed'),
-    h('p', null, 'Sign in to ' + what + '. Signed out, nothing is kept when you leave this page; the bench comes with you when you sign in.'),
+    h('p', null, 'Sign in to ' + what + '. The bench is kept in this browser meanwhile.'),
     freeLead('Create a free account or sign in.', 'Your bench stays here while you sign in.'),
     uniNote(),
     h('div', { class: 'rt-actions rt-signrow' }, ...signInRow('export', close)),
@@ -61238,8 +61272,8 @@ function returnNudge(again, arrived) {
     busy: invite || nudgeUp() || !!document.querySelector('dialog[open]'), arrived, last, now: Date.now() })) return;
   nudgeTaken();
   nudgeCard('returnNudge', 'return', 'Restored from this browser only', [
-    h('p', null, 'This bench was kept in this browser before. Signed out, changes to it are no longer kept: closing the page loses them.'),
-    freeLead('Create a free account to keep it, and to save it as a file.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
+    h('p', null, 'This bench is kept in this browser alone: clearing its data loses it, and your other devices do not have it.'),
+    freeLead('Create a free account to save it as a file.', 'With JEKrayPro, or a university licence, your benches save to the cloud and open anywhere.'), uniNote()],
   () => []);
 }
 /* ---------- A free account offered in a note ----------
@@ -61374,7 +61408,7 @@ function scheduleSave() {
   if (cloud) cloudChanged();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    // signed out, nothing is kept (ui/pro.js keepHere): the sign beside Save says so
+    // (ui/pro.js keepHere: kept signed in or not, unless its switch says otherwise; then the sign beside Save says so)
     if (!keepHere()) { workChanged(); setStatus('Not saved: a free account keeps your work'); return; }
     try {
       localStorage.setItem(STORE_KEY, JSON.stringify(serialize()));
@@ -61392,6 +61426,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'Turning the 3D view while a sweep plays its rendered field no longer stutters at each step. A sweep that comes back to a value (a triangle sweep of a rod\u2019s tilt, on its way up and down) had its light, the particle\u2019s scattered glow among it, built again at every step of every cycle; now each step\u2019s light is built once and then shown as it is. A cavity on the bench with no light to settle in is no longer solved again at every step, and the scattered light past the parts is built faster.',
     'A <b>Particle</b> can draw its radiation pattern in 3D: tick <b>Draw its radiation pattern in 3D</b> under On the bench on its Scattering tab. A see-through surface about the particle reaches out in each direction as far as it scatters that way, on a linear scale whatever the Scale, so a small sphere\u2019s doughnut and a rod\u2019s lobes can be seen, turning with the particle and following a sweep. Off unless asked for.',
     'A sweep held while its steps are worked out no longer leaves the bench stretched or blank when a panel opens or closes beside it, in 2D or 3D.',
     'A <b>Particle</b> made a rod or a spheroid with Model set to Mie now uses the dipole array, so its scattering follows its shape and how it is turned (Mie holds for a sphere only); the Scattering tab says so.',
@@ -61425,7 +61460,7 @@ const NEWS = [
     'A <b>phase mask finer than the beam</b> (a phase grating, a diffuser, an SLM\u2019s pattern) keeps its light. Behind a mask that spreads the light without cutting it, the diffracted field\u2019s grid now grows with the light as it does behind an edge; before, a grating\u2019s orders ran off the grid\u2019s sides and were lost with no warning. The beam goes on along the mask\u2019s mean slope across its footprint, where it took the slope under its own ray (a sinusoidal grating sent it off at \u03b2\u03bb/d, a fork hologram\u2019s core ended it once rays left the bench plane), and takes its focus from the trend of the slope across it. A sinusoidal phase grating\u2019s orders now carry J\u2099(\u03b2)\u00b2 each, on <a href="/jek/tools/jekray-validation.html#phase-grating">the validation page</a>. Light a mask sends past what the grid can carry is flagged.',
     'A beam of M\u00b2 above 1 keeps all its modes past its first surfaces: they shared one budget of 60 segments in the 2D field, so a beam of M\u00b2 = 4 (36 modes) lost its weakest, widest ones after a lens and read 4% narrow. Each mode now has the budget of its own, as the estimate of the run\u2019s time already took it.',
     '<b>The design work needs only a free account now</b>: the optimiser, tolerancing, design reports, lens drawings, design export, scripts, and data as Excel, NumPy or MATLAB files, any number of kinds at once. JEKrayPro is the cloud: benches saved online with their history, forks, My parts, teams, and more than a free account’s three share links.',
-    '<b>Signed out, nothing is kept</b>: no autosave in this browser, no earlier versions, no recent files. <b>Not kept</b> beside Save says so, turns to <b>Not saved</b> once the bench is changed, and opens the sign-in; the bench comes with you. A free account keeps your work as before and saves it as a .jekray file (Save, Ctrl+S).',
+    '<b>Saving a bench as a .jekray file needs a free account</b> (Save, Ctrl+S). Signed in or not, the bench is kept in this browser as you work, with its earlier versions and Open recent.',
     'The examples send their rays in <b>hexapolar rings</b> (3, 5 or 7 across: 7, 19 or 37 rays), so in 3D each beam fills its round aperture: the lenses, mirrors and traps, the interferometers, the RF horns and the fibre launches. A source of one guide ray, a slit, a pulse and the double slit keep a line.',
     'The Bench panel\u2019s list of parts reads as JEKcad\u2019s feature list: one line a part, its kind small beside it, under a heading for each kind (free space, fibre, circuits, objects, drawings) with its count; the parts selected are marked, and the eye shows on hover (or while the part is hidden in 3D).',
     'In 3D the bar no longer shows the Parts / Draw switcher: Parts is the only mode there (Draw is for the 2D bench).',
@@ -61957,7 +61992,7 @@ function wireNews() {
           catch (err) { toast('Could not open that version (' + err.message + ').', true); }
         } }, 'Open'))) : [h('p', null, 'Nothing kept yet. Copies appear here once you have been working for a few minutes.')]));
     };
-    document.getElementById('btnSnaps').addEventListener('click', () => { if (!accountGate('see the earlier versions kept in this browser')) return; fill(); dlg.showModal(); });
+    document.getElementById('btnSnaps').addEventListener('click', () => { fill(); dlg.showModal(); });
     document.getElementById('snapsClose').addEventListener('click', () => dlg.close());
   }
 
@@ -64389,10 +64424,17 @@ function fwUnpackRun(R, beams) {
   }
   return R;
 }
+/* The cavities' steady states the worker solved, by the trace they were solved for: a sweep's steps come back as the very
+   traces kept for them (engines/trace.js traceStore), and a step played again takes its cavities from here rather than
+   asking the worker again (ui/panel-cavity.js cavityLater). Kept while the trace is. */
+const cavByTrace = new WeakMap();
 function fwCavities(list, trace) {
-  if (trace !== lastTrace) return;
   const fix = r => { if (r) r.at = cavAtOf(r.H, r.m, r.beta); return r; };
-  for (const c of list) cavSolved.set(c.k, { eng: c.eng, delta: c.delta, mode: c.mode, trace, res: fix(c.res), others: c.others.map(o => ({ delta: o.delta, res: fix(o.res) })) });
+  const got = list.map(c => [c.k, { eng: c.eng, delta: c.delta, mode: c.mode, trace, res: fix(c.res), others: c.others.map(o => ({ delta: o.delta, res: fix(o.res) })) }]);
+  if (trace) { const M = cavByTrace.get(trace) || new Map(); for (const [k, v] of got) M.set(k, v); cavByTrace.set(trace, M); }
+  // (one for a trace the bench has moved on from is kept for it, not shown)
+  if (trace !== lastTrace) return;
+  for (const [k, v] of got) cavSolved.set(k, v);
   syncPanel();
 }
 
@@ -64593,6 +64635,7 @@ function workerMain() {
         out = J ? { key: J.key + '|' + el.length + cavLoadKey(), r: detectorField(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep })) } : null;
       } else if (kind === 'cavity') {
         popRun(lastTrace.beams, allSources(), {});
+        out = true;                                      // (done: the cavities it solved come with it, as cav; none may be)
       } else if (kind === 'step') {
         // a sweep's step for the render pool: the swept values set as the page sets them, then its fields
         for (const [id, path, v] of args.sets) { const el = getEl(id); if (el) setParam(el, path, v); }

@@ -865,8 +865,10 @@ export const V3D = (() => {
     lightSigs.set(Tr, v);
     return v;
   }
+  const LIGHT_KEEP = 128;                                 // a sweep's steps' light kept built (each a few meshes and textures)
   function build() {
     const G = R.groups;
+    R.builds = (R.builds || 0) + 1;
     disposeAll(G.sel);
     // the light: kept with its trace while a sweep plays (see traceStore), else made anew
     for (const o of [...G.light.children]) { G.light.remove(o); if (!o.userData.kept) disposeObj(o); }
@@ -919,18 +921,23 @@ export const V3D = (() => {
     if (fb && !VL.data && (held || VL.busy) && last) VL = { data: last, busy: VL.busy };
     if (VL.data) R.volLast = { tab: project.tab, data: VL.data };
     R.vol = VL.data; R.volBusy = VL.busy;
-    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top, scatVolKey()].join('|'), sig = traceStoreOn() ? lightSig(lastTrace) : null, got = sig !== null ? lc.get(sig) : null;
-    if (got && got.k === lk) { for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; }
+    // (filed by the trace's light and the particle's scattered field it carries: a triangle sweep's step on the way up and its
+    // twin on the way down trace to the same light but each with a field of its own, and filed by the light alone the two
+    // took turns, the light built again at every step of every cycle)
+    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top, scatVolKey()].join('|'), sig0 = traceStoreOn() ? lightSig(lastTrace) : null;
+    const sig = sig0 !== null ? sig0 + '|' + scatVolKey() : null, got = sig !== null ? lc.get(sig) : null;
+    if (got && got.k === lk) { lc.delete(sig); lc.set(sig, got); for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; R.lightReused = (R.lightReused || 0) + 1; }
     else {
       if (got) { for (const o of got.objs) disposeObj(o); lc.delete(sig); }
       light(box, R.boardBox);
+      R.lightBuilt = (R.lightBuilt || 0) + 1;
       const objs = [...G.light.children];
       if (sig !== null) {
         for (const o of objs) o.userData.kept = true;
-        lc.set(sig, { k: lk, objs, nRays: R.nRays, nBeams: R.nBeams });
-        // only the light of the traces still kept is kept
+        lc.set(sig, { k: lk, objs, nRays: R.nRays, nBeams: R.nBeams, sig: sig0 });
+        // only the light of the traces still kept is kept, and no more than LIGHT_KEEP steps' worth (the oldest shown first out)
         const live = new Set([...traceStore.values()].map(c => lightSig(c.T)));
-        for (const [s2, v] of lc) if (s2 !== sig && !live.has(s2)) { for (const o of v.objs) disposeObj(o); lc.delete(s2); }
+        for (const [s2, v] of lc) if (s2 !== sig && (!live.has(v.sig) || lc.size > LIGHT_KEEP)) { for (const o of v.objs) disposeObj(o); lc.delete(s2); }
       }
     }
     R.volMeshes = G.light.children.filter(o => o.userData.vol);
@@ -1384,27 +1391,38 @@ export const V3D = (() => {
       gl_FragColor = vec4(vV * sqrt(max(0.0, 1.0 - vU * vU)), 0.0, 0.0, 1.0);
     }`;
   function scatThroughMesh(G, F) {
-    const S = F.field, pos = [], q = [], side = [], val = [], wid = [], idx = [];
-    let nv = 0;
+    const S = F.field;
+    // (counted first, then written straight into typed arrays: a cone's rays past the parts are tens of thousands of quads,
+    // and the arrays built a number at a time took a tenth of a second for each step of a sweep, at its first cycle)
+    let nq = 0;
+    for (const c of F.through) for (const r of c.rays) {
+      const s = r.s, n = s.length / 5;
+      for (let m = 0; m + 1 < n; m++) { const a = 5 * m, b = 5 * (m + 1); if (!(s[a] === s[b] && s[a + 1] === s[b + 1] && s[a + 2] === s[b + 2])) nq++; }
+    }
+    if (!nq) return;
+    const pos = new Float32Array(12 * nq), q = new Float32Array(12 * nq), side = new Float32Array(4 * nq), val = new Float32Array(4 * nq), wid = new Float32Array(4 * nq);
+    const idx = 4 * nq > 65535 ? new Uint32Array(6 * nq) : new Uint16Array(6 * nq);
+    let nv = 0, ni = 0;
+    // each end: its place, the other end (the ribbon's way), which edge, and its light on the field's scale
+    const put = (s, o, oo, sg) => {
+      const d = s[o + 4], w = Math.max(d, SF_RIB), k = 3 * nv;
+      pos[k] = s[o]; pos[k + 1] = s[o + 1]; pos[k + 2] = s[o + 2]; q[k] = s[oo]; q[k + 1] = s[oo + 1]; q[k + 2] = s[oo + 2];
+      side[nv] = sg; wid[nv] = w; val[nv] = s[o + 3] * d * d / w / S.line; nv++;
+    };
     for (const c of F.through) for (const r of c.rays) {
       const s = r.s, n = s.length / 5;
       for (let m = 0; m + 1 < n; m++) {
         const a = 5 * m, b = 5 * (m + 1);
         if (s[a] === s[b] && s[a + 1] === s[b + 1] && s[a + 2] === s[b + 2]) continue;
-        // each end: its place, the other end (the ribbon's way), which edge, and its light on the field's scale
-        for (const [o, oo, sg] of [[a, b, 1], [a, b, -1], [b, a, -1], [b, a, 1]]) {
-          const d = s[o + 4], w = Math.max(d, SF_RIB);
-          pos.push(s[o], s[o + 1], s[o + 2]); q.push(s[oo], s[oo + 1], s[oo + 2]); side.push(sg); wid.push(w);
-          val.push(s[o + 3] * d * d / w / S.line);
-        }
-        idx.push(nv, nv + 1, nv + 2, nv, nv + 2, nv + 3); nv += 4;
+        const v0 = nv;
+        put(s, a, b, 1); put(s, a, b, -1); put(s, b, a, -1); put(s, b, a, 1);
+        idx[ni++] = v0; idx[ni++] = v0 + 1; idx[ni++] = v0 + 2; idx[ni++] = v0; idx[ni++] = v0 + 2; idx[ni++] = v0 + 3;
       }
     }
-    if (!nv) return;
     const geo = new T.BufferGeometry();
-    geo.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); geo.setAttribute('aQ', new T.Float32BufferAttribute(q, 3));
-    geo.setAttribute('aSide', new T.Float32BufferAttribute(side, 1)); geo.setAttribute('aV', new T.Float32BufferAttribute(val, 1)); geo.setAttribute('aW', new T.Float32BufferAttribute(wid, 1));
-    geo.setIndex(idx);
+    geo.setAttribute('position', new T.BufferAttribute(pos, 3)); geo.setAttribute('aQ', new T.BufferAttribute(q, 3));
+    geo.setAttribute('aSide', new T.BufferAttribute(side, 1)); geo.setAttribute('aV', new T.BufferAttribute(val, 1)); geo.setAttribute('aW', new T.BufferAttribute(wid, 1));
+    geo.setIndex(new T.BufferAttribute(idx, 1));
     const m = new T.ShaderMaterial({ vertexShader: RIB_VS, fragmentShader: RIB_FS, transparent: true, depthWrite: false, depthTest: false, side: T.DoubleSide,
       blending: T.CustomBlending, blendEquation: T.AddEquation, blendSrc: T.OneFactor, blendDst: T.OneFactor,
       uniforms: { uDepth: { value: null }, uRes: { value: new T.Vector2(1, 1) } } });
@@ -2292,6 +2310,9 @@ export const V3D = (() => {
       fieldSegs() { if (!R || !R.vol) return null; return R.vol.segs.map(s => { const P = volPlanes(s); return { two: s.two, coh: s.coh, o: s.o, e: s.e, n0: s.n, ta: s.ta, tb: s.tb, ts: [...s.ts], rmax: [...s.rmax], peak: s.peak, pl: P.pl.map(v => v.toArray()), ext: P.ext }; }); },
       // how many times the view has been drawn, and the tubes the cables and fibres are drawn with (kept while their route is)
       draws: () => (R && R.draws) || 0,
+      // (tests) the scene brought up to date (builds), its light made anew (lightBuilt) or taken as kept for a sweep's step
+      // (lightReused), and the GPU's shader programs, geometries and textures alive
+      builds: () => R ? { builds: R.builds || 0, lightBuilt: R.lightBuilt || 0, lightReused: R.lightReused || 0, programs: ((R.gl.info && R.gl.info.programs) || []).length, geometries: R.gl.info.memory.geometries, textures: R.gl.info.memory.textures } : null,
       // each fibre's tube as drawn: the box round it on the bench (mm), by the fibre's id
       fibreBoxes() { if (!R) return null; sync(); const out = {}; for (const [id, c] of R.wireCache || []) { const g = c.obj.geometry; g.computeBoundingBox(); const b = g.boundingBox; out[id] = [b.min.x, b.min.y, b.max.x, b.max.y].map(v => +v.toFixed(3)); } return out; },
       // a particle's scattered field as drawn (scatVolMeshes): its volumes; and what one frame takes, the GPU's work finished (ms)

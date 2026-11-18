@@ -13532,6 +13532,49 @@ const TESTS = [
     },
   },
   {
+    name: 'Orbiting the 3D view while a rod’s tilt sweep plays its rendered field takes each step’s light as built: nothing built again after the first cycle',
+    why: 'the page as a reader has it (workers on), in a frame of its own, in 3D: a Gaussian beam through a fused-silica rod (a dipole array), its scattered glow on, the rod’s Axis tilt up swept 0 to 180° over 6 steps on a triangle (each tilt on the way up met again on the way down) with Render the diffracted field ticked. Once rendered and a cycle played, the view is orbited for two more cycles: no step’s light is built again (the scattered glow’s volumes and ribbons, the beams), no shader program, texture or geometry is added, nothing is traced on the page, and no task on the page is longer than TASK_3D ms. A step and its twin each had a trace of its own with the same light, and the light, filed by the light alone, was built again at every step of every cycle',
+    want: 1, tol: 0, unit: '',
+    run: async () => {
+      const dev = /[?&]dev=1/.test(location.search), wait = ms => new Promise(r => setTimeout(r, ms)), TASK_3D = 200;
+      const bench = { format: 'jekray', version: 1, light: { rays: false, envelope: false, field: true, scale: 'lin', byPower: true }, elements: [
+        { type: 'source', id: 'S', name: 'Laser', x: -60, y: 0, angle: 0, wavelength: 1064, power: 100, rays: 5, width: 2, gauss: true, w0: 0.3, z0: 60 },
+        { type: 'particle', id: 'P', name: 'Rod', x: 0, y: 0, angle: 90, trapShape: 'cylinder', trapMat: 'Fused silica', trapR: 60, trapLen: 400, trapTilt: 0, scatModel: 'auto', scatDip: 4, scatLight: true, scatField: true,
+          sweeps: { trapTilt: { min: 0, max: 180, freq: 0.5, phase: 0, wave: 'triangle', field: true, steps: 6 } } },
+        { type: 'screen', id: 'D', name: 'Screen', x: 80, y: 0, angle: 0, length: 20 }] };
+      const f = document.createElement('iframe');
+      f.style.cssText = 'position:absolute;left:-5000px;top:0;width:640px;height:420px;border:0';
+      f.src = '/jek/tools/' + (dev ? 'jekray-dev.html' : 'jekray.html') + '?smooth';
+      document.body.append(f);
+      try {
+        const W = f.contentWindow;
+        for (let i = 0; i < 300 && !(W.JEKray && W.JEKray.load && W.JEKray.view3d); i++) await wait(100);
+        const J = W.JEKray, V = J.view3d;
+        J.load(bench); await wait(1500);
+        V.set(true); await wait(1500);
+        J.sweepPlay('Rod', 'trapTilt');
+        // rendered, the particle's steps solved, and playing: then a cycle (2 s) and a little more, each step seen once
+        for (let i = 0; i < 1800 && (!J.renderedSteps || J.renderedSteps() < 0 || J.activity().bench || J.activity().scat || J.sweepHold().holding); i++) await wait(100);
+        await wait(3000);
+        const b0 = V.builds(), tc0 = J.traceInfo().count;
+        const lt = [], ob = new W.PerformanceObserver(l => { for (const e of l.getEntries()) lt.push(Math.round(e.duration)); });
+        ob.observe({ type: 'longtask' });
+        // orbit for two cycles (right-drag, a frame apart)
+        const raf = () => new Promise(r => W.requestAnimationFrame(() => r()));
+        V.pointer('pointerdown', 200, 180, { button: 2, buttons: 2 });
+        const t0 = performance.now(); let k = 0;
+        while (performance.now() - t0 < 4000) { k++; V.pointer('pointermove', 200 + 2 * k, 180 + 20 * Math.sin(k / 9), { button: 2, buttons: 2 }); await raf(); }
+        V.pointer('pointerup', 200 + 2 * k, 180, { button: 2, buttons: 0 });
+        ob.disconnect();
+        const b1 = V.builds(), tc1 = J.traceInfo().count;
+        const res = { b0, b1, steps: b1.builds - b0.builds, rebuilt: b1.lightBuilt - b0.lightBuilt, reused: b1.lightReused - b0.lightReused, gpu: [b1.programs - b0.programs, b1.textures - b0.textures, b1.geometries - b0.geometries], traced: tc1 - tc0, worst: Math.max(0, ...lt), n: lt.length };
+        const ok = res.steps >= 2 && res.reused >= 2 && res.rebuilt === 0 && res.gpu.every(d => d <= 0) && res.traced === 0 && res.worst < TASK_3D;
+        console.log('orbit while a sweep plays', JSON.stringify(res));
+        return ok ? 1 : 0;
+      } finally { f.remove(); }
+    },
+  },
+  {
     name: 'Dragging a part, typing a value and playing a sweep keep the page free: no task on it longer than 200 ms',
     why: 'the page as a reader has it (its workers on, not the test rig), in a frame of its own, with each example: michelson and fabry-perot in 2D. A part is dragged for 1.5 s by pointer events a frame apart, a number typed into its panel a key at a time, the bench’s sweeps played for 2.5 s; every task on the page’s thread over 50 ms is recorded (PerformanceObserver, longtask). The worst must stay under 200 ms: twice the 100 ms within which a reply to a hand feels immediate, for the slower computers that run the tests. Here a long task is a stall the hand feels, whatever caused it',
     want: 1, tol: 0, unit: '',

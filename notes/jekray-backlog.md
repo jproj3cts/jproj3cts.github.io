@@ -79,6 +79,19 @@ together when the owner lifts the pause. Nothing on this list has been started u
 
    Check with the owner that it should still govern the Gaussian beams' envelope too, since that sits under its own
    tick. The saved field (`light.byPower`) stays, so benches open as before.
+12. **Sweeps follow the bench's own Light settings, and fill in in layers as each is ready.** From the owner:
+   - **No tick box:** remove the sweep's own "Render the diffracted field" tick. A sweep plays with however the bench is
+     set up: if the bench shows the diffracted field (Light › Show the diffracted field), the sweep sweeps it; if not,
+     it doesn't. Old benches with the tick saved must open as before, the bench's setting deciding.
+   - **Quick layers first:** while the slow layers are being worked out, the sweep plays at once with what is quick to
+     draw (part positions, rays, beams' envelopes, readings), each slow layer's progress bar showing.
+   - **The field all at once:** when every step's diffracted field is ready it is added to the playing sweep in one go,
+     not step by step as steps finish.
+   - **Scattered light likewise:** a particle's scattered light (the glow, the light to the parts, the radiation
+     pattern) is added all at once when every step of it is ready, after the field if that comes first, each with its
+     own bar meanwhile.
+   - **Overlaps:** this replaces the "hold" over 30 s (`SWEEP_HOLD_S` in `ui/sweeps.js`), which shows only the bars;
+     check that the hold's other uses still make sense. Fits with items 1–4 (changing a sweep mid-render).
 
 ## Also outstanding
 

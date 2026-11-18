@@ -24852,8 +24852,8 @@ const V3D = (() => {
   const netKey = () => JSON.stringify([project.elements.filter(e => e.bench === project.tab && NET_3D.has(e.type)).map(e => [e.id, e.x, e.y, e.angle]), (project.fibres || []).map(F => [F.a, F.b, F.path, F.route, F.ta, F.tb]), (selFibre() || {}).id || '']);
   function sync() {
     init();
-    // a tab not yet shown either way opens in 3D (2D, once chosen, stays for the visit; the tests and embedded benches start in 2D)
-    if (D && !st.has(project.tab) && !TEST_MODE && !EMBED) { st.set(project.tab, { on: false }); setOn(true); return; }
+    // a tab not yet shown either way opens in 2D (3D, once chosen, stays for the visit; a share link made in 3D opens there)
+    if (D && !st.has(project.tab)) st.set(project.tab, { on: false });
     const s = tabState();
     show();
     if (!active() || !R) return;
@@ -61426,6 +61426,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'A bench opens in <b>2D</b> again; the 2D / 3D switch at the bench\u2019s bottom right turns 3D on, and a tab keeps the view chosen for the visit.',
     'Turning the 3D view while a sweep plays its rendered field no longer stutters at each step. A sweep that comes back to a value (a triangle sweep of a rod\u2019s tilt, on its way up and down) had its light, the particle\u2019s scattered glow among it, built again at every step of every cycle; now each step\u2019s light is built once and then shown as it is. A cavity on the bench with no light to settle in is no longer solved again at every step, and the scattered light past the parts is built faster.',
     'A <b>Particle</b> can draw its radiation pattern in 3D: tick <b>Draw its radiation pattern in 3D</b> under On the bench on its Scattering tab. A see-through surface about the particle reaches out in each direction as far as it scatters that way, on a linear scale whatever the Scale, so a small sphere\u2019s doughnut and a rod\u2019s lobes can be seen, turning with the particle and following a sweep. Off unless asked for.',
     'A sweep held while its steps are worked out no longer leaves the bench stretched or blank when a panel opens or closes beside it, in 2D or 3D.',
@@ -62988,7 +62989,7 @@ const TOURS = {
     { text: 'Click the screen: its plot shows the two beams interfering. Now nudge one mirror with the arrow keys, or give its position a sweep and press Play, and watch the output rise and fall.', final: true }] },
   periscope: { title: 'Build a periscope in 3D', tab: 'Tour: periscope', steps: [
     { text: 'Add a light source: <b>+ Add part</b> (or A), then <b>Source</b>. It sends its beam to the right, 75 mm above the breadboard.', target: 'source', done: () => tourEls('source').length, after: () => tourPlace('source', -90, 0) },
-    { text: 'Click <b>3D</b> at the bench\u2019s bottom right to see the bench in three dimensions (a bench opens in 3D; 2D, beside it, is the view from above). Right-drag to turn the view, scroll to zoom.', done: () => V3D.active() },
+    { text: 'Click <b>3D</b> at the bench\u2019s bottom right to see the bench in three dimensions (a bench opens in 2D, the view from above; 3D, beside it, stays for the visit once chosen). Right-drag to turn the view, scroll to zoom.', done: () => V3D.active() },
     { text: 'Add a <b>Mirror</b>. It lands in the beam, facing the source.', target: 'mirror', done: () => tourEls('mirror').some(tourLit), before: () => tourSet('mirror', 90, 0, { angle: 180 }) },
     { text: 'Click the mirror, then click it again: its arrows give way to three rings. Drag the <b>green</b> ring up to tip the mirror 45\u00b0 (hold Shift for 15\u00b0 steps), or type 45 in its <b>Tip</b>. The beam now goes straight up.', done: () => tourEls('mirror').some(e => Math.abs((e.tip || 0) - 45) < 0.5) },
     { text: 'Add a second <b>Mirror</b>. It goes straight over the first, 100 mm higher, where the beam meets it (its <b>blue arrow</b> raises and lowers it, or type its <b>z</b>).', target: 'mirror', done: () => tourEls('mirror').length >= 2, before: () => tourSet('mirror', 90, 0, { angle: 0, z: BEAM_Z + 100 }) },

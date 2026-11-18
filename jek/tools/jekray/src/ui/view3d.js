@@ -2,7 +2,7 @@ import { particleAz } from '../core/traps.js';
 import { SPEC_L, SPEC_W } from '../parts/spectrometer.js';
 import { ffSag } from '../core/freeform.js';
 import { grinDesign } from '../core/grin.js';
-import { BEAM_Z, EMBED, TEST_MODE, clamp } from '../core/constants.js';
+import { BEAM_Z, TEST_MODE, clamp } from '../core/constants.js';
 import { fmtIrr, fmtLine } from '../core/format.js';
 import { MOD_COLOURS } from '../core/modulators.js';
 import { m2Of } from '../core/pulses.js';
@@ -300,8 +300,8 @@ export const V3D = (() => {
   const netKey = () => JSON.stringify([project.elements.filter(e => e.bench === project.tab && NET_3D.has(e.type)).map(e => [e.id, e.x, e.y, e.angle]), (project.fibres || []).map(F => [F.a, F.b, F.path, F.route, F.ta, F.tb]), (selFibre() || {}).id || '']);
   function sync() {
     init();
-    // a tab not yet shown either way opens in 3D (2D, once chosen, stays for the visit; the tests and embedded benches start in 2D)
-    if (D && !st.has(project.tab) && !TEST_MODE && !EMBED) { st.set(project.tab, { on: false }); setOn(true); return; }
+    // a tab not yet shown either way opens in 2D (3D, once chosen, stays for the visit; a share link made in 3D opens there)
+    if (D && !st.has(project.tab)) st.set(project.tab, { on: false });
     const s = tabState();
     show();
     if (!active() || !R) return;

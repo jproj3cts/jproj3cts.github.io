@@ -72,11 +72,12 @@
   .cad-more:hover { color: var(--jek-ink); }
   .cad-eye { border: 0; background: none; color: var(--jek-ink-soft); cursor: pointer; padding: 0 0.15rem; line-height: 1; display: inline-flex; align-items: center; opacity: 0; }
   .cad-eye svg.ic { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
-  .cad-flist li:hover .cad-eye, .cad-flist li:focus-within .cad-eye, .cad-eye.off, .cad-eye:focus-visible { opacity: 1; }
+  .cad-flist li:hover .cad-eye, .cad-flist li:focus-within .cad-eye, .cad-plist li:hover .cad-eye, .cad-plist li:focus-within .cad-eye, .cad-plist li.picked .cad-eye, .cad-eye.off, .cad-eye:focus-visible { opacity: 1; }
   .cad-eye:hover { color: var(--jek-ink); }
   .cad-eye.off { color: var(--jek-orange); }
   .cad-flist li.hid .nm { opacity: 0.5; }
   .cad-frow-f.picked, .cad-frow-p.picked { background: rgba(224, 137, 46, 0.18); }
+  .cad-frow-f.source { box-shadow: inset 3px 0 0 var(--jek-orange); background: rgba(224, 137, 46, 0.12); }
   .cad-rollbar { height: 0; padding: 0 !important; margin: 0.25rem 0.2rem; border-top: 4px solid var(--jek-orange); border-radius: 2px; cursor: ns-resize; list-style: none; }
   .cad-rollbar.drag { border-top-color: var(--jek-red); }
   .cad-empty { color: var(--jek-ink-soft); font-size: 0.78rem; line-height: 1.4; }

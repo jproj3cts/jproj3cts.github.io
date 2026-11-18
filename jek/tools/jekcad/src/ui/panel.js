@@ -90,6 +90,36 @@ export function toggleFeatureShown(i) {
   }
   changed();
 }
+/* ---------- the step that made what is selected ---------- */
+/* the feature a face's name comes from (a face is named after the feature that made it: "<feature>.<shape>") */
+const featOfName = nm => (nm ? String(nm).split('.')[0] : null);
+/* the feature that made a selection: a face's, the later of an edge's two faces' (or a corner's faces'), a part's
+   (named after the feature that made it), a plane's or a sketch region's own; null for the standard planes */
+export function sourceOf(s) {
+  if (!s) return null;
+  if (s.kind === 'plane') return s.feature || null;
+  if (s.kind === 'region') return s.sketch || null;
+  const M = app.result && app.result.parts.find(p => p.id === s.part);
+  const have = id => (id && app.doc.features.some(f => f.id === id) ? id : null);
+  const latest = ids => { const at = ids.map(id => app.doc.features.findIndex(f => f.id === id)).filter(i => i >= 0); return at.length ? app.doc.features[Math.max(...at)].id : null; };
+  if (M && s.kind === 'face') return have(featOfName(M.faceNames && M.faceNames[s.index]));
+  if (M && s.kind === 'edge' && M.edgeFaces && M.edgeFaces[s.index]) return latest(M.edgeFaces[s.index].map(i => featOfName(M.faceNames[i])));
+  if (M && s.kind === 'vertex' && M.edgeFaces && M.verts) {
+    // (a corner: the faces of the edges that end there, found by their meshes' ends)
+    const v = [M.verts[3 * s.index], M.verts[3 * s.index + 1], M.verts[3 * s.index + 2]], ids = [];
+    for (let j = 0; j < M.edgeGroups.length / 2; j++) { const st = M.edgeGroups[2 * j], c = M.edgeGroups[2 * j + 1]; if (!c) continue; for (const k of [st * 6, (st + c - 1) * 6 + 3]) if (Math.hypot(M.seg[k] - v[0], M.seg[k + 1] - v[1], M.seg[k + 2] - v[2]) < 1e-4) for (const i of M.edgeFaces[j] || []) ids.push(featOfName(M.faceNames[i])); }
+    return latest(ids);
+  }
+  if (s.part) return have(String(s.part).split(/[.']/)[0]);
+  return null;
+}
+/* the rows of the steps that made what is selected marked, and the first of them brought into view */
+function markSources() {
+  const ids = new Set(app.sketch || app.asm || app.drw ? [] : app.sel.map(sourceOf).filter(Boolean));
+  let first = null;
+  for (const r of document.querySelectorAll('#featureList .cad-frow-f[data-id]')) { const on = ids.has(r.dataset.id); r.classList.toggle('source', on); if (on && !first) first = r; }
+  if (first) first.scrollIntoView({ block: 'nearest' });
+}
 /* ---------- the feature list ---------- */
 export function renderPanel() {
   const list = document.getElementById('featureList');
@@ -125,6 +155,7 @@ export function renderPanel() {
   if (n >= doc.features.length) rows.push(bar());
   if (!doc.features.length) rows.push(h('li', { class: 'cad-empty' }, 'No features yet. Start with Sketch: click a plane, draw, dimension, finish; then Extrude.'));
   list.replaceChildren(...rows);
+  markSources();
   wireRollbar(list);
   renderParts();
   emit('icons', list);
@@ -212,7 +243,7 @@ let measureWide = null;
 const measureOpen = () => { if (measureWide !== null) return measureWide; try { return localStorage.getItem(MEASURE_KEY) !== 'shut'; } catch (err) { return true; } };
 export function wirePanel() {
   on('model', renderPanel); on('doc', renderPanel); on('history', renderPanel); on('editing', renderPanel); on('sketch', renderPanel);
-  on('sel', () => { renderParts(); measureShown(); for (const r of document.querySelectorAll('.cad-frow-p[data-plane]')) r.classList.toggle('picked', app.sel.some(s => s.kind === 'plane' && s.std === r.dataset.plane)); }); on('model', measureShown);
+  on('sel', () => { renderParts(); measureShown(); markSources(); for (const r of document.querySelectorAll('.cad-frow-p[data-plane]')) r.classList.toggle('picked', app.sel.some(s => s.kind === 'plane' && s.std === r.dataset.plane)); }); on('model', measureShown);
   // (only the mark changes: the rows are not made again, or the second click of a double-click would land on a new row
   // and the double-click, which edits the feature, would never come)
   on('picked', () => { for (const r of document.querySelectorAll('.cad-frow-f')) r.classList.toggle('picked', r.dataset.id === app.picked); });

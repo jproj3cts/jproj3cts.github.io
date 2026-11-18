@@ -6,6 +6,8 @@ import { h } from '../../../jekray/src/ui/dom.js';
 export const APP_VERSION = '0.11.0';
 export const NEWS = [
   { v: '0.11.0', date: '17 Nov 2026', items: [
+    'Select a face, an edge or a region and the feature that made it is marked in the list.',
+    'A mate is deleted from its row: click it and press Delete, right-click it, or Delete in its panel. The buttons on the assembly’s rows now show when you point at them.',
     '<b>My parts</b>: a part’s ⋯ menu in a Part Studio has Save to My parts. An Assembly’s Insert lists the parts kept there, and inserting one brings its Part Studio into the document as a tab.',
     'Fixed: on some parts, every fillet and chamfer failed after an extrude or a cut, whatever the size.',
     'Fixed: a line in a sketch from one hole to another (a centre line not made construction) left a cut of no width in the solid, and the holes’ edges could not be filleted or chamfered.',

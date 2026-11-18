@@ -64,7 +64,7 @@ Two flat faces meet face to face. Two round faces line up with their axes the sa
 
 Mates are solved again whenever a part moves, so a dragged part goes only where its mates let it. A mate that cannot hold with the others is refused and nothing changes.
 
-Each mate has a row in the list, with buttons to flip it, suppress it and delete it. A mate remembers its faces: when the part changes in its Part Studio, the mate follows the face.
+Each mate has a row in the list. Point at the row for its buttons: flip, suppress and delete. To delete a mate, click its row and press Delete, right-click the row and choose **Delete**, or double-click it and click **Delete** in its panel. Undo brings it back. A mate remembers its faces: when the part changes in its Part Studio, the mate follows the face.
 
 ## Offsets and limits
 

@@ -44,6 +44,14 @@ together when the owner lifts the pause. Nothing on this list has been started u
    screen's face map is worked out again on the page for every frame (not rendered ahead or kept per step like the
    bench's field), or the tip sweep, not rendered ahead, forces it live. No particle is involved, so this belongs with
    item 4's general search.
+8. **Redesign the electrical feedthrough.** Owner: it "shouldn't have two connectors", because a signal wired in one
+   side does not come out of the other on the same tab, which is confusing. Seen: a signal generator into a
+   feedthrough's input, its output to an oscilloscope's ch1: nothing reaches ch1. As built (`engines/elec.js`, kind
+   `thru`): it has an `in` and an `out`, and its out gives what goes into its *partner on another tab* (feedthroughs
+   pair by name, as fibre feedthroughs and link planes do); with no partner it gives zero and a note. To design with the
+   owner: likely one connector per side of the wall, i.e. each feedthrough a single port on its tab and the pair the
+   two ends of one wire, signals going both ways, plus a clear note when its partner is missing. Check the fibre
+   feedthrough (`engines/fibre.js`) and link planes for the same confusion, and keep old benches opening.
 
 ## Also outstanding
 

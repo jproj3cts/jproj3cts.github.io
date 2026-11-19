@@ -92,6 +92,10 @@ together when the owner lifts the pause. Nothing on this list has been started u
      own bar meanwhile.
    - **Overlaps:** this replaces the "hold" over 30 s (`SWEEP_HOLD_S` in `ui/sweeps.js`), which shows only the bars;
      check that the hold's other uses still make sense. Fits with items 1–4 (changing a sweep mid-render).
+13. **In 3D, zoom towards the point being orbited while orbiting.** Holding the right button orbits a point, which the
+   owner likes, but the scroll wheel still zooms towards wherever the cursor is. While an orbit is held (and perhaps
+   for a moment after), zoom should go in and out towards the orbit's centre. Check the trackpad and touch gestures do
+   the same, and that zoom without an orbit still goes towards the cursor.
 
 ## Also outstanding
 

@@ -140,4 +140,4 @@ export function setParam(el, path, v) {
   }
 }
 
-export const SWEEP_STEPS_MAX = 240;
+export const SWEEP_STEPS_MAX = 600;           // a sweep's steps a cycle, at most: enough for 30 a second at a 20 s cycle

@@ -1,7 +1,7 @@
 import { app, emit, redo, toast, undo } from './app.js';
 import { V, fit, normalTo, orbit, pan, pickAt, pickBox, viewFrom, zoomAt } from './view3d.js';
 import { drwDown, drwKey, drwMove, drwUp, drwWheel } from './drawing.js';
-import { AS, asmDragEnd, asmDragMove, asmDragStart, deleteInstance, matePick, triadAt } from './assembly.js';
+import { AS, asmDragEnd, asmDragMove, asmDragStart, deleteInstance, deleteMate, matePick, triadAt } from './assembly.js';
 import { modelDimAt, modelDimEdit, modelDimHover, overlayPick, setBoxSel, sketchDbl, sketchDown, sketchKey, sketchMove, sketchRight, sketchUp } from './sketcher.js';
 import { closeDialog, editFeature, fieldPick, fieldWants, okDialog, openFeature } from './dialog.js';
 import { kernelAsk } from '../page/kernel.js';
@@ -149,6 +149,8 @@ export function wirePointer() {
     if (k === 'escape') { if (app.editing) closeDialog(); else if (app.sel.length || app.picked) { app.sel = []; app.picked = null; emit('sel'); emit('picked'); } return; }
     if (k === 'enter' && app.editing && !app.editing.sketchPlane) { okDialog(); return; }
     // Delete, with whole parts selected (the Parts filter, or their rows): they are deleted
+    // (in an assembly, a mate's row chosen: that mate; else the parts selected)
+    if ((k === 'delete' || k === 'backspace') && app.asm && AS.mateSel && !AS.mate) { deleteMate(AS.mateSel); return; }
     if ((k === 'delete' || k === 'backspace') && app.asm) { for (const id of new Set(app.sel.map(s => s.part).filter(Boolean))) deleteInstance(id); return; }
     if ((k === 'delete' || k === 'backspace') && !app.editing && app.sel.length && app.sel.every(s => s.kind === 'part')) { for (const s of app.sel.slice()) deletePart(s.part); return; }
     if (k === 'f') { fit(); return; }

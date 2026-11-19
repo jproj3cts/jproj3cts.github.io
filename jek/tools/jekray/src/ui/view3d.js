@@ -3,6 +3,7 @@ import { SPEC_L, SPEC_W } from '../parts/spectrometer.js';
 import { ffSag } from '../core/freeform.js';
 import { grinDesign } from '../core/grin.js';
 import { BEAM_Z, TEST_MODE, clamp } from '../core/constants.js';
+import { SWEEP_STEPS_MAX } from '../state/params.js';
 import { fmtIrr, fmtLine } from '../core/format.js';
 import { MOD_COLOURS } from '../core/modulators.js';
 import { m2Of } from '../core/pulses.js';
@@ -865,7 +866,7 @@ export const V3D = (() => {
     lightSigs.set(Tr, v);
     return v;
   }
-  const LIGHT_KEEP = 128;                                 // a sweep's steps' light kept built (each a few meshes and textures)
+  const LIGHT_KEEP = 256;                                 // a sweep's steps' light kept built (each a few meshes and textures)
   function build() {
     const G = R.groups;
     R.builds = (R.builds || 0) + 1;
@@ -2389,7 +2390,7 @@ export const V3D = (() => {
 const volKey = (pk, tab, bb) => pk + '|' + tab + '|' + bb.map(v => Math.round(v)).join();
 /* the volumes kept: every step of the longest sweep (SWEEP_STEPS_MAX) and a few more, within a memory budget (a sweep
    of 120 steps that kept only 64 lost its own first steps each cycle, and each was worked out again as it played) */
-const VOL_KEEP = 256, VOL_BYTES = 200e6;
+const VOL_KEEP = SWEEP_STEPS_MAX + 16, VOL_BYTES = 200e6;
 const volBytes = d => (d && d.segs ? d.segs.reduce((n, s) => n + (s.I ? s.I.length * (s.I.BYTES_PER_ELEMENT || 8) : 0), 0) : 0) + 512;
 function volKeep(key, d) {
   d.id = ++VOL.n; d.bytes = volBytes(d);

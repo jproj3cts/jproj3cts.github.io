@@ -253,8 +253,9 @@ function sweepControls(el, path, sw, label) {
       // rendering or playing its field: rendered again at the new steps, then played on (not left working it out live)
       sweepStepsChanged();
     }, { blank: null });
-    bindSync(inp, () => { inp.placeholder = sweepShowsField() ? String(fieldFramesOf(Object.assign({}, sw, { steps: 0 }))) : 'smooth'; });
-    range.append(h('div', { class: 'rt-f', title: 'Blank plays smoothly; a number steps through that many positions a cycle' }, h('label', { for: id }, 'Steps'), inp));
+    // (blank: the automatic count, about 30 a second at its rate, shown as the placeholder)
+    bindSync(inp, () => { inp.placeholder = 'auto (' + fieldFramesOf(Object.assign({}, sw, { steps: 0 })) + ')'; });
+    range.append(h('div', { class: 'rt-f', title: 'The positions it steps through a cycle. Blank: automatic, enough to look smooth at its rate (about 30 a second); every cycle comes back to the same ones, so each is worked out once' }, h('label', { for: id }, 'Steps'), inp));
   }
   // the diffracted field: rendered ahead for the steps when the bench shows it (Light › Show the diffracted field), the
   // sweep playing meanwhile without it, added once every step's is there (ui/sweeps.js: a sweep plays in layers)

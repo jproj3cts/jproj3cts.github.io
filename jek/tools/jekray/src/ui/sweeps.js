@@ -121,13 +121,13 @@ function startLoop() {
 }
 /* Sweeps playing on steps of their own (no field rendered ahead), all at one rate and number of steps: the particles'
    scattering for each step solved ahead, as the play will set it (ui/optimise.js tick), so a step that takes longer to
-   solve than it is shown is ready when it comes round. A sweep gliding (no steps) is solved as it goes. */
+   solve than it is shown is ready when it comes round. (A sweep with no Steps set plays on its automatic steps: the same.) */
 function aheadPlain() {
   const list = [...playing.values()].map(p => [getEl(p.id), p.path]).filter(([e, p]) => e && e.sweeps && e.sweeps[p]);
   if (!list.length || !project.elements.some(e => e.type === 'particle')) return;
   const sw0 = list[0][0].sweeps[list[0][1]];
-  if (!(sw0.steps > 0) || list.some(([e, p]) => e.sweeps[p].steps !== sw0.steps || e.sweeps[p].freq !== sw0.freq)) return;
-  const n = sw0.steps;
+  const n = fieldFramesOf(sw0);
+  if (list.some(([e, p]) => fieldFramesOf(e.sweeps[p]) !== n || e.sweeps[p].freq !== sw0.freq)) return;
   // (it plays at once; the particles' scattered light is added when every step's is solved: scatLayerHeld)
   const run = particlesAhead(list, n, (e, p, i) => stepValue(e.sweeps[p], i, n, 1 / e.sweeps[p].freq), () => list.every(([e, p]) => getEl(e.id) && e.sweeps && e.sweeps[p] && playing.has(sweepKey(e, p))));
   Promise.resolve(run).then(() => { requestRender(); syncPanel(); });
@@ -277,7 +277,8 @@ export function syncPhases() {
    worked out live, as it always was. */
 export const FIELD_FRAMES = 48;               // samples per cycle at the least, unless a sweep sets its steps
 /* the samples a cycle a sweep's field is rendered at, unless it sets its own steps: enough to play at about 30
-   a second (a slow sweep needs more of them to glide rather than step), from FIELD_FRAMES to SWEEP_STEPS_MAX */
+   a second (a slow sweep needs more of them to glide rather than step), from FIELD_FRAMES to SWEEP_STEPS_MAX. A sweep with
+   no Steps set plays on these steps whether or not the field is rendered (ui/optimise.js tick) */
 export const fieldFramesOf = sw => (sw && sw.steps) || clamp(Math.round(30 / ((sw && sw.freq) || 1)), FIELD_FRAMES, SWEEP_STEPS_MAX);
 const FIELD_KEEP = 400;                // rendered fields kept, oldest dropped first
 export const fieldFrames = { bench: new Map(), screens: new Map(), closeup: new Map() };

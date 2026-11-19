@@ -13592,6 +13592,60 @@ const TESTS = [
       } finally { f.remove(); }
     },
   },
+  {
+    name: 'A sweep with no Steps plays on its automatic fixed steps: only those values, its second cycle traces and solves nothing, its particle’s light added all at once',
+    why: 'the reader’s page: a lens swept in y at 0.5 Hz with Steps blank (automatic: about 30 a second, 60 a cycle) before a fused-silica sphere (Mie), the field shown; then the same lens with the field off and no particle (nothing rendered ahead). Every value the lens takes while it plays is one of the cycle’s 60 fixed steps (as stepValue gives them); the particle’s light is held until every step’s answer is in, then shown at every frame; and over a cycle after that nothing is traced or solved on the page (each step’s trace and answer kept). Before, a sweep with no Steps took a new value at every frame: traced each frame, its particle solved live and lagging (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async () => {
+      const dev = /[?&]dev=1/.test(location.search), wait = ms => new Promise(r => setTimeout(r, ms));
+      const sw = { min: -0.2, max: 0.2, freq: 0.5, phase: 0, wave: 'sine' };
+      const mk = withP => ({ format: 'jekray', version: 1, light: { rays: true, envelope: false, field: withP, scale: 'lin', byPower: true }, elements: [
+        { type: 'source', id: 'S', name: 'Laser', x: -60, y: 0, angle: 0, wavelength: 1064, power: 100, rays: 7, width: 2, gauss: true, w0: 0.4, popN: 64 },
+        { type: 'lens', id: 'L', name: 'Lens', x: -20, y: 0, angle: 0, f: 30, length: 20, sweeps: { y: sw } },
+        ...(withP ? [{ type: 'particle', id: 'P', name: 'Sphere', x: 10, y: 0, angle: 90, trapShape: 'sphere', trapMat: 'Fused silica', trapR: 150, scatModel: 'mie', scatLight: true }] : []),
+        { type: 'screen', id: 'D', name: 'Screen', x: 60, y: 0, angle: 0, length: 20 }] });
+      const f = document.createElement('iframe');
+      f.style.cssText = 'position:absolute;left:-5000px;top:0;width:900px;height:600px;border:0';
+      f.src = '/jek/tools/' + (dev ? 'jekray-dev.html' : 'jekray.html') + '?layers';
+      document.body.append(f);
+      try {
+        const W = f.contentWindow;
+        for (let i = 0; i < 300 && !(W.JEKray && W.JEKray.load && W.JEKray.layers); i++) await wait(100);
+        const J = W.JEKray, raf = () => new Promise(r => W.requestAnimationFrame(() => r()));
+        J.load(mk(true)); await wait(1200);
+        // the fixed steps: 60 a cycle at 0.5 Hz (30 a second), the sweep's own sine through them
+        const n = 60, fixed = Array.from({ length: n }, (_, i) => sw.min + (sw.max - sw.min) * (1 - Math.cos(2 * Math.PI * i / n)) / 2);
+        const onStep = y => fixed.some(v => Math.abs(v - y) < 1e-12);
+        J.sweepPlay('Lens', 'y');
+        let frames = 0, off = 0, heldSeen = 0, scatBad = 0, scatAt = null, gap = 0; const ys = new Set(), t0 = performance.now();
+        while (performance.now() - t0 < 60000) {
+          await raf(); frames++;
+          const y = J.byName('Lens').y, L = J.layers(); ys.add(y); if (!onStep(y)) off++;
+          if (L.scatHeld) { heldSeen++; if (L.scat.some(s => s === 'ok' || s === 'stale')) scatBad++; }
+          else if (scatAt === null) scatAt = performance.now(); else if (!L.scat.every(s => s === 'ok')) gap++;
+          if (scatAt !== null && performance.now() - scatAt > 2500) break;
+        }
+        // a cycle more: nothing traced or solved
+        const c0 = J.traceInfo().count, s0 = J.scatStats(); let off2 = 0; const t1 = performance.now();
+        while (performance.now() - t1 < 2200) { await raf(); if (!onStep(J.byName('Lens').y)) off2++; }
+        const s1 = J.scatStats(), traced = J.traceInfo().count - c0, solved = (s1.mieDone - s0.mieDone) + (s1.mieCombined - s0.mieCombined);
+        J.sweepPause();
+        // with the field off and no particle (nothing rendered ahead): the same fixed steps, and its second cycle traced from those kept
+        J.load(mk(false)); await wait(800);
+        J.sweepPlay('Lens', 'y');
+        let off3 = 0; const t2 = performance.now(), ys3 = new Set();
+        while (performance.now() - t2 < 2300) { await raf(); const y = J.byName('Lens').y; ys3.add(y); if (!onStep(y)) off3++; }
+        const c3 = J.traceInfo().count, t3 = performance.now();
+        while (performance.now() - t3 < 2200) { await raf(); if (!onStep(J.byName('Lens').y)) off3++; }
+        const traced3 = J.traceInfo().count - c3;
+        J.sweepPause();
+        const res = { frames, off, off2, distinct: ys.size, heldSeen, scatBad, scatAt: scatAt !== null, gap, traced, solved, off3, distinct3: ys3.size, traced3 };
+        const ok = off === 0 && off2 === 0 && ys.size >= 10 && heldSeen >= 2 && scatBad === 0 && scatAt !== null && gap === 0 && traced === 0 && solved === 0 && off3 === 0 && ys3.size >= 10 && traced3 === 0;
+        console.log('sweep layers: glide', JSON.stringify(res));
+        return ok ? 1 : 0;
+      } finally { f.remove(); }
+    },
+  },
   { group: 'Smoothness' },
   {
     name: 'A field sweep whose frames would not fit in memory renders every so many steps, keeps within the budget, and plays',

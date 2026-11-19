@@ -2,11 +2,11 @@ import { clamp } from '../core/constants.js';
 import { fmtFs, fmtFs2, fmtLen } from '../core/format.js';
 import { project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
-import { paraxial, traceScene, traceStoreOn } from '../engines/trace.js';
+import { paraxial, traceScene } from '../engines/trace.js';
 import { getCss, inkA, requestRender } from './render.js';
 import { getPath, setParam } from '../state/params.js';
 import {
-  allSweeps, animLast, clockT, clockValueAt, fieldRendered, pauseAll, playStep, playing,
+  allSweeps, animLast, clockT, fieldFramesOf, fieldRendered, pauseAll, playStep, playing,
   renderedPeriod, sampleShown, setAnimFrame, setAnimLast, setClockT, setPlayStep, setStepSince,
   stepSince, stepValue, sweepHoldTick, sweepJob
 } from './sweeps.js';
@@ -513,14 +513,12 @@ export function tick(t) {
     const el = getEl(p.id);
     const sw = el && el.sweeps && el.sweeps[p.path];
     if (!sw || getPath(el, p.path) === undefined) { playing.delete(k); continue; }
-    // a sweep with steps of its own, not rendered ahead: from one of its positions to the next; a
-    // gliding one, where each step's trace is kept, on steps fine enough to look smooth (up to
-    // about 60 a second) so that each comes round again
-    const st = !P && sw.steps ? sw.steps * sw.freq : !P && traceStoreOn() ? clamp(Math.round(60 / sw.freq), 120, 600) * sw.freq : 0;
-    // (a sweep of its own steps: the step by its number in the cycle, as stepValue has it, so each cycle comes back to the very
-    // same values, and a particle's answers solved ahead for them are found: ui/scatter.js particlesAhead)
-    const own = !P && sw.steps > 0 ? Math.round(clockT * st) : null;
-    setParam(el, p.path, P ? stepValue(sw, tq, fieldRendered.n, P) : own !== null ? stepValue(sw, ((own % sw.steps) + sw.steps) % sw.steps, sw.steps, 1 / sw.freq) : clockValueAt(sw, st ? Math.round(clockT * st) / st : tq));
+    // every sweep plays on a fixed set of steps a cycle: its own Steps, or with none set the automatic count (fieldFramesOf:
+    // about 30 a second at its rate, at least FIELD_FRAMES), the same points its field is rendered at. The step by its
+    // number in the cycle, as stepValue has it, so each cycle comes back to the very same values: each step's trace, 3D
+    // light and particle's answer are kept and found again, and the rays match the field rendered for the step
+    const n = fieldFramesOf(sw), own = P ? 0 : Math.round(clockT * n * sw.freq);
+    setParam(el, p.path, P ? stepValue(sw, tq, fieldRendered.n, P) : stepValue(sw, ((own % n) + n) % n, n, 1 / sw.freq));
   }
   // traced before the panels look: a screen's field is found by the bench as traced, and a
   // trace a step behind its parts asks for a field no step has (worked out live, every step)

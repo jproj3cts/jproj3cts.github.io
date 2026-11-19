@@ -1156,7 +1156,7 @@ export function makeKernel(oc) {
     const vp = props(b.shape, 'v'), ap = props(b.shape, 'a');
     const faceKinds = b.faces.map(f => surfType(f)), edgeKinds = b.edges.map(e => curveType(e));
     flush();
-    const m = { id, pos, nrm, idx, faceGroups, seg: seg.subarray(0, at * 6), edgeGroups, verts, faceKinds, edgeKinds, faceNames: b.names.map(n => n[0]), volume: vp.m, area: ap.m, centroid: vp.c, bbox: bb };
+    const m = { id, pos, nrm, idx, faceGroups, seg: seg.subarray(0, at * 6), edgeGroups, verts, faceKinds, edgeKinds, faceNames: b.names.map(n => n[0]), edgeFaces: b.edgeFaces.map(L => L.slice(0, 2)), volume: vp.m, area: ap.m, centroid: vp.c, bbox: bb };
     meshes.set(b, m);
     return m;
   }

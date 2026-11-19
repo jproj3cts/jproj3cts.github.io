@@ -19,7 +19,7 @@ import { V, camAxes, fit, project } from './view3d.js';
    ========================================================================== */
 const STUDIO = new Map();       // a studio's tab id → { key, parts } (its parts' meshes, as the kernel sent them)
 const BAKED = new Map();        // an instance's id → { key, part } (its mesh where the instance puts it)
-export const AS = { mate: null, drag: null, insertBusy: false, clash: null };
+export const AS = { mate: null, drag: null, insertBusy: false, clash: null, mateSel: null };   // mateSel: the mate whose row is chosen (Delete takes it away)
 const tabOf = id => app.file.tabs.find(t => t.id === id);
 const studios = () => app.file.tabs.filter(t => t.kind === 'studio');
 /* a studio's parts, regenerated if it has changed since they were last made */
@@ -181,11 +181,13 @@ function tabDragStart(e, btn) {
 }
 let tabMenu = null;
 function closeTabMenu() { if (tabMenu) { tabMenu.remove(); tabMenu = null; } }
-function openTabMenu(at, items) {
+function openTabMenu(at, items, xy) {
   closeTabMenu();
   tabMenu = h('div', { class: 'rt-menu cad-tabmenu', role: 'menu' }, ...items.map(([label, fn]) => h('button', { type: 'button', role: 'menuitem', onclick: () => { closeTabMenu(); fn(); } }, label)));
   document.body.append(tabMenu);
-  const r = at.getBoundingClientRect();
+  const r = at ? at.getBoundingClientRect() : null;
+  // (beside the pointer, for a list's row; above the tab, for the tabs along the foot of the view)
+  if (xy) { tabMenu.style.left = Math.max(4, Math.min(window.innerWidth - 190, xy[0])) + 'px'; tabMenu.style.top = Math.max(4, Math.min(window.innerHeight - 160, xy[1])) + 'px'; return; }
   tabMenu.style.left = Math.max(4, Math.min(window.innerWidth - 190, r.left)) + 'px'; tabMenu.style.bottom = (window.innerHeight - r.top + 4) + 'px';
 }
 export function renderTabs() {
@@ -356,11 +358,19 @@ function matePanel() {
     h('div', { class: 'cad-fhead' }, h('span', { class: 'cad-fkind', 'data-icon': 'mate' }, 'Mate')),
     h('div', { class: 'cad-fbody' }, kinds, h('p', { class: 'cad-fstatus' }, FREE[M0.t]), box('a', 'This part’s face, edge or corner'), box('b', 'goes to this one'), ...extra,
       h('label', { class: 'cad-check' }, h('input', Object.assign({ type: 'checkbox', id: 'mateFlip', onchange: e => { M0.flip = e.target.checked; } }, M0.flip ? { checked: '' } : {})), ' Flip (the other way round)')),
-    h('div', { class: 'cad-factions' }, h('button', { type: 'button', class: 'rt-btn', id: 'mateCancel', onclick: () => { mateClose(); app.sel = []; emit('sel'); } }, 'Cancel'), h('button', Object.assign({ type: 'button', class: 'rt-btn primary', id: 'mateOk', onclick: mateApply }, M0.a && M0.b ? {} : { disabled: '' }), M0.edit ? '✓ Change' : '✓ Mate')));
+    h('div', { class: 'cad-factions' }, M0.edit ? h('button', { type: 'button', class: 'rt-btn quiet', id: 'mateDelete', title: 'Delete this mate', onclick: () => deleteMate(M0.edit) }, 'Delete') : null, h('button', { type: 'button', class: 'rt-btn', id: 'mateCancel', onclick: () => { mateClose(); app.sel = []; emit('sel'); } }, 'Cancel'), h('button', Object.assign({ type: 'button', class: 'rt-btn primary', id: 'mateOk', onclick: mateApply }, M0.a && M0.b ? {} : { disabled: '' }), M0.edit ? '✓ Change' : '✓ Mate')));
   if (old) old.replaceWith(panel); else document.getElementById('stage').append(panel);
   emit('icons', panel);
 }
-export function deleteMate(id) { const A = app.asm; if (!A || !editGate()) return; checkpoint(); A.mates = A.mates.filter(m => m.id !== id); changed(); }
+export function deleteMate(id) {
+  const A = app.asm;
+  if (!A || !A.mates.some(m => m.id === id) || !editGate()) return false;
+  checkpoint(); A.mates = A.mates.filter(m => m.id !== id);
+  if (AS.mateSel === id) AS.mateSel = null;
+  if (AS.mate && AS.mate.edit === id) mateClose();
+  changed(); toast('Deleted the mate: Undo brings it back');
+  return true;
+}
 export function toggleMate(id, key) {
   const A = app.asm, m = A && A.mates.find(x => x.id === id);
   if (!m || !editGate()) return;
@@ -384,7 +394,11 @@ export function renderAsm() {
     ib('pin', I.fixed ? 'Let this part move' : 'Fix this part where it is', () => { if (!editGate()) return; checkpoint(); if (I.fixed) delete I.fixed; else I.fixed = true; changed(); }, !I.fixed),
     ib(I.hidden ? 'eyeoff' : 'eye', I.hidden ? 'Show' : 'Hide', () => { if (!editGate()) return; checkpoint(); if (I.hidden) delete I.hidden; else I.hidden = true; changed(); }, I.hidden),
     ib('trash', 'Take this part out of the assembly', () => deleteInstance(I.id))));
-  const mates = A.mates.map(m => { const a = A.instances.find(I => I.id === m.a.inst), b = A.instances.find(I => I.id === m.b.inst); return h('li', { class: 'cad-irow' + (m.suppressed ? ' hid' : ''), 'data-mateid': m.id, title: MATE_NAMES[m.t] + ': ' + (a ? instName(a) : '?') + ' to ' + (b ? instName(b) : '?') + (m.off ? ', ' + fmtNum(m.off, 3) + ' mm apart' : '') + (m.lo !== undefined || m.hi !== undefined ? ', limited' : '') + '. Double-click to change it.', ondblclick: e => { if (!e.target.closest('button')) mateEdit(m.id); } },
+  const mateMenu = (m, xy) => openTabMenu(null, [['Edit…', () => mateEdit(m.id)], ['Flip', () => toggleMate(m.id, 'flip')], [m.suppressed ? 'Unsuppress' : 'Suppress', () => toggleMate(m.id, 'suppressed')], ['Delete', () => deleteMate(m.id)]], xy);
+  const mates = A.mates.map(m => { const a = A.instances.find(I => I.id === m.a.inst), b = A.instances.find(I => I.id === m.b.inst); return h('li', { class: 'cad-irow' + (m.suppressed ? ' hid' : '') + (AS.mateSel === m.id ? ' picked' : ''), 'data-mateid': m.id, title: MATE_NAMES[m.t] + ': ' + (a ? instName(a) : '?') + ' to ' + (b ? instName(b) : '?') + (m.off ? ', ' + fmtNum(m.off, 3) + ' mm apart' : '') + (m.lo !== undefined || m.hi !== undefined ? ', limited' : '') + '. Click to choose it (Delete takes it away), double-click to change it, right-click for more.',
+    onclick: e => { if (e.target.closest('button')) return; AS.mateSel = AS.mateSel === m.id ? null : m.id; renderAsm(); },
+    oncontextmenu: e => { e.preventDefault(); AS.mateSel = m.id; renderAsm(); mateMenu(m, [e.clientX, e.clientY]); },
+    ondblclick: e => { if (!e.target.closest('button')) mateEdit(m.id); } },
     h('span', { class: 'ic2', 'data-icon': 'mate' }), h('span', { class: 'nm' }, m.name + ' · ' + (a ? instName(a) : '?') + ' → ' + (b ? instName(b) : '?')),
     ib('flip', 'Flip: the other way round', () => toggleMate(m.id, 'flip'), !m.flip),
     ib(m.suppressed ? 'eyeoff' : 'eye', m.suppressed ? 'Unsuppress' : 'Suppress', () => toggleMate(m.id, 'suppressed'), m.suppressed),

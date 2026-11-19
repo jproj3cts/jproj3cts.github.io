@@ -1027,6 +1027,54 @@ export async function check(pw, base, shots) {
       const r = await routed(app), last = r.opened.slice(-1)[0];
       ok('Opened by its link in ' + app + ': handed to JEKcad’s tab', last && last[0] === '/jek/tools/jekcad.html#cloud=bcad' && last[1] === 'jekcad', JSON.stringify(r.opened));
     }
+    // what is selected shows the step that made it: a fillet's face its Fillet, the top its Extrude, an edge between
+    // them the later (the Fillet), a region of the sketch its Sketch; in an assembly a mate is deleted from its row
+    {
+      const q = await b.newPage({ viewport: { width: 1400, height: 880 } }), qe = [];
+      q.on('pageerror', e => qe.push(e.message));
+      await q.goto(base + '/jek/tools/jekcad.html?test');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      const settle = async () => { await q.waitForTimeout(250); await q.waitForFunction(() => !window.JEKcad.app.busy, null, { timeout: 20000 }).catch(() => {}); await q.waitForTimeout(150); };
+      const d = newDoc(), sk = rectSketch(d, 40, 20), ex = newFeature(d, 'extrude', { sketch: sk.id, regions: [[1, 1]], depth: '10' });
+      d.features.push(sk, ex);
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d)); await settle();
+      // a fillet on the upright edge at x = 40, y = 20
+      const fid = await q.evaluate(async () => {
+        const J = window.JEKcad, p0 = J.app.result.parts[0];
+        let best = -1, bd = 1e9;
+        for (let j = 0; j < p0.edgeGroups.length / 2; j++) { const s = p0.edgeGroups[2 * j], c = p0.edgeGroups[2 * j + 1]; if (!c) continue; const m = (s + Math.floor(c / 2)) * 6, x = (p0.seg[m] + p0.seg[m + 3]) / 2, y = (p0.seg[m + 1] + p0.seg[m + 4]) / 2, z = (p0.seg[m + 2] + p0.seg[m + 5]) / 2, dd = Math.hypot(x - 40, y - 20, z - 5); if (dd < bd) { bd = dd; best = j; } }
+        const refs = await J.kernel('refs', { picks: [{ part: p0.id, kind: 'edge', index: best }] });
+        J.checkpoint(); J.app.doc.features.push({ id: 'ffil1', type: 'fillet', name: 'Fillet 1', edges: refs, radius: '3' }); J.changed();
+        return 'ffil1';
+      });
+      await settle();
+      const marked = sel => q.evaluate(s => { const J = window.JEKcad; J.app.sel = s; J.selectPick(null, true); return [...document.querySelectorAll('#featureList .cad-frow-f.source')].map(r => r.dataset.id); }, sel);
+      const faces = await q.evaluate(() => { const p0 = window.JEKcad.app.result.parts[0]; return { id: p0.id, names: p0.faceNames, ef: p0.edgeFaces }; });
+      const fi = faces.names.findIndex(n => n.startsWith(fid + '.')), ti = faces.names.findIndex(n => n === ex.id + '.end');
+      const ei = faces.ef.findIndex(L => L.includes(fi) && L.includes(ti));
+      const onFillet = await marked([{ part: faces.id, kind: 'face', index: fi }]), onTop = await marked([{ part: faces.id, kind: 'face', index: ti }]);
+      const onEdge = await marked([{ part: faces.id, kind: 'edge', index: ei }]), onRegion = await marked([{ kind: 'region', sketch: sk.id, pt: [1, 1] }]), none = await marked([]);
+      ok('A face, an edge or a region selected marks the step that made it in the list', fi >= 0 && ti >= 0 && ei >= 0 && onFillet.join() === fid && onTop.join() === ex.id && onEdge.join() === fid && onRegion.join() === sk.id && !none.length, JSON.stringify([fi, ti, ei, onFillet, onTop, onEdge, onRegion, none]));
+      // mates: two parts in an assembly, a mate between them; its row chosen and Delete, its menu's Delete, its panel's Delete
+      const d2 = newDoc(), s1 = rectSketch(d2, 40, 20), s2 = rectSketch(d2, 10, 10, null, [60, 0]);
+      d2.features.push(s1, newFeature(d2, 'extrude', { sketch: s1.id, regions: [[1, 1]], depth: '10', op: 'new' }), s2, newFeature(d2, 'extrude', { sketch: s2.id, regions: [[61, 1]], depth: '15', op: 'new' }));
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d2)); await settle();
+      await q.evaluate(() => window.JEKcad.addTab('assembly')); await settle();
+      await q.click('[data-asm="insert"]'); await q.waitForSelector('.cad-insrow', { timeout: 15000 }).catch(() => {});
+      for (const r of await q.$$('.cad-insrow')) { await r.click(); await settle(); }
+      await q.click('#asmInsertClose'); await settle();
+      const addMate = () => q.evaluate(() => { const J = window.JEKcad, A = J.app.asm; J.checkpoint(); A.mates.push({ id: 'm' + A.mates.length + Date.now(), t: 'fastened', name: 'Fastened 1', a: { inst: A.instances[0].id, c: { o: [0, 0, 10], z: [0, 0, 1], x: [1, 0, 0] } }, b: { inst: A.instances[1].id, c: { o: [65, 5, 15], z: [0, 0, 1], x: [1, 0, 0] } } }); J.changed(); });
+      const nMates = () => q.evaluate(() => window.JEKcad.app.asm.mates.length);
+      await addMate(); await settle();
+      await q.hover('#mateList li'); const binShown = await q.evaluate(() => getComputedStyle(document.querySelector('#mateList li [data-icon="trash"]')).opacity);
+      await q.click('#mateList li .nm'); await q.keyboard.press('Delete'); await settle(); const byKey = await nMates();
+      await q.evaluate(() => window.JEKcad.undo()); await settle(); const undone = await nMates();
+      await q.click('#mateList li .nm', { button: 'right' }); await q.click('.cad-tabmenu button:has-text("Delete")'); await settle(); const byMenu = await nMates();
+      await addMate(); await settle(); await q.dblclick('#mateList li .nm'); await q.click('#mateDelete'); await settle();
+      const byPanel = await q.evaluate(() => ({ n: window.JEKcad.app.asm.mates.length, panel: !!document.getElementById('matePanel') }));
+      await q.close();
+      ok('A mate is deleted from its row: chosen and Delete (Undo brings it back), its right-click menu, or Delete in its panel; the row’s bin shows on hover', binShown === '1' && byKey === 0 && undone === 1 && byMenu === 0 && byPanel.n === 0 && !byPanel.panel && !qe.length, JSON.stringify([binShown, byKey, undone, byMenu, byPanel, qe]));
+    }
     // My parts: a part of a Part Studio kept there (with its Part Studio, marked cad), then an Assembly's Insert lists
     // it (and not a JEKray part kept beside it); inserting it brings its Part Studio in as a tab, once, and the part
     {

@@ -65,6 +65,8 @@ You can pattern or mirror extrudes, revolves, sweeps, lofts and holes as feature
 
 ## When the model changes
 
+Select a face, an edge, a corner, a part or a sketch's region and the feature that made it is marked in the list, with an orange bar at the row's left. For an edge it is the later of the two features whose faces meet there.
+
 Faces carry names from the feature that made them: an extrude's sides are named after the sketch shapes they came from, and its ends are start and end. The names are carried through every later feature. A fillet's edge is remembered as the two faces it lies between, so edits lower in the list keep the right edges. If a face or edge a feature used is gone, the feature fails and says so. Edit it and choose again.
 
 ## Parts

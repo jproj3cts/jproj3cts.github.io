@@ -2,7 +2,8 @@ import { IN_WORKER, TEST_MODE, clamp } from '../core/constants.js';
 import { spmAsked } from '../core/pulses.js';
 import { V, project, selectedId } from '../state/project.js';
 import { fieldDec, getEl, lightOf } from '../state/elements.js';
-import { dropTraceStore, keepTraceFrom, lastTrace, lastTraceMs, setLastTraceKey, traceScene } from '../engines/trace.js';
+import { keepTraceFrom, lastTrace, lastTraceMs, setLastTraceKey, traceScene } from '../engines/trace.js';
+import { STEP_BUDGET, setStepBudget, stepBytes, stepClaim, stepInvalidate, stepKeep, stepKeyOf, stepMaps, stepRunBegin, stepStore, stepSwap } from '../engines/sweep-store.js';
 import { H, W, requestRender, setDrawHeld } from './render.js';
 import { SWEEP_STEPS_MAX, getPath, setParam } from '../state/params.js';
 import { MODS } from '../core/modulators.js';
@@ -100,19 +101,18 @@ export function allSweeps() {
 }
 
 /* The render workers' traces of the steps (asked for on a bench slow to trace: TRACE_SHARE_MS), kept as the page's own
-   once the sweep plays (engines/trace.js keepTraceFrom), so that its first cycle draws each step rather than tracing it
-   here, a long wait at every step. Those that came while nothing played yet wait here until it does. */
+   (engines/trace.js keepTraceFrom, in the sweeps' store with the step they are for: its key, given, or the step the
+   worker was sent), so that the sweep's first cycle draws each step rather than tracing it here, a long wait at every
+   step. */
 export const TRACE_SHARE_MS = 30;
-const tracesAhead = [];
-export function traceAhead(t) {
-  if (!t) return;
-  if (playing.size) { keepTraceFrom(t.rest, t.T, t.ms, t.V); return; }
-  tracesAhead.push(t);
-  let rays = 0;
-  for (let i = tracesAhead.length - 1; i >= 0; i--) { rays += ((tracesAhead[i].T && tracesAhead[i].T.rays) || []).length + 1; if (rays > 400000) { tracesAhead.splice(0, i + 1); break; } }
+export function traceAhead(t, step) {
+  if (t) keepTraceFrom(t.rest, t.T, t.ms, t.V, step);
+}
+/* the run the sweeps' store keeps steps for (engines/sweep-store.js): these sweeps over n steps of the cycle */
+function sweepRun(list, n, period) {
+  return stepRunBegin(list.map(([el, path]) => [el.id, path]), n, (k, i) => stepValue(list[k][0].sweeps[list[k][1]], i, n, period(list[k][0], list[k][1])), sweepShapes(list));
 }
 function startLoop() {
-  for (const t of tracesAhead.splice(0)) if (playing.size) keepTraceFrom(t.rest, t.T, t.ms, t.V);
   playStep = null;
   if (!animFrame) { animLast = null; animFrame = requestAnimationFrame(tick); }
   scatWork.letFinish = () => playing.size > 0;
@@ -122,12 +122,18 @@ function startLoop() {
 /* Sweeps playing on steps of their own (no field rendered ahead), all at one rate and number of steps: the particles'
    scattering for each step solved ahead, as the play will set it (ui/optimise.js tick), so a step that takes longer to
    solve than it is shown is ready when it comes round. (A sweep with no Steps set plays on its automatic steps: the same.) */
+/* (their run, for the store: the steps they share; none when each steps to its own count or rate) */
+function plainRun(list) {
+  if (!list.length) return 0;
+  const sw0 = list[0][0].sweeps[list[0][1]], n = fieldFramesOf(sw0);
+  if (list.some(([e, p]) => fieldFramesOf(e.sweeps[p]) !== n || e.sweeps[p].freq !== sw0.freq)) { stepInvalidate('run'); return 0; }
+  sweepRun(list, n, (e, p) => 1 / e.sweeps[p].freq);
+  return n;
+}
 function aheadPlain() {
   const list = [...playing.values()].map(p => [getEl(p.id), p.path]).filter(([e, p]) => e && e.sweeps && e.sweeps[p]);
-  if (!list.length || !project.elements.some(e => e.type === 'particle')) return;
-  const sw0 = list[0][0].sweeps[list[0][1]];
-  const n = fieldFramesOf(sw0);
-  if (list.some(([e, p]) => fieldFramesOf(e.sweeps[p]) !== n || e.sweeps[p].freq !== sw0.freq)) return;
+  const n = plainRun(list);
+  if (!n || !project.elements.some(e => e.type === 'particle')) return;
   // (it plays at once; the particles' scattered light is added when every step's is solved: scatLayerHeld)
   const run = particlesAhead(list, n, (e, p, i) => stepValue(e.sweeps[p], i, n, 1 / e.sweeps[p].freq), () => list.every(([e, p]) => getEl(e.id) && e.sweeps && e.sweeps[p] && playing.has(sweepKey(e, p))));
   Promise.resolve(run).then(() => { requestRender(); syncPanel(); });
@@ -186,10 +192,13 @@ function playAllNow() {
 /* A sweep's Steps changed while its field is being rendered or played: the frames rendered are for the old steps,
    and playing on without them works the field out live at every step (it never catches up). So the render starts
    again at the new steps, and what was playing (or about to) plays on once it is done. */
-export function sweepStepsChanged() {
+export function sweepStepsChanged(why) {
   fieldRendered = null;
+  stepInvalidate(why || 'run');
   const job = sweepJob;
   const list = job ? job.list.filter(([e]) => getEl(e.id)) : [...playing.values()].map(p => [getEl(p.id), p.path]).filter(q => q[0]);
+  // (playing with no field to render: the steps it plays on now are its run)
+  if (list.length && !fieldWanted() && !job && playing.size && list.every(([e, p]) => e.sweeps && e.sweeps[p])) plainRun(list);
   if (!list.length || !fieldWanted()) return;
   if (job) { job.quiet = true; job.cancel(); }
   playing.clear();
@@ -212,8 +221,10 @@ function sweepEditCheck() {
   if (!ref || !ref.key || !popSources().length || ref.tab !== project.tab) return;
   const list = job ? job.list.filter(([e]) => getEl(e.id)) : [...playing.values()].map(p => [getEl(p.id), p.path]).filter(q => q[0]);
   if (!list.length || list.some(([e, p]) => !e.sweeps || !e.sweeps[p])) { if (job) { job.quiet = true; job.cancel(); } return; }
-  if (ref.shape === sweepShapes(list) && sweepRef(list, ref.n, ref.period).key === ref.key) return;
-  sweepStepsChanged();
+  const shape = ref.shape === sweepShapes(list);
+  if (shape && sweepRef(list, ref.n, ref.period).key === ref.key) return;
+  // (the steps as they were, the light another: what is kept is no step's of the run to come)
+  sweepStepsChanged(shape ? 'bench' : 'run');
 }
 /* the field's key at a sweep's first step, the bench put back after: what its rendered frames depend on (in 3D, with the
    board as the light meets it, which the volumes are cut to) */
@@ -243,15 +254,14 @@ export function cancelJobFor(el, path) {
 export function pause(el, path) {
   cancelJobFor(el, path);
   playing.delete(sweepKey(el, path));
-  if (!playing.size) { dropTraceStore(); tracesAhead.length = 0; scatterAheadStop(); holdEnd(); }
+  if (!playing.size) { stepInvalidate('stopped'); scatterAheadStop(); holdEnd(); }
   syncPanel(); updateSweepButtons(); scheduleSave(); requestRender();         // (drawn again: the rays finer once nothing plays)
 }
 export function pauseAll() {
   if (sweepJob) sweepJob.cancel();
-  tracesAhead.length = 0;
   holdEnd();
   if (!playing.size) return;
-  playing.clear(); dropTraceStore(); tracesAhead.length = 0; scatterAheadStop();
+  playing.clear(); stepInvalidate('stopped'); scatterAheadStop();
   syncPanel(); updateSweepButtons(); scheduleSave(); requestRender();
 }
 export function syncPhases() {
@@ -281,20 +291,23 @@ export const FIELD_FRAMES = 48;               // samples per cycle at the least,
    no Steps set plays on these steps whether or not the field is rendered (ui/optimise.js tick) */
 export const fieldFramesOf = sw => (sw && sw.steps) || clamp(Math.round(30 / ((sw && sw.freq) || 1)), FIELD_FRAMES, SWEEP_STEPS_MAX);
 const FIELD_KEEP = 400;                // rendered fields kept, oldest dropped first
-export const fieldFrames = { bench: new Map(), screens: new Map(), closeup: new Map() };
+/* (the frames are layers of the sweeps' one store, engines/sweep-store.js, where every step's kept things are, and which
+   keeps them within the budget) */
+export const fieldFrames = { bench: stepMaps.bench, screens: stepMaps.screens, closeup: stepMaps.closeup };
 let framesLast = FIELD_FRAMES;         // samples a cycle in the render last run, for what is kept
 /* the samples a cycle for sweeps rendered together: the most any of them asks for */
 const sweepFrames = list => Math.max(...list.map(([el, path]) => fieldFramesOf(el.sweeps[path])));
-/* What the frames kept may take, in bytes, all three kinds together: an eighth of the computer's memory (as the browser
-   says it, at most 8 GB), from 384 MB to 1.5 GB. A frame of a 2D field holds every segment's starting field (59 segments
-   of 256 × 256 points, both polarisations, are 140 MB a step), and a cycle of 240 such steps kept whole ran the page out
-   of memory: its tab was closed. Past the budget the oldest frames go first, and a render whose cycle would not fit
-   renders fewer of its steps, evenly spread (renderStride), the rest shown as the step before them, as while it fills in. */
-export const FRAME_BUDGET = (() => { const gb = (typeof navigator !== 'undefined' && navigator.deviceMemory) || 8; return clamp(gb * 1024 * 1024 * 1024 / 8, 384e6, 1.5e9); })();
+/* What a sweep's steps kept may take, in bytes, the frames of all three kinds together: an eighth of the computer's
+   memory (as the browser says it, at most 8 GB), from 384 MB to 1.5 GB. A frame of a 2D field holds every segment's
+   starting field (59 segments of 256 × 256 points, both polarisations, are 140 MB a step), and a cycle of 240 such steps
+   kept whole ran the page out of memory: its tab was closed. Past the budget the oldest go first (the store: what is no
+   step's of the sweeps playing, then their steps whole), and a render whose cycle would not fit renders fewer of its
+   steps, evenly spread (renderStride), the rest shown as the step before them, as while it fills in. The store's own
+   budget is this and STEP_EXTRA more, for the steps' 3D volumes, particles' answers and traces. */
+export const FRAME_BUDGET = STEP_BUDGET;
 let frameBudget = FRAME_BUDGET;
 /* (tests) a smaller budget (none: put back) */
-export function setFrameBudget(b) { frameBudget = b > 0 ? b : FRAME_BUDGET; }
-const frameSizes = new WeakMap();
+export function setFrameBudget(b) { frameBudget = b > 0 ? b : FRAME_BUDGET; setStepBudget(b > 0 ? b : 0); }
 /* a frame's bytes: its typed arrays (each buffer once), its pictures; not the trace's beams and sources it points at */
 export function frameBytes(v) {
   const seen = new Set();
@@ -312,31 +325,16 @@ export function frameBytes(v) {
   };
   return walk(v, 0);
 }
-const frameSize = v => { let b = frameSizes.get(v); if (b === undefined) { b = frameBytes(v); frameSizes.set(v, b); } return b; };
-export function framesBytes() { let b = 0; for (const m of Object.values(fieldFrames)) for (const v of m.values()) b += frameSize(v); return b; }
-const keptNow = { bytes: 0 };                 // the bytes of the frames kept since a render's step began (stepDone)
-/* when each frame was kept (a count): past the budget the oldest of all three kinds goes first, so a render's own frames
-   outlast older ones of another kind (draining the kind just kept first lost this render's other steps to old screens) */
-const frameAges = new WeakMap();
-let frameAge = 0;
-export function keepFrame(map, key, v) {
-  map.delete(key); map.set(key, v);
-  frameAges.set(v, ++frameAge);
-  keptNow.bytes += frameSize(v);
+export function framesBytes() { return stepBytes(['bench', 'screens', 'closeup']); }
+/* the bytes kept for a render's step since it began (stepDone): its frames and its 3D volume */
+const keptNow = { get bytes() { return stepStore.kept; }, set bytes(v) { stepStore.kept = v; } };
+/* a frame kept, for the step given (its key: stepKeyOf) or the step the bench is at */
+export function keepFrame(map, key, v, step) {
+  const name = map === fieldFrames.closeup ? 'closeup' : map === fieldFrames.screens ? 'screens' : 'bench';
   // close-up pictures are big: two cycles' worth of them; the rest, a cycle at every readout at least; all of them within
   // the budget
-  const cap = map === fieldFrames.closeup ? 2 * framesLast : Math.max(FIELD_KEEP, framesLast * (1 + fieldReadouts().length));
-  while (map.size > cap) map.delete(map.keys().next().value);
-  let total = framesBytes();
-  while (total > frameBudget) {
-    // (each kind's first is its oldest: the oldest of those, never the frame just kept)
-    let at = null, age = Infinity;
-    for (const m of Object.values(fieldFrames)) {
-      for (const [k, f] of m) { if (f === v) continue; const a = frameAges.get(f) || 0; if (a < age) { age = a; at = [m, k]; } break; }
-    }
-    if (!at) break;
-    total -= frameSize(at[0].get(at[1])); at[0].delete(at[1]);
-  }
+  const cap = name === 'closeup' ? 2 * framesLast : Math.max(FIELD_KEEP, framesLast * (1 + fieldReadouts().length));
+  stepKeep(name, key, v, { bytes: frameBytes(v), step, cap, count: true });
 }
 /* The steps of a render apart, so that its cycle fits the budget: 1 (every step) unless a step's frames (stepBytes) times
    the steps would not fit in most of it. A sweep rendered so plays the steps rendered, each shown until the next. */
@@ -356,7 +354,8 @@ const strideNote = (n, k) => toast('This sweep\u2019s field is too large to keep
    board the volumes are cut to (null when the 3D view is not showing the field), keep() a step's
    volume filed under the key the view will ask for (both installed by the 3D view) */
 // (shown: in the 3D view, whether the step on show has its field there: null when the 3D view is not showing it)
-export const sweepVol = { box: () => null, keep: () => {}, shown: () => null, has: () => true, boxKey: () => '', begin: () => {}, mark: () => {} };
+// (keyAt: the key a step's volume is kept under, for the bench's field key, or null when the 3D view shows no field)
+export const sweepVol = { box: () => null, keep: () => {}, shown: () => null, has: () => true, boxKey: () => '', begin: () => {}, mark: () => {}, keyAt: () => null };
 export let sweepJob = null;                   // { list, i, n, cancel } while a sweep's field is rendering
 export let fieldRendered = null;              // { keys, period } of the sweeps last rendered, for stepping
 export function setFieldRendered(v) { return (fieldRendered = v); }
@@ -478,7 +477,7 @@ export const scatLayerHeld = () => playing.size > 0 && scatAheadOn();
 export const sweepShowsField = () => fieldWanted();
 /* the elements whose diffracted field a sweep's frames work out: every screen, and a mirror
    whose Diffraction tab is open (a bench has many mirrors, and few are read) */
-const fieldReadouts = () => project.elements.filter(e => e.type === 'screen' || (e.type === 'mirror' && vs(e).screenTab === 'plots'));
+export const fieldReadouts = () => project.elements.filter(e => e.type === 'screen' || (e.type === 'mirror' && vs(e).screenTab === 'plots'));
 /* one cycle of the clock that brings every sweep in the list back to its start, if there is
    a short one: equal rates, or rates in small whole ratios */
 function commonPeriod(sws) {
@@ -499,9 +498,9 @@ function renderSweepFrames(list, onDone) {
   const saved = list.map(([el, path]) => getPath(el, path));
   const n = sweepFrames(list);
   framesLast = n;
+  sweepRun(list, n, () => period);
   // the particles' scattering for every step, solved ahead on their own worker beside the field (ui/scatter.js)
   setDrawHeld(sweepHolding); holdEnd();
-  tracesAhead.length = 0;
   // (only the steps the render keeps: a cycle too large to keep whole renders every so many, see renderStride)
   const rs = { k: 1 };
   particlesAhead(list, n, (e, p, i) => stepValue(e.sweeps[p], i, n, period), () => list.every(([e, p]) => getEl(e.id) && e.sweeps && e.sweeps[p]), i => i % rs.k === 0);
@@ -514,8 +513,9 @@ function renderSweepFrames(list, onDone) {
       traceScene();
       const srcs = popSources();
       // (the bench's field, and in 3D its volume: a step with only one of them would be worked out live as it played)
-      if (srcs.length) { const pk = popKeyOf(lastTrace.beams, srcs); if (!fieldFrames.bench.has(pk) || !sweepVol.has(pk)) all = false; else sweepVol.mark(pk); }
-      for (const scr of fieldReadouts()) { const J = all && popScreenPrep(scr); if (J && !fieldFrames.screens.has(J.key)) all = false; }
+      // (what is there already is this step's from here on)
+      if (srcs.length) { const pk = popKeyOf(lastTrace.beams, srcs); if (!fieldFrames.bench.has(pk) || !sweepVol.has(pk)) all = false; else { sweepVol.mark(pk); stepClaim('bench', pk); } }
+      for (const scr of fieldReadouts()) { const J = all && popScreenPrep(scr); if (J && !fieldFrames.screens.has(J.key)) all = false; else if (J) stepClaim('screens', J.key); }
     }
     list.forEach(([el, path], k) => setParam(el, path, saved[k]));
     traceScene();
@@ -753,10 +753,12 @@ function renderOnPool(pool, list, n, cyc, job, onDone) {
       if (!live()) return;
       const o = await swAsk(W, proj, { sets, ids, vol, trace });
       if (!live()) return;
-      traceAhead(o.trace);
-      if (o.bench) keepFrame(fieldFrames.bench, o.bench.key, { packed: o.bench.R });
-      if (o.vol) sweepVol.keep(o.vol.key, o.vol.tab, o.vol.bb, o.vol.V);
-      for (const S of o.screens) if (S && S.D) keepFrame(fieldFrames.screens, S.key, diffFns(S.D));
+      // (each kept as this step's: the swept values it was sent)
+      const step = stepKeyOf(sets);
+      traceAhead(o.trace, step);
+      if (o.bench) keepFrame(fieldFrames.bench, o.bench.key, { packed: o.bench.R }, step);
+      if (o.vol) sweepVol.keep(o.vol.key, o.vol.tab, o.vol.bb, o.vol.V, step);
+      for (const S of o.screens) if (S && S.D) keepFrame(fieldFrames.screens, S.key, diffFns(S.D), step);
       done.add(i); job.i = done.size - 1;
       // (the first step in: whether the cycle fits the budget, and if not, only the steps that do are rendered, evenly spread)
       if (done.size === 1) {
@@ -802,7 +804,7 @@ function renderOnPool(pool, list, n, cyc, job, onDone) {
 /* a rendered bench field, put back together against the trace the page has for it, the first time it is drawn */
 export function benchFrame(key) {
   const f = fieldFrames.bench.get(key);
-  if (f && f.packed) { const R = fwUnpackRun(f.packed, lastTrace.beams); frameSizes.set(R, frameSize(f)); frameAges.set(R, frameAges.get(f) || 0); fieldFrames.bench.set(key, R); return R; }
+  if (f && f.packed) return stepSwap('bench', key, fwUnpackRun(f.packed, lastTrace.beams));
   return f;
 }
 

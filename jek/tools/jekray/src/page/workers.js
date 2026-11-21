@@ -17,6 +17,7 @@ import { diffCache } from '../engines/diffraction.js';
 import { statsCache } from '../engines/pd-cavity.js';
 import { binCache } from '../engines/screen-stats.js';
 import { workerShim } from '../worker/shim.js';
+import { stepCav } from '../engines/sweep-store.js';
 
 /* ==========================================================================
    The field worker
@@ -141,7 +142,7 @@ export function fwUnpackRun(R, beams) {
 /* The cavities' steady states the worker solved, by the trace they were solved for: a sweep's steps come back as the very
    traces kept for them (engines/trace.js traceStore), and a step played again takes its cavities from here rather than
    asking the worker again (ui/panel-cavity.js cavityLater). Kept while the trace is. */
-export const cavByTrace = new WeakMap();
+export const cavByTrace = stepCav;                 // (kept with the sweeps' steps: engines/sweep-store.js)
 function fwCavities(list, trace) {
   const fix = r => { if (r) r.at = cavAtOf(r.H, r.m, r.beta); return r; };
   const got = list.map(c => [c.k, { eng: c.eng, delta: c.delta, mode: c.mode, trace, res: fix(c.res), others: c.others.map(o => ({ delta: o.delta, res: fix(o.res) })) }]);

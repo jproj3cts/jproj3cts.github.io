@@ -18,6 +18,7 @@ import { PARTS } from '../parts/registry.js';
 import { deg, project } from '../state/project.js';
 import { faceAmps } from '../core/face-pol.js';
 import { scatFind, scatRevNow } from './scatter.js';
+import { stepDropLayer, stepKeep, stepMaps, stepStore } from './sweep-store.js';
 import { placeFromScreen, scatterLaunch } from './scatter-light.js';
 import { pmapLaunch, pmapStep } from './scatter-pupil-map.js';
 import { FREE_3D, VSRC, applySpins, beamOn, getEl, lampBody, lampEmits, lampRaysOf, lightOf, raysOn, setVSRC } from '../state/elements.js';
@@ -490,7 +491,7 @@ export function traceScene() {
   if (key === lastTraceKey && lastTrace.beams) return;
   // a sweep playing round again: each step's trace kept from the cycle before (with the sources it made: a fibre tip's
   // launches, a particle's cones), taken while its particles' answers are the very ones it was traced with
-  const keep = traceStoreOn();
+  const keep = traceStoreOn() && !stepStore.bypass;
   const c = keep ? traceStore.get(traceKeyBase()) : null;
   // (or the one trace offered for the bench as it is now, from where a particle's answer was just worked out: offerTrace)
   const o = traceOffer;
@@ -518,13 +519,15 @@ export function traceScene() {
    (TRACE_STATEFUL), nor a mod's results. A trace whose particle had no answer yet for its state (stale, waiting) is not
    kept. Up to a few hundred thousand rays' worth, dropped when the sweeps stop. (The tests can turn it on with
    setTraceStoreTest: it is off in TEST_MODE otherwise.) */
-export const traceStore = new Map();
-export let traceStoreRays = 0, traceStoreHits = 0;
+export const traceStore = stepMaps.trace;
+export let traceStoreHits = 0;
 const TRACE_STORE_RAYS = 400000;
 export const TRACE_STATEFUL = new Set(['gain', 'cell']);
 let traceStoreTest = false;
 export function setTraceStoreTest(on) { traceStoreTest = !!on; dropTraceStore(); }
-export const traceStoreOn = () => (!TEST_MODE || traceStoreTest) && !IN_WORKER && hooks.playing() && !MODS.packs.size && !project.elements.some(e => TRACE_STATEFUL.has(e.type));
+/* whether traces may be kept on this bench at all, and whether they are now: while a sweep plays */
+const traceStoreCan = () => (!TEST_MODE || traceStoreTest) && !IN_WORKER && !MODS.packs.size && !project.elements.some(e => TRACE_STATEFUL.has(e.type));
+export const traceStoreOn = () => traceStoreCan() && hooks.playing();
 /* the particles' answers a trace was made with, [id, key] each, or null when one was still to come for it */
 function traceParts(T) {
   const P = (T.scat && T.scat.parts) || {}, parts = [];
@@ -534,16 +537,21 @@ function traceParts(T) {
   }
   return parts;
 }
-function keepTrace(key, T, ms, V = VSRC) {
+/* a trace's size, about: its rays' points and its beams (what the budget counts it as) */
+function traceBytes(T) {
+  let b = 2000 + 600 * (T.beams || []).length;
+  for (const r of T.rays || []) b += 120 + 8 * ((r.pts ? r.pts.length : 0) + (r.zs ? r.zs.length : 0));
+  return b;
+}
+/* (kept in the sweeps' one store, engines/sweep-store.js, as its step's trace; one of no step of the run, within
+   TRACE_STORE_RAYS of them) */
+function keepTrace(key, T, ms, V = VSRC, step) {
   const parts = traceParts(T);
   if (!parts) return;                    // (an answer still to come: this trace is not the step's)
   const n = (T.rays || []).length + 1;
-  const was = traceStore.get(key);
-  if (was) { traceStore.delete(key); traceStoreRays -= was.n; }
-  traceStore.set(key, { T, ms, n, V, parts }); traceStoreRays += n;
-  while (traceStoreRays > TRACE_STORE_RAYS && traceStore.size > 1) { const [k, v] = traceStore.entries().next().value; traceStore.delete(k); traceStoreRays -= v.n; }
+  stepKeep('trace', key, { T, ms, n, V, parts }, { bytes: traceBytes(T), n, step, loose: { n: TRACE_STORE_RAYS } });
 }
-export function dropTraceStore() { traceStore.clear(); traceStoreRays = 0; }
+export function dropTraceStore() { stepDropLayer('trace'); }
 /* whether a trace is one keepTrace would keep: every particle's answer was there for it (none still to come) */
 export const traceKeepable = T => !!T && !!traceParts(T);
 /* A step's trace done elsewhere (a sweep's render worker traces every step it renders: worker/main.js, ui/sweeps.js), kept
@@ -553,11 +561,12 @@ export const traceKeepable = T => !!T && !!traceParts(T);
    back to the page's own laser, as a trace here leaves them. Taken only while traces are kept (traceStoreOn), and never
    over one the page traced itself. */
 export const traceKeyRestNow = () => traceKeyRest();
-export function keepTraceFrom(rest, T, ms, list) {
-  if (!traceStoreOn() || !T || typeof rest !== 'string') return false;
+export function keepTraceFrom(rest, T, ms, list, step) {
+  // (while a sweep plays, or one's steps are being worked out ahead of it: stepStore.run)
+  if (!traceStoreCan() || !(hooks.playing() || stepStore.run) || !T || typeof rest !== 'string') return false;
   const key = loadGen + '|' + MODS.rev + '|' + rest;
   if (traceStore.has(key)) return false;
-  keepTrace(key, T, ms, sourcesFrom(list));
+  keepTrace(key, T, ms, sourcesFrom(list), step);
   return traceStore.has(key);
 }
 /* the sources a trace made elsewhere, by id, those from a laser on this page pointing back to it */

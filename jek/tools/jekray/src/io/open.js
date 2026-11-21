@@ -4,7 +4,8 @@ import { RF_MAT } from '../core/rf.js';
 import { TYPE_LABEL } from '../parts/registry.js';
 import { history, project, selectOne, setProject, typeLabel } from '../state/project.js';
 import { loadProject } from '../state/elements.js';
-import { dropTraceStore, tippable } from '../engines/trace.js';
+import { tippable } from '../engines/trace.js';
+import { stepInvalidate } from '../engines/sweep-store.js';
 import { W, setSelFibreId } from '../ui/render.js';
 import { pauseAll, playing } from '../ui/sweeps.js';
 import { FC, FC_ORDER, fcNames, fcPortsOf, pkey, portsOf } from '../engines/fibre.js';
@@ -206,7 +207,7 @@ export function openProjectData(data, label) {
   try { loadProject(data); } catch (err) { setProject(prev); history.length = hist; updateUndoButtons(); throw err; }
   checkImport(raw, project, notes);
   lastImport = notes;
-  playing.clear(); dropTraceStore(); updateSweepButtons();
+  playing.clear(); stepInvalidate('file'); updateSweepButtons();
   selectOne(null); setSelFibreId(null); updateUndoButtons();
   document.getElementById('projName').value = project.name;
   renderBenchTabs();

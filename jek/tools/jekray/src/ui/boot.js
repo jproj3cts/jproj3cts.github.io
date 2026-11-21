@@ -28,8 +28,10 @@ import { hitTest, wirePointer } from './pointer.js';
 import { getPath, setParam } from '../state/params.js';
 import {
   fieldFrames, fieldHeld, fieldRendered, pauseAll, scatLayerHeld, play, playAll, playing, renderedPeriod, showActivityNow,
-  activityBars, activityNow, frameBytes, framesBytes, setFrameBudget, setSweepHoldLimit, stepValue, sweepHolding, sweepJob, updateActivity
+  activityBars, activityNow, frameBytes, framesBytes, setFrameBudget, setSweepHoldLimit, stepValue, sweepHolding, sweepJob, sweepStepsChanged, updateActivity
 } from './sweeps.js';
+import { sweepAudit } from './sweep-audit.js';
+import { stepInfo } from '../engines/sweep-store.js';
 import { arrivalField, faceArrivals } from '../engines/fibre-face.js';
 import { portWorld, portsOf } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
@@ -235,6 +237,11 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       return { rendering: !!sweepJob, fieldHeld: fieldHeld(), fieldDrawn: popShown.key !== null, scatHeld: scatLayerHeld(), scat: st, drawn: drawCount, playing: playing.size }; },
     // (tests) a sweep's traces kept while it plays, as off the tests they are (TEST_MODE keeps none unless asked)
     traceStoreTest(on) { setTraceStoreTest(on); },
+    // (tests) the sweeps' one store (engines/sweep-store.js): what it holds, and every kept step against working it out again
+    stepInfo() { return stepInfo(); },
+    sweepAudit(opts) { return sweepAudit(opts); },
+    // (tests) a sweep's settings changed as its panel changes them: { steps, min, max, wave, phase, freq }
+    sweepSet(name, path, o) { const el = this.byName(name), sw = el.sweeps[path]; for (const [k, v] of Object.entries(o)) { if (v === null) delete sw[k]; else sw[k] = v; } if ('steps' in o) sweepStepsChanged(); changed(false); },
     activityBars() { return activityBars(); },
     // the diffracted field as the 3D view takes it, worked out here: per segment its cuts along it, their reach and the irradiance on the axis (W/cm²)
     vol3d() { traceScene(); const srcs = popSources(); if (!srcs.length) return null; const t0 = performance.now(), R = popRun(lastTrace.beams, srcs, {}), t1 = performance.now(), V = volData(R.segs, project.tab, null); self.__volMs = [t1 - t0, performance.now() - t1];

@@ -13646,6 +13646,66 @@ const TESTS = [
       } finally { f.remove(); }
     },
   },
+  { group: 'Sweep store' },
+  {
+    name: 'What a sweep keeps for its steps is what working each step out again gives, to the last digit: traces, the bench’s field, a screen’s, the 3D volume, a particle’s answer; and still so after its Steps, range and waveform change as it plays',
+    why: 'the page as a reader has it (workers on), in a frame of its own. Everything a sweep keeps for its steps is in one store (engines/sweep-store.js), each entry its step’s. A Gaussian beam (a 2D field) through a lens swept in y over 12 steps onto a screen, the bench showing the field, in 2D and then in 3D: once it has played a cycle, every step of the run is set again and its kept trace, bench field, screen field and 3D volume compared with the same worked out there and then with nothing taken from the store (J.sweepAudit: every number the kept one holds). Then Steps is set to 8, and then From and the waveform changed, each as it plays: the run is the new steps, every one of them kept and equal again, and what was kept for the old steps is no step’s of the run. Last a Mie sphere with the laser’s polarisation swept: its answers kept for the steps equal a fresh solve. 1 when all hold',
+    want: 1, tol: 0, unit: '',
+    run: async () => {
+      const dev = /[?&]dev=1/.test(location.search), wait = ms => new Promise(r => setTimeout(r, ms));
+      const field = { format: 'jekray', version: 1, light: { rays: true, envelope: false, field: true, scale: 'lin', byPower: true }, elements: [
+        { type: 'source', id: 'S', name: 'Laser', x: -60, y: 0, angle: 0, wavelength: 1064, power: 100, rays: 7, width: 2, gauss: true, w0: 0.4, popModel: '2d', popN: 64 },
+        { type: 'lens', id: 'L', name: 'Lens', x: -10, y: 0, angle: 0, f: 40, length: 20, sweeps: { y: { min: -1, max: 1, freq: 1, phase: 0, wave: 'triangle', steps: 12 } } },
+        { type: 'screen', id: 'D', name: 'Screen', x: 30, y: 0, angle: 180, length: 20 }] };
+      const particle = { format: 'jekray', version: 1, name: 'scatter sweep', view: { cx: 0, cy: 0, scale: 6 }, snap: 0, maxBounces: 400, minPower: 1e-6, ghosts: false, light: { rays: true, envelope: false, field: true }, elements: [
+        { type: 'source', name: 'L', x: -20, y: 0, angle: 0, wavelength: 1550, divergence: 0, colourAuto: true, gauss: true, w0: 0.8, z0: 0, width: 1.6, rays: 1, pol: 'linear', polAngle: 0, power: 50, popN: 64,
+          sweeps: { polAngle: { min: 0, max: 90, freq: 1, phase: 0, wave: 'triangle', steps: 8 } } },
+        { type: 'mask', name: 'Obj', x: 0, y: 0, angle: 0, length: 4.13, amp: '1', delay: '-(sqrt(r^2+1)-1)/lambda' },
+        { type: 'particle', name: 'S', x: 1, y: 0, angle: 90, trapMat: 'Fused silica', trapR: 150, trapMed: 'vacuum', scatModel: 'mie' }] };
+      const f = document.createElement('iframe');
+      f.style.cssText = 'position:absolute;left:-5000px;top:0;width:900px;height:600px;border:0';
+      f.src = '/jek/tools/' + (dev ? 'jekray-dev.html' : 'jekray.html') + '?layers';
+      document.body.append(f);
+      try {
+        const W = f.contentWindow;
+        for (let i = 0; i < 300 && !(W.JEKray && W.JEKray.load && W.JEKray.sweepAudit); i++) await wait(100);
+        const J = W.JEKray;
+        // (nothing being worked out: the field in, a render done, the layers added)
+        const settle = async () => { await wait(300); for (let i = 0; i < 1200 && (J.layers().rendering || J.layers().fieldHeld || J.layers().scatHeld || J.activity().bench || J.activity().scat); i++) await wait(100); };
+        // a layer of an audit: every step of the run kept, each the same as worked out again
+        const whole = (a, names) => !!a && a.bad.length === 0 && names.every(n => a.layers[n] && a.layers[n].kept === a.steps && a.layers[n].same === a.steps && a.layers[n].numbers > 0);
+        const res = {}; let ok = true;
+        for (const three of [false, true]) {
+          J.sweepPause(); J.load(field); await settle();
+          if (three) { await J.view3d.set(true); await settle(); await wait(800); }
+          const names = ['trace', 'bench', 'screens'].concat(three ? ['vol'] : []);
+          J.sweepPlay('Lens', 'y'); await settle(); await wait(2500);
+          const a1 = J.sweepAudit(), g1 = J.stepInfo();
+          J.sweepSet('Lens', 'y', { steps: 8 }); await settle(); await wait(2500);
+          const a2 = J.sweepAudit(), g2 = J.stepInfo();
+          J.sweepSet('Lens', 'y', { min: -0.5, wave: 'ramp' }); await wait(600); await settle(); await wait(2500);
+          const a3 = J.sweepAudit(), g3 = J.stepInfo();
+          J.sweepPause();
+          const g4 = J.stepInfo();
+          // (a triangle's steps on the way down are those on the way up, some to the last digit and some not: 7 to 12 states of
+          // its 12 steps, 5 to 8 of its 8; a ramp's 8 are 8.) Each run is a new one, and its kept frames are its own steps' and no more
+          const runs = a1.steps >= 7 && a1.steps <= 12 && a2.steps >= 5 && a2.steps <= 8 && a3.steps === 8 && g2.gen > g1.gen && g3.gen > g2.gen && g1.layers.bench.run === a1.steps && g2.layers.bench.run === a2.steps && g3.layers.bench.run === 8 && g3.run.n === 8;
+          const stopped = g4.layers.trace.size === 0 && g4.layers.light3d.size === 0 && g4.layers.bench.size >= 8;
+          const r = res[three ? '3d' : '2d'] = { a1: whole(a1, names), a2: whole(a2, names), a3: whole(a3, names), runs, stopped, steps: [a1.steps, a2.steps, a3.steps], bad: [...a1.bad, ...a2.bad, ...a3.bad].slice(0, 3) };
+          if (!(r.a1 && r.a2 && r.a3 && runs && stopped)) ok = false;
+          if (three) await J.view3d.set(false);
+        }
+        J.load(particle); await settle();
+        J.sweepPlay('L', 'polAngle'); await settle(); await wait(2500);
+        const ap = J.sweepAudit({ scat: true }), gp = J.stepInfo();
+        J.sweepPause();
+        res.particle = { whole: whole(ap, ['trace', 'bench', 'scat']), steps: ap && ap.steps, scat: gp.layers.scat.run, bad: ap ? ap.bad.slice(0, 3) : null };
+        if (!(res.particle.whole && gp.layers.scat.run === ap.steps)) ok = false;
+        console.log('sweep store: audit', JSON.stringify(res));
+        return ok ? 1 : 0;
+      } finally { f.remove(); }
+    },
+  },
   { group: 'Smoothness' },
   {
     name: 'A field sweep whose frames would not fit in memory renders every so many steps, keeps within the budget, and plays',

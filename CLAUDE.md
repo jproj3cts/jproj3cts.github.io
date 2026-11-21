@@ -76,7 +76,8 @@ through `core/hooks.js`.
   coatings, crystals, atoms in `cells.js`/`traps.js`/`zeeman.js`, horns, special functions).
 - **UI**: bench `ui/render.js`, `pointer.js`, `actions.js` (toast, context menu, save); panel framework `ui/panel.js`
   (`param`, `numInput`, `selectField`), shared sections `ui/panels.js`, readouts `ui/readouts.js`, plots `ui/plots.js`,
-  sweeps `ui/sweeps.js`, optimiser `ui/optimise.js`, 3D `ui/view3d.js`, Optical designer `ui/lens-*.js`, RF designer
+  sweeps `ui/sweeps.js` (what a sweep keeps for its steps, traces, field frames, 3D volumes and light, particles' answers, is one
+  store, `engines/sweep-store.js`: one run, a key per step, `stepInvalidate`; `J.sweepAudit()` checks kept against fresh), optimiser `ui/optimise.js`, 3D `ui/view3d.js`, Optical designer `ui/lens-*.js`, RF designer
   `ui/rf-workspace.js`, RF matching-layer workspace `ui/coat-workspace.js` (optical faces go to JEKfilm: `designInFilm` in `io/film-coats.js`), instruments `ui/instruments.js`, tours `ui/tours.js`,
   news/version `ui/news.js` (`APP_VERSION`, `NEWS`), experimental flags `ui/experimental.js`.
   Toolbar/menus/dialogs markup: `page.html`; wiring in each module's `wire…()`, called from `ui/boot.js`.

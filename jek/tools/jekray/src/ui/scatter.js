@@ -18,6 +18,7 @@ import { h } from './dom.js';
 import { axisFont, drawAxes, magma, plotArea, plotCsv, plotSaveRow, scatRamp } from './plots.js';
 import { WORKERS_OK, fwProject, midDrag, newAppWorker } from '../page/workers.js';
 import { TRACE_SHARE_MS, traceAhead } from './sweeps.js';
+import { stepKeyOf, stepStore } from '../engines/sweep-store.js';
 import { changed } from './actions.js';
 import { checkpoint } from './tabs.js';
 
@@ -145,10 +146,11 @@ function scatWorker() {
       const o = m.out || {};
       // (a Particle part's answer is what the bench's trace launches its scattered light from: kept, the bench is drawn again)
       // (a step solved ahead is kept for when the sweep gets there, not put on show)
-      if (o.S && o.key) { if (J.proj) scatStore(o.key, o.S); else scatKeep(J.elId, o.key, o.S); SCW.done++; requestRender(); }
+      // (as its step's, in the sweeps' store; one for a run since replaced, J.gen, is no step's of this one: stepKeep sees to it)
+      if (o.S && o.key) { if (J.proj) scatStore(o.key, o.S, J.gen === stepStore.gen ? stepKeyOf(J.sets) : null); else scatKeep(J.elId, o.key, o.S); SCW.done++; requestRender(); }
       // (on a bench slow to trace, the bench traced there with the answer: a sweep's step kept for when it plays (ui/sweeps.js),
       // the bench as it is now offered for its next trace, so the page need not trace it again for the answer)
-      if (o.trace) { if (J.proj) traceAhead(o.trace); else if (o.S && o.key) offerTrace(o.trace.rest, o.trace.T, o.trace.ms, o.trace.V); }
+      if (o.trace) { if (J.proj) traceAhead(o.trace, J.gen === stepStore.gen ? stepKeyOf(J.sets) : null); else if (o.S && o.key) offerTrace(o.trace.rest, o.trace.T, o.trace.ms, o.trace.V); }
       if (o.T !== undefined && o.key) { trapKeep(trapKeyOf(o.key), o.T); requestRender(); }
       if (J.resolve) J.resolve(o.cancelled ? null : o);
       syncPanel(); scatPump();
@@ -217,7 +219,7 @@ function scatWant(el, key, kind) {
    with { key, S }, or null when it was dropped */
 export function scatterAhead(elId, proj, sets, trace) {
   if (TEST_MODE || SCW.failed || !WORKERS_OK || !scatWorker()) return null;
-  return new Promise((resolve, reject) => { SCW.queue.push({ kind: 'scatter', elId, key: null, proj, sets, trace, resolve, reject }); scatPump(); });
+  return new Promise((resolve, reject) => { SCW.queue.push({ kind: 'scatter', elId, key: null, proj, sets, trace, gen: stepStore.gen, resolve, reject }); scatPump(); });
 }
 /* A sweep's steps solved ahead for every Particle part whose light is on, one after another on the scattering worker
    (beside the field's workers), each answer kept by its key (engines/scatter.js scatKept) so that each step, played,

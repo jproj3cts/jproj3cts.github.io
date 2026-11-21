@@ -29,6 +29,7 @@ import { mateSpread, poseCarry, poseSnap, poseTurn } from '../core/mates.js';
 import { snapVal } from './pointer.js';
 import { SW, fieldHeld, playing, swAsk, swDrop, swPool, swRelease, renderedPeriod, sweepJob, sweepVol } from './sweeps.js';
 import { qW } from '../engines/fibre-face.js';
+import { stepClaim, stepDelete, stepDropLayer, stepKeep, stepMaps, stepNow, stepOnDrop, stepRunEntries, stepStore, stepTouch } from '../engines/sweep-store.js';
 import { renderPanel, syncPanel } from './panel.js';
 import { h } from './dom.js';
 import { magma, scatRamp } from './plots.js';
@@ -873,8 +874,9 @@ export const V3D = (() => {
     disposeAll(G.sel);
     // the light: kept with its trace while a sweep plays (see traceStore), else made anew
     for (const o of [...G.light.children]) { G.light.remove(o); if (!o.userData.kept) disposeObj(o); }
-    const lc = R.lightCache || (R.lightCache = new Map());
-    if (!traceStoreOn() && lc.size) { for (const v of lc.values()) for (const o of v.objs) disposeObj(o); lc.clear(); }
+    // (a layer of the sweeps' one store, engines/sweep-store.js: what leaves it is disposed of by wireView3d's stepOnDrop)
+    const lc = stepMaps.light3d;
+    if (!traceStoreOn() && lc.size) stepDropLayer('light3d');
     // the parts and their names are taken down but kept: one whose model is unchanged goes back up
     for (const g of [G.parts, G.names]) for (const o of [...g.children]) g.remove(o);
     const parts = R.partCache || (R.partCache = new Map()), labels = R.labelCache || (R.labelCache = new Map()), used = new Set(), usedL = new Set();
@@ -928,18 +930,19 @@ export const V3D = (() => {
     // took turns, the light built again at every step of every cycle)
     const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top, scatVolKey()].join('|'), sig0 = traceStoreOn() ? lightSig(lastTrace) : null;
     const sig = sig0 !== null ? sig0 + '|' + scatVolKey() : null, got = sig !== null ? lc.get(sig) : null;
-    if (got && got.k === lk) { lc.delete(sig); lc.set(sig, got); for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; R.lightReused = (R.lightReused || 0) + 1; }
+    if (got && got.k === lk) { stepTouch('light3d', sig); stepClaim('light3d', sig); for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; R.lightReused = (R.lightReused || 0) + 1; }
     else {
-      if (got) { for (const o of got.objs) disposeObj(o); lc.delete(sig); }
+      if (got) stepDelete('light3d', sig);
       light(box, R.boardBox);
       R.lightBuilt = (R.lightBuilt || 0) + 1;
       const objs = [...G.light.children];
       if (sig !== null) {
         for (const o of objs) o.userData.kept = true;
-        lc.set(sig, { k: lk, objs, nRays: R.nRays, nBeams: R.nBeams, sig: sig0 });
-        // only the light of the traces still kept is kept, and no more than LIGHT_KEEP steps' worth (the oldest shown first out)
-        const live = new Set([...traceStore.values()].map(c => lightSig(c.T)));
-        for (const [s2, v] of lc) if (s2 !== sig && (!live.has(v.sig) || lc.size > LIGHT_KEEP)) { for (const o of v.objs) disposeObj(o); lc.delete(s2); }
+        // only the light of the traces still kept is kept, and no more than LIGHT_KEEP steps' worth, or the run's steps if
+        // they are more (the oldest shown first out)
+        stepKeep('light3d', sig, { k: lk, objs, nRays: R.nRays, nBeams: R.nBeams, sig: sig0 });
+        const live = new Set([...traceStore.values()].map(c => lightSig(c.T))), most = Math.max(LIGHT_KEEP, stepStore.run ? stepStore.run.n : 0);
+        for (const [s2, v] of [...lc]) if (s2 !== sig && (!live.has(v.sig) || lc.size > most)) stepDelete('light3d', s2);
       }
     }
     R.volMeshes = G.light.children.filter(o => o.userData.vol);
@@ -2273,6 +2276,7 @@ export const V3D = (() => {
   function reset() { if (fly) flyStop(); st.clear(); gz = { id: null, mode: 'move' }; if (R) { R.camTab = null; R.key = null; R.selKey = null; } if (D) { D.hint.classList.remove('faded'); show(); } }
   return {
     init, sync, active, eligible, setOn, view, fit, reset, zoomSel, tablePoint, boardBox, fieldReady,
+    disposeLight: o => disposeObj(o),
     // the view's own tool (ui/mate3d.js)
     setTool(t) { tool = t || null; if (R) R.selKey = null; hintText(); need0(); },
     tool: () => tool,
@@ -2392,11 +2396,12 @@ const volKey = (pk, tab, bb) => pk + '|' + tab + '|' + bb.map(v => Math.round(v)
    of 120 steps that kept only 64 lost its own first steps each cycle, and each was worked out again as it played) */
 const VOL_KEEP = SWEEP_STEPS_MAX + 16, VOL_BYTES = 200e6;
 const volBytes = d => (d && d.segs ? d.segs.reduce((n, s) => n + (s.I ? s.I.length * (s.I.BYTES_PER_ELEMENT || 8) : 0), 0) : 0) + 512;
-function volKeep(key, d) {
+/* (a layer of the sweeps' one store, engines/sweep-store.js: a sweep's steps' volumes are kept with their steps, within its
+   budget; the rest, a still bench's, to VOL_BYTES; step: the step it was worked out for, from a sweep's render) */
+function volKeep(key, d, step) {
   d.id = ++VOL.n; d.bytes = volBytes(d);
-  if (VOL.cache.has(key)) VOL.bytes -= VOL.cache.get(key).bytes || 0;
-  VOL.cache.set(key, d); VOL.bytes += d.bytes; VOL.rev++;
-  while (VOL.cache.size > VOL_KEEP || (VOL.bytes > VOL_BYTES && VOL.cache.size > 1)) { const k = VOL.cache.keys().next().value; VOL.bytes -= VOL.cache.get(k).bytes || 0; VOL.cache.delete(k); }
+  VOL.rev++;
+  stepKeep('vol', key, d, { bytes: d.bytes, step, cap: VOL_KEEP, loose: { bytes: VOL_BYTES }, count: step !== undefined });
   return d;
 }
 /* whether any light falls on the tab on show (none: no volume asked for, at every step of a sweep, to fill the cache) */
@@ -2465,22 +2470,26 @@ function volLater(bb) {
 /* the 3D view's field for the bench as it is, cut to the board bb ([x0, y0, x1, y1]): { data, busy }.
    From the field worker, kept by the bench's field key (so a sweep's second cycle has them all);
    on the page (the tests) from the bench's field if it is there, else worked out there and then */
-export const VOL = { job: null, t0: 0, cache: new Map(), bytes: 0, n: 0, rev: 0, sweep: new Set(), shared: null };
+export const VOL = { job: null, t0: 0, cache: stepMaps.vol, n: 0, rev: 0, claims: 0, shared: null };
 /* A field sweep's steps drawn to one scale: the brightest of its volumes (each normalised to its own would brighten the
    light before an absorber as the absorber darkened what follows it). Taken over the steps rendered, while the sweep
    plays its rendered field; else each volume to its own. */
 function volShared() {
-  if (!VOL.sweep.size || !(renderedPeriod() > 0)) return null;
+  if (!(renderedPeriod() > 0)) return null;
+  // (the run's steps' volumes: those the store holds as its steps')
   const S = VOL.shared;
-  if (S && S.rev === VOL.rev && S.n === VOL.sweep.size) return S.top > 0 ? S : null;
+  if (S && S.rev === VOL.rev && S.gen === stepStore.gen && S.claims === VOL.claims) return S.top > 0 ? S : null;
+  const mine = stepRunEntries('vol');
   let top = 0, line = 0;
-  for (const k of VOL.sweep) { const d = VOL.cache.get(k); if (d && d.peak > 0) { top = Math.max(top, volDisp(d)); line = Math.max(line, volDispLine(d)); } }
-  VOL.shared = { rev: VOL.rev, n: VOL.sweep.size, top, line };
+  for (const [, d] of mine) if (d && d.peak > 0) { top = Math.max(top, volDisp(d)); line = Math.max(line, volDispLine(d)); }
+  VOL.shared = { rev: VOL.rev, gen: stepStore.gen, claims: VOL.claims, n: mine.length, top, line };
   return top > 0 ? VOL.shared : null;
 }
 /* a sweep rendered ahead renders each step's volume too, while the 3D view shows the field (see
    sweeps): the board it is cut to, and where the steps' volumes go */
 export function wireView3d() {
+  // the built light of a step that leaves the store: disposed of, or if it is on show now, when it is next taken down
+  stepOnDrop('light3d', v => { for (const o of v.objs) { if (o.parent) o.userData.kept = false; else V3D.disposeLight(o); } });
   // the board the volumes are cut to: while a sweep renders or plays its field, the board it had when its run began
   // (a sweep that moves an outermost part changes the board at every step, and no step would find its volume)
   sweepVol.box = () => {
@@ -2491,14 +2500,15 @@ export function wireView3d() {
     return VOL.fixBox;
   };
   sweepVol.shown = () => V3D.fieldReady();
-  sweepVol.keep = (pk, tab, bb, V) => { const k = volKey(pk, tab, bb); if (!VOL.cache.has(k)) volKeep(k, V); VOL.sweep.add(k); };
+  sweepVol.keep = (pk, tab, bb, V, step) => { const k = volKey(pk, tab, bb); if (!VOL.cache.has(k)) volKeep(k, V, step === undefined ? stepNow() : step); else { stepClaim('vol', k, step); VOL.claims++; } };
   // a sweep's render begins (its steps' volumes, as they come, set the scale they are all drawn at), and a step of it
   // whose volume the page has already
-  sweepVol.begin = () => { VOL.sweep.clear(); VOL.shared = null; VOL.fixBox = null; };
-  sweepVol.mark = pk => { const b = sweepVol.box(); if (b) VOL.sweep.add(volKey(pk, b.tab, volLightBox(b.bb, lastTrace.beams, popSources()))); };
+  sweepVol.begin = () => { VOL.shared = null; VOL.fixBox = null; };
+  sweepVol.mark = pk => { const b = sweepVol.box(); if (b) { stepClaim('vol', volKey(pk, b.tab, volLightBox(b.bb, lastTrace.beams, popSources()))); VOL.claims++; } };
   // whether a step's volume is kept, for the bench's field key pk (on the board the 3D view shows now)
   // (the view brought up to date with the bench first: its board follows the parts a frame later, and a key taken from
   // the board as it was would differ from the next one taken, and render the sweep again for nothing)
+  sweepVol.keyAt = pk => { const b = sweepVol.box(); return b ? volKey(pk, b.tab, volLightBox(b.bb, lastTrace.beams, popSources())) : null; };
   sweepVol.boxKey = () => { if (V3D.active()) V3D.sync(); const b = sweepVol.box(); return b ? b.tab + '|' + volLightBox(b.bb, lastTrace.beams, popSources()).map(Math.round).join() : ''; };
   sweepVol.has = pk => { const b = sweepVol.box(); return !b || VOL.cache.has(volKey(pk, b.tab, volLightBox(b.bb, lastTrace.beams, popSources()))); };
 }

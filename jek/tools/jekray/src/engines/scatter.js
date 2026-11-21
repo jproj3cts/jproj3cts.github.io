@@ -12,6 +12,7 @@ import { lastTrace, zOf } from './trace.js';
 import { popKeyOf, popRun } from './beam-tree.js';
 import { trapBeams, trapLegAt, trapMedium, trapSolve } from './diffraction.js';
 import { beamFrame } from './phase-screen.js';
+import { stepClaim, stepKeep, stepMaps, stepTouch } from './sweep-store.js';
 import { cavUnchecked, cavitySolve, cavityModes, cavityPlan } from './scatter-cavity.js';
 import { PUP_FRESNEL, pupApplyChains, pupChains, pupGmres, pupGrid, pupLock, pupMapAt, pupReturns, pupilPlan } from './scatter-pupil.js';
 
@@ -854,15 +855,13 @@ export const scatCache = new Map();
    stepped back and forth, an Undo) finds its answer at once. A trap found apart is kept the same way, by the
    particle's key without its scattering settings. */
 export const SCAT_KEEP = 64, SCAT_BYTES = 96e6;
-export const scatKept = new Map(), trapKept = new Map();
+export const scatKept = stepMaps.scat, trapKept = new Map();
 const sizeOf = S => { let b = 2000; const walk = (o, d) => { if (!o || typeof o !== 'object' || d > 4) return; if (ArrayBuffer.isView(o)) { b += o.byteLength; return; } for (const v of Array.isArray(o) ? o : Object.values(o)) walk(v, d + 1); }; walk(S, 0); return b; };
-let keptBytes = 0;
-function keepKept(key, S) {
-  const was = scatKept.get(key);
-  if (was) { scatKept.delete(key); keptBytes -= was.bytes; }
+/* (in the sweeps' one store, engines/sweep-store.js: a sweep's steps' answers are kept with their steps, however many;
+   the rest, those the bench came by one at a time, to SCAT_KEEP of them and SCAT_BYTES) */
+function keepKept(key, S, step) {
   const bytes = sizeOf(S);
-  scatKept.set(key, { S, bytes }); keptBytes += bytes;
-  while (scatKept.size > SCAT_KEEP || (keptBytes > SCAT_BYTES && scatKept.size > 1)) { const [k0, v0] = scatKept.entries().next().value; scatKept.delete(k0); keptBytes -= v0.bytes; }
+  stepKeep('scat', key, { S, bytes }, { bytes, step, loose: { count: SCAT_KEEP, bytes: SCAT_BYTES } });
 }
 export const trapKeyOf = key => key.slice(0, key.lastIndexOf('|scat'));
 export function trapKeep(tkey, T) { trapKept.delete(tkey); trapKept.set(tkey, T); while (trapKept.size > SCAT_KEEP) trapKept.delete(trapKept.keys().next().value); }
@@ -879,9 +878,9 @@ export function scatKeep(id, key, S, quiet) {
 }
 /* an answer worked out ahead (a sweep's step): kept, not put on show; the bench traced again, in case it is the one the
    bench is at now */
-export function scatStore(key, S) {
+export function scatStore(key, S, step) {
   if (!S || S.error || !key) return;
-  keepKept(key, S);
+  keepKept(key, S, step);
   if (S.trapRaw) trapKeep(trapKeyOf(key), S.trapRaw);
   scatRev++;
 }
@@ -891,8 +890,11 @@ export function scatFind(id, key, quiet) {
   if (c && c.key === key) return c;
   const k = scatKept.get(key);
   if (!k) return null;
-  scatKept.delete(key); scatKept.set(key, k);
-  scatKeep(id, key, k.S, quiet);
+  // (the newest again, and its step's if the bench is at one of the run's; on show as scatKeep puts it)
+  stepTouch('scat', key); stepClaim('scat', key);
+  scatCache.set(id, { key, S: k.S });
+  if (k.S && k.S.trapRaw) trapKeep(trapKeyOf(key), k.S.trapRaw);
+  { const el = getEl(id); if (el && el.type === 'particle' && !quiet) scatRev++; }
   return { key, S: k.S, fresh: true };
 }
 /* A Particle part's trap, worked out apart from its scattering (the page's worker asks for it while the Trap tab is

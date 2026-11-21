@@ -21222,7 +21222,7 @@ function sweepAudit(opts = {}) {
         const pk = popKeyOf(T.beams, srcs);
         let run = null;
         const fresh = () => run || (run = popRun(T.beams, srcs, { draw: true }));
-        if (fieldFrames.bench.has(pk)) note('bench', i, auditOf(benchFrame(pk).segs, fresh().segs, ['b', 'src', 'leg', 'draw']));
+        if (fieldFrames.bench.has(pk)) note('bench', i, auditOf(benchFrame(pk).segs, fresh().segs, ['b', 'src', 'leg', 'draw', '_pw']));
         const vk = sweepVol.keyAt(pk), box = sweepVol.box();
         // (segment by segment: a volume put together from the workers' shares lists them in another order)
         if (vk && box && stepMaps.vol.has(vk)) note('vol', i, auditOf(auditVol(stepMaps.vol.get(vk)), auditVol(volData(fresh().segs, box.tab, box.bb, null)), ['disp', 'dispL']));

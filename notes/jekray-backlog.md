@@ -1,9 +1,51 @@
-# JEKray: issues logged while changes are paused
+# JEKray backlog
 
-Changes are paused at the owner's request (17 November 2026). Issues are logged here as they come up and done
-together when the owner lifts the pause. Nothing on this list has been started unless it says so.
+The pause was lifted on 21 November 2026. This file is the brief for the session that does the work: the plan and the
+owner's decisions first, then each item as it was logged.
+
+## Plan (agreed with the owner, 21 November 2026)
+
+1. **First, one targeted refactor: a single per-step store for sweeps.** What a sweep keeps per step now lives in five
+   stores (kept traces, rendered field frames, built 3D light, particle answers, cavity results), in six files
+   (`ui/sweeps.js`, `ui/render.js`, `ui/view3d.js`, `ui/scatter.js`, `engines/trace.js`, `page/workers.js`), each with
+   its own key and its own rule for discarding. Give them one owner, one key per step and one way to invalidate
+   (range, Steps, waveform or bench changed; memory budget; a part shown or hidden). No physics result may change:
+   prove each kept result equals a fresh recompute. No wholesale restructure beyond this.
+2. **Then the sweep items on top of it:** 1, 2, 3, 4, 6, 7. They are expected to be one family of bug (a store out of
+   step with another); confirm that per item, do not assume it.
+3. **Then the rest:** 5, 8, 9, 10, 11, 13.
+4. **Batch it:** three groups (the refactor; the sweep items; the rest). One full suite and one push to main per
+   group. Ask the owner before each push to main, every time.
+
+## The owner's decisions
+
+- **Item 5 (detector plot during a sweep):** the reading against the swept value, one point per step, "with the
+  correct timings". The owner wants to discuss this further before it is built: ask first.
+- **Item 8 (electrical feedthrough):** signals go both ways, through nodes that can connect to either type (an input
+  or an output). The fibre feedthrough is not to be changed.
+- **Item 9 (true colour field in 3D):** the default stays as it is now. The option lives with the other visual
+  options in the pop-up (the "How the rays look…" dialog). The owner added: "maybe we should move all of these to the
+  View drop-down menu". Note the clash with item 10, which puts that dialog behind the experimental switch: raise it
+  with the owner before building either.
+- **Item 10 ("How the rays look…" dialog):** behind the experimental switch for now.
+- **Item 11 (rename "Draw light by its power"):** not answered. The proposal was "Fade weak rays and beams", placed
+  under "Show the rays", still fading beams' envelopes as well as rays. Ask before doing it.
+- **The cavity work stays paused.** Remind the owner of it later (see "Also outstanding").
+- **Pushing:** one push to main per group, asking each time.
+
+## How to work, to keep the cost down
+
+- The full suite takes 14 to 17 minutes; run it once per group on the final merged tree, and use
+  `node test/run.mjs --areas …` or single files while developing.
+- Other sessions push to main. Fetch before the final run so it is made on main as it stands.
+- The owner's bench files are private and were only in the old session's scratchpad: ask for them again if a case
+  cannot be rebuilt from the notes (Levisense_Setup1/2, Mach-Zehnder_interferometer1). Never commit them.
+- This sandbox draws 3D in software: judge 3D by the page's own JavaScript time, not frame rate.
 
 ## Logged
+
+Item 12 (sweeps follow the bench's Light settings and fill in by layers) and the gliding-sweeps change (a blank
+Steps uses a fixed automatic set) are done and on main.
 
 1. **Changing a sweep's Steps while it plays or pre-renders crashes the page.** Seen on a Particle rod's "Axis tilt up"
    sweep, 0 → 180°, 18 steps, "Render the diffracted field" ticked, in 3D. Cause not yet found. Likely suspects:

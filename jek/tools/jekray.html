@@ -14072,6 +14072,7 @@ function stepKeep(name, key, v, o = {}) {
   if (was !== undefined) { map.delete(key); if (was !== v && stepDrops[name]) stepDrops[name](was); }
   map.set(key, v);
   let step = o.step !== undefined ? o.step : stepNow();
+  if (step !== null && R && R.as.has(step)) step = R.as.get(step);
   if (step !== null && !(R && R.keys.has(step))) step = null;
   const m = { bytes: o.bytes || 0, n: o.n || 0, age: ++stepStore.age, step, gen: stepStore.gen };
   stepMeta.set(v, m);
@@ -14140,7 +14141,8 @@ function stepSwap(name, key, v2) {
 /* an entry the page has already, found to be a step's of the run (the step the bench is at, unless given) */
 function stepClaim(name, key, step) {
   const v = stepMaps[name].get(key), m = v !== undefined ? stepMeta.get(v) : null, R = stepStore.run;
-  const s = step !== undefined ? step : stepNow();
+  let s = step !== undefined ? step : stepNow();
+  if (s !== null && R && R.as.has(s)) s = R.as.get(s);
   if (m && R && s !== null && R.keys.has(s)) { m.step = s; m.gen = stepStore.gen; }
 }
 function stepDelete(name, key) { stepLeave(name, key); }
@@ -14155,14 +14157,19 @@ function stepRunEntries(name) {
    at step i; shape whatever else its steps depend on (their ranges, phases, waveforms, Steps). The same run begun
    again is the run it was; another is a new generation, which takes over what is kept for steps it has too.
    Returns the generation. */
-function stepRunBegin(list, n, valueAt, shape) {
-  const keys = new Set();
-  for (let i = 0; i < n; i++) keys.add(stepKeyOf(list.map(([id, path], k) => [id, path, valueAt(k, i)])));
+function stepRunBegin(list, n, valueAt, shape, heldAt) {
+  // (a step by the values the bench holds at it, heldAt(k, i): a setting held to its limits, or an angle brought round,
+  // is not always the value asked for; as: the step asked for, as a worker is sent it, to the step it is)
+  const keys = new Set(), as = new Map();
+  for (let i = 0; i < n; i++) {
+    const asked = stepKeyOf(list.map(([id, path], k) => [id, path, valueAt(k, i)])), held = heldAt ? stepKeyOf(list.map(([id, path], k) => [id, path, heldAt(k, i)])) : asked;
+    keys.add(held); if (held !== asked) as.set(asked, held);
+  }
   const sh = JSON.stringify([shape, n, list]);
   const R = stepStore.run;
-  if (R && R.shape === sh) { R.keys = keys; return stepStore.gen; }
+  if (R && R.shape === sh) { R.keys = keys; R.as = as; return stepStore.gen; }
   const gen = ++stepStore.gen;
-  stepStore.run = { shape: sh, n, list: list.map(q => [q[0], q[1]]), keys };
+  stepStore.run = { shape: sh, n, list: list.map(q => [q[0], q[1]]), keys, as };
   for (const map of Object.values(stepMaps)) for (const x of map.values()) { const m = stepMeta.get(x); if (m && m.step !== null && keys.has(m.step)) m.gen = gen; }
   return gen;
 }
@@ -20191,7 +20198,8 @@ function setParam(el, path, v) {
     case 'm2': v = clamp(v, 1, 50); break;
     case 'hm': case 'hn': case 'lp': v = Math.round(clamp(v, 0, 10)); break;
     case 'trapR': case 'trapRho': case 'trapLen': v = Math.max(1, v); break;
-    case 'trapTilt': v = clamp(v, -180, 180); break;
+    // (an angle: past ±180 it comes round again, so a sweep from 0 to 360 turns the rod right round rather than stopping at 180)
+    case 'trapTilt': if (v > 180 || v < -180) v = ((v + 180) % 360 + 360) % 360 - 180; break;
     case 'scatDip': v = Math.round(clamp(v, 0, 64)); break;
     case 'scatNA': v = clamp(v, 0.001, 4); break;
     case 'trapP': v = Math.max(1e-12, v); break;
@@ -20300,7 +20308,13 @@ const clockValue = sw => clockValueAt(sw, clockT);
 /* step i of n over a cycle P of the clock: the sweep at that point of its own cycles (P holds a
    whole number of them), from the fraction alone, so the same step comes out the same to the
    last digit at any rate, and finds the field rendered for it */
-const stepValue = (sw, i, n, P) => sweepValue(sw, waveShape(sw.wave, Math.max(1, Math.round(sw.freq * P)) * i / n + sw.phase / 360));
+function stepValue(sw, i, n, P) {
+  let j = Math.max(1, Math.round(sw.freq * P)) * i;
+  // a sine or a triangle comes back the way it went: its step on the way down is the very step on the way up (the same
+  // number, so the same state: worked out once, not once each way with a last digit between them)
+  if (!sw.phase && sw.wave !== 'ramp') { j = ((j % n) + n) % n; if (2 * j > n) j = n - j; }
+  return sweepValue(sw, waveShape(sw.wave, j / n + sw.phase / 360));
+}
 function sweepFrac(el, path) {
   const sw = el.sweeps[path], v = getPath(el, path);
   if (!sw || sw.max === sw.min || v === null || !isFinite(v)) return 0;
@@ -20322,7 +20336,12 @@ function traceAhead(t, step) {
 }
 /* the run the sweeps' store keeps steps for (engines/sweep-store.js): these sweeps over n steps of the cycle */
 function sweepRun(list, n, period) {
-  return stepRunBegin(list.map(([el, path]) => [el.id, path]), n, (k, i) => stepValue(list[k][0].sweeps[list[k][1]], i, n, period(list[k][0], list[k][1])), sweepShapes(list));
+  const ask = (k, i) => stepValue(list[k][0].sweeps[list[k][1]], i, n, period(list[k][0], list[k][1]));
+  // each step's values as the bench holds them (a setting keeps to its limits, an angle comes round): set, read, put back
+  const saved = list.map(([el, path]) => getPath(el, path)), held = [];
+  for (let i = 0; i < n; i++) { list.forEach(([el, path], k) => setParam(el, path, ask(k, i))); held.push(list.map(([el, path]) => getPath(el, path))); }
+  list.forEach(([el, path], k) => setParam(el, path, saved[k]));
+  return stepRunBegin(list.map(([el, path]) => [el.id, path]), n, ask, sweepShapes(list), (k, i) => held[i][k]);
 }
 function startLoop() {
   playStep = null;
@@ -20410,11 +20429,21 @@ function sweepStepsChanged(why) {
   const job = sweepJob;
   const list = job ? job.list.filter(([e]) => getEl(e.id)) : [...playing.values()].map(p => [getEl(p.id), p.path]).filter(q => q[0]);
   // (playing with no field to render: the steps it plays on now are its run)
-  if (list.length && !fieldWanted() && !job && playing.size && list.every(([e, p]) => e.sweeps && e.sweeps[p])) plainRun(list);
+  // (and its particles' scattering solved ahead for them, what was being solved for the old steps dropped)
+  if (list.length && !fieldWanted() && !job && playing.size) { scatterAheadStop(); aheadPlain(); }
   if (!list.length || !fieldWanted()) return;
   if (job) { job.quiet = true; job.cancel(); }
   playing.clear();
   renderSweepFrames(list, () => { for (const [el, path] of list) if (el.sweeps && el.sweeps[path]) playing.set(sweepKey(el, path), { id: el.id, path }); startLoop(); syncPanel(); updateSweepButtons(); });
+}
+/* A sweep's own settings changed in its panel (what: steps, min, max, phase, wave, freq), once the edit is finished. If it
+   is playing or rendering, its steps are other steps now: everything worked out ahead for them starts again (as for
+   Steps). Its rate alone moves no step (they are points of its cycle), unless its steps are the automatic count, which
+   follows the rate, and no field rendered holds it to the count it had. */
+function sweepEdited(el, path, what) {
+  if (!isPlaying(el, path) && !jobHas(sweepJob, el, path)) return;
+  if (what === 'freq' && ((el.sweeps[path] && el.sweeps[path].steps) || sweepJob || renderedPeriod() > 0)) return;
+  sweepStepsChanged();
 }
 /* The bench edited while a sweep renders or plays its field. What the frames hold is the light, keyed by the bench's
    field (popKeyOf over the trace): an edit the light never reaches (a part off the beam, a drawing, a part on another
@@ -31588,7 +31617,8 @@ function numInput(id, get, onValue, opts = {}) {
   // taken only once typed (Enter, or leaving the field): for a value that rebuilds the part, so
   // its first digit alone (the 1 of 12 branches) does not take effect on the way
   if (opts.commit) {
-    inp.addEventListener('change', () => { const v = Number(inp.value.trim()); if (inp.value.trim() !== '' && isFinite(v)) { checkpoint(); onValue(v); changed(true); } inp.value = show(get()); });
+    // (opts.blank: what an emptied box means, where it means something)
+    inp.addEventListener('change', () => { const raw = inp.value.trim(), v = raw === '' ? opts.blank : Number(raw); if (raw === '' ? opts.blank !== undefined : isFinite(v)) { checkpoint(); onValue(v); changed(true); } inp.value = show(get()); });
     bindSync(inp, () => { inp.value = show(get()); });
     return inp;
   }
@@ -31700,9 +31730,11 @@ function sweepSummary(el, path, sw, label, prefix) {
 
 function sweepControls(el, path, sw, label) {
   const box = h('div', { class: 'rt-sweep' });
+  // (taken once typed, Enter or leaving the box, not at each key: a change to a sweep's steps starts whatever is being
+  // worked out for them again, a long render discarded at every digit otherwise)
   const small = (text, key, check) => {
     const id = 'rtf' + (++fid);
-    const inp = numInput(id, () => sw[key], v => { if (check && !check(v)) return; sw[key] = v; });
+    const inp = numInput(id, () => sw[key], v => { if (check && !check(v)) return; sw[key] = v; sweepEdited(el, path, key); }, { commit: true });
     return h('div', { class: 'rt-f' }, h('label', { for: id }, text), inp);
   };
   const range = h('div', { class: 'rt-sweep-range' }, small('From', 'min'), small('To', 'max'));
@@ -31727,9 +31759,9 @@ function sweepControls(el, path, sw, label) {
     const id = 'rtf' + (++fid);
     const inp = numInput(id, () => sw.steps || null, v => {
       if (v === null) delete sw.steps; else if (v >= 2) sw.steps = Math.round(Math.min(v, SWEEP_STEPS_MAX)); else return;
-      // rendering or playing its field: rendered again at the new steps, then played on (not left working it out live)
-      sweepStepsChanged();
-    }, { blank: null });
+      // rendering or playing: worked out again at the new steps, then played on (not left working it out live)
+      sweepEdited(el, path, 'steps');
+    }, { blank: null, commit: true });
     // (blank: the automatic count, about 30 a second at its rate, shown as the placeholder)
     bindSync(inp, () => { inp.placeholder = 'auto (' + fieldFramesOf(Object.assign({}, sw, { steps: 0 })) + ')'; });
     range.append(h('div', { class: 'rt-f', title: 'The positions it steps through a cycle. Blank: automatic, enough to look smooth at its rate (about 30 a second); every cycle comes back to the same ones, so each is worked out once' }, h('label', { for: id }, 'Steps'), inp));
@@ -31763,7 +31795,7 @@ function sweepControls(el, path, sw, label) {
   const wave = h('select', { id: waveId });
   for (const [v, t] of Object.entries(WAVES)) wave.append(h('option', { value: v }, t));
   wave.value = sw.wave;
-  wave.addEventListener('change', () => { checkpoint(); sw.wave = wave.value; changed(false); });
+  wave.addEventListener('change', () => { checkpoint(); sw.wave = wave.value; sweepEdited(el, path, 'wave'); changed(false); });
   const period = h('span', { class: 'rt-hint' });
   bindSync(period, () => { period.textContent = 'One cycle every ' + (+(1 / sw.freq).toPrecision(3)) + ' s.'; });
   adv.append(h('summary', null, 'Advanced'),
@@ -65007,7 +65039,9 @@ function workerMain() {
         // the bench's field run, without the bench's drawing of it (for the 3D view's render workers)
         const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
         if (bench.key !== key) bench = { key, R: popRun(lastTrace.beams, srcs, {}) };
-        out = { key, R: fwPackRun(bench.R, transfer) };
+        // (never its drawing: a run kept from a 'bench' job has handed its drawn slices to the page already, and sending
+        // them again failed the worker, DataCloneError, after which the page did every field itself)
+        out = { key, R: fwPackRun(bench.R, transfer, true) };
       } else if (kind === 'warm') {
         out = true;                                      // the bench loaded and traced: ready for its share
       } else if (kind === 'volpart') {
@@ -65075,10 +65109,10 @@ function workerMain() {
 
 /* A field run as plain data: each segment by its beam's index and its source's id, with its
    starting field; the drawn slices as images. The page puts the rest back (fwUnpackRun). */
-function fwPackRun(R, transfer) {
+function fwPackRun(R, transfer, bare) {
   const segs = R.segs.map(sg => {
     let draw = null;
-    if (sg.draw) {
+    if (sg.draw && !bare) {
       const bm = sg.draw.cv.transferToImageBitmap();
       transfer.push(bm);
       draw = Object.assign({}, sg.draw, { cv: bm });
@@ -65587,9 +65621,11 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     traceStoreTest(on) { setTraceStoreTest(on); },
     // (tests) the sweeps' one store (engines/sweep-store.js): what it holds, and every kept step against working it out again
     stepInfo() { return stepInfo(); },
+    // (tests) whether the workers are still in use: one that failed is given up on, and the page does its work from then on
+    workersOk() { return { field: !FW.failed, render: !SW.failed, scatter: !scatWork.failed, trace: !TW.failed }; },
     sweepAudit(opts) { return sweepAudit(opts); },
     // (tests) a sweep's settings changed as its panel changes them: { steps, min, max, wave, phase, freq }
-    sweepSet(name, path, o) { const el = this.byName(name), sw = el.sweeps[path]; for (const [k, v] of Object.entries(o)) { if (v === null) delete sw[k]; else sw[k] = v; } if ('steps' in o) sweepStepsChanged(); changed(false); },
+    sweepSet(name, path, o) { const el = this.byName(name), sw = el.sweeps[path]; for (const [k, v] of Object.entries(o)) { if (v === null) delete sw[k]; else sw[k] = v; } for (const k of Object.keys(o)) sweepEdited(el, path, k); changed(false); },
     activityBars() { return activityBars(); },
     // the diffracted field as the 3D view takes it, worked out here: per segment its cuts along it, their reach and the irradiance on the axis (W/cm²)
     vol3d() { traceScene(); const srcs = popSources(); if (!srcs.length) return null; const t0 = performance.now(), R = popRun(lastTrace.beams, srcs, {}), t1 = performance.now(), V = volData(R.segs, project.tab, null); self.__volMs = [t1 - t0, performance.now() - t1];

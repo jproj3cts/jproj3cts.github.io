@@ -28,7 +28,7 @@ import { hitTest, wirePointer } from './pointer.js';
 import { getPath, setParam } from '../state/params.js';
 import {
   fieldFrames, fieldHeld, fieldRendered, pauseAll, scatLayerHeld, play, playAll, playing, renderedPeriod, showActivityNow,
-  activityBars, activityNow, frameBytes, framesBytes, setFrameBudget, setSweepHoldLimit, stepValue, sweepHolding, sweepJob, sweepStepsChanged, updateActivity
+  activityBars, activityNow, frameBytes, framesBytes, setFrameBudget, setSweepHoldLimit, stepValue, sweepHolding, SW, sweepEdited, sweepJob, updateActivity
 } from './sweeps.js';
 import { sweepAudit } from './sweep-audit.js';
 import { stepInfo } from '../engines/sweep-store.js';
@@ -103,7 +103,7 @@ import { modAsk, modLoad, modPrepare, modReset, wireMods } from '../io/mods.js';
 import { FW, TW, WORKERS_OK, fieldWorker, fwMismatch, fwProject, fwRequest, newAppWorker } from '../page/workers.js';
 import { LIN_STATS, scatKept, scatterCached, scatterPlain, scatterPrep } from '../engines/scatter.js';
 import { setCavDegenCheck } from '../engines/scatter-cavity.js';
-import { scatActivity, wireScatter } from './scatter.js';
+import { scatActivity, scatWork, wireScatter } from './scatter.js';
 import { drawingSvgText, drawingsPdfBlob, lensDrawings } from './lens-drawing.js';
 import { partFiles } from './lens-make.js';
 import { reportPdfBlob } from './lens-report.js';
@@ -239,9 +239,11 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     traceStoreTest(on) { setTraceStoreTest(on); },
     // (tests) the sweeps' one store (engines/sweep-store.js): what it holds, and every kept step against working it out again
     stepInfo() { return stepInfo(); },
+    // (tests) whether the workers are still in use: one that failed is given up on, and the page does its work from then on
+    workersOk() { return { field: !FW.failed, render: !SW.failed, scatter: !scatWork.failed, trace: !TW.failed }; },
     sweepAudit(opts) { return sweepAudit(opts); },
     // (tests) a sweep's settings changed as its panel changes them: { steps, min, max, wave, phase, freq }
-    sweepSet(name, path, o) { const el = this.byName(name), sw = el.sweeps[path]; for (const [k, v] of Object.entries(o)) { if (v === null) delete sw[k]; else sw[k] = v; } if ('steps' in o) sweepStepsChanged(); changed(false); },
+    sweepSet(name, path, o) { const el = this.byName(name), sw = el.sweeps[path]; for (const [k, v] of Object.entries(o)) { if (v === null) delete sw[k]; else sw[k] = v; } for (const k of Object.keys(o)) sweepEdited(el, path, k); changed(false); },
     activityBars() { return activityBars(); },
     // the diffracted field as the 3D view takes it, worked out here: per segment its cuts along it, their reach and the irradiance on the axis (W/cm²)
     vol3d() { traceScene(); const srcs = popSources(); if (!srcs.length) return null; const t0 = performance.now(), R = popRun(lastTrace.beams, srcs, {}), t1 = performance.now(), V = volData(R.segs, project.tab, null); self.__volMs = [t1 - t0, performance.now() - t1];

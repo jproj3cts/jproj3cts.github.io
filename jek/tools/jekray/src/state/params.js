@@ -96,7 +96,8 @@ export function setParam(el, path, v) {
     case 'm2': v = clamp(v, 1, 50); break;
     case 'hm': case 'hn': case 'lp': v = Math.round(clamp(v, 0, 10)); break;
     case 'trapR': case 'trapRho': case 'trapLen': v = Math.max(1, v); break;
-    case 'trapTilt': v = clamp(v, -180, 180); break;
+    // (an angle: past ±180 it comes round again, so a sweep from 0 to 360 turns the rod right round rather than stopping at 180)
+    case 'trapTilt': if (v > 180 || v < -180) v = ((v + 180) % 360 + 360) % 360 - 180; break;
     case 'scatDip': v = Math.round(clamp(v, 0, 64)); break;
     case 'scatNA': v = clamp(v, 0.001, 4); break;
     case 'trapP': v = Math.max(1e-12, v); break;

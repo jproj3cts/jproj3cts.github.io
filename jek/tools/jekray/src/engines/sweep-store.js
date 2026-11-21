@@ -68,6 +68,7 @@ export function stepKeep(name, key, v, o = {}) {
   if (was !== undefined) { map.delete(key); if (was !== v && stepDrops[name]) stepDrops[name](was); }
   map.set(key, v);
   let step = o.step !== undefined ? o.step : stepNow();
+  if (step !== null && R && R.as.has(step)) step = R.as.get(step);
   if (step !== null && !(R && R.keys.has(step))) step = null;
   const m = { bytes: o.bytes || 0, n: o.n || 0, age: ++stepStore.age, step, gen: stepStore.gen };
   stepMeta.set(v, m);
@@ -136,7 +137,8 @@ export function stepSwap(name, key, v2) {
 /* an entry the page has already, found to be a step's of the run (the step the bench is at, unless given) */
 export function stepClaim(name, key, step) {
   const v = stepMaps[name].get(key), m = v !== undefined ? stepMeta.get(v) : null, R = stepStore.run;
-  const s = step !== undefined ? step : stepNow();
+  let s = step !== undefined ? step : stepNow();
+  if (s !== null && R && R.as.has(s)) s = R.as.get(s);
   if (m && R && s !== null && R.keys.has(s)) { m.step = s; m.gen = stepStore.gen; }
 }
 export function stepDelete(name, key) { stepLeave(name, key); }
@@ -151,14 +153,19 @@ export function stepRunEntries(name) {
    at step i; shape whatever else its steps depend on (their ranges, phases, waveforms, Steps). The same run begun
    again is the run it was; another is a new generation, which takes over what is kept for steps it has too.
    Returns the generation. */
-export function stepRunBegin(list, n, valueAt, shape) {
-  const keys = new Set();
-  for (let i = 0; i < n; i++) keys.add(stepKeyOf(list.map(([id, path], k) => [id, path, valueAt(k, i)])));
+export function stepRunBegin(list, n, valueAt, shape, heldAt) {
+  // (a step by the values the bench holds at it, heldAt(k, i): a setting held to its limits, or an angle brought round,
+  // is not always the value asked for; as: the step asked for, as a worker is sent it, to the step it is)
+  const keys = new Set(), as = new Map();
+  for (let i = 0; i < n; i++) {
+    const asked = stepKeyOf(list.map(([id, path], k) => [id, path, valueAt(k, i)])), held = heldAt ? stepKeyOf(list.map(([id, path], k) => [id, path, heldAt(k, i)])) : asked;
+    keys.add(held); if (held !== asked) as.set(asked, held);
+  }
   const sh = JSON.stringify([shape, n, list]);
   const R = stepStore.run;
-  if (R && R.shape === sh) { R.keys = keys; return stepStore.gen; }
+  if (R && R.shape === sh) { R.keys = keys; R.as = as; return stepStore.gen; }
   const gen = ++stepStore.gen;
-  stepStore.run = { shape: sh, n, list: list.map(q => [q[0], q[1]]), keys };
+  stepStore.run = { shape: sh, n, list: list.map(q => [q[0], q[1]]), keys, as };
   for (const map of Object.values(stepMaps)) for (const x of map.values()) { const m = stepMeta.get(x); if (m && m.step !== null && keys.has(m.step)) m.gen = gen; }
   return gen;
 }

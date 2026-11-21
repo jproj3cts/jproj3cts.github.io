@@ -13,7 +13,7 @@ import { H, requestRender, selFibre, selection, setSelFibreId, sy } from './rend
 import { drawBarShown } from './drawings.js';
 import { SWEEP_STEPS_MAX, getPath, setParam } from '../state/params.js';
 import {
-  WAVES, advOpen, fieldFramesOf, sweepStepsChanged, sweepShowsField, isPlaying, jobHas, pause, play, swPool,
+  WAVES, advOpen, fieldFramesOf, sweepEdited, sweepShowsField, isPlaying, jobHas, pause, play, swPool,
   fieldRendered, swRelease, sweepDefault, sweepEta, sweepFrac, sweepJob, sweepKey, sweepValue
 } from './sweeps.js';
 import { V3D } from './view3d.js';
@@ -111,7 +111,8 @@ export function numInput(id, get, onValue, opts = {}) {
   // taken only once typed (Enter, or leaving the field): for a value that rebuilds the part, so
   // its first digit alone (the 1 of 12 branches) does not take effect on the way
   if (opts.commit) {
-    inp.addEventListener('change', () => { const v = Number(inp.value.trim()); if (inp.value.trim() !== '' && isFinite(v)) { checkpoint(); onValue(v); changed(true); } inp.value = show(get()); });
+    // (opts.blank: what an emptied box means, where it means something)
+    inp.addEventListener('change', () => { const raw = inp.value.trim(), v = raw === '' ? opts.blank : Number(raw); if (raw === '' ? opts.blank !== undefined : isFinite(v)) { checkpoint(); onValue(v); changed(true); } inp.value = show(get()); });
     bindSync(inp, () => { inp.value = show(get()); });
     return inp;
   }
@@ -223,9 +224,11 @@ function sweepSummary(el, path, sw, label, prefix) {
 
 function sweepControls(el, path, sw, label) {
   const box = h('div', { class: 'rt-sweep' });
+  // (taken once typed, Enter or leaving the box, not at each key: a change to a sweep's steps starts whatever is being
+  // worked out for them again, a long render discarded at every digit otherwise)
   const small = (text, key, check) => {
     const id = 'rtf' + (++fid);
-    const inp = numInput(id, () => sw[key], v => { if (check && !check(v)) return; sw[key] = v; });
+    const inp = numInput(id, () => sw[key], v => { if (check && !check(v)) return; sw[key] = v; sweepEdited(el, path, key); }, { commit: true });
     return h('div', { class: 'rt-f' }, h('label', { for: id }, text), inp);
   };
   const range = h('div', { class: 'rt-sweep-range' }, small('From', 'min'), small('To', 'max'));
@@ -250,9 +253,9 @@ function sweepControls(el, path, sw, label) {
     const id = 'rtf' + (++fid);
     const inp = numInput(id, () => sw.steps || null, v => {
       if (v === null) delete sw.steps; else if (v >= 2) sw.steps = Math.round(Math.min(v, SWEEP_STEPS_MAX)); else return;
-      // rendering or playing its field: rendered again at the new steps, then played on (not left working it out live)
-      sweepStepsChanged();
-    }, { blank: null });
+      // rendering or playing: worked out again at the new steps, then played on (not left working it out live)
+      sweepEdited(el, path, 'steps');
+    }, { blank: null, commit: true });
     // (blank: the automatic count, about 30 a second at its rate, shown as the placeholder)
     bindSync(inp, () => { inp.placeholder = 'auto (' + fieldFramesOf(Object.assign({}, sw, { steps: 0 })) + ')'; });
     range.append(h('div', { class: 'rt-f', title: 'The positions it steps through a cycle. Blank: automatic, enough to look smooth at its rate (about 30 a second); every cycle comes back to the same ones, so each is worked out once' }, h('label', { for: id }, 'Steps'), inp));
@@ -286,7 +289,7 @@ function sweepControls(el, path, sw, label) {
   const wave = h('select', { id: waveId });
   for (const [v, t] of Object.entries(WAVES)) wave.append(h('option', { value: v }, t));
   wave.value = sw.wave;
-  wave.addEventListener('change', () => { checkpoint(); sw.wave = wave.value; changed(false); });
+  wave.addEventListener('change', () => { checkpoint(); sw.wave = wave.value; sweepEdited(el, path, 'wave'); changed(false); });
   const period = h('span', { class: 'rt-hint' });
   bindSync(period, () => { period.textContent = 'One cycle every ' + (+(1 / sw.freq).toPrecision(3)) + ' s.'; });
   adv.append(h('summary', null, 'Advanced'),

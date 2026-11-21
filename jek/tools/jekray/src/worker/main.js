@@ -101,7 +101,9 @@ export function workerMain() {
         // the bench's field run, without the bench's drawing of it (for the 3D view's render workers)
         const srcs = popSources(), key = popKeyOf(lastTrace.beams, srcs);
         if (bench.key !== key) bench = { key, R: popRun(lastTrace.beams, srcs, {}) };
-        out = { key, R: fwPackRun(bench.R, transfer) };
+        // (never its drawing: a run kept from a 'bench' job has handed its drawn slices to the page already, and sending
+        // them again failed the worker, DataCloneError, after which the page did every field itself)
+        out = { key, R: fwPackRun(bench.R, transfer, true) };
       } else if (kind === 'warm') {
         out = true;                                      // the bench loaded and traced: ready for its share
       } else if (kind === 'volpart') {
@@ -169,10 +171,10 @@ export function workerMain() {
 
 /* A field run as plain data: each segment by its beam's index and its source's id, with its
    starting field; the drawn slices as images. The page puts the rest back (fwUnpackRun). */
-export function fwPackRun(R, transfer) {
+export function fwPackRun(R, transfer, bare) {
   const segs = R.segs.map(sg => {
     let draw = null;
-    if (sg.draw) {
+    if (sg.draw && !bare) {
       const bm = sg.draw.cv.transferToImageBitmap();
       transfer.push(bm);
       draw = Object.assign({}, sg.draw, { cv: bm });

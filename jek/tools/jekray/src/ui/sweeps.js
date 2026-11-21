@@ -88,7 +88,13 @@ const clockValue = sw => clockValueAt(sw, clockT);
 /* step i of n over a cycle P of the clock: the sweep at that point of its own cycles (P holds a
    whole number of them), from the fraction alone, so the same step comes out the same to the
    last digit at any rate, and finds the field rendered for it */
-export const stepValue = (sw, i, n, P) => sweepValue(sw, waveShape(sw.wave, Math.max(1, Math.round(sw.freq * P)) * i / n + sw.phase / 360));
+export function stepValue(sw, i, n, P) {
+  let j = Math.max(1, Math.round(sw.freq * P)) * i;
+  // a sine or a triangle comes back the way it went: its step on the way down is the very step on the way up (the same
+  // number, so the same state: worked out once, not once each way with a last digit between them)
+  if (!sw.phase && sw.wave !== 'ramp') { j = ((j % n) + n) % n; if (2 * j > n) j = n - j; }
+  return sweepValue(sw, waveShape(sw.wave, j / n + sw.phase / 360));
+}
 export function sweepFrac(el, path) {
   const sw = el.sweeps[path], v = getPath(el, path);
   if (!sw || sw.max === sw.min || v === null || !isFinite(v)) return 0;
@@ -110,7 +116,12 @@ export function traceAhead(t, step) {
 }
 /* the run the sweeps' store keeps steps for (engines/sweep-store.js): these sweeps over n steps of the cycle */
 function sweepRun(list, n, period) {
-  return stepRunBegin(list.map(([el, path]) => [el.id, path]), n, (k, i) => stepValue(list[k][0].sweeps[list[k][1]], i, n, period(list[k][0], list[k][1])), sweepShapes(list));
+  const ask = (k, i) => stepValue(list[k][0].sweeps[list[k][1]], i, n, period(list[k][0], list[k][1]));
+  // each step's values as the bench holds them (a setting keeps to its limits, an angle comes round): set, read, put back
+  const saved = list.map(([el, path]) => getPath(el, path)), held = [];
+  for (let i = 0; i < n; i++) { list.forEach(([el, path], k) => setParam(el, path, ask(k, i))); held.push(list.map(([el, path]) => getPath(el, path))); }
+  list.forEach(([el, path], k) => setParam(el, path, saved[k]));
+  return stepRunBegin(list.map(([el, path]) => [el.id, path]), n, ask, sweepShapes(list), (k, i) => held[i][k]);
 }
 function startLoop() {
   playStep = null;
@@ -198,11 +209,21 @@ export function sweepStepsChanged(why) {
   const job = sweepJob;
   const list = job ? job.list.filter(([e]) => getEl(e.id)) : [...playing.values()].map(p => [getEl(p.id), p.path]).filter(q => q[0]);
   // (playing with no field to render: the steps it plays on now are its run)
-  if (list.length && !fieldWanted() && !job && playing.size && list.every(([e, p]) => e.sweeps && e.sweeps[p])) plainRun(list);
+  // (and its particles' scattering solved ahead for them, what was being solved for the old steps dropped)
+  if (list.length && !fieldWanted() && !job && playing.size) { scatterAheadStop(); aheadPlain(); }
   if (!list.length || !fieldWanted()) return;
   if (job) { job.quiet = true; job.cancel(); }
   playing.clear();
   renderSweepFrames(list, () => { for (const [el, path] of list) if (el.sweeps && el.sweeps[path]) playing.set(sweepKey(el, path), { id: el.id, path }); startLoop(); syncPanel(); updateSweepButtons(); });
+}
+/* A sweep's own settings changed in its panel (what: steps, min, max, phase, wave, freq), once the edit is finished. If it
+   is playing or rendering, its steps are other steps now: everything worked out ahead for them starts again (as for
+   Steps). Its rate alone moves no step (they are points of its cycle), unless its steps are the automatic count, which
+   follows the rate, and no field rendered holds it to the count it had. */
+export function sweepEdited(el, path, what) {
+  if (!isPlaying(el, path) && !jobHas(sweepJob, el, path)) return;
+  if (what === 'freq' && ((el.sweeps[path] && el.sweeps[path].steps) || sweepJob || renderedPeriod() > 0)) return;
+  sweepStepsChanged();
 }
 /* The bench edited while a sweep renders or plays its field. What the frames hold is the light, keyed by the bench's
    field (popKeyOf over the trace): an edit the light never reaches (a part off the beam, a drawing, a part on another

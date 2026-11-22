@@ -12336,7 +12336,10 @@ function normFibres(list, els) {
   const dir = x => { const e = byId.get(x[0]), P = !e ? null : e.type === 'elec' ? (ELEC.KINDS[e.kind] ? ELEC.ports(e)[x[1]] : null) : portsOf(e)[x[1]]; return P && P.elec || null; };
   const end = x => Array.isArray(x) && byId.has(String(x[0])) && (x[1] | 0) >= 0 && (x[1] | 0) < nPorts(byId.get(String(x[0]))) ? [String(x[0]), x[1] | 0] : null;
   for (const F of Array.isArray(list) ? list : []) {
-    let a = F && end(F.a), b = F && end(F.b);
+    // (an electrical feedthrough had an in, port 0, and an out, port 1: it has one connector now, port 0, and a wire that
+    // left its out leaves that)
+    const one = x => { const e = Array.isArray(x) ? byId.get(String(x[0])) : null; return e && e.type === 'elec' && e.kind === 'thru' && (x[1] | 0) === 1 ? [x[0], 0] : x; };
+    let a = F && end(one(F.a)), b = F && end(one(F.b));
     // a wire: from an output to an input, one wire to an input, any number from an output
     if (a && b && (dir(a) || dir(b))) {
       if (!dir(a) || !dir(b) || (dir(a) === dir(b) && dir(a) !== 'io')) continue;
@@ -23371,6 +23374,7 @@ const ELEC_KINDS = {
     params: [['harm', 'Harmonic', 1], ['phase', 'Phase (°)', 0], ['tau', 'Time constant (s)', 0.1],
       ['slope', 'Slope', 2, choice([1, '6 dB/oct'], [2, '12 dB/oct'], [3, '18 dB/oct'], [4, '24 dB/oct'])]] },
   // a bulkhead connector to another tab: what goes in here comes out of its partner's output, and the other way
+  // (one connector on the bench, see portList; its ins and outs here as a node's, for the solver)
   thru: { label: 'Electrical feedthrough', tag: '⇄', ins: ['in'], outs: ['out'], params: [] },
   daq: { label: 'DAQ (ADC)', tag: 'DAQ', ins: ['in'], outs: ['out'],
     params: [['rate', 'Sample rate (S/s)', 1e4], ['bits', 'Bits', 16], ['range', 'Range, ± (V)', 10]] },
@@ -23391,10 +23395,12 @@ const NODE_PORT = 4;                          // a node's ring (mm) and its port
 const portList = el => {
   const K = ELEC_KINDS[el.kind];
   if (el.kind === 'node') return [{ x: 0, y: 0, dx: 0, dy: 0, elec: 'io' }];          // one point: a wire in, any number out
+  // a feedthrough: one connector, as a node's (a signal wired in on either tab, any number of wires out on both)
+  if (el.kind === 'thru') return [{ x: -W_BOX / 2, y: 0, dx: -1, dy: 0, elec: 'io' }];
   return [...K.ins.map((nm, i) => ({ x: -W_BOX / 2, y: -side(K.ins.length, i), dx: -1, dy: 0, elec: 'in' })),
     ...K.outs.map((nm, i) => ({ x: W_BOX / 2, y: -side(K.outs.length, i), dx: 1, dy: 0, elec: 'out' }))];
 };
-const elecNames = el => { const K = ELEC_KINDS[el.kind]; return el.kind === 'node' ? ['node'] : [...K.ins, ...K.outs]; };
+const elecNames = el => { const K = ELEC_KINDS[el.kind]; return el.kind === 'node' ? ['node'] : el.kind === 'thru' ? ['connector'] : [...K.ins, ...K.outs]; };
 /* ---------- the element, as saved ---------- */
 function elecNorm(e, base) {
   // a mod's block (see Mods): a kind of its own, its ports as the part carries them
@@ -23741,8 +23747,16 @@ function solve() {
       case 'daq': { const D = daq(el, In[0], m => note(el, m)); lock.set(el.id, D.info); set(0, D.out); break; }
       case 'sum': set(0, sum(In[0], In[1], el.ga, el.gb)); break;
       case 'node': out.set(pkey(el.id, 0), In[0]); break;     // its one port carries on what it is given
-      // out of a feedthrough: what goes into its partner on the other tab
-      case 'thru': { const P = partner(el); if (!P) note(el, 'No partner: give a feedthrough on another tab the pair name ' + el.pair); set(0, P ? input(P, 0) : zero()); break; }
+      // A feedthrough: the pair is one connector through the wall, with a signal wired into it on either tab. An end hands on
+      // what is wired into its partner; with nothing wired into the partner, what is wired into itself (so a signal goes
+      // through it on one tab too). Both wired: each hands on the other's, a signal each way, as the two-port ones did
+      case 'thru': {
+        const P = partner(el), own = feed.has(pkey(el.id, 0)), far = !!P && feed.has(pkey(P.id, 0));
+        if (!P) note(el, 'No partner yet: it hands on what is wired into it on this tab. For another tab, give a feedthrough there the pair name ' + el.pair);
+        else if (own && far) note(el, 'A signal is wired into it on both tabs: each side reads the other side\u2019s');
+        out.set(pkey(el.id, 0), far ? input(P, 0) : own ? In[0] : zero());
+        break;
+      }
       case 'lockin': { const L = lockin(el, In[0], In[1]); lock.set(el.id, L); set(0, L.outX); set(1, L.outY); if (L.note) note(el, L.note); break; }
       default: K.outs.forEach((_, j) => set(j, zero()));
     }
@@ -23754,7 +23768,7 @@ function solve() {
   memo = { key, R: { out, warn, lock, driven } };
   return memo.R;
 }
-const signalOf = (el, j) => solve().out.get(pkey(el.id, el.kind === 'node' ? 0 : ELEC_KINDS[el.kind].ins.length + j)) || null;
+const signalOf = (el, j) => solve().out.get(pkey(el.id, el.kind === 'node' || el.kind === 'thru' ? 0 : ELEC_KINDS[el.kind].ins.length + j)) || null;
 /* a photodiode's output as its electrical port carries it (beat notes, the bench's drives,
    its noise), for its own Signal views: what its out port would give, wired or not */
 function elecDetSignalFull(el) {
@@ -28291,11 +28305,11 @@ function elecPanelFor(el) {
   }
   panel.append(box);
   if (el.kind === 'thru') thruSection(el);
-  const io = el.kind === 'node' ? [] : [...K.ins.map(n => n + ' (in)'), ...K.outs.map(n => n + ' (out)')];
+  const io = el.kind === 'node' || el.kind === 'thru' ? [] : [...K.ins.map(n => n + ' (in)'), ...K.outs.map(n => n + ' (out)')];
   if (io.length) panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'Ports: ' + io.join(', ') + '.'));
   panel.append(h('p', null,
     'Drag from an output to an input to wire them; an output can feed several inputs, an input takes one wire.' +
-    (el.kind === 'node' ? ' A node is one point on the wiring: wire an output into it, then draw as many wires out of it as you like (drag from its centre dot; drag its ring to move it). It hands on what reaches it unchanged. Its name shows only when it is selected.' : '')));
+    (el.kind === 'node' ? ' A node is one point on the wiring: wire an output into it, then draw as many wires out of it as you like (drag from its centre dot; drag its ring to move it). It hands on what reaches it unchanged. Its name shows only when it is selected.' : el.kind === 'thru' ? ' A feedthrough has one connector: wire an output into it on either tab, and draw as many wires out of it as you like on both.' : '')));
   instrumentSection(el);
   panel.append(readoutBox('elec'));
 }
@@ -28307,8 +28321,8 @@ function thruSection(el) {
   let sig = null;
   bindSync(st, () => {
     const P = partner(el);
-    st.textContent = P ? 'Joined to ' + P.name + ' on ' + benchName(P.bench) + ': what goes into one\u2019s input comes out of the other\u2019s output, both ways, unchanged.'
-      : 'No partner yet: give an electrical feedthrough on another tab the same pair name, or make one below.';
+    st.textContent = P ? 'Joined to ' + P.name + ' on ' + benchName(P.bench) + ': the two are one connector. A signal wired into either is there on both, unchanged.'
+      : 'No partner yet: it hands on what is wired into it on this tab. For another tab, give an electrical feedthrough there the same pair name, or make one below.';
     const s2 = (P ? P.id : '') + '|' + project.benches.map(b => b.id + b.name).join();
     if (s2 === sig) return;
     sig = s2; acts.replaceChildren();
@@ -56588,7 +56602,7 @@ function aiReference() {
     'Electronic parts sit on the bench like fibre components (x, y, angle, name, id) and are joined by wires: entries in "fibres" with "wire": true, from an output to an input, "a" the output\u2019s end and "b" the input\u2019s. An output may feed several inputs; an input takes one wire. A part\u2019s ports are numbered from 0, its inputs first, then its outputs. Each signal is worked out in steady state: DC, tones and noise.',
     '', 'Optical parts have electrical ports after their fibre ports: a "detector" (free space) its output at 0; an fcomp "pd" its output after its input (after both inputs if "balanced"); a "source" or fibre laser with "ext": true its power and frequency inputs ("mod", %/V by "modk"; "fm", GHz/V by "fmk") after its fibre port; an "aom" its RF level, an "eom" its drive, an fcomp "stretch" its drive; a "chopper" its 0 to 5 V reference output; on a photonic chip (experimental), a "pic" "pd" its output after its input, and a "pic" "ps" its drive after its two ports (\u03c0 of phase per "vpi" volts, 5 by default).', '');
   for (const [k, K] of Object.entries(ELEC.KINDS)) {
-    const ports = k === 'node' ? '0 = the node (one wire in, any number out)' : [...K.ins.map((n, i) => i + ' = ' + n + ' (in)'), ...K.outs.map((n, j) => (K.ins.length + j) + ' = ' + n + ' (out)')].join(', ');
+    const ports = k === 'node' ? '0 = the node (one wire in, any number out)' : k === 'thru' ? '0 = its one connector (one wire in, any number out, as a node). Also "pair": a name shared by exactly two electrical feedthroughs on different tabs, which are then one connector: a signal wired into either is on both (wired into both, each side reads the other\u2019s)' : [...K.ins.map((n, i) => i + ' = ' + n + ' (in)'), ...K.outs.map((n, j) => (K.ins.length + j) + ' = ' + n + ' (out)')].join(', ');
     L.push('### kind "' + k + '": ' + K.label, '', '**ports:** ' + ports, '');
     if (K.params.length) {
       L.push('| field | default | meaning |', '|---|---|---|');
@@ -57223,8 +57237,10 @@ function checkImport(raw, p, notes) {
     const tag = 'Fibre ' + (i + 1);
     if (!F || !Array.isArray(F.a) || !Array.isArray(F.b)) { notes.push(tag + ': needs "a" and "b", each [element id, port number]: left out.'); return; }
     const why = [];
-    for (const end of [F.a, F.b]) {
-      const e = got.get(String(end[0])), first = end === F.a;
+    // (an electrical feedthrough's old out, port 1, is its one connector, port 0)
+    const one = x => { const e = got.get(String(x[0])); return e && e.type === 'elec' && e.kind === 'thru' && (x[1] | 0) === 1 ? [x[0], 0] : x; }, A = one(F.a), B = one(F.b);
+    for (const end of [A, B]) {
+      const e = got.get(String(end[0])), first = end === A;
       if (!e) { why.push(fmtV(end[0]) + ' is not an element'); continue; }
       const np = nPorts(e);
       if (!np) why.push('<b>' + esc(e.name) + '</b> has no fibre port (only fibre components and fibre tips do' + '; photodiodes, lasers, AOMs, EOMs and choppers have electrical ones' + ')');
@@ -57232,7 +57248,7 @@ function checkImport(raw, p, notes) {
       else if (!outPort(e, end[1] | 0, first)) { const k = pkey(e.id, end[1] | 0); if (used.has(k)) why.push('port ' + (end[1] | 0) + ' of <b>' + esc(e.name) + '</b> already has ' + used.get(k)); else used.set(k, tag.toLowerCase()); }
     }
     if (why.length) notes.push(tag + ': ' + why.join('; ') + ': left out.');
-    else if (!kept.has(pkey(String(F.a[0]), F.a[1] | 0) + '|' + pkey(String(F.b[0]), F.b[1] | 0))) notes.push(tag + ' could not be joined (both ends on one port?): left out.');
+    else if (!kept.has(pkey(String(A[0]), A[1] | 0) + '|' + pkey(String(B[0]), B[1] | 0))) notes.push(tag + ' could not be joined (both ends on one port?): left out.');
   });
   // link planes and feedthroughs pair by name, exactly two to a name
   const pairs = new Map();
@@ -61952,6 +61968,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'The <b>electrical feedthrough</b> has one connector, as a node has: a signal wired into it goes on from it on the same tab and from its partner on the other. It had an in and an out, and its out gave only what went into its partner, so a generator into a feedthrough and on to a scope on one tab read nothing. Benches saved with the old two connectors open as they were.',
     'A photodiode\u2019s oscilloscope in <b>Roll</b> follows a sweep: while any sweep plays it plots the reading against the sweeps\u2019 own time, a point a step over the last cycle, the level and each beat\u2019s swing as lines of their own (it stood still before, three beat periods wide). <b>Draw light by its power</b> is now <b>Fade weak rays and beams</b>, under Show the rays. <b>View \u203a True colour field in 3D</b> draws the diffracted field in the light\u2019s own colours, so white light through a prism fans out from red to blue. In 3D the wheel zooms towards the point the view is being turned about while the turn is held, and for a moment after. <b>How the rays look\u2026</b> is with the experimental features for now.',
     'Sweeps, steadier: a sweep\u2019s <b>Steps</b>, <b>From</b> and <b>To</b> are taken when you press Enter or leave the box, not at each digit (every digit used to start its render again). A sine or triangle sweep works each position out once, not once on the way up and again on the way down, so its field renders in about half the time. After a change of Steps a field too large for memory keeps to the steps that fit. A rod\u2019s <b>Axis tilt up</b> swept past 180\u00b0 comes round (0 to 360\u00b0 turns it right round). Ticking a screen\u2019s <b>Show the diffraction pattern on its face</b> while a sweep plays no longer makes it stutter, and turning 3D on while the field is still arriving no longer leaves every later field to be worked out on the page.',
     'A sweep with Steps blank no longer takes a new value at every frame: it plays on an automatic fixed set of steps, about 30 a second at its rate (from 48 up to 600 a cycle, shown in the Steps box as <i>auto</i>), the same points its field is rendered at. Each cycle comes back to the same values, so every step is traced, lit and its Particle solved once and then reused, its scattered light added all at once like the field, and the rays always match the field. Steps typed in now go up to 600.',

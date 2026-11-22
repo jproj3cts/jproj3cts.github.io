@@ -1091,7 +1091,7 @@ Optical parts have electrical ports after their fibre ports: a "detector" (free 
 
 ### kind "thru": Electrical feedthrough
 
-**ports:** 0 = in (in), 1 = out (out)
+**ports:** 0 = its one connector (one wire in, any number out, as a node). Also "pair": a name shared by exactly two electrical feedthroughs on different tabs, which are then one connector: a signal wired into either is on both (wired into both, each side reads the other’s)
 
 ### kind "daq": DAQ (ADC)
 

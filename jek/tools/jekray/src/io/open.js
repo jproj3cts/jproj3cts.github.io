@@ -138,8 +138,10 @@ function checkImport(raw, p, notes) {
     const tag = 'Fibre ' + (i + 1);
     if (!F || !Array.isArray(F.a) || !Array.isArray(F.b)) { notes.push(tag + ': needs "a" and "b", each [element id, port number]: left out.'); return; }
     const why = [];
-    for (const end of [F.a, F.b]) {
-      const e = got.get(String(end[0])), first = end === F.a;
+    // (an electrical feedthrough's old out, port 1, is its one connector, port 0)
+    const one = x => { const e = got.get(String(x[0])); return e && e.type === 'elec' && e.kind === 'thru' && (x[1] | 0) === 1 ? [x[0], 0] : x; }, A = one(F.a), B = one(F.b);
+    for (const end of [A, B]) {
+      const e = got.get(String(end[0])), first = end === A;
       if (!e) { why.push(fmtV(end[0]) + ' is not an element'); continue; }
       const np = nPorts(e);
       if (!np) why.push('<b>' + esc(e.name) + '</b> has no fibre port (only fibre components and fibre tips do' + '; photodiodes, lasers, AOMs, EOMs and choppers have electrical ones' + ')');
@@ -147,7 +149,7 @@ function checkImport(raw, p, notes) {
       else if (!outPort(e, end[1] | 0, first)) { const k = pkey(e.id, end[1] | 0); if (used.has(k)) why.push('port ' + (end[1] | 0) + ' of <b>' + esc(e.name) + '</b> already has ' + used.get(k)); else used.set(k, tag.toLowerCase()); }
     }
     if (why.length) notes.push(tag + ': ' + why.join('; ') + ': left out.');
-    else if (!kept.has(pkey(String(F.a[0]), F.a[1] | 0) + '|' + pkey(String(F.b[0]), F.b[1] | 0))) notes.push(tag + ' could not be joined (both ends on one port?): left out.');
+    else if (!kept.has(pkey(String(A[0]), A[1] | 0) + '|' + pkey(String(B[0]), B[1] | 0))) notes.push(tag + ' could not be joined (both ends on one port?): left out.');
   });
   // link planes and feedthroughs pair by name, exactly two to a name
   const pairs = new Map();

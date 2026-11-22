@@ -7749,6 +7749,30 @@ const TESTS = [
     },
   },
   {
+    name: 'An electrical feedthrough is one connector: a signal wired into it goes on from it on the same tab too, and from its partner; alone it hands its own signal on',
+    why: 'a feedthrough had an in and an out, and its out gave only what went into its partner: a generator wired into one and that one wired on to an amplifier on the same tab read nothing. It has one connector now, as a node has. A 0.5 V, 1 kHz generator into a feedthrough with no partner, the feedthrough on to a 10× amplifier on the same tab: the amplifier gives 5 V, and the feedthrough says it has no partner yet. Given a partner on another tab with a second amplifier (2×) off it: both amplifiers read the generator (5 V and 1 V), and neither feedthrough has a note. The wires out of the feedthroughs are given as an older file has them, from the out it had (port 1), and are kept. 1 when all hold',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const mk = two => ({ format: 'jekray', version: 1, name: 'thru one', benches: [{ id: 'b1', name: 'Lab' }, { id: 'b2', name: 'Rack' }], tab: 'b1', elements: [
+        { type: 'elec', kind: 'sig', id: 'G', name: 'Gen', x: -30, y: 0, f: 1000, amp: 0.5, bench: 'b1' },
+        { type: 'elec', kind: 'thru', id: 'T1', name: 'Bulkhead A', x: 0, y: 0, pair: 'BNC 7', bench: 'b1' },
+        { type: 'elec', kind: 'amp', id: 'A', name: 'Amp near', x: 30, y: 0, gain: 10, bw: 1e6, bench: 'b1' },
+        ...(two ? [{ type: 'elec', kind: 'thru', id: 'T2', name: 'Bulkhead B', x: 0, y: 0, pair: 'BNC 7', bench: 'b2' }, { type: 'elec', kind: 'amp', id: 'A2', name: 'Amp far', x: 30, y: 0, gain: 2, bw: 1e6, bench: 'b2' }] : [])],
+        // (the wires out of the feedthroughs as an older file has them, from the out it had: port 1)
+        fibres: [{ a: ['G', 0], b: ['T1', 0], wire: true }, { a: ['T1', 1], b: ['A', 0], wire: true }, ...(two ? [{ a: ['T2', 1], b: ['A2', 0], wire: true }] : [])] });
+      const tone = n => { const S = J.elec.signal(n, 0), t = S && S.tones.find(x => Math.abs(x.f - 1000) < 1e-6); return t ? t.amp : 0; };
+      J.load(mk(false));
+      const alone = tone('Amp near'), noteAlone = (J.elec.notes('Bulkhead A') || []).join(' ');
+      J.load(mk(true));
+      const near = tone('Amp near'), far = tone('Amp far'), notes = [...(J.elec.notes('Bulkhead A') || []), ...(J.elec.notes('Bulkhead B') || [])];
+      const res = { alone, noteAlone, near, far, notes };
+      // (the amplifiers' own roll-off at 1 kHz is a few parts in a million)
+      const ok = Math.abs(alone - 5) < 1e-4 && /No partner yet/.test(noteAlone) && Math.abs(near - 5) < 1e-4 && Math.abs(far - 1) < 1e-4 && notes.length === 0;
+      if (!ok) console.log('electrical feedthrough', JSON.stringify(res));
+      return ok ? 1 : 0;
+    },
+  },
+  {
     name: 'A big STL mesh is kept compactly, so it saves with the bench and as a part',
     why: 'a 30 mm sphere of 60 000 triangles brought in: simplified to at most 40 000, the bench well under the cloud\u2019s 2 MB, the same after a save and load, still stopping a ray through its middle, and small enough for My parts (256 KB; 1 when all hold)',
     want: 1, tol: 0, unit: '',

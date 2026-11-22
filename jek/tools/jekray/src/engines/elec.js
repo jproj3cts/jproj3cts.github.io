@@ -55,6 +55,7 @@ export const ELEC_KINDS = {
     params: [['harm', 'Harmonic', 1], ['phase', 'Phase (°)', 0], ['tau', 'Time constant (s)', 0.1],
       ['slope', 'Slope', 2, choice([1, '6 dB/oct'], [2, '12 dB/oct'], [3, '18 dB/oct'], [4, '24 dB/oct'])]] },
   // a bulkhead connector to another tab: what goes in here comes out of its partner's output, and the other way
+  // (one connector on the bench, see portList; its ins and outs here as a node's, for the solver)
   thru: { label: 'Electrical feedthrough', tag: '⇄', ins: ['in'], outs: ['out'], params: [] },
   daq: { label: 'DAQ (ADC)', tag: 'DAQ', ins: ['in'], outs: ['out'],
     params: [['rate', 'Sample rate (S/s)', 1e4], ['bits', 'Bits', 16], ['range', 'Range, ± (V)', 10]] },
@@ -75,10 +76,12 @@ export const NODE_PORT = 4;                          // a node's ring (mm) and i
 export const portList = el => {
   const K = ELEC_KINDS[el.kind];
   if (el.kind === 'node') return [{ x: 0, y: 0, dx: 0, dy: 0, elec: 'io' }];          // one point: a wire in, any number out
+  // a feedthrough: one connector, as a node's (a signal wired in on either tab, any number of wires out on both)
+  if (el.kind === 'thru') return [{ x: -W_BOX / 2, y: 0, dx: -1, dy: 0, elec: 'io' }];
   return [...K.ins.map((nm, i) => ({ x: -W_BOX / 2, y: -side(K.ins.length, i), dx: -1, dy: 0, elec: 'in' })),
     ...K.outs.map((nm, i) => ({ x: W_BOX / 2, y: -side(K.outs.length, i), dx: 1, dy: 0, elec: 'out' }))];
 };
-const elecNames = el => { const K = ELEC_KINDS[el.kind]; return el.kind === 'node' ? ['node'] : [...K.ins, ...K.outs]; };
+const elecNames = el => { const K = ELEC_KINDS[el.kind]; return el.kind === 'node' ? ['node'] : el.kind === 'thru' ? ['connector'] : [...K.ins, ...K.outs]; };
 /* ---------- the element, as saved ---------- */
 function elecNorm(e, base) {
   // a mod's block (see Mods): a kind of its own, its ports as the part carries them
@@ -425,8 +428,16 @@ export function solve() {
       case 'daq': { const D = daq(el, In[0], m => note(el, m)); lock.set(el.id, D.info); set(0, D.out); break; }
       case 'sum': set(0, sum(In[0], In[1], el.ga, el.gb)); break;
       case 'node': out.set(pkey(el.id, 0), In[0]); break;     // its one port carries on what it is given
-      // out of a feedthrough: what goes into its partner on the other tab
-      case 'thru': { const P = partner(el); if (!P) note(el, 'No partner: give a feedthrough on another tab the pair name ' + el.pair); set(0, P ? input(P, 0) : zero()); break; }
+      // A feedthrough: the pair is one connector through the wall, with a signal wired into it on either tab. An end hands on
+      // what is wired into its partner; with nothing wired into the partner, what is wired into itself (so a signal goes
+      // through it on one tab too). Both wired: each hands on the other's, a signal each way, as the two-port ones did
+      case 'thru': {
+        const P = partner(el), own = feed.has(pkey(el.id, 0)), far = !!P && feed.has(pkey(P.id, 0));
+        if (!P) note(el, 'No partner yet: it hands on what is wired into it on this tab. For another tab, give a feedthrough there the pair name ' + el.pair);
+        else if (own && far) note(el, 'A signal is wired into it on both tabs: each side reads the other side\u2019s');
+        out.set(pkey(el.id, 0), far ? input(P, 0) : own ? In[0] : zero());
+        break;
+      }
       case 'lockin': { const L = lockin(el, In[0], In[1]); lock.set(el.id, L); set(0, L.outX); set(1, L.outY); if (L.note) note(el, L.note); break; }
       default: K.outs.forEach((_, j) => set(j, zero()));
     }
@@ -438,7 +449,7 @@ export function solve() {
   memo = { key, R: { out, warn, lock, driven } };
   return memo.R;
 }
-export const signalOf = (el, j) => solve().out.get(pkey(el.id, el.kind === 'node' ? 0 : ELEC_KINDS[el.kind].ins.length + j)) || null;
+export const signalOf = (el, j) => solve().out.get(pkey(el.id, el.kind === 'node' || el.kind === 'thru' ? 0 : ELEC_KINDS[el.kind].ins.length + j)) || null;
 /* a photodiode's output as its electrical port carries it (beat notes, the bench's drives,
    its noise), for its own Signal views: what its out port would give, wired or not */
 function elecDetSignalFull(el) {

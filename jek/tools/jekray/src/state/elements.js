@@ -317,7 +317,10 @@ export function normFibres(list, els) {
   const dir = x => { const e = byId.get(x[0]), P = !e ? null : e.type === 'elec' ? (ELEC.KINDS[e.kind] ? ELEC.ports(e)[x[1]] : null) : portsOf(e)[x[1]]; return P && P.elec || null; };
   const end = x => Array.isArray(x) && byId.has(String(x[0])) && (x[1] | 0) >= 0 && (x[1] | 0) < nPorts(byId.get(String(x[0]))) ? [String(x[0]), x[1] | 0] : null;
   for (const F of Array.isArray(list) ? list : []) {
-    let a = F && end(F.a), b = F && end(F.b);
+    // (an electrical feedthrough had an in, port 0, and an out, port 1: it has one connector now, port 0, and a wire that
+    // left its out leaves that)
+    const one = x => { const e = Array.isArray(x) ? byId.get(String(x[0])) : null; return e && e.type === 'elec' && e.kind === 'thru' && (x[1] | 0) === 1 ? [x[0], 0] : x; };
+    let a = F && end(one(F.a)), b = F && end(one(F.b));
     // a wire: from an output to an input, one wire to an input, any number from an output
     if (a && b && (dir(a) || dir(b))) {
       if (!dir(a) || !dir(b) || (dir(a) === dir(b) && dir(a) !== 'io')) continue;

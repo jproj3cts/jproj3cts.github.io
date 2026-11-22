@@ -169,11 +169,11 @@ function elecPanelFor(el) {
   }
   panel.append(box);
   if (el.kind === 'thru') thruSection(el);
-  const io = el.kind === 'node' ? [] : [...K.ins.map(n => n + ' (in)'), ...K.outs.map(n => n + ' (out)')];
+  const io = el.kind === 'node' || el.kind === 'thru' ? [] : [...K.ins.map(n => n + ' (in)'), ...K.outs.map(n => n + ' (out)')];
   if (io.length) panel.append(h('p', { class: 'note', style: 'margin-top:0.5rem' }, 'Ports: ' + io.join(', ') + '.'));
   panel.append(h('p', null,
     'Drag from an output to an input to wire them; an output can feed several inputs, an input takes one wire.' +
-    (el.kind === 'node' ? ' A node is one point on the wiring: wire an output into it, then draw as many wires out of it as you like (drag from its centre dot; drag its ring to move it). It hands on what reaches it unchanged. Its name shows only when it is selected.' : '')));
+    (el.kind === 'node' ? ' A node is one point on the wiring: wire an output into it, then draw as many wires out of it as you like (drag from its centre dot; drag its ring to move it). It hands on what reaches it unchanged. Its name shows only when it is selected.' : el.kind === 'thru' ? ' A feedthrough has one connector: wire an output into it on either tab, and draw as many wires out of it as you like on both.' : '')));
   instrumentSection(el);
   panel.append(readoutBox('elec'));
 }
@@ -185,8 +185,8 @@ function thruSection(el) {
   let sig = null;
   bindSync(st, () => {
     const P = partner(el);
-    st.textContent = P ? 'Joined to ' + P.name + ' on ' + benchName(P.bench) + ': what goes into one\u2019s input comes out of the other\u2019s output, both ways, unchanged.'
-      : 'No partner yet: give an electrical feedthrough on another tab the same pair name, or make one below.';
+    st.textContent = P ? 'Joined to ' + P.name + ' on ' + benchName(P.bench) + ': the two are one connector. A signal wired into either is there on both, unchanged.'
+      : 'No partner yet: it hands on what is wired into it on this tab. For another tab, give an electrical feedthrough there the same pair name, or make one below.';
     const s2 = (P ? P.id : '') + '|' + project.benches.map(b => b.id + b.name).join();
     if (s2 === sig) return;
     sig = s2; acts.replaceChildren();

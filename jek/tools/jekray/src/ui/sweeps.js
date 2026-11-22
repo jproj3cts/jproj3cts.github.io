@@ -3,7 +3,7 @@ import { spmAsked } from '../core/pulses.js';
 import { V, project, selectedId } from '../state/project.js';
 import { fieldDec, getEl, lightOf } from '../state/elements.js';
 import { keepTraceFrom, lastTrace, lastTraceMs, setLastTraceKey, traceScene } from '../engines/trace.js';
-import { STEP_BUDGET, setStepBudget, stepBytes, stepClaim, stepInvalidate, stepKeep, stepKeyOf, stepMaps, stepRunBegin, stepStore, stepSwap } from '../engines/sweep-store.js';
+import { STEP_BUDGET, setStepBudget, stepBytes, stepBytesAt, stepClaim, stepInvalidate, stepKeep, stepKeyOf, stepMaps, stepRunBegin, stepStore, stepSwap } from '../engines/sweep-store.js';
 import { H, W, requestRender, setDrawHeld } from './render.js';
 import { SWEEP_STEPS_MAX, getPath, setParam } from '../state/params.js';
 import { MODS } from '../core/modulators.js';
@@ -371,7 +371,9 @@ export function renderStride(n, stepBytes) {
 /* a render's step done (sequential renders): kept among those rendered, and after the first, the steps apart worked out */
 function stepDone(job, i) {
   job.done.add(i);
-  if (job.done.size === 1) { job.stride = job.rs.k = renderStride(job.n, keptNow.bytes); if (job.stride > 1) strideNote(job.n, job.stride); }
+  // (by what the step holds, kept now or there already: a step found kept, as the first is after a change of Steps, kept
+  // nothing now, and taken for an empty one let a cycle too large for the budget be rendered whole)
+  if (job.done.size === 1) { job.stride = job.rs.k = renderStride(job.n, Math.max(keptNow.bytes, stepBytesAt())); if (job.stride > 1) strideNote(job.n, job.stride); }
   keptNow.bytes = 0;
 }
 const strideNote = (n, k) => toast('This sweep\u2019s field is too large to keep at all ' + n + ' steps in this browser\u2019s memory: one step in ' + k + ' is rendered, each shown until the next', true);
@@ -787,7 +789,7 @@ function renderOnPool(pool, list, n, cyc, job, onDone) {
       done.add(i); job.i = done.size - 1;
       // (the first step in: whether the cycle fits the budget, and if not, only the steps that do are rendered, evenly spread)
       if (done.size === 1) {
-        job.stride = job.rs.k = renderStride(n, keptNow.bytes);
+        job.stride = job.rs.k = renderStride(n, Math.max(keptNow.bytes, stepBytesAt(step)));
         if (job.stride > 1) {
           strideNote(n, job.stride);
           const rest = order.slice(next).filter(k => k % job.stride === 0);

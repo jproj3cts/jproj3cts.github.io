@@ -94,6 +94,15 @@ export function stepBytes(names) {
   return b;
 }
 /* (tests) a budget of its own (none: the usual one) */
+/* the bytes kept for one step of the run (its key; the step the bench is at, left out), in every layer */
+export function stepBytesAt(step) {
+  const R = stepStore.run;
+  let st = step !== undefined ? step : stepNow(), b = 0;
+  if (st !== null && R && R.as.has(st)) st = R.as.get(st);
+  if (st === null) return 0;
+  for (const map of Object.values(stepMaps)) for (const x of map.values()) { const m = stepMeta.get(x); if (stepOfRun(m) && m.step === st) b += m.bytes; }
+  return b;
+}
 export function setStepBudget(b) { stepStore.budget = b > 0 ? b : STEP_BUDGET + STEP_EXTRA; }
 /* past the budget: the loose entries, oldest first, then the run's steps whole, longest unused first; never v (the
    entry just kept), its step, or the step on show */

@@ -164,3 +164,22 @@ for (const f of ['michelson', 'mach-zehnder', 'fabry-perot', 'optical-tweezers',
     } finally { hooks.playing = was; TR.setTraceStoreTest(false); clear(); }
   });
 }
+
+/* a sine's or a triangle's steps on the way down are its steps on the way up, to the last digit: half the states to work
+   out (ui/sweeps.js stepValue); a ramp's are all its own; with a phase too, where it is a whole number of half steps */
+test('a sine or triangle sweep’s cycle is half as many states as steps; a ramp’s is all of them', async () => {
+  const SW = await import('../../src/ui/sweeps.js');
+  const states = (sw, n) => new Set(Array.from({ length: n }, (_, i) => SW.stepValue(sw, i, n, 1 / sw.freq))).size;
+  const sw = (wave, phase = 0) => ({ min: -3.7, max: 11.3, freq: 0.25, phase, wave });
+  for (const n of [7, 12, 18, 48, 60, 600]) {
+    assert.equal(states(sw('sine'), n), Math.floor(n / 2) + 1, 'sine ' + n);
+    assert.equal(states(sw('triangle'), n), Math.floor(n / 2) + 1, 'triangle ' + n);
+    assert.equal(states(sw('ramp'), n), n, 'ramp ' + n);
+  }
+  // a phase of a whole number of half steps: still half; the values are the wave's own
+  assert.ok(states(sw('sine', 90), 12) <= 7); assert.ok(states(sw('triangle', 30), 12) <= 7);
+  for (const [wave, phase, n] of [['sine', 0, 12], ['sine', 90, 12], ['triangle', 45, 16], ['sine', 37, 12]]) for (let i = 0; i < n; i++) {
+    const s = sw(wave, phase), u = i / n + phase / 360, f = u - Math.floor(u), want = s.min + (s.max - s.min) * (wave === 'triangle' ? (f < 0.5 ? 2 * f : 2 - 2 * f) : (1 - Math.cos(2 * Math.PI * f)) / 2);
+    assert.ok(Math.abs(SW.stepValue(s, i, n, 4) - want) < 1e-9, wave + ' ' + phase + ' step ' + i);
+  }
+});

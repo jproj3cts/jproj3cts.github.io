@@ -90,9 +90,13 @@ const clockValue = sw => clockValueAt(sw, clockT);
    last digit at any rate, and finds the field rendered for it */
 export function stepValue(sw, i, n, P) {
   let j = Math.max(1, Math.round(sw.freq * P)) * i;
-  // a sine or a triangle comes back the way it went: its step on the way down is the very step on the way up (the same
-  // number, so the same state: worked out once, not once each way with a last digit between them)
-  if (!sw.phase && sw.wave !== 'ramp') { j = ((j % n) + n) % n; if (2 * j > n) j = n - j; }
+  // A sine or a triangle comes back the way it went: its step on the way down is the very step on the way up (the same
+  // number, so the same state: worked out once, not once each way with a last digit between them). The two are j and
+  // n − m − j, m twice the phase in steps, where that is a whole number (always, with no phase); the lower stands for both.
+  if (sw.wave !== 'ramp') {
+    const m = 2 * (sw.phase || 0) * n / 360, mi = Math.round(m);
+    if (Math.abs(m - mi) < 1e-9) { j = ((j % n) + n) % n; const t = (((n - mi - j) % n) + n) % n; if (t < j) j = t; }
+  }
   return sweepValue(sw, waveShape(sw.wave, j / n + sw.phase / 360));
 }
 export function sweepFrac(el, path) {

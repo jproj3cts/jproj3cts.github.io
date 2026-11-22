@@ -13884,6 +13884,38 @@ const TESTS = [
       } finally { await J.view3d.set(false); J.experimental(before.on); const tab = doc.getElementById('btnSideTab'); if (tab.getAttribute('aria-pressed') === 'true') tab.click(); }
     },
   },
+  {
+    name: 'In 3D the wheel zooms towards the point the view is being turned about while it is held, and for a moment after; otherwise towards the cursor',
+    why: 'two mirrors on a bench in 3D. The right button is pressed on the first and the view turned a little: with the button still held, the wheel turned with the cursor far away over the second mirror brings the camera in along its line to the first (the first mirror stays where it is on the screen, within a few pixels, where zooming to the cursor moved it hundreds). Just after letting go the same holds; a second later the wheel over the second mirror zooms towards the second, as it always did (that one stays put, the first moves). 1 when all hold',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const wait = ms => new Promise(r => setTimeout(r, ms)), V = J.view3d;
+      J.load({ format: 'jekray', version: 1, light: { rays: true, envelope: false, field: false }, elements: [
+        { type: 'source', id: 'S', name: 'Laser', x: -120, y: 0, angle: 0, wavelength: 633, rays: 3, width: 2 },
+        { type: 'mirror', id: 'A', name: 'A', x: -40, y: 0, angle: 200, length: 25 }, { type: 'mirror', id: 'B', name: 'B', x: 90, y: 70, angle: 20, length: 25 }] });
+      await V.set(true);
+      try {
+        const at = n => V.screenOf(n), far = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
+        const a0 = at('A');
+        V.pointer('pointerdown', a0.x, a0.y, { button: 2, buttons: 2 });
+        for (let k = 1; k <= 6; k++) V.pointer('pointermove', a0.x + 4 * k, a0.y + 2 * k, { button: 2, buttons: 2 });
+        const a1 = at('A'), b1 = at('B'), c1 = V.camAt();
+        V.wheel(b1.x, b1.y, -400);
+        const a2 = at('A'), c2 = V.camAt(), held = far(a1, a2), moved = Math.hypot(...c1.p.map((v, i) => v - c2.p[i]));
+        V.pointer('pointerup', a0.x + 24, a0.y + 12, { button: 2, buttons: 0 });
+        const b2 = at('B'); V.wheel(b2.x, b2.y, -300);
+        const a3 = at('A'), after = far(a2, a3);
+        await wait(1100);
+        const a4 = at('A'), b4 = at('B'); V.wheel(b4.x, b4.y, -300);
+        const a5 = at('A'), b5 = at('B'), later = far(b4, b5), laterA = far(a4, a5);
+        const res = { held, moved, after, later, laterA };
+        // (the point turned about is the one pressed on the mirror's face, a little off its middle, which is what is measured)
+        const ok = moved > 5 && held < 6 && after < 6 && later < 2 && laterA > 30;
+        if (!ok) console.log('sweep store: orbit zoom', JSON.stringify(res));
+        return ok ? 1 : 0;
+      } finally { await V.set(false); }
+    },
+  },
   { group: 'Smoothness' },
   {
     name: 'A field sweep whose frames would not fit in memory renders every so many steps, keeps within the budget, and plays',

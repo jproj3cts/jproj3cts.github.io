@@ -1864,6 +1864,9 @@ export const V3D = (() => {
     const m = right.multiplyScalar(-dx * k).add(up.multiplyScalar(dy * k));
     cam.position.add(m); R.target.add(m); cam.updateMatrixWorld();
   }
+  /* the point the view was last turned about, and when the turn ended: the wheel zooms towards it for ORBIT_ZOOM_MS after */
+  let orbited = null;
+  const ORBIT_ZOOM_MS = 700;
   function zoom(f, at) {
     camMoved();
     const P = at || R.target, cam = R.camera;
@@ -1918,7 +1921,8 @@ export const V3D = (() => {
         // a second finger: whatever the first was doing becomes pan and pinch
         if (drag && drag.started) { changed(); }
         const [a, b] = [...P.values()], h0 = pick(e);
-        drag = { mode: 'touch2', moved: 99, pivot: h0 ? h0.point.clone() : R.target.clone(), pinch: Math.hypot(a.x - b.x, a.y - b.y), mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
+        // (two fingers after one that was turning the view: the pinch is about the point it turned about)
+        drag = { mode: 'touch2', moved: 99, pivot: drag && drag.mode === 'orbit' && drag.pivot ? drag.pivot : h0 ? h0.point.clone() : R.target.clone(), pinch: Math.hypot(a.x - b.x, a.y - b.y), mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
         return;
       }
       const h0 = pick(e), pivot = h0 ? h0.point.clone() : R.target.clone();
@@ -2074,6 +2078,7 @@ export const V3D = (() => {
       if (P.size) { if (d.mode === 'touch2' && P.size === 1) d.mode = 'orbit'; return; }
       drag = null;
       cv.style.cursor = '';
+      if (d.mode === 'orbit' && d.pivot) orbited = { pivot: d.pivot.clone(), t: performance.now() };
       if (d.cube) { if (d.moved < 5) cubeClick(e); return; }
       if (d.mode === 'box') { D.box.hidden = true; boxSelect(d.x0, d.y0, e.clientX, e.clientY, e.shiftKey || e.ctrlKey || e.metaKey); return; }
       if ((d.mode === 'grab' || d.mode === 'rot' || d.mode === 'lift' || d.mode === 'axis' || d.mode === 'fibre') && d.started) { changed(); return; }
@@ -2113,7 +2118,14 @@ export const V3D = (() => {
       e.preventDefault(); R.anim = null;
       const d = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
       if (ctrl === 'trackpad' && !e.ctrlKey) pan(-e.deltaX * d, -e.deltaY * d, null);
-      else { const h0 = pick(e); zoom(Math.exp(e.deltaY * d * (e.ctrlKey ? 0.01 : 0.0015)), h0 ? h0.point : null); }
+      else {
+        // while the view is being turned about a point, and for a moment after, in and out is towards that point (the
+        // one being looked round), wherever the cursor has got to; otherwise towards what is under the cursor
+        const now = performance.now(), held = drag && drag.mode === 'orbit' ? drag.pivot : orbited && now - orbited.t < ORBIT_ZOOM_MS ? orbited.pivot : null;
+        if (held && orbited) orbited.t = now;                       // (a scroll carried on keeps it)
+        const h0 = held ? null : pick(e);
+        zoom(Math.exp(e.deltaY * d * (e.ctrlKey ? 0.01 : 0.0015)), held || (h0 ? h0.point : null));
+      }
       keepCam(); need();
     }, { passive: false });
     window.addEventListener('resize', () => { if (R && active()) { resize(); requestRender(); } });
@@ -2393,6 +2405,9 @@ export const V3D = (() => {
         const b = D.cv.getBoundingClientRect(), opts = Object.assign({ pointerId: 7, pointerType: 'mouse', button: 0, buttons: 1, bubbles: true, cancelable: true, clientX: b.left + px, clientY: b.top + py }, o || {});
         D.cv.dispatchEvent(new PointerEvent(type, opts));
       },
+      // (tests) a wheel event on the canvas at css px from its top left; the camera and what it looks at
+      wheel(px, py, dy, o) { if (!D) return; sync(); const b = D.cv.getBoundingClientRect(); D.cv.dispatchEvent(new WheelEvent('wheel', Object.assign({ deltaY: dy, deltaMode: 0, bubbles: true, cancelable: true, clientX: b.left + px, clientY: b.top + py }, o || {}))); },
+      camAt() { return R ? { p: R.camera.position.toArray(), t: R.target.toArray() } : null; },
       undo: () => undo(),
       // flying: start or land, hold a key down or let it go (by its code), turn by mouse pixels
       fly(on) { if (on) flyStart(); else flyStop(); return !!fly; },

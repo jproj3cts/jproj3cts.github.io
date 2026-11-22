@@ -52,3 +52,15 @@ test('a 3D volume is kept under the board as the light meets it, and is the same
   assert.equal(sig(b), sig(a), 'the volume on the bigger board is the same');
   assert.equal(sig(c), sig(a), 'cutting to the light box is cutting to the board');
 });
+
+test('how a screen’s pattern is drawn (on its face in 3D, to which scale) is no part of the trace’s key or of its field’s', async () => {
+  const B = await openBench(Object.assign({}, BENCH, { elements: BENCH.elements.concat([{ type: 'screen', id: 'D', name: 'Screen', x: 30, y: 0, angle: 180, length: 20 }]) })); B.trace();
+  const E = await engine(), DF = await import('../../src/engines/diffraction.js');
+  const scr = E.ST.project.elements.find(e => e.id === 'D');
+  const keys = () => { B.trace(); const J = DF.popScreenPrep(scr); return [E.TRACE.traceKeyNow(), J && J.key]; };
+  const k0 = keys();
+  assert.ok(k0[1], 'the light reaches the screen');
+  scr.faceMap = true; assert.deepEqual(keys(), k0, 'the pattern on its face');
+  scr.mapScale = 'log'; assert.deepEqual(keys(), k0, 'its scale');
+  scr.length = 22; assert.notDeepEqual(keys(), k0, 'its size is part of both');
+});

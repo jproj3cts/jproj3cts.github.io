@@ -31,7 +31,8 @@ const evElement = ev => ev && ev.el ? getEl(ev.el) || null : null;
 /* (the field's intensity scale is not in the key: it is how the field is drawn, at drawing time, so a frame worked out
    at one scale is drawn at another) */
 /* the element as the field sees it: how it is swept (or whether the 3D view draws it) is not part of it, so a sweep's rate or range can change and the field worked out for it still holds */
-const evElementKey = ev => { const e = evElement(ev); if (!e || !(e.sweeps || e.hide3d || e.mod)) return e; const { sweeps, hide3d, ...rest } = e; return e.mod ? Object.assign(rest, { modRev: MODS.rev }) : rest; };   // a mod's part: as its results stand
+// (nor how a screen's pattern is drawn, on its face in 3D or to which scale: ticking one worked the field out again at every step of a sweep)
+const evElementKey = ev => { const e = evElement(ev); if (!e || !(e.sweeps || e.hide3d || e.mod || e.faceMap || e.mapScale)) return e; const { sweeps, hide3d, faceMap, mapScale, ...rest } = e; return e.mod ? Object.assign(rest, { modRev: MODS.rev }) : rest; };   // a mod's part: as its results stand
 // asked for several times a frame: the beams part once per trace
 let popKeyMemo = { beams: null, cfg: '', key: '' };
 export function popKeyOf(beams, srcs) {

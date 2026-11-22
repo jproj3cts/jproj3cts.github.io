@@ -803,21 +803,33 @@ export const V3D = (() => {
 
   /* A screen's diffraction pattern on its face: the Diffraction tab's irradiance map, in its colours
      and scale (lin or log), where the light lands, cut to the face. x along its normal, y across, z up */
+  /* (its picture is made once for a field and scale and kept with the field, faceCvs: a map of a million points coloured
+     point by point at every step of a sweep held the page over half a second a step. The colours from a table of 256.) */
+  const faceCvs = new WeakMap();
+  let faceLut = null;
+  function faceCanvas(M, log) {
+    const kept = faceCvs.get(M) || {}, k = log ? 'log' : 'lin';
+    if (kept[k]) return kept[k];
+    if (!faceLut) { faceLut = new Uint8Array(256 * 3); for (let i = 0; i < 256; i++) { const c = magma(i / 255); faceLut[3 * i] = c[0]; faceLut[3 * i + 1] = c[1]; faceLut[3 * i + 2] = c[2]; } }
+    const n = M.n;
+    let pk = 0, pi = 0; for (let i = 0; i < M.v.length; i++) { if (M.v[i] > pk) pk = M.v[i]; if (M.inc[i] > pi) pi = M.inc[i]; }
+    pk = Math.max(pk, 0.02 * pi) || 1;
+    const cv = document.createElement('canvas'); cv.width = cv.height = n;
+    const cx = cv.getContext('2d'), img = cx.createImageData(n, n), d = img.data;
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      let v = M.v[j * n + i] / pk;
+      if (log) v = Math.max(0, 1 + Math.log10(Math.max(v, 1e-12)) / 3);
+      const q = 3 * Math.round(255 * Math.min(1, Math.max(0, v))), o = ((n - 1 - j) * n + i) * 4;
+      d[o] = faceLut[q]; d[o + 1] = faceLut[q + 1]; d[o + 2] = faceLut[q + 2]; d[o + 3] = 255;
+    }
+    cx.putImageData(img, 0, 0);
+    kept[k] = cv; faceCvs.set(M, kept);
+    return cv;
+  }
   function faceMapMesh(el, x0) {
     const r = diffractionLater(el), D = r && r.D;
     if (!D || !D.map) return null;
-    const M = D.map, n = M.n, L = el.length / 2;
-    let pk = 0, pi = 0; for (let i = 0; i < M.v.length; i++) { pk = Math.max(pk, M.v[i]); pi = Math.max(pi, M.inc[i]); }
-    pk = Math.max(pk, 0.02 * pi);
-    const log = el.mapScale === 'log', cv = document.createElement('canvas'); cv.width = cv.height = n;
-    const cx = cv.getContext('2d'), img = cx.createImageData(n, n);
-    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
-      let v = M.v[j * n + i] / (pk || 1);
-      if (log) v = Math.max(0, 1 + Math.log10(Math.max(v, 1e-12)) / 3);
-      const [rr, gg, bb] = magma(v), o = ((n - 1 - j) * n + i) * 4;
-      img.data[o] = rr; img.data[o + 1] = gg; img.data[o + 2] = bb; img.data[o + 3] = 255;
-    }
-    cx.putImageData(img, 0, 0);
+    const M = D.map, L = el.length / 2, cv = faceCanvas(M, el.mapScale === 'log');
     // the map's rectangle on the face, cut to the face's square
     const u0 = Math.max(M.u0, -L), u1 = Math.min(M.u1, L), v0 = Math.max(M.v0, -L), v1 = Math.min(M.v1, L);
     if (!(u1 > u0 && v1 > v0)) return null;
@@ -846,7 +858,10 @@ export const V3D = (() => {
     return m;
   }
   // what the screens painted with their pattern show now: the scene is built again when it changes
+  // (the screen's field looked up first, so a step's pattern kept by a sweep is the key at once: found only as the scene
+  // was built, the key changed after it and every step was built twice)
   const faceMapsKey = () => project.elements.filter(e => e.type === 'screen' && e.faceMap && e.bench === project.tab).map(e => {
+    diffractionLater(e);
     const c = popScreenCache.get(e.id); return e.id + ':' + (c && c.D && c.D.map ? [c.D.peak, c.D.map.u0, c.D.map.v0, c.D.map.u1, e.mapScale].join(',') : '-');
   }).join(';');
 

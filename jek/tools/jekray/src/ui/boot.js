@@ -242,6 +242,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     // (tests) whether the workers are still in use: one that failed is given up on, and the page does its work from then on
     workersOk() { return { field: !FW.failed, render: !SW.failed, scatter: !scatWork.failed, trace: !TW.failed }; },
     sweepAudit(opts) { return sweepAudit(opts); },
+    // (tests) the value a sweep is at on step i of n of its cycle
+    sweepStepValue(name, path, i, n) { const sw = this.byName(name).sweeps[path]; return stepValue(sw, i, n, 1 / sw.freq); },
     // (tests) a sweep's settings changed as its panel changes them: { steps, min, max, wave, phase, freq }
     sweepSet(name, path, o) { const el = this.byName(name), sw = el.sweeps[path]; for (const [k, v] of Object.entries(o)) { if (v === null) delete sw[k]; else sw[k] = v; } for (const k of Object.keys(o)) sweepEdited(el, path, k); changed(false); },
     activityBars() { return activityBars(); },

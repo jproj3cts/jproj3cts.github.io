@@ -13706,6 +13706,117 @@ const TESTS = [
       } finally { f.remove(); }
     },
   },
+  {
+    name: 'A sweep’s Steps, From and To are taken when the edit is finished, not at each key; a sine’s steps down are its steps up; a rod’s tilt past 180° comes round',
+    why: 'three things the sweeps’ steps rest on. In the panel of a lens swept in y, digits typed into Steps, From and To (input events) change nothing of the sweep; Enter or leaving the box (change) takes them: each change of a sweep’s steps starts what is worked out ahead for them again, and at every digit that discarded a long render. A sine over 12 steps visits 7 states, the step on the way down the very number of the one on the way up, and a ramp 12. A rod’s Axis tilt up set to 200° is −160° (the same axis), so a sweep from 0 to 360° turns it right round where it stopped at 180°. 1 when all hold',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const doc = rigDoc();
+      J.load({ format: 'jekray', version: 1, light: { rays: true, envelope: false, field: false }, elements: [
+        { type: 'source', id: 'S', name: 'Laser', x: -60, y: 0, angle: 0, wavelength: 633, rays: 5, width: 2 },
+        { type: 'lens', id: 'L', name: 'Lens', x: -10, y: 0, angle: 0, f: 40, length: 20, sweeps: { y: { min: -1, max: 1, freq: 0.5, phase: 0, wave: 'sine', steps: 12 } } },
+        { type: 'particle', id: 'P', name: 'Rod', x: 40, y: 30, angle: 90, trapShape: 'cylinder', trapMat: 'Fused silica', trapR: 60, trapLen: 400, trapTilt: 0, scatLight: false }] });
+      try {
+        J.select('Lens');
+        const line = doc.querySelector('#panel .rt-sweep-line'); if (line) line.click();
+        const box = doc.querySelector('#panel .rt-sweep'), ins = box ? [...box.querySelectorAll('.rt-sweep-range input')] : [];
+        const sw = () => Object.assign({}, J.byName('Lens').sweeps.y);
+        const type = (inp, v, ev) => { inp.value = v; inp.dispatchEvent(new (rigWin().Event)(ev, { bubbles: true })); };
+        // From, To, Steps, in that order
+        const s0 = sw();
+        type(ins[0], '-3', 'input'); type(ins[1], '4', 'input'); type(ins[2], '30', 'input');
+        const s1 = sw(), untouched = s1.min === s0.min && s1.max === s0.max && s1.steps === s0.steps;
+        type(ins[0], '-3', 'change'); type(ins[1], '4', 'change'); type(ins[2], '30', 'change');
+        const s2 = sw(), taken = s2.min === -3 && s2.max === 4 && s2.steps === 30;
+        type(ins[2], '', 'change');
+        const blank = sw().steps === undefined;
+        // the states of a cycle, by playing it over its steps
+        const states = (wave, n) => { J.sweepSet('Lens', 'y', { wave, steps: n, min: -1, max: 1 }); const v = new Set(); for (let i = 0; i < n; i++) v.add(J.sweepStepValue('Lens', 'y', i, n)); return v.size; };
+        const sine = states('sine', 12), tri = states('triangle', 12), ramp = states('ramp', 12);
+        J.setParam('Rod', 'trapTilt', 200); const t200 = J.byName('Rod').trapTilt;
+        J.setParam('Rod', 'trapTilt', 180); const t180 = J.byName('Rod').trapTilt;
+        J.setParam('Rod', 'trapTilt', -270); const t270 = J.byName('Rod').trapTilt;
+        const res = { fields: ins.length, untouched, taken, blank, sine, tri, ramp, t200, t180, t270 };
+        const ok = ins.length >= 3 && untouched && taken && blank && sine === 7 && tri === 7 && ramp === 12 && t200 === -160 && t180 === 180 && t270 === 90;
+        if (!ok) console.log('sweep store: edits', JSON.stringify(res));
+        return ok ? 1 : 0;
+      } finally { J.sweepPause(); }
+    },
+  },
+  {
+    name: 'After a change of Steps a field sweep too large for the memory budget still renders only the steps that fit',
+    why: 'a 2D field through a lens swept in x over 12 steps with the budget lowered to three and a half steps’ frames: it renders every sixth step and keeps two. Then Steps is set to 16 and it plays again. Its first step is the one already kept, so it keeps nothing new; taken for an empty step, the cycle was judged to fit and rendered whole, to the cap (on the levitated-trap example, 1.7 GB). Now the step is counted by what it holds: the render keeps to the steps that fit, within the budget. 1 when it does',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const bench = { format: 'jekray', version: 1, light: { rays: true, envelope: false, field: true, scale: 'lin', byPower: true }, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, rays: 11, width: 4, gauss: true, w0: 1, popModel: '2d', popN: 64 },
+        { type: 'lens', id: 'L', name: 'L', x: 0, y: 0, angle: 0, f: 50, length: 20, sweeps: { x: { min: -2.5, max: 2.5, freq: 1, phase: 0, wave: 'ramp', steps: 12 } } },
+        { type: 'mirror', id: 'M', name: 'M', x: 60, y: 0, angle: 30, length: 20 }] };
+      try {
+        J.sweepPause(); J.load(bench); J.frameBudget(0, true);
+        const b0 = J.frameBudget();
+        await J.sweepPlay('L', 'x'); J.sweepPause();
+        const b1 = J.frameBudget(), per = (b1.bytes - b0.bytes) / Math.max(1, b1.frames - b0.frames);
+        J.frameBudget(0, true);
+        const budget = 3.5 * per; J.frameBudget(budget);
+        await J.sweepPlay('L', 'x'); J.sweepPause();
+        const b2 = J.frameBudget();
+        J.byName('L').sweeps.x.steps = 16;
+        await J.sweepPlay('L', 'x');
+        const b3 = J.frameBudget();
+        const ok = per > 0 && b1.frames - b0.frames === 12 && b2.kept === 2 && b3.kept !== null && b3.kept <= 3 && b3.bytes <= budget;
+        if (!ok) console.log('sweep store: steps and budget', JSON.stringify({ per, b1, b2, b3, budget }));
+        return ok ? 1 : 0;
+      } finally { J.sweepPause(); J.frameBudget(0); }
+    },
+  },
+  {
+    name: 'Turning the 3D view on as the bench’s field arrives leaves the field worker working; a screen’s pattern shown on its face changes nothing a playing sweep has kept',
+    why: 'the page as a reader has it (workers on), in a frame of its own. A 2D field: the 3D view is turned on at once, while the bench’s field is still on its way, so the view asks the field worker for the run it has just drawn. It answered with slices it had already handed over, failed, and from then on the page worked every field out itself: now every worker is still in use. Then the Mach–Zehnder example in 3D, Mirror A’s angle and the Combiner’s tip swept together with the field shown: once rendered and playing, Output 2’s “Show the diffraction pattern on its face” is ticked. How a pattern is drawn is no part of the light, so nothing is traced again, no field is worked out, each step’s scene is built once and its light taken as built, and the pattern is on the face (it traced every step again and worked the screen’s field out live, never catching up). 1 when all hold',
+    want: 1, tol: 0, unit: '',
+    run: async () => {
+      const dev = /[?&]dev=1/.test(location.search), wait = ms => new Promise(r => setTimeout(r, ms));
+      const field = { format: 'jekray', version: 1, light: { rays: true, envelope: false, field: true, scale: 'lin', byPower: true }, elements: [
+        { type: 'source', id: 'S', name: 'Laser', x: -60, y: 0, angle: 0, wavelength: 1064, power: 100, rays: 7, width: 2, gauss: true, w0: 0.4, popModel: '2d', popN: 96 },
+        { type: 'lens', id: 'L', name: 'Lens', x: -10, y: 0, angle: 0, f: 40, length: 20 },
+        { type: 'mirror', id: 'M', name: 'Mirror', x: 50, y: 0, angle: 20, length: 25 }] };
+      const f = document.createElement('iframe');
+      f.style.cssText = 'position:absolute;left:-5000px;top:0;width:900px;height:600px;border:0';
+      f.src = '/jek/tools/' + (dev ? 'jekray-dev.html' : 'jekray.html') + '?layers';
+      document.body.append(f);
+      try {
+        const W = f.contentWindow;
+        for (let i = 0; i < 300 && !(W.JEKray && W.JEKray.load && W.JEKray.workersOk); i++) await wait(100);
+        const J = W.JEKray;
+        const settle = async () => { await wait(300); for (let i = 0; i < 1800 && (J.layers().rendering || J.layers().fieldHeld || J.activity().bench); i++) await wait(100); };
+        // 3D at each of a few moments as the field arrives (it takes about a second), a fresh bench each time
+        let workers = true;
+        for (const ms of [0, 300, 700, 1100]) {
+          await J.view3d.set(false); J.load(field); await wait(ms);
+          await J.view3d.set(true); await settle(); await wait(500);
+          if (!Object.values(J.workersOk()).every(Boolean)) workers = false;
+        }
+        await J.view3d.set(false);
+        const d = await (await fetch('/jek/tools/demos/mach-zehnder.jekray')).json();
+        d.light = { rays: true, envelope: true, field: true, scale: 'lin' };
+        for (const e of d.elements) delete e.sweeps;
+        d.elements.find(e => e.name === 'Mirror A').sweeps = { angle: { min: 120, max: 150, freq: 0.5, phase: 0, wave: 'sine', steps: 12 } };
+        d.elements.find(e => e.name === 'Combiner').sweeps = { tip: { min: -5, max: 5, freq: 0.5, phase: 0, wave: 'sine', steps: 12 } };
+        J.load(d); await settle();
+        await J.view3d.set(true); await settle();
+        J.sweepPlay('Mirror A', 'angle'); await wait(200); J.sweepPlay('Combiner', 'tip'); await settle(); await wait(4500);
+        J.set('Output 2', { faceMap: true }); await wait(2500);
+        const b0 = J.view3d.builds(), t0 = J.traceInfo().count, l0 = J.framesInfo().live; let busy = 0, frames = 0;
+        const tEnd = performance.now() + 4000;
+        while (performance.now() < tEnd) { await new Promise(r => W.requestAnimationFrame(r)); frames++; if (J.activity().bench) busy++; }
+        const b1 = J.view3d.builds(), res = { workers, also: Object.values(J.workersOk()).every(Boolean), frames, busy, traced: J.traceInfo().count - t0, live: J.framesInfo().live - l0, builds: b1.builds - b0.builds, built: b1.lightBuilt - b0.lightBuilt, reused: b1.lightReused - b0.lightReused, face: J.view3d.faceMaps(), playing: J.layers().playing };
+        J.sweepPause();
+        const ok = workers && res.also && res.playing === 2 && res.traced === 0 && res.live === 0 && res.busy === 0 && res.built === 0 && res.reused >= 4 && res.builds <= frames + 1 && (res.face || []).includes('Output 2');
+        console.log('sweep store: workers and face pattern', JSON.stringify(res));
+        return ok ? 1 : 0;
+      } finally { f.remove(); }
+    },
+  },
   { group: 'Smoothness' },
   {
     name: 'A field sweep whose frames would not fit in memory renders every so many steps, keeps within the budget, and plays',
@@ -13721,7 +13832,7 @@ const TESTS = [
         J.sweepPause(); J.load(bench); J.frameBudget(0, true);
         const b0 = J.frameBudget(), n0 = b0.frames;
         await J.sweepPlay('L', 'x'); J.sweepPause();
-        const b1 = J.frameBudget(), per = (b1.bytes - b0.bytes) / Math.max(1, b1.frames - n0), whole = b1.kept === null && b1.frames - n0 >= 10;   // (a triangle's two ends are one field)
+        const b1 = J.frameBudget(), per = (b1.bytes - b0.bytes) / Math.max(1, b1.frames - n0), whole = b1.kept === null && b1.frames - n0 === 7;   // (a triangle's 12 steps are 7 states: each on the way down is one on the way up)
         J.byName('L').sweeps.x.min = -1.5;
         const budget = 3.5 * per;
         J.frameBudget(budget);

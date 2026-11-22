@@ -7,6 +7,8 @@ import { ELEC } from '../engines/elec.js';
 import { osaLines, osaSpan, osaTrace, pdInstSignal, pdSignalAll } from '../engines/detector.js';
 import { helpLine, bindSync, fid, panel, param, setFid, vs } from './panel.js';
 import { h } from './dom.js';
+import { clockT, playing } from './sweeps.js';
+import { getEl } from '../state/elements.js';
 import { axisFont, drawAxes, plotArea, plotCsv, plotSaveRow } from './plots.js';
 
 /* ==========================================================================
@@ -17,8 +19,9 @@ import { axisFont, drawAxes, plotArea, plotCsv, plotSaveRow } from './plots.js';
    and a noise density on ELEC's frequency grid, in volts or amps.
    The scope: Normal rebuilds the steady-state waveform from the tones over the time span, a
    tone too fast for the span filling a band as on a real scope, with +-1 sigma of noise round
-   it; Roll draws the level recorded as the sweeps play over the last span of the sweep clock,
-   flat with the same bands when nothing changes. Time: auto (three periods of the slowest
+   it; Roll draws the level over the last span of the real clock, the tones at each moment, flat
+   with the same bands when nothing changes; while sweeps play, the reading step by step against
+   the sweeps' own clock (sweepRoll). Time: auto (three periods of the slowest
    tone) or a span; each channel's vertical scale auto or volts a division and an offset (the
    level at the centre line), on eight divisions. The analyser: each tone at its rms level
    over the noise in the resolution bandwidth, in dB of a volt (or an amp), on a log or linear
@@ -60,6 +63,89 @@ export const INST = (() => {
     for (const [cv, fn] of [...rolling]) { if (!cv.isConnected) { rolling.delete(cv); continue; } fn(); }
     rollRaf = rolling.size ? requestAnimationFrame(rollTick) : 0;
   }
+  /* ---------- Roll while sweeps play: the reading against the sweeps' own time ----------
+     A sweep moves over seconds and a beat over nanoseconds: a Roll view three beat periods wide, on the real clock, shows
+     nothing of the sweep (and with the level flat across it, nothing at all moved). So while any sweep plays, Roll is
+     drawn on the sweeps' clock (ui/sweeps.js clockT, simulated seconds: every sweep's value is its waveform at that
+     time, at its own rate, so it is one axis for however many play together). At each step shown the channel's level
+     and each tone's swing are recorded at the step's clock time, which is the time the step stands for, not when the
+     page got round to drawing it. Drawn over the last span of that clock (auto: one cycle of the slowest sweep
+     playing): the level as the trace, each of the strongest tones' swing as a line of its own, named by its frequency. */
+  const swHist = new Map();
+  let swGen = -1;
+  const TONE_COLS = ['#e8a23a', '#7a5cd6', '#2f9e6b', '#8a8f98'];
+  function sweepSpan() {
+    let f = Infinity;
+    for (const p of playing.values()) { const el = getEl(p.id), sw = el && el.sweeps && el.sweeps[p.path]; if (sw && sw.freq > 0) f = Math.min(f, sw.freq); }
+    return isFinite(f) ? 1 / f : 4;
+  }
+  function sweepRecord(key, S) {
+    if (swGen !== loadGen) { swHist.clear(); swGen = loadGen; }
+    let H = swHist.get(key);
+    if (!H) swHist.set(key, H = []);
+    const T = clockT, last = H[H.length - 1];
+    if (last && T < last.T - 1e-9) H.length = 0;                 // the clock put back (the sweeps started again): afresh
+    const tones = S.tones.filter(q => q.f > 0).map(q => [q.f, Math.hypot(q.re, q.im)]);
+    const row = { T, dc: S.dc, tones };
+    // (a row a step: the clock runs on between steps, the reading does not, and a reading as it was is the step still on show)
+    const same = last && H.length && last.dc === row.dc && last.tones.length === tones.length && tones.every((q, i) => q[0] === last.tones[i][0] && q[1] === last.tones[i][1]);
+    if (same) return H;
+    if (H.length && Math.abs(H[H.length - 1].T - T) < 1e-9) H[H.length - 1] = row; else H.push(row);
+    while (H.length > 4000) H.shift();
+    return H;
+  }
+  function sweepRoll(cv, c, w, hgt, chans, st, title) {
+    const span = st.span > 0 ? st.span : sweepSpan(), t1 = clockT, t0 = t1 - span;
+    const tr = chans.map(q => {
+      if (!q.S) return null;
+      // (with the last row before the span, for the level at its left edge)
+      const all = sweepRecord(q.key, q.S), from = Math.max(0, all.findIndex(r => r.T >= t0 - 1e-9) - 1), H = all.findIndex(r => r.T >= t0 - 1e-9) < 0 ? all.slice(-1) : all.slice(from);
+      // the tones drawn: the strongest four of the reading now, each by its frequency through the rows
+      const top = q.S.tones.filter(x => x.f > 0).map(x => [x.f, Math.hypot(x.re, x.im)]).sort((a, b) => b[1] - a[1]).slice(0, 4).map(x => x[0]).sort((a, b) => a - b);
+      const rows = H.map(r => [Math.max(0, r.T - t0), r.dc, ...top.map(f => { const m = r.tones.find(x => Math.abs(x[0] - f) <= 1e-9 * f); return m ? m[1] : 0; })]);
+      return { rows, top, unit: q.S.unit === 'A' ? 'A' : 'V' };
+    });
+    const fi = tr.findIndex(Boolean), u0 = fi >= 0 ? tr[fi].unit : 'V';
+    let lo = Infinity, hi = -Infinity;
+    for (const T of tr) if (T) for (const r of T.rows) for (let k = 1; k < r.length; k++) { if (r[k] < lo) lo = r[k]; if (r[k] > hi) hi = r[k]; }
+    if (!(hi >= lo)) { lo = 0; hi = 1; }
+    const pad = Math.max(0.08 * (hi - lo), 0.05 * Math.max(Math.abs(lo), Math.abs(hi)), 1e-12);
+    lo -= pad; hi += pad;
+    const sy = { kind: 'plain', title: u0, fmt: v => fmtSig(v, u0) }, sx = { kind: 's', title: 'sweep time, last ' + fmtTime(span) };
+    const A = plotArea(c, w, hgt, [lo, hi], sy), X = t => A.l + t / span * A.w, Y = v => A.t + A.h - (v - lo) / (hi - lo) * A.h;
+    c.strokeStyle = inkA(0.07); c.lineWidth = 1; c.beginPath();
+    for (let i = 1; i < DIV_X; i++) { const x = Math.round(A.l + A.w * i / DIV_X) + 0.5; c.moveTo(x, A.t); c.lineTo(x, A.t + A.h); }
+    for (let i = 1; i < DIV_Y; i++) { const y = Math.round(A.t + A.h * i / DIV_Y) + 0.5; c.moveTo(A.l, y); c.lineTo(A.l + A.w, y); }
+    c.stroke();
+    c.save(); c.beginPath(); c.rect(A.l, A.t, A.w, A.h); c.clip();
+    // each value held from its step to the next (the reading is the step's), a dot at each step
+    const line = (rows, k, col, wide, dash) => {
+      if (!rows.length) return;
+      c.strokeStyle = col; c.fillStyle = col; c.lineWidth = wide; c.setLineDash(dash || []); c.beginPath();
+      rows.forEach((r, i) => { const x = X(Math.max(0, r[0])), y = Y(r[k]); if (i) { c.lineTo(x, Y(rows[i - 1][k])); c.lineTo(x, y); } else c.moveTo(x, y); });
+      c.lineTo(X(span), Y(rows[rows.length - 1][k])); c.stroke(); c.setLineDash([]);
+      if (rows.length <= 200) for (const r of rows) { c.beginPath(); c.arc(X(Math.max(0, r[0])), Y(r[k]), wide + 0.6, 0, 2 * Math.PI); c.fill(); }
+    };
+    const legend = [];
+    tr.forEach((T, i) => {
+      if (!T) return;
+      T.top.forEach((f, j) => { line(T.rows, 2 + j, TONE_COLS[j % TONE_COLS.length], 1.2, [4, 3]); legend.push([TONE_COLS[j % TONE_COLS.length], (chans.length > 1 ? chans[i].name + ' ' : '') + fmtHz(f) + ' swing']); });
+      line(T.rows, 1, CH[i] || CH[0], 1.6);
+      legend.unshift([CH[i] || CH[0], (chans.length > 1 ? chans[i].name + ' ' : '') + 'level']);
+    });
+    c.restore();
+    drawAxes(c, A, [0, span], [lo, hi], sx, sy, { noGrid: true });
+    // which line is which, along the top
+    c.save(); c.font = axisFont(); c.textBaseline = 'top'; c.textAlign = 'left';
+    let lx = A.l + 4;
+    for (const [col, text] of legend) { const tw = c.measureText(text).width; if (lx + tw + 14 > A.l + A.w) break; c.fillStyle = col; c.fillRect(lx, A.t + 5, 8, 2); c.fillText(text, lx + 11, A.t + 1); lx += tw + 20; }
+    c.restore();
+    const F = fi >= 0 ? tr[fi] : null;
+    plotCsv(cv, title + ' (sweep)', ['sweep_time_s', ...chans.flatMap((q, i) => tr[i] ? [q.name + '_level_' + tr[i].unit, ...tr[i].top.map(f => q.name + '_swing_at_' + f + '_Hz')] : [])],
+      () => (F ? F.rows : []).map((r, k) => [r[0], ...tr.flatMap(T => T ? (T.rows[k] || T.rows[T.rows.length - 1] || []).slice(1) : [])]));
+    for (const T of tr) if (T) T.sweep = true;
+    return tr;
+  }
   const autoSpan = S => { const f = S && S.tones.filter(t => !t.incoh && t.f > 0).map(t => t.f); return f && f.length ? 3 / Math.min(...f) : 1e-3; };
   /* one channel over a span: the trace, the band of tones too fast to draw, the noise */
   function trace(S, span, N) {
@@ -94,6 +180,8 @@ export const INST = (() => {
     // each channel as drawn: Normal from its tones over the span from t = 0; Roll over the last span of
     // the real clock, its level as recorded and its tones at each sample's own moment
     if (roll && redraw) { rolling.set(cv, redraw); if (!rollRaf) rollRaf = requestAnimationFrame(rollTick); } else rolling.delete(cv);
+    // (while sweeps play: on their clock, the reading step by step)
+    if (roll && playing.size > 0) return sweepRoll(cv, c, w, hgt, chans, st, title);
     const t1 = wallT();
     const tr = chans.map(q => {
       if (!q.S) return null;

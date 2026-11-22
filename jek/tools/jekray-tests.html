@@ -13817,6 +13817,32 @@ const TESTS = [
       } finally { f.remove(); }
     },
   },
+  {
+    name: 'A photodiode’s Roll view while a sweep plays is its reading against the sweep’s own time: the level and each beat’s swing, a point a step',
+    why: 'a 1 MHz beat on a photodiode (an AOM in one arm of a fibre Mach–Zehnder), the laser’s power swept from 0.5 to 1.5 mW over 8 steps at 1 Hz. In Roll the scope’s auto span is three beat periods of the real clock, across which a sweep moves nothing: the plot stood empty of it. While a sweep plays, Roll is drawn on the sweeps’ clock: read over a little more than a cycle, its rows are times within the last cycle (1 s) of that clock, rising, one for each step shown, the level following the power (the largest about three times the smallest) and the 1 MHz swing in a column of its own, following it too. Paused, Roll is the real clock’s again. 1 when all hold',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const raf = () => new Promise(r => rigWin().requestAnimationFrame(() => r()));
+      J.load(fnet([fc('laser', 'L', { power: 1 }), fc('coupler', 'C1'), fc('aom', 'A', { rf: 1 }), fc('coupler', 'C2'), fc('pd', 'D')],
+        [['L', 0, 'C1', 0], ['C1', 2, 'A', 0], ['A', 1, 'C2', 0], ['C1', 3, 'C2', 1], ['C2', 2, 'D', 0]]));
+      J.byName('L').sweeps = { power: { min: 0.5, max: 1.5, freq: 1, phase: 0, wave: 'triangle', steps: 8 } };
+      J.trace();
+      try {
+        await J.sweepPlay('L', 'power');
+        let D = null; const t0 = performance.now();
+        while (performance.now() - t0 < 1300) { await raf(); D = J.scope('D', 0, 'roll'); }
+        const rows = D.rows, ts = rows.map(r => r[0]), lv = rows.map(r => r[1]), sw = rows.map(r => r[2]);
+        const rising = ts.every((t, i) => !i || t > ts[i - 1]), within = ts.every(t => t >= -1e-9 && t <= 1 + 1e-9);
+        const res = { cols: D.cols, n: rows.length, rising, within, level: [Math.min(...lv), Math.max(...lv)], swing: [Math.min(...sw), Math.max(...sw)] };
+        J.sweepPause();
+        const off = J.scope('D', 0, 'roll');
+        const ok = D.cols[0] === 'sweep_time_s' && /swing_at_1000000_Hz/.test(D.cols.join()) && rows.length >= 4 && rows.length <= 10 && rising && within &&
+          res.level[1] / res.level[0] > 2.5 && res.level[1] / res.level[0] < 3.5 && res.swing[1] / res.swing[0] > 2.5 && res.swing[0] > 0 && off.cols[0] === 'time_s';
+        if (!ok) console.log('sweep store: roll', JSON.stringify(res), off.cols);
+        return ok ? 1 : 0;
+      } finally { J.sweepPause(); }
+    },
+  },
   { group: 'Smoothness' },
   {
     name: 'A field sweep whose frames would not fit in memory renders every so many steps, keeps within the budget, and plays',

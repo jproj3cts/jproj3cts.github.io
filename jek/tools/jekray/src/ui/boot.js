@@ -468,7 +468,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     beamsAt(name) { traceScene(); const el = name && this.byName(name); return lastTrace.beams.filter(b => !el || (b.ev && b.ev.el === el.id)).length; },
     popCache(clear) { const C = popStepCache, r = { entries: C.map.size, mb: +(C.bytes / 2 ** 20).toFixed(1), hits: C.hits, misses: C.misses }; C.hits = C.misses = 0; if (clear) { C.map.clear(); C.bytes = 0; } return r; },
     // a photodiode's oscilloscope trace at a time span (0: by itself), as its CSV's columns
-    scope(name, span) { const el = this.byName(name), cv = document.createElement('canvas'); INST.scope(cv, [{ S: pdInstSignal(el), key: el.id, name: 'output' }], { mode: 'normal', span, ch: [{ vdiv: 0, off: 0 }] }, el.name); const D = cv._csv; return { cols: D.cols, rows: typeof D.rows === 'function' ? D.rows() : D.rows }; },
+    scope(name, span, mode) { const el = this.byName(name), cv = document.createElement('canvas'); INST.scope(cv, [{ S: pdInstSignal(el), key: el.id, name: 'output' }], { mode: mode || 'normal', span, ch: [{ vdiv: 0, off: 0 }] }, el.name); const D = cv._csv; return { cols: D.cols, rows: typeof D.rows === 'function' ? D.rows() : D.rows }; },
     beamAt,
     // a photodiode's own Spectrum view: its tones as drawn (f, dB at their rms level)
     pdSpectrum(name) { const el = this.byName(name), cv = document.createElement('canvas'); return INST.spectrum(cv, pdInstSignal(el), vs(el).spec || { scale: 'linear', rbw: 1000 }, el.name).tones; },

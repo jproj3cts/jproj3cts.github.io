@@ -115,6 +115,9 @@ export const V3D = (() => {
     mouseSet();
     mouse.addEventListener('click', () => { ctrl = ctrl === 'trackpad' ? 'default' : 'trackpad'; try { localStorage.setItem('jek-3d-mouse', ctrl); } catch (e) { /* kept for this visit */ } mouseSet(); hintText(); });
     nm.addEventListener('click', () => { names = !names; nm.setAttribute('aria-checked', String(names)); if (R) R.key = null; requestRender(); });
+    // the diffracted field in the light's own colours, a setting of the bench's (light.field3d), as the Bench panel's Light ticks are
+    const tc = byId('btnTrue3d');
+    tc.addEventListener('click', () => { checkpoint(); const L = lightOf(); if (L.field3d === 'colour') delete L.field3d; else L.field3d = 'colour'; if (R) R.key = null; changed(false); });
     flyBtn.addEventListener('click', () => flyStart());
     pngBtn.addEventListener('click', png);
     const bar = [byId('v3dSep'), flyBtn, mouse, byId('btn3dMate'), pngBtn];
@@ -123,7 +126,7 @@ export const V3D = (() => {
     const vkey = h('div', { class: 'rt-v3dkey', hidden: true, role: 'status' });
     const box = h('div', { class: 'rt-v3dbox', hidden: true, 'aria-hidden': 'true' });
     stage.append(sw, hint, flyHint, vkey, box);
-    D = { stage, cv, sw, b2, b3, bar, hint, mouse, nm, flyBtn, flyHint, vkey, box };
+    D = { stage, cv, sw, b2, b3, bar, hint, mouse, nm, tc, flyBtn, flyHint, vkey, box };
     // the view's own tool first: a press it takes is not the view's
     for (const type of ['pointerdown', 'pointermove', 'pointerup', 'dblclick']) cv.addEventListener(type, e => {
       if (tool && !fly && R && tool[type] && tool[type](e)) { e.stopImmediatePropagation(); e.preventDefault(); }
@@ -164,7 +167,7 @@ export const V3D = (() => {
     D.cv.hidden = !on || !R; D.hint.hidden = !on;
     for (const n of D.bar) n.hidden = !on || !R;
     if (D.touch) D.mouse.hidden = true;
-    D.nm.hidden = !there;
+    D.nm.hidden = !there; D.tc.hidden = !there; D.tc.setAttribute('aria-checked', String(lightOf().field3d === 'colour'));
     // drawings are 2D only: the rail's Draw palette goes while the 3D view shows, and comes back after
     if (on !== D.wasOn) { D.wasOn = on; if (on && palette === 'draw') setPalette('free'); else fillRail(); }
     if (!on) D.vkey.hidden = true;
@@ -308,7 +311,7 @@ export const V3D = (() => {
     show();
     if (!active() || !R) return;
     resize();
-    const key = traceKeyNow() + '|' + netKey() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale + (fieldHeld() ? 'h' : '') : '') + '|' + scatVolKey();   // (a particle's Scale changes no trace)
+    const key = traceKeyNow() + '|' + netKey() + '|' + (lightOf().field3d || '') + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale + (fieldHeld() ? 'h' : '') : '') + '|' + scatVolKey();   // (a particle's Scale changes no trace)
     if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
     if (R.camTab !== project.tab) { if (tool && tool.off && R.camTab !== null) tool.off(); R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
     // (and where the selected parts are and how they are turned, so their handles follow them, through an undo too)
@@ -943,7 +946,7 @@ export const V3D = (() => {
     // (filed by the trace's light and the particle's scattered field it carries: a triangle sweep's step on the way up and its
     // twin on the way down trace to the same light but each with a field of its own, and filed by the light alone the two
     // took turns, the light built again at every step of every cycle)
-    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top, scatVolKey()].join('|'), sig0 = traceStoreOn() ? lightSig(lastTrace) : null;
+    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().field3d || '', lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top, scatVolKey()].join('|'), sig0 = traceStoreOn() ? lightSig(lastTrace) : null;
     const sig = sig0 !== null ? sig0 + '|' + scatVolKey() : null, got = sig !== null ? lc.get(sig) : null;
     if (got && got.k === lk) { stepTouch('light3d', sig); stepClaim('light3d', sig); for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; R.lightReused = (R.lightReused || 0) + 1; }
     else {
@@ -1132,7 +1135,7 @@ export const V3D = (() => {
      or log, 30 dB): light along the line of sight, W/mm, what the key under it reads */
   const VOL_VS = 'varying vec3 vP; void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
   const VOL_FS = `
-    uniform sampler2D uTex, uMap; uniform float uTs[64], uRm[64]; uniform int uNc, uM, uTwo; uniform float uTa, uTb, uZa, uZb, uR, uK; uniform vec3 uCam; uniform vec4 uP0, uP1;
+    uniform sampler2D uTex, uMap; uniform float uTs[64], uRm[64]; uniform int uNc, uM, uTwo; uniform float uTa, uTb, uZa, uZb, uR, uK; uniform vec3 uCam, uCol; uniform vec4 uP0, uP1;
     varying vec3 vP;
     // the two cuts either side of t, how far between them, the larger reach, and their gap
     void cutAt(float t, out int lo, out int hi, out float f, out float rm, out float gap) {
@@ -1188,14 +1191,18 @@ export const V3D = (() => {
         sp += ds;
       }
       if (sum <= 0.0) discard;
-      gl_FragColor = vec4(sum * uK, 0.0, 0.0, 1.0);
+      // (uCol: red alone, the light added up, for the bench's colours; in true colour the segment's own colour, so the
+      // buffer holds the light of each colour along the line of sight)
+      gl_FragColor = vec4(sum * uK * uCol, 1.0);
     }`;
   // the buffer they add into, coloured: the light along each line of sight against the top of the key
   const VOLQ_VS = 'varying vec2 vU; void main() { vU = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }';
   const VOLQ_FS = `
-    uniform sampler2D uAcc, uMap, uScat, uMapS; uniform float uDec, uDecS, uS; varying vec2 vU;
+    uniform sampler2D uAcc, uMap, uScat, uMapS; uniform float uDec, uDecS, uS, uTrue; varying vec2 vU;
     void main() {
-      float v = texture2D(uAcc, vU).r;
+      // (true colour: the brightest of the three colours is what the scale is read on, the colour their mix)
+      vec3 c3 = texture2D(uAcc, vU).rgb;
+      float v0 = uTrue > 0.5 ? max(c3.r, max(c3.g, c3.b)) : c3.r, v = v0;
       if (uDec > 0.0) v = clamp(1.0 + log(max(v, 1e-12)) / log(10.0) / uDec, 0.0, 1.0); else v = clamp(v, 0.0, 1.0);
       // a particle's scattered field, on its own log scale and in its own colours (scatRamp), laid under the beam's light
       // (uDecS 0: the particle's Scale is linear)
@@ -1203,7 +1210,8 @@ export const V3D = (() => {
       if (v <= 0.002 && w <= 0.002) discard;
       float a = v > 0.002 ? clamp(0.25 + 0.75 * v, 0.0, 0.92) * smoothstep(0.0, 0.06, v) : 0.0, aw = w > 0.002 ? clamp(0.95 * w, 0.0, 0.92) : 0.0;   // (the scattered light fades out at its floor, not into a dark tint over the beam)
       float at = a + aw * (1.0 - a);
-      gl_FragColor = vec4((texture2D(uMap, vec2(v, 0.5)).rgb * a + texture2D(uMapS, vec2(w, 0.5)).rgb * aw * (1.0 - a)) / max(at, 1e-6), at);
+      vec3 beam = uTrue > 0.5 ? c3 / max(v0, 1e-12) * (0.25 + 0.75 * v) : texture2D(uMap, vec2(v, 0.5)).rgb;
+      gl_FragColor = vec4((beam * a + texture2D(uMapS, vec2(w, 0.5)).rgb * aw * (1.0 - a)) / max(at, 1e-6), at);
     }`;
   function volPlanes(s) {
     const B = lastTrace.beams || [], none = new T.Vector4(0, 0, 0, 1);
@@ -1234,6 +1242,8 @@ export const V3D = (() => {
     }
     return magmaTex;
   }
+  // the field in the light's own colours (View › True colour field in 3D; kept with the bench as light.field3d)
+  const trueCol = () => lightOf().field3d === 'colour';
   function volMeshes(G) {
     const V = R.vol, magmaTex = magmaMap();
     for (const s of V.segs) {
@@ -1250,7 +1260,7 @@ export const V3D = (() => {
       const m3 = new T.ShaderMaterial({ vertexShader: VOL_VS, fragmentShader: VOL_FS, transparent: true, depthWrite: false, side: T.BackSide,
         blending: T.CustomBlending, blendEquation: T.AddEquation, blendSrc: T.OneFactor, blendDst: T.OneFactor,
         uniforms: { uTex: { value: tex }, uMap: { value: magmaTex }, uTs: { value: ts }, uRm: { value: rm }, uNc: { value: nc }, uM: { value: M }, uTwo: { value: s.two ? 1 : 0 },
-          uK: { value: K }, uTa: { value: s.ta }, uTb: { value: s.tb }, uZa: { value: za }, uZb: { value: zb }, uP0: { value: pl[0] }, uP1: { value: pl[1] }, uR: { value: Rm }, uCam: { value: new T.Vector3() } } });
+          uCol: { value: trueCol() ? new T.Vector3(...(s.rgb || [1, 1, 1])) : new T.Vector3(1, 0, 0) }, uK: { value: K }, uTa: { value: s.ta }, uTb: { value: s.tb }, uZa: { value: za }, uZb: { value: zb }, uP0: { value: pl[0] }, uP1: { value: pl[1] }, uR: { value: Rm }, uCam: { value: new T.Vector3() } } });
       const o = new T.Mesh(geo, m3);
       const ex = new T.Vector3(s.n[0], s.n[1], 0), ez = new T.Vector3(s.e[0], s.e[1], s.e[2]), ey = ez.clone().cross(ex);
       o.matrixAutoUpdate = false; o.matrix.makeBasis(ex, ey, ez).setPosition(s.o[0], s.o[1], s.o[2]);
@@ -1270,7 +1280,7 @@ export const V3D = (() => {
      a particle's scattered field (scatVolMeshes) on its own */
   function volQuad(G) {
     const dec = fieldDec(lightOf().scale), q = new T.Mesh(new T.PlaneGeometry(2, 2), new T.ShaderMaterial({ vertexShader: VOLQ_VS, fragmentShader: VOLQ_FS, transparent: true, depthTest: false, depthWrite: false,
-      uniforms: { uAcc: { value: null }, uMap: { value: magmaMap() }, uDec: { value: dec }, uScat: { value: null }, uMapS: { value: scatMap(benchLight()) }, uDecS: { value: 2 }, uS: { value: 0 } } }));
+      uniforms: { uAcc: { value: null }, uMap: { value: magmaMap() }, uTrue: { value: trueCol() ? 1 : 0 }, uDec: { value: dec }, uScat: { value: null }, uMapS: { value: scatMap(benchLight()) }, uDecS: { value: 2 }, uS: { value: 0 } } }));
     q.frustumCulled = false; q.renderOrder = 2; q.userData.volQuad = true;
     q.onBeforeRender = () => {
       const u = q.material.uniforms, sc = R.scatVols && R.scatVols.length && R.scatRT;
@@ -1511,7 +1521,7 @@ export const V3D = (() => {
     else if (beam) {
       const Sh = volShared(), pk = Sh ? Sh.line : volDispLine(R.vol), dec = fieldDec(lightOf().scale);
       const ticks = dec ? [[0, pk * 10 ** -dec], [0.5, pk * 10 ** (-dec / 2)], [1, pk]] : [[0, 0], [0.5, pk / 2], [1, pk]];
-      parts.push(h('b', { title: 'The irradiance added up along each line of sight, as light scattered evenly out of the beam would look: side-on through a beam\u2019s middle, its power per mm across it. More (looking along a beam, or into a focus) shows in the top colour' }, 'Light along the line of sight' + (dec ? ', log (' + dec * 10 + ' dB)' : '')), bar(magma), tks(ticks));
+      parts.push(h('b', { title: 'The irradiance added up along each line of sight, as light scattered evenly out of the beam would look: side-on through a beam\u2019s middle, its power per mm across it. More (looking along a beam, or into a focus) shows in the top colour' }, 'Light along the line of sight' + (dec ? ', log (' + dec * 10 + ' dB)' : '') + (trueCol() ? ', in the light\u2019s own colours' : '')), bar(trueCol() ? v => { const g = Math.round(255 * (0.25 + 0.75 * v) * Math.min(1, v / 0.06)); return [g, g, g]; } : magma), tks(ticks));
     }
     // a particle's scattered field (scatVolMeshes): its own colours and scale, the light along a line of sight in W/mm as its
     // pass adds it up; its top the strongest direction's, seen passing rTop from the particle (the field's `line`)

@@ -771,7 +771,7 @@ function drawRaysOn(ctx, rays, shared) {
    brightness and a beam 40 dB down is a trace. w: its power as a fraction */
 export function rayAlpha(w) { return 0.8 * Math.min(1, Math.max(0.06, Math.pow(Math.max(w, 1e-9), 0.4))); }
 /* ---------- Light by its power ----------
-   Light: Draw light by its power (on unless a bench turns it off, project.light.byPower false): every ray and every
+   Light: Fade weak rays and beams (it was "Draw light by its power"; on unless a bench turns it off, project.light.byPower false): every ray and every
    beam's envelope as bright as the power it carries, against the bench's brightest source, on a log scale over
    POWER_DECADES: the brightest at full strength, a sixteenth plainly there, a five-thousandth all but gone, and below
    1e-4 of it nothing (it fades out, it is not cut off). Light made inside a part (a harmonic, Raman, an amplifier's

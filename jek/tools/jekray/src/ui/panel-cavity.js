@@ -1,3 +1,4 @@
+import { exp } from './experimental.js';
 import { TEST_MODE, clamp } from '../core/constants.js';
 import { fmtHz, fmtLen, fmtW } from '../core/format.js';
 import { cavLine } from '../core/beams-hom.js';
@@ -334,14 +335,16 @@ export function renderOverview() {
     c.addEventListener('change', () => { checkpoint(); L[key] = c.checked; changed(false); renderPanel(); });
     return h('label', { class: 'rt-check', style: key === 'rays' ? null : 'margin-top:0.35rem' }, c, text);
   };
-  panel.append(tick('rays', 'Show the rays'), tick('envelope', 'Show the Gaussian beams\u2019 envelope'), tick('field', 'Show the diffracted field (slower)'));
-  // on unless turned off: every ray and envelope as bright as the power it carries, against the brightest source
+  // under the rays, on unless turned off: every ray and beam outline as bright as the power it carries, against the
+  // brightest source (saved as light.byPower; it was "Draw light by its power")
   const bp = h('input', { type: 'checkbox' });
   bp.checked = L.byPower !== false;
   bp.addEventListener('change', () => { checkpoint(); L.byPower = bp.checked; changed(false); renderPanel(); });
-  panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.35rem', title: 'Each ray and beam as bright as the power it carries, against the brightest source on the bench: weakened light fades, and light below a ten-thousandth of it is not drawn. Untick to draw every beam at full strength (the geometry alone).' }, bp, 'Draw light by its power'));
-  // how the rays look (for figures and recordings): a window of its own, View › How the rays look…
-  panel.append(h('button', { type: 'button', class: 'rt-btn', style: 'margin-top:0.45rem', title: 'Fading trails, glow and width (also View \u203a How the rays look\u2026)', onclick: showRayLook }, 'How the rays look\u2026'));
+  const fade = h('label', { class: 'rt-check', style: 'margin:0.3rem 0 0 1.4rem', title: 'Each ray and each Gaussian beam\u2019s outline is drawn as bright as the power it carries, against the brightest source on the bench: weakened light fades, and light below a ten-thousandth of it is not drawn. It does not change the diffracted field or a particle\u2019s glow. Untick to draw every ray and beam at full strength (the geometry alone).' }, bp, 'Fade weak rays and beams');
+  panel.append(tick('rays', 'Show the rays'), fade, tick('envelope', 'Show the Gaussian beams\u2019 envelope'), tick('field', 'Show the diffracted field (slower)'));
+  // how the rays look (for figures and recordings): a window of its own, View › How the rays look…, with the
+  // experimental features for now (ui/experimental.js 'raylook'); a bench that has the settings keeps them
+  if (exp('raylook')) panel.append(h('button', { type: 'button', class: 'rt-btn', style: 'margin-top:0.45rem', title: 'Fading trails, glow and width (also View \u203a How the rays look\u2026)', onclick: showRayLook }, 'How the rays look\u2026'));
   if (L.field) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
     selectField('Field intensity', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB'], ['log60', 'Logarithmic, 60 dB']], () => L.scale, v => { L.scale = v; }, { wide: true })));
   panel.append(h('p', { style: 'margin-top:0.35rem', class: 'note' }, 'For every source on the bench. With the field and the envelope both on, the envelope is drawn as its 1/e\u00b2 edge over the field. Hiding any of them changes only what is drawn: the light is traced, and measured, all the same (the diffracted field is worked out only while it is shown, or a screen reads it).'));

@@ -13843,6 +13843,47 @@ const TESTS = [
       } finally { J.sweepPause(); }
     },
   },
+  {
+    name: 'Light in the Bench panel: Fade weak rays and beams under Show the rays; How the rays look… with the experimental features; True colour field in 3D in the View menu, kept with the bench',
+    why: 'the Bench panel’s Light ticks read Show the rays, then Fade weak rays and beams (it was “Draw light by its power”, the bench’s light.byPower still), then the envelope and the field. Unticked, light.byPower is false. The How the rays look… button and its View menu item are not shown until the experimental feature is on, and a bench with a ray width set keeps it either way. In 3D, View › True colour field in 3D sets the bench’s light.field3d to “colour” (saved with it), the key says the field is in the light’s own colours, and a three-colour beam’s volume has a segment of each colour. 1 when all hold',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const doc = rigDoc();
+      J.load({ format: 'jekray', version: 1, light: { rays: true, envelope: true, field: true, scale: 'lin', rayWidth: 3 }, elements: [
+        { type: 'source', id: 'S', name: 'Laser', x: -60, y: 0, angle: 0, wavelength: 640, lines: [532, 460], rays: 3, width: 4, gauss: true, w0: 1.2 },
+        { type: 'mirror', id: 'M', name: 'Mirror', x: 40, y: 0, angle: 200, length: 25 }] });
+      const before = J.experimental();
+      try {
+        J.experimental(false);
+        // (the Bench panel, brought out by the tab on the bench's left edge)
+        const tab = doc.getElementById('btnSideTab'), wasOut = tab.getAttribute('aria-pressed') === 'true'; if (!wasOut) tab.click();
+        const labels = () => [...doc.querySelectorAll('#benchPanel label.rt-check')].map(l => l.textContent.trim());
+        const L0 = labels(), at = L0.indexOf('Show the rays');
+        if (at < 0) { console.log('sweep store: light settings, no Light ticks', JSON.stringify(L0), doc.getElementById('btnSideTab').getAttribute('aria-pressed')); return 0; }
+        const order = at >= 0 && L0[at + 1] === 'Fade weak rays and beams' && /envelope/.test(L0[at + 2] || '') && /diffracted field/.test(L0[at + 3] || '') && !L0.some(t => /by its power/.test(t));
+        const fade = [...doc.querySelectorAll('#benchPanel label.rt-check')].find(l => l.textContent.trim() === 'Fade weak rays and beams').querySelector('input');
+        const on0 = fade.checked; fade.click();
+        const off = J.light().byPower === false;
+        [...doc.querySelectorAll('#benchPanel label.rt-check')].find(l => l.textContent.trim() === 'Fade weak rays and beams').querySelector('input').click();
+        const btn = () => [...doc.querySelectorAll('#benchPanel button')].some(b => /How the rays look/.test(b.textContent)), item = doc.getElementById('btnRayLook');
+        const hidden = !btn() && item.hidden && J.light().rayWidth === 3;
+        J.experimental(true);
+        const shown = btn() && !item.hidden;
+        J.experimental(false);
+        // true colour, in 3D
+        await J.view3d.set(true);
+        const tc = doc.getElementById('btnTrue3d'), there = !tc.hidden && tc.getAttribute('aria-checked') === 'false';
+        tc.click(); await new Promise(r => setTimeout(r, 300));
+        const set = J.light().field3d === 'colour' && tc.getAttribute('aria-checked') === 'true', key = (doc.querySelector('.rt-v3dkey') || {}).textContent || '';
+        const cols = J.vol3d ? J.vol3d() : null, saved = J.light().field3d === 'colour';
+        tc.click();
+        const res = { L0, order, on0, off, hidden, shown, there, set, key: key.slice(0, 80), saved, cols: cols && cols.rgb };
+        const ok = order && on0 && off && hidden && shown && there && set && /own colours/.test(key) && saved && cols && cols.rgb >= 3;
+        if (!ok) console.log('sweep store: light settings', JSON.stringify(res));
+        return ok ? 1 : 0;
+      } finally { await J.view3d.set(false); J.experimental(before.on); const tab = doc.getElementById('btnSideTab'); if (tab.getAttribute('aria-pressed') === 'true') tab.click(); }
+    },
+  },
   { group: 'Smoothness' },
   {
     name: 'A field sweep whose frames would not fit in memory renders every so many steps, keeps within the budget, and plays',

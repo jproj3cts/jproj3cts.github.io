@@ -2112,10 +2112,11 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <button type="button" role="menuitem" id="btnFit" data-icon="fit">Fit view</button>
             <button type="button" role="menuitemcheckbox" id="btnView3d" aria-checked="false" data-icon="check" hidden title="This tab in three dimensions (its free-space parts)">3D view</button>
             <button type="button" role="menuitemcheckbox" id="btnNames3d" aria-checked="false" data-icon="check" hidden title="The parts' names over them in the 3D view">Names in 3D</button>
+            <button type="button" role="menuitemcheckbox" id="btnTrue3d" aria-checked="false" data-icon="check" hidden title="In the 3D view, the diffracted field in the light's own colours (a prism's white light fanning out red to blue), where it is otherwise drawn by its brightness alone. Kept with the bench">True colour field in 3D</button>
             <button type="button" role="menuitem" id="btnZoomSel" data-icon="zoom">Zoom to selection<span class="k">Z</span></button>
             <button type="button" role="menuitem" data-icon="ruler" id="btnMeasure" title="Measure distances, angles and optical paths (M)">Measure<span class="k">M</span></button>
             <button type="button" role="menuitem" data-icon="parts" id="btnShowPanel" title="The panel of the selection, or of the bench, after its × closed it">Show the side panel</button>
-            <button type="button" role="menuitem" data-icon="beam" id="btnRayLook" title="Fading trails, glow and width, for figures and recordings">How the rays look…</button>
+            <button type="button" role="menuitem" data-icon="beam" id="btnRayLook" hidden title="Fading trails, glow and width, for figures and recordings (an experimental feature)">How the rays look…</button>
             <div class="sep"></div>
             <div class="rt-sub" role="menuitem" tabindex="0" aria-haspopup="true" data-icon="theme" id="themeItem">Theme
               <div class="rt-menu rt-imenu" role="menu" id="themeMenu"></div>
@@ -12180,6 +12181,8 @@ function normLight(L, els) {
     // light drawn by the power it carries against the bench's brightest source (rays and envelopes, 2D and 3D): on
     // unless the bench turns it off, so every bench, old or new, has it (ui/render.js powerFade)
     byPower: L ? L.byPower !== false : true,
+    // the 3D view's diffracted field in the light's own colours (View › True colour field in 3D): kept only when on
+    ...(L && L.field3d === 'colour' ? { field3d: 'colour' } : {}),
     // while sweeps play, fading trails of the frames before: kept only when on
     ...(L && L.trail === true ? { trail: true } : {}),
     // the rays drawn wider than 1.2 px on the screen (up to 4), and with a soft glow round them: kept only when set
@@ -17547,7 +17550,7 @@ function drawRaysOn(ctx, rays, shared) {
    brightness and a beam 40 dB down is a trace. w: its power as a fraction */
 function rayAlpha(w) { return 0.8 * Math.min(1, Math.max(0.06, Math.pow(Math.max(w, 1e-9), 0.4))); }
 /* ---------- Light by its power ----------
-   Light: Draw light by its power (on unless a bench turns it off, project.light.byPower false): every ray and every
+   Light: Fade weak rays and beams (it was "Draw light by its power"; on unless a bench turns it off, project.light.byPower false): every ray and every
    beam's envelope as bright as the power it carries, against the bench's brightest source, on a log scale over
    POWER_DECADES: the brightest at full strength, a sixteenth plainly there, a five-thousandth all but gone, and below
    1e-4 of it nothing (it fades out, it is not cut off). Light made inside a part (a harmonic, Raman, an amplifier's
@@ -25016,6 +25019,9 @@ const V3D = (() => {
     mouseSet();
     mouse.addEventListener('click', () => { ctrl = ctrl === 'trackpad' ? 'default' : 'trackpad'; try { localStorage.setItem('jek-3d-mouse', ctrl); } catch (e) { /* kept for this visit */ } mouseSet(); hintText(); });
     nm.addEventListener('click', () => { names = !names; nm.setAttribute('aria-checked', String(names)); if (R) R.key = null; requestRender(); });
+    // the diffracted field in the light's own colours, a setting of the bench's (light.field3d), as the Bench panel's Light ticks are
+    const tc = byId('btnTrue3d');
+    tc.addEventListener('click', () => { checkpoint(); const L = lightOf(); if (L.field3d === 'colour') delete L.field3d; else L.field3d = 'colour'; if (R) R.key = null; changed(false); });
     flyBtn.addEventListener('click', () => flyStart());
     pngBtn.addEventListener('click', png);
     const bar = [byId('v3dSep'), flyBtn, mouse, byId('btn3dMate'), pngBtn];
@@ -25024,7 +25030,7 @@ const V3D = (() => {
     const vkey = h('div', { class: 'rt-v3dkey', hidden: true, role: 'status' });
     const box = h('div', { class: 'rt-v3dbox', hidden: true, 'aria-hidden': 'true' });
     stage.append(sw, hint, flyHint, vkey, box);
-    D = { stage, cv, sw, b2, b3, bar, hint, mouse, nm, flyBtn, flyHint, vkey, box };
+    D = { stage, cv, sw, b2, b3, bar, hint, mouse, nm, tc, flyBtn, flyHint, vkey, box };
     // the view's own tool first: a press it takes is not the view's
     for (const type of ['pointerdown', 'pointermove', 'pointerup', 'dblclick']) cv.addEventListener(type, e => {
       if (tool && !fly && R && tool[type] && tool[type](e)) { e.stopImmediatePropagation(); e.preventDefault(); }
@@ -25065,7 +25071,7 @@ const V3D = (() => {
     D.cv.hidden = !on || !R; D.hint.hidden = !on;
     for (const n of D.bar) n.hidden = !on || !R;
     if (D.touch) D.mouse.hidden = true;
-    D.nm.hidden = !there;
+    D.nm.hidden = !there; D.tc.hidden = !there; D.tc.setAttribute('aria-checked', String(lightOf().field3d === 'colour'));
     // drawings are 2D only: the rail's Draw palette goes while the 3D view shows, and comes back after
     if (on !== D.wasOn) { D.wasOn = on; if (on && palette === 'draw') setPalette('free'); else fillRail(); }
     if (!on) D.vkey.hidden = true;
@@ -25209,7 +25215,7 @@ const V3D = (() => {
     show();
     if (!active() || !R) return;
     resize();
-    const key = traceKeyNow() + '|' + netKey() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale + (fieldHeld() ? 'h' : '') : '') + '|' + scatVolKey();   // (a particle's Scale changes no trace)
+    const key = traceKeyNow() + '|' + netKey() + '|' + (lightOf().field3d || '') + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale + (fieldHeld() ? 'h' : '') : '') + '|' + scatVolKey();   // (a particle's Scale changes no trace)
     if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
     if (R.camTab !== project.tab) { if (tool && tool.off && R.camTab !== null) tool.off(); R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
     // (and where the selected parts are and how they are turned, so their handles follow them, through an undo too)
@@ -25844,7 +25850,7 @@ const V3D = (() => {
     // (filed by the trace's light and the particle's scattered field it carries: a triangle sweep's step on the way up and its
     // twin on the way down trace to the same light but each with a field of its own, and filed by the light alone the two
     // took turns, the light built again at every step of every cycle)
-    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top, scatVolKey()].join('|'), sig0 = traceStoreOn() ? lightSig(lastTrace) : null;
+    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().field3d || '', lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top, scatVolKey()].join('|'), sig0 = traceStoreOn() ? lightSig(lastTrace) : null;
     const sig = sig0 !== null ? sig0 + '|' + scatVolKey() : null, got = sig !== null ? lc.get(sig) : null;
     if (got && got.k === lk) { stepTouch('light3d', sig); stepClaim('light3d', sig); for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; R.lightReused = (R.lightReused || 0) + 1; }
     else {
@@ -26033,7 +26039,7 @@ const V3D = (() => {
      or log, 30 dB): light along the line of sight, W/mm, what the key under it reads */
   const VOL_VS = 'varying vec3 vP; void main() { vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
   const VOL_FS = `
-    uniform sampler2D uTex, uMap; uniform float uTs[64], uRm[64]; uniform int uNc, uM, uTwo; uniform float uTa, uTb, uZa, uZb, uR, uK; uniform vec3 uCam; uniform vec4 uP0, uP1;
+    uniform sampler2D uTex, uMap; uniform float uTs[64], uRm[64]; uniform int uNc, uM, uTwo; uniform float uTa, uTb, uZa, uZb, uR, uK; uniform vec3 uCam, uCol; uniform vec4 uP0, uP1;
     varying vec3 vP;
     // the two cuts either side of t, how far between them, the larger reach, and their gap
     void cutAt(float t, out int lo, out int hi, out float f, out float rm, out float gap) {
@@ -26089,14 +26095,18 @@ const V3D = (() => {
         sp += ds;
       }
       if (sum <= 0.0) discard;
-      gl_FragColor = vec4(sum * uK, 0.0, 0.0, 1.0);
+      // (uCol: red alone, the light added up, for the bench's colours; in true colour the segment's own colour, so the
+      // buffer holds the light of each colour along the line of sight)
+      gl_FragColor = vec4(sum * uK * uCol, 1.0);
     }`;
   // the buffer they add into, coloured: the light along each line of sight against the top of the key
   const VOLQ_VS = 'varying vec2 vU; void main() { vU = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }';
   const VOLQ_FS = `
-    uniform sampler2D uAcc, uMap, uScat, uMapS; uniform float uDec, uDecS, uS; varying vec2 vU;
+    uniform sampler2D uAcc, uMap, uScat, uMapS; uniform float uDec, uDecS, uS, uTrue; varying vec2 vU;
     void main() {
-      float v = texture2D(uAcc, vU).r;
+      // (true colour: the brightest of the three colours is what the scale is read on, the colour their mix)
+      vec3 c3 = texture2D(uAcc, vU).rgb;
+      float v0 = uTrue > 0.5 ? max(c3.r, max(c3.g, c3.b)) : c3.r, v = v0;
       if (uDec > 0.0) v = clamp(1.0 + log(max(v, 1e-12)) / log(10.0) / uDec, 0.0, 1.0); else v = clamp(v, 0.0, 1.0);
       // a particle's scattered field, on its own log scale and in its own colours (scatRamp), laid under the beam's light
       // (uDecS 0: the particle's Scale is linear)
@@ -26104,7 +26114,8 @@ const V3D = (() => {
       if (v <= 0.002 && w <= 0.002) discard;
       float a = v > 0.002 ? clamp(0.25 + 0.75 * v, 0.0, 0.92) * smoothstep(0.0, 0.06, v) : 0.0, aw = w > 0.002 ? clamp(0.95 * w, 0.0, 0.92) : 0.0;   // (the scattered light fades out at its floor, not into a dark tint over the beam)
       float at = a + aw * (1.0 - a);
-      gl_FragColor = vec4((texture2D(uMap, vec2(v, 0.5)).rgb * a + texture2D(uMapS, vec2(w, 0.5)).rgb * aw * (1.0 - a)) / max(at, 1e-6), at);
+      vec3 beam = uTrue > 0.5 ? c3 / max(v0, 1e-12) * (0.25 + 0.75 * v) : texture2D(uMap, vec2(v, 0.5)).rgb;
+      gl_FragColor = vec4((beam * a + texture2D(uMapS, vec2(w, 0.5)).rgb * aw * (1.0 - a)) / max(at, 1e-6), at);
     }`;
   function volPlanes(s) {
     const B = lastTrace.beams || [], none = new T.Vector4(0, 0, 0, 1);
@@ -26135,6 +26146,8 @@ const V3D = (() => {
     }
     return magmaTex;
   }
+  // the field in the light's own colours (View › True colour field in 3D; kept with the bench as light.field3d)
+  const trueCol = () => lightOf().field3d === 'colour';
   function volMeshes(G) {
     const V = R.vol, magmaTex = magmaMap();
     for (const s of V.segs) {
@@ -26151,7 +26164,7 @@ const V3D = (() => {
       const m3 = new T.ShaderMaterial({ vertexShader: VOL_VS, fragmentShader: VOL_FS, transparent: true, depthWrite: false, side: T.BackSide,
         blending: T.CustomBlending, blendEquation: T.AddEquation, blendSrc: T.OneFactor, blendDst: T.OneFactor,
         uniforms: { uTex: { value: tex }, uMap: { value: magmaTex }, uTs: { value: ts }, uRm: { value: rm }, uNc: { value: nc }, uM: { value: M }, uTwo: { value: s.two ? 1 : 0 },
-          uK: { value: K }, uTa: { value: s.ta }, uTb: { value: s.tb }, uZa: { value: za }, uZb: { value: zb }, uP0: { value: pl[0] }, uP1: { value: pl[1] }, uR: { value: Rm }, uCam: { value: new T.Vector3() } } });
+          uCol: { value: trueCol() ? new T.Vector3(...(s.rgb || [1, 1, 1])) : new T.Vector3(1, 0, 0) }, uK: { value: K }, uTa: { value: s.ta }, uTb: { value: s.tb }, uZa: { value: za }, uZb: { value: zb }, uP0: { value: pl[0] }, uP1: { value: pl[1] }, uR: { value: Rm }, uCam: { value: new T.Vector3() } } });
       const o = new T.Mesh(geo, m3);
       const ex = new T.Vector3(s.n[0], s.n[1], 0), ez = new T.Vector3(s.e[0], s.e[1], s.e[2]), ey = ez.clone().cross(ex);
       o.matrixAutoUpdate = false; o.matrix.makeBasis(ex, ey, ez).setPosition(s.o[0], s.o[1], s.o[2]);
@@ -26171,7 +26184,7 @@ const V3D = (() => {
      a particle's scattered field (scatVolMeshes) on its own */
   function volQuad(G) {
     const dec = fieldDec(lightOf().scale), q = new T.Mesh(new T.PlaneGeometry(2, 2), new T.ShaderMaterial({ vertexShader: VOLQ_VS, fragmentShader: VOLQ_FS, transparent: true, depthTest: false, depthWrite: false,
-      uniforms: { uAcc: { value: null }, uMap: { value: magmaMap() }, uDec: { value: dec }, uScat: { value: null }, uMapS: { value: scatMap(benchLight()) }, uDecS: { value: 2 }, uS: { value: 0 } } }));
+      uniforms: { uAcc: { value: null }, uMap: { value: magmaMap() }, uTrue: { value: trueCol() ? 1 : 0 }, uDec: { value: dec }, uScat: { value: null }, uMapS: { value: scatMap(benchLight()) }, uDecS: { value: 2 }, uS: { value: 0 } } }));
     q.frustumCulled = false; q.renderOrder = 2; q.userData.volQuad = true;
     q.onBeforeRender = () => {
       const u = q.material.uniforms, sc = R.scatVols && R.scatVols.length && R.scatRT;
@@ -26412,7 +26425,7 @@ const V3D = (() => {
     else if (beam) {
       const Sh = volShared(), pk = Sh ? Sh.line : volDispLine(R.vol), dec = fieldDec(lightOf().scale);
       const ticks = dec ? [[0, pk * 10 ** -dec], [0.5, pk * 10 ** (-dec / 2)], [1, pk]] : [[0, 0], [0.5, pk / 2], [1, pk]];
-      parts.push(h('b', { title: 'The irradiance added up along each line of sight, as light scattered evenly out of the beam would look: side-on through a beam\u2019s middle, its power per mm across it. More (looking along a beam, or into a focus) shows in the top colour' }, 'Light along the line of sight' + (dec ? ', log (' + dec * 10 + ' dB)' : '')), bar(magma), tks(ticks));
+      parts.push(h('b', { title: 'The irradiance added up along each line of sight, as light scattered evenly out of the beam would look: side-on through a beam\u2019s middle, its power per mm across it. More (looking along a beam, or into a focus) shows in the top colour' }, 'Light along the line of sight' + (dec ? ', log (' + dec * 10 + ' dB)' : '') + (trueCol() ? ', in the light\u2019s own colours' : '')), bar(trueCol() ? v => { const g = Math.round(255 * (0.25 + 0.75 * v) * Math.min(1, v / 0.06)); return [g, g, g]; } : magma), tks(ticks));
     }
     // a particle's scattered field (scatVolMeshes): its own colours and scale, the light along a line of sight in W/mm as its
     // pass adds it up; its top the strongest direction's, seen passing rTop from the particle (the field's `line`)
@@ -40284,14 +40297,16 @@ function renderOverview() {
     c.addEventListener('change', () => { checkpoint(); L[key] = c.checked; changed(false); renderPanel(); });
     return h('label', { class: 'rt-check', style: key === 'rays' ? null : 'margin-top:0.35rem' }, c, text);
   };
-  panel.append(tick('rays', 'Show the rays'), tick('envelope', 'Show the Gaussian beams\u2019 envelope'), tick('field', 'Show the diffracted field (slower)'));
-  // on unless turned off: every ray and envelope as bright as the power it carries, against the brightest source
+  // under the rays, on unless turned off: every ray and beam outline as bright as the power it carries, against the
+  // brightest source (saved as light.byPower; it was "Draw light by its power")
   const bp = h('input', { type: 'checkbox' });
   bp.checked = L.byPower !== false;
   bp.addEventListener('change', () => { checkpoint(); L.byPower = bp.checked; changed(false); renderPanel(); });
-  panel.append(h('label', { class: 'rt-check', style: 'margin-top:0.35rem', title: 'Each ray and beam as bright as the power it carries, against the brightest source on the bench: weakened light fades, and light below a ten-thousandth of it is not drawn. Untick to draw every beam at full strength (the geometry alone).' }, bp, 'Draw light by its power'));
-  // how the rays look (for figures and recordings): a window of its own, View › How the rays look…
-  panel.append(h('button', { type: 'button', class: 'rt-btn', style: 'margin-top:0.45rem', title: 'Fading trails, glow and width (also View \u203a How the rays look\u2026)', onclick: showRayLook }, 'How the rays look\u2026'));
+  const fade = h('label', { class: 'rt-check', style: 'margin:0.3rem 0 0 1.4rem', title: 'Each ray and each Gaussian beam\u2019s outline is drawn as bright as the power it carries, against the brightest source on the bench: weakened light fades, and light below a ten-thousandth of it is not drawn. It does not change the diffracted field or a particle\u2019s glow. Untick to draw every ray and beam at full strength (the geometry alone).' }, bp, 'Fade weak rays and beams');
+  panel.append(tick('rays', 'Show the rays'), fade, tick('envelope', 'Show the Gaussian beams\u2019 envelope'), tick('field', 'Show the diffracted field (slower)'));
+  // how the rays look (for figures and recordings): a window of its own, View › How the rays look…, with the
+  // experimental features for now (ui/experimental.js 'raylook'); a bench that has the settings keeps them
+  if (exp('raylook')) panel.append(h('button', { type: 'button', class: 'rt-btn', style: 'margin-top:0.45rem', title: 'Fading trails, glow and width (also View \u203a How the rays look\u2026)', onclick: showRayLook }, 'How the rays look\u2026'));
   if (L.field) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' },
     selectField('Field intensity', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB'], ['log60', 'Logarithmic, 60 dB']], () => L.scale, v => { L.scale = v; }, { wide: true })));
   panel.append(h('p', { style: 'margin-top:0.35rem', class: 'note' }, 'For every source on the bench. With the field and the envelope both on, the envelope is drawn as its 1/e\u00b2 edge over the field. Hiding any of them changes only what is drawn: the light is traced, and measured, all the same (the diffracted field is worked out only while it is shown, or a screen reads it).'));
@@ -44703,7 +44718,8 @@ function volData(segs, tab, bb, only) {
     });
     if (!(pk > 0) && !ranges) continue;          // (a share's dark cuts still go back, to be stitched)
     const hl = Math.hypot(e[0], e[1]), n = hl > 1e-9 ? [-e[1] / hl, e[0] / hl] : [-b.dy, b.dx];
-    out.push({ i: sg.i, two, coh, launch: sg.coh, M, ts, rmax, I, peak: pk, ta: ts[0], tb: ts[ts.length - 1], o: [b.x0, b.y0, z0], e, n, ...(ranges ? { ranges } : {}) });
+    // (rgb: its beam's colour, 0 to 1, for the 3D view's true-colour field; cw: the power it stands for when segments are added)
+    out.push({ i: sg.i, two, coh, launch: sg.coh, M, ts, rmax, I, peak: pk, ta: ts[0], tb: ts[ts.length - 1], o: [b.x0, b.y0, z0], e, n, rgb: volRgb(b.colour), cw: Pw, ...(ranges ? { ranges } : {}) });
   }
   return ranges0(only) ? { segs: out, peak: 0 } : volMerge(out);
 }
@@ -44748,6 +44764,11 @@ function volDisp(V) {
   for (const [m, w] of pts) { acc += w; if (acc >= 0.03 * tot) { d = m; break; } }
   return (V.disp = Math.min(V.peak, Math.max(d, V.peak * 1e-9)));
 }
+/* a beam's colour as r, g, b from 0 to 1 (white for none) */
+function volRgb(col) {
+  const m = typeof col === 'string' && /^#([0-9a-f]{6})$/i.exec(col);
+  return m ? [parseInt(m[1].slice(0, 2), 16) / 255, parseInt(m[1].slice(2, 4), 16) / 255, parseInt(m[1].slice(4, 6), 16) / 255] : [1, 1, 1];
+}
 function volMerge(list) {
   const out = [], byK = new Map();
   let peak = 0;
@@ -44755,7 +44776,12 @@ function volMerge(list) {
     if (!(v.peak > 0)) continue;
     const k = [v.two, v.M, ...v.o, ...v.e, ...v.ts, ...v.rmax].map(q => typeof q === 'number' ? q.toPrecision(7) : q).join(), same = byK.get(k);
     if (same && v.coh && same.coh && same.launch === v.launch) continue;
-    if (same) { let m = 0; for (let q = 0; q < v.I.length; q++) { same.I[q] += v.I[q]; if (same.I[q] > m) m = same.I[q]; } same.peak = m; peak = Math.max(peak, m); continue; }
+    if (same) {
+      let m = 0; for (let q = 0; q < v.I.length; q++) { same.I[q] += v.I[q]; if (same.I[q] > m) m = same.I[q]; } same.peak = m; peak = Math.max(peak, m);
+      // (the colour of the two together: each by its power, so white light before a prism is the sum of its lines)
+      if (same.rgb && v.rgb) { const a = same.cw || 0, b2 = v.cw || 0, t = a + b2 || 1; same.rgb = same.rgb.map((c, k) => (c * a + v.rgb[k] * b2) / t); same.cw = a + b2; }
+      continue;
+    }
     byK.set(k, v); out.push(v); peak = Math.max(peak, v.peak);
   }
   return { segs: out, peak };
@@ -58445,6 +58471,7 @@ const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
   { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
   { key: 'mods', name: 'Modules (parts with code)', what: 'part packs that carry code, run in a sandbox: new plates, polarisation plates, fibre components, electronics blocks and readouts written by anyone, installed from a file or a link (File \u203a Part packs and modules\u2026) after a prompt saying what each adds. Their code cannot reach your account, your files or the internet.' },
+  { key: 'raylook', name: 'How the rays look', what: 'a window of settings for how rays are drawn in 2D, for figures and recordings: fading trails as the light changes, a glow round each ray, and the rays\u2019 width (the button under Light in the Bench panel, and View \u203a How the rays look\u2026). Kept with the bench; a bench that has them set is drawn with them whether this is on or not.' },
   { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
 const EXP_KEY = 'jek-raytracer-experimental', EXP_PICKS = 'jek-raytracer-experimental-picks';
@@ -58456,7 +58483,9 @@ const expPicked = key => expPicks[key] !== false;
 // when they are; set by the cloud module once accounts are up (the tests, and a build without accounts, are not gated)
 let expGate = () => '';
 const expWhy = () => (TEST_MODE ? '' : expGate() || '');
-function setExpGate(fn) { expGate = fn; const dot = document.getElementById('expDot'); if (dot) dot.hidden = !(expOn && !expWhy()); }
+function setExpGate(fn) { expGate = fn; const dot = document.getElementById('expDot'); if (dot) dot.hidden = !(expOn && !expWhy()); expMenuShown(); }
+/* the menu items that belong to an experimental feature: shown with it */
+function expMenuShown() { const b = document.getElementById('btnRayLook'); if (b) b.hidden = !exp('raylook'); }
 const exp = key => expOn && !expWhy() && expPicked(key) && EXPERIMENTAL.some(f => f.key === key);
 function setExperimental(on, picks) {
   if (on !== undefined && on !== null && !!on !== expOn) track('experimental', on ? 'on' : 'off');
@@ -58465,7 +58494,7 @@ function setExperimental(on, picks) {
   if (!TEST_MODE) try { localStorage.setItem(EXP_KEY, expOn ? '1' : '0'); localStorage.setItem(EXP_PICKS, JSON.stringify(expPicks)); } catch (err) { /* not kept: fine */ }
   const dot = document.getElementById('expDot');
   if (dot) dot.hidden = !(expOn && !expWhy());
-  modsSync();
+  modsSync(); expMenuShown();
   layoutPalette(); renderPanel(); requestRender();
   if (typeof accountShown === 'function') accountShown();
 }
@@ -63689,6 +63718,7 @@ function wireTours() {
 
   document.getElementById('btnShowPanel').addEventListener('click', () => { setPanelClosed(false); renderPanel(); requestRender(); });
   document.getElementById('btnRayLook').addEventListener('click', showRayLook);
+  expMenuShown();
   document.getElementById('btnUsing').addEventListener('click', showUsingBench);
   document.getElementById('btnNotes').addEventListener('click', showNotes);
   document.getElementById('btnAboutPart').addEventListener('click', showAboutPart);
@@ -65749,7 +65779,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     activityBars() { return activityBars(); },
     // the diffracted field as the 3D view takes it, worked out here: per segment its cuts along it, their reach and the irradiance on the axis (W/cm²)
     vol3d() { traceScene(); const srcs = popSources(); if (!srcs.length) return null; const t0 = performance.now(), R = popRun(lastTrace.beams, srcs, {}), t1 = performance.now(), V = volData(R.segs, project.tab, null); self.__volMs = [t1 - t0, performance.now() - t1];
-      return { peak: V.peak * 100, disp: volDisp(V) * 100, segs: V.segs.map(v => ({ i: v.i, two: v.two, coh: v.coh, ta: v.ta, tb: v.tb, o: v.o, e: v.e, ts: Array.from(v.ts), rmax: Array.from(v.rmax), peak: v.peak * 100,
+      return { peak: V.peak * 100, disp: volDisp(V) * 100, rgb: new Set(V.segs.map(v => (v.rgb || []).map(c => c.toFixed(2)).join())).size, segs: V.segs.map(v => ({ i: v.i, two: v.two, coh: v.coh, ta: v.ta, tb: v.tb, o: v.o, e: v.e, ts: Array.from(v.ts), rmax: Array.from(v.rmax), peak: v.peak * 100,
         axis: Array.from(v.ts, (t, j) => 100 * (v.two ? v.I[(j * v.M + (v.M >> 1)) * v.M + (v.M >> 1)] : v.I[j * v.M])) })) }; },
     // part packs: checked as installing would ({ pack, notes } or { error }), installed without asking, listed, placed, removed, made
     packCheck(raw) { try { const r = normPack(JSON.parse(JSON.stringify(raw))); return { pack: r.pack, notes: r.notes }; } catch (err) { return { error: err.message }; } },
@@ -66006,6 +66036,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       return A.asm.name;
     },
     undo() { undo(); traceScene(); }, redo() { redo(); traceScene(); },
+    // (tests) the bench's Light settings as they stand
+    light() { return Object.assign({}, lightOf()); },
     // the lens engine on an assembly: rays [x, y, z, L, M, N] in its own frame (z along its axis from the first
     // vertex, y across it in the bench plane, x out of it), traced to the plane imageDist past its last surface
     lensTrace(name, nm, imageDist, rays) {

@@ -28,7 +28,7 @@ import { exportLayout } from '../io/layout.js';
 import { openJekray, openProjectData } from '../io/open.js';
 import { IMPORT_AS } from '../io/zmx-import.js';
 import { exportZmx, importZmx, setZmxToMine } from '../io/zmx-export.js';
-import { assignPalette, importStl, palette } from './experimental.js';
+import { assignPalette, expMenuShown, importStl, palette } from './experimental.js';
 import { importStep } from '../io/step.js';
 import { layoutPalette } from './rail.js';
 import { packInstallText } from '../io/packs.js';
@@ -284,6 +284,7 @@ export function wireTours() {
 
   document.getElementById('btnShowPanel').addEventListener('click', () => { setPanelClosed(false); renderPanel(); requestRender(); });
   document.getElementById('btnRayLook').addEventListener('click', showRayLook);
+  expMenuShown();
   document.getElementById('btnUsing').addEventListener('click', showUsingBench);
   document.getElementById('btnNotes').addEventListener('click', showNotes);
   document.getElementById('btnAboutPart').addEventListener('click', showAboutPart);

@@ -15,7 +15,7 @@ import { TYPE_LABEL } from '../parts/registry.js';
 import { V, allParts, project, selectOne, setFuture, setHistory, setProject, uid } from '../state/project.js';
 import { PACKS } from '../state/packs.js';
 import { stackAmp } from '../core/coatings.js';
-import { VSRC, allSources, demoProject, getEl, loadProject, selected, serialize } from '../state/elements.js';
+import { VSRC, allSources, demoProject, getEl, loadProject, selected, serialize, lightOf } from '../state/elements.js';
 import { onTab } from '../state/tabs.js';
 import { meshHull, parseSTL } from '../core/stl.js';
 import { compileMaskExpr, maskFns } from '../core/mask.js';
@@ -249,7 +249,7 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     activityBars() { return activityBars(); },
     // the diffracted field as the 3D view takes it, worked out here: per segment its cuts along it, their reach and the irradiance on the axis (W/cm²)
     vol3d() { traceScene(); const srcs = popSources(); if (!srcs.length) return null; const t0 = performance.now(), R = popRun(lastTrace.beams, srcs, {}), t1 = performance.now(), V = volData(R.segs, project.tab, null); self.__volMs = [t1 - t0, performance.now() - t1];
-      return { peak: V.peak * 100, disp: volDisp(V) * 100, segs: V.segs.map(v => ({ i: v.i, two: v.two, coh: v.coh, ta: v.ta, tb: v.tb, o: v.o, e: v.e, ts: Array.from(v.ts), rmax: Array.from(v.rmax), peak: v.peak * 100,
+      return { peak: V.peak * 100, disp: volDisp(V) * 100, rgb: new Set(V.segs.map(v => (v.rgb || []).map(c => c.toFixed(2)).join())).size, segs: V.segs.map(v => ({ i: v.i, two: v.two, coh: v.coh, ta: v.ta, tb: v.tb, o: v.o, e: v.e, ts: Array.from(v.ts), rmax: Array.from(v.rmax), peak: v.peak * 100,
         axis: Array.from(v.ts, (t, j) => 100 * (v.two ? v.I[(j * v.M + (v.M >> 1)) * v.M + (v.M >> 1)] : v.I[j * v.M])) })) }; },
     // part packs: checked as installing would ({ pack, notes } or { error }), installed without asking, listed, placed, removed, made
     packCheck(raw) { try { const r = normPack(JSON.parse(JSON.stringify(raw))); return { pack: r.pack, notes: r.notes }; } catch (err) { return { error: err.message }; } },
@@ -506,6 +506,8 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
       return A.asm.name;
     },
     undo() { undo(); traceScene(); }, redo() { redo(); traceScene(); },
+    // (tests) the bench's Light settings as they stand
+    light() { return Object.assign({}, lightOf()); },
     // the lens engine on an assembly: rays [x, y, z, L, M, N] in its own frame (z along its axis from the first
     // vertex, y across it in the bench plane, x out of it), traced to the plane imageDist past its last surface
     lensTrace(name, nm, imageDist, rays) {

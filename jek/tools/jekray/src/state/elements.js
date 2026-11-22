@@ -162,6 +162,8 @@ export function normLight(L, els) {
     // light drawn by the power it carries against the bench's brightest source (rays and envelopes, 2D and 3D): on
     // unless the bench turns it off, so every bench, old or new, has it (ui/render.js powerFade)
     byPower: L ? L.byPower !== false : true,
+    // the 3D view's diffracted field in the light's own colours (View › True colour field in 3D): kept only when on
+    ...(L && L.field3d === 'colour' ? { field3d: 'colour' } : {}),
     // while sweeps play, fading trails of the frames before: kept only when on
     ...(L && L.trail === true ? { trail: true } : {}),
     // the rays drawn wider than 1.2 px on the screen (up to 4), and with a soft glow round them: kept only when set

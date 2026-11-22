@@ -267,7 +267,8 @@ export function volData(segs, tab, bb, only) {
     });
     if (!(pk > 0) && !ranges) continue;          // (a share's dark cuts still go back, to be stitched)
     const hl = Math.hypot(e[0], e[1]), n = hl > 1e-9 ? [-e[1] / hl, e[0] / hl] : [-b.dy, b.dx];
-    out.push({ i: sg.i, two, coh, launch: sg.coh, M, ts, rmax, I, peak: pk, ta: ts[0], tb: ts[ts.length - 1], o: [b.x0, b.y0, z0], e, n, ...(ranges ? { ranges } : {}) });
+    // (rgb: its beam's colour, 0 to 1, for the 3D view's true-colour field; cw: the power it stands for when segments are added)
+    out.push({ i: sg.i, two, coh, launch: sg.coh, M, ts, rmax, I, peak: pk, ta: ts[0], tb: ts[ts.length - 1], o: [b.x0, b.y0, z0], e, n, rgb: volRgb(b.colour), cw: Pw, ...(ranges ? { ranges } : {}) });
   }
   return ranges0(only) ? { segs: out, peak: 0 } : volMerge(out);
 }
@@ -312,6 +313,11 @@ export function volDisp(V) {
   for (const [m, w] of pts) { acc += w; if (acc >= 0.03 * tot) { d = m; break; } }
   return (V.disp = Math.min(V.peak, Math.max(d, V.peak * 1e-9)));
 }
+/* a beam's colour as r, g, b from 0 to 1 (white for none) */
+export function volRgb(col) {
+  const m = typeof col === 'string' && /^#([0-9a-f]{6})$/i.exec(col);
+  return m ? [parseInt(m[1].slice(0, 2), 16) / 255, parseInt(m[1].slice(2, 4), 16) / 255, parseInt(m[1].slice(4, 6), 16) / 255] : [1, 1, 1];
+}
 export function volMerge(list) {
   const out = [], byK = new Map();
   let peak = 0;
@@ -319,7 +325,12 @@ export function volMerge(list) {
     if (!(v.peak > 0)) continue;
     const k = [v.two, v.M, ...v.o, ...v.e, ...v.ts, ...v.rmax].map(q => typeof q === 'number' ? q.toPrecision(7) : q).join(), same = byK.get(k);
     if (same && v.coh && same.coh && same.launch === v.launch) continue;
-    if (same) { let m = 0; for (let q = 0; q < v.I.length; q++) { same.I[q] += v.I[q]; if (same.I[q] > m) m = same.I[q]; } same.peak = m; peak = Math.max(peak, m); continue; }
+    if (same) {
+      let m = 0; for (let q = 0; q < v.I.length; q++) { same.I[q] += v.I[q]; if (same.I[q] > m) m = same.I[q]; } same.peak = m; peak = Math.max(peak, m);
+      // (the colour of the two together: each by its power, so white light before a prism is the sum of its lines)
+      if (same.rgb && v.rgb) { const a = same.cw || 0, b2 = v.cw || 0, t = a + b2 || 1; same.rgb = same.rgb.map((c, k) => (c * a + v.rgb[k] * b2) / t); same.cw = a + b2; }
+      continue;
+    }
     byK.set(k, v); out.push(v); peak = Math.max(peak, v.peak);
   }
   return { segs: out, peak };

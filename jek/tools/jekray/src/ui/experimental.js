@@ -34,6 +34,7 @@ export const EXPERIMENTAL = [
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
   { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
   { key: 'mods', name: 'Modules (parts with code)', what: 'part packs that carry code, run in a sandbox: new plates, polarisation plates, fibre components, electronics blocks and readouts written by anyone, installed from a file or a link (File \u203a Part packs and modules\u2026) after a prompt saying what each adds. Their code cannot reach your account, your files or the internet.' },
+  { key: 'raylook', name: 'How the rays look', what: 'a window of settings for how rays are drawn in 2D, for figures and recordings: fading trails as the light changes, a glow round each ray, and the rays\u2019 width (the button under Light in the Bench panel, and View \u203a How the rays look\u2026). Kept with the bench; a bench that has them set is drawn with them whether this is on or not.' },
   { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
 ];
 const EXP_KEY = 'jek-raytracer-experimental', EXP_PICKS = 'jek-raytracer-experimental-picks';
@@ -45,7 +46,9 @@ export const expPicked = key => expPicks[key] !== false;
 // when they are; set by the cloud module once accounts are up (the tests, and a build without accounts, are not gated)
 let expGate = () => '';
 export const expWhy = () => (TEST_MODE ? '' : expGate() || '');
-export function setExpGate(fn) { expGate = fn; const dot = document.getElementById('expDot'); if (dot) dot.hidden = !(expOn && !expWhy()); }
+export function setExpGate(fn) { expGate = fn; const dot = document.getElementById('expDot'); if (dot) dot.hidden = !(expOn && !expWhy()); expMenuShown(); }
+/* the menu items that belong to an experimental feature: shown with it */
+export function expMenuShown() { const b = document.getElementById('btnRayLook'); if (b) b.hidden = !exp('raylook'); }
 export const exp = key => expOn && !expWhy() && expPicked(key) && EXPERIMENTAL.some(f => f.key === key);
 export function setExperimental(on, picks) {
   if (on !== undefined && on !== null && !!on !== expOn) track('experimental', on ? 'on' : 'off');
@@ -54,7 +57,7 @@ export function setExperimental(on, picks) {
   if (!TEST_MODE) try { localStorage.setItem(EXP_KEY, expOn ? '1' : '0'); localStorage.setItem(EXP_PICKS, JSON.stringify(expPicks)); } catch (err) { /* not kept: fine */ }
   const dot = document.getElementById('expDot');
   if (dot) dot.hidden = !(expOn && !expWhy());
-  modsSync();
+  modsSync(); expMenuShown();
   layoutPalette(); renderPanel(); requestRender();
   if (typeof accountShown === 'function') accountShown();
 }

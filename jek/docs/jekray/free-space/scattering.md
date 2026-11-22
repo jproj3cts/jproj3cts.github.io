@@ -197,7 +197,7 @@ It is an estimate:
 
 The surface is drawn from the pattern over every direction, 49 steps from straight up to straight down by 96 round, in the scattered field's colours, brighter where it reaches further. A part in front of it hides it. Its largest radius is five times the particle's sign: about 180 pixels close in, and never more than 5 mm on the bench when you zoom out. It follows a sweep step by step. It is off unless you turn it on, it is saved with the bench, and it needs **Send its scattered light to the parts** on. The 2D bench does not show it. It is a picture: no reading uses it.
 
-The cones are drawn as rays. With **Draw light by its power** on they are drawn at the faintest step that shows, because by power they would not show beside the beam at all. The 2D bench draws the two spokes of each cone nearest the bench plane, and the 3D view draws every ray.
+The cones are drawn as rays. With **Fade weak rays and beams** on they are drawn at the faintest step that shows, because by power they would not show beside the beam at all. The 2D bench draws the two spokes of each cone nearest the bench plane, and the 3D view draws every ray.
 
 ## Inside a cavity
 

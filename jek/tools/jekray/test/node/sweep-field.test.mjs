@@ -64,3 +64,19 @@ test('how a screen’s pattern is drawn (on its face in 3D, to which scale) is n
   scr.mapScale = 'log'; assert.deepEqual(keys(), k0, 'its scale');
   scr.length = 22; assert.notDeepEqual(keys(), k0, 'its size is part of both');
 });
+
+test('a 3D volume’s segments carry their beams’ colours, and segments added together the colour of both by power', async () => {
+  const VOL = await import('../../src/engines/volume.js');
+  assert.deepEqual(VOL.volRgb('#ff8000').map(v => +v.toFixed(3)), [1, 0.502, 0]);
+  assert.deepEqual(VOL.volRgb(undefined), [1, 1, 1]);
+  const { E, BT } = await setup();
+  const beams = E.TRACE.lastTrace.beams, srcs = BT.popSources(), R = BT.popRun(beams, srcs, {});
+  const V = VOL.volData(R.segs, E.ST.project.tab, [-212, -112, 163, 188], null);
+  assert.ok(V.segs.length > 0 && V.segs.every(s => Array.isArray(s.rgb) && s.rgb.length === 3 && s.rgb.every(c => c >= 0 && c <= 1)), 'each has a colour');
+  // two of one shape, a red of three parts and a blue of one: three quarters red
+  const seg = (rgb, cw) => ({ two: false, M: 2, o: [0, 0, 0], e: [1, 0, 0], ts: [0, 1], rmax: [1, 1], I: new Float32Array([1, 1, 1, 1]), peak: 1, coh: 0, launch: Math.random(), rgb, cw });
+  const m = VOL.volMerge([seg([1, 0, 0], 3), seg([0, 0, 1], 1)]);
+  assert.equal(m.segs.length, 1);
+  assert.deepEqual(m.segs[0].rgb, [0.75, 0, 0.25]);
+  assert.equal(m.segs[0].I[0], 2);
+});

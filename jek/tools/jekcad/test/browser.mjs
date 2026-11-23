@@ -1075,6 +1075,24 @@ export async function check(pw, base, shots) {
       await q.close();
       ok('A mate is deleted from its row: chosen and Delete (Undo brings it back), its right-click menu, or Delete in its panel; the row’s bin shows on hover', binShown === '1' && byKey === 0 && undone === 1 && byMenu === 0 && byPanel.n === 0 && !byPanel.panel && !qe.length, JSON.stringify([binShown, byKey, undone, byMenu, byPanel, qe]));
     }
+    // a Part Studio that took a while is kept by the kernel's worker in this browser: opened again after a reload, its
+    // parts are read back, not made again, and are the same
+    {
+      const q = await b.newPage({ viewport: { width: 1200, height: 800 } });
+      const lens = readFileSync(new URL('./node/fixtures/lens-holder.jekcad', import.meta.url), 'utf8');
+      const open = async () => {
+        await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+        await q.waitForTimeout(300);
+        return q.evaluate(async t => { const J = window.JEKcad, t0 = performance.now(); J.load(JSON.parse(t)); const out = await J.regenDone(); return { ms: performance.now() - t0, parts: out ? out.parts.map(p => p.id + ' ' + p.volume.toFixed(5) + ' ' + p.faceNames.length).join(' | ') : null }; }, lens);
+      };
+      await q.goto(base + '/jek/tools/jekcad.html?test');
+      const first = await open();
+      await q.waitForFunction(() => new Promise(res => { const r = indexedDB.open('jekcad-steps'); r.onsuccess = () => { try { r.result.transaction('meta').objectStore('meta').count().onsuccess = e => { r.result.close(); res(e.target.result > 0); }; } catch (err) { res(false); } }; r.onerror = () => res(false); }), null, { timeout: 20000, polling: 500 }).catch(() => {});
+      await q.reload();
+      const again = await open();
+      await q.close();
+      ok('A Part Studio opened again after a reload is read back from this browser, not made again: the same parts, sooner', first.parts && again.parts === first.parts && again.ms < first.ms * 0.6, JSON.stringify([Math.round(first.ms), Math.round(again.ms), first.parts === again.parts]));
+    }
     // My parts: a part of a Part Studio kept there (with its Part Studio, marked cad), then an Assembly's Insert lists
     // it (and not a JEKray part kept beside it); inserting it brings its Part Studio in as a tab, once, and the part
     {

@@ -8,6 +8,7 @@ import { evalExpr, fmtNum } from '../core/units.js';
 import { kernelAsk } from '../page/kernel.js';
 import { app, bindTab, changed, checkpoint, editGate, emit, on, regenNow, regenTold, toast } from './app.js';
 import { V, camAxes, fit, project } from './view3d.js';
+import { keepHere } from '../../../jekray/src/ui/pro.js';
 
 /* ==========================================================================
    Tabs and assemblies. The document's tabs run along the bottom: Part Studios and Assemblies, one open at a time.
@@ -26,7 +27,7 @@ const studios = () => app.file.tabs.filter(t => t.kind === 'studio');
 export async function studioParts(t) {
   const key = JSON.stringify(t), had = STUDIO.get(t.id);
   if (had && had.key === key) return had.parts;
-  const out = await kernelAsk('regen', { doc: t, opts: {} }, 'regen');
+  const out = await kernelAsk('regen', { doc: t, opts: { keep: keepHere() } }, 'regen');
   if (!out) return null;                       // replaced by a newer request
   STUDIO.set(t.id, { key, parts: out.parts });
   return out.parts;

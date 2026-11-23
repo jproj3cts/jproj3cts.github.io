@@ -1,6 +1,6 @@
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { h } from '../../../jekray/src/ui/dom.js';
-import { acctWhy } from '../../../jekray/src/ui/pro.js';
+import { acctWhy, keepHere } from '../../../jekray/src/ui/pro.js';
 import { appliedCount, fileData, normFile } from '../core/doc.js';
 import { carryRegions } from '../core/sketch-tools.js';
 import { kernelAsk, kernelHas } from '../page/kernel.js';
@@ -77,9 +77,11 @@ export const regenPending = () => regenQueued || kernelHas('regen');
 /* what is shown: up to the rollback bar, or up to the feature being edited (with its preview), or the sketch's place */
 export function regenOpts() {
   const E = app.editing, S = app.sketch;
-  if (S) return { upto: S.at, preview: { at: S.at, feature: S.f } };
-  if (E) return { upto: E.at, preview: { at: E.at, feature: E.f } };
-  return {};
+  // keep: the worker may keep what it makes in this browser, to open faster next time (ui/pro.js keepHere, as the autosave)
+  const keep = keepHere();
+  if (S) return { upto: S.at, preview: { at: S.at, feature: S.f }, keep };
+  if (E) return { upto: E.at, preview: { at: E.at, feature: E.f }, keep };
+  return { keep };
 }
 let regenWaiters = [];
 /* a promise of the next regeneration's result (the tests wait on it) */

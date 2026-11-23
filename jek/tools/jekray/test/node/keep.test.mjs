@@ -47,6 +47,10 @@ test('JEKion, JEKfilm and JEKcad: each autosave asks before it writes; the work 
   assert.match(src('jekfilm/src/io/film-account.js'), /keepWork: \(\) => filmKeepNow\(true\)/, 'JEKfilm hands over');
   const cad = fnBody(src('jekcad/src/io/files.js'), 'scheduleSave');
   assert.ok(cad.indexOf('keepHere()') >= 0 && cad.indexOf('keepHere()') < cad.indexOf('localStorage.setItem('), 'JEKcad scheduleSave');
+  // JEKcad's kernel worker keeps the parts it made (IndexedDB) only when the page's request says keep: keepHere()
+  assert.match(fnBody(src('jekcad/src/ui/app.js'), 'regenOpts'), /const keep = keepHere\(\)/, 'JEKcad regenOpts');
+  assert.match(src('jekcad/src/ui/assembly.js'), /opts: \{ keep: keepHere\(\) \}/, 'JEKcad studioParts');
+  assert.match(fnBody(src('jekcad/src/worker/main.js'), 'workerMain'), /args\.opts && args\.opts\.keep && K\.lastRan\(\) > STEP_SLOW\) stepKeep\(/, 'JEKcad worker keeps only when told');
   for (const [f, key] of [['jekray/src/io/nudges.js', 'STORE_KEY'], ['jekion/src/io/ion-account.js', 'ION_STORE_KEY'], ['jekcad/src/io/cad-account.js', 'CAD_STORE_KEY']])
     assert.match(src(f), new RegExp('keepWork: \\(\\) => \\{ if \\(!EMBED\\) try \\{[^}]*localStorage\\.setItem\\(' + key), f + ' hands over');
 });

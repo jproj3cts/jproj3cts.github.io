@@ -99,6 +99,16 @@ export function stepValue(sw, i, n, P) {
   }
   return sweepValue(sw, waveShape(sw.wave, j / n + sw.phase / 360));
 }
+/* The slider of a sweep at a fraction of its range: the nearest of the steps it plays on, so each place it is pulled to
+   is a step already worked out (its trace, field and particle's answer kept) and not a state between two of them,
+   worked out from nothing at every move of the hand */
+export function sweepSnap(el, path, frac) {
+  const sw = el.sweeps[path], want = sweepValue(sw, frac);
+  const R = fieldRendered && fieldRendered.keys.has(sweepKey(el, path)) ? fieldRendered : null, n = R ? R.n : fieldFramesOf(sw), P = R ? R.period : 1 / sw.freq;
+  let best = want, d = Infinity;
+  for (let i = 0; i < n; i++) { const v = stepValue(sw, i, n, P), e = Math.abs(v - want); if (e < d) { d = e; best = v; } }
+  return best;
+}
 export function sweepFrac(el, path) {
   const sw = el.sweeps[path], v = getPath(el, path);
   if (!sw || sw.max === sw.min || v === null || !isFinite(v)) return 0;
@@ -279,14 +289,15 @@ export function cancelJobFor(el, path) {
 export function pause(el, path) {
   cancelJobFor(el, path);
   playing.delete(sweepKey(el, path));
-  if (!playing.size) { stepInvalidate('stopped'); scatterAheadStop(); holdEnd(); }
+  // (what is kept for the steps stays: the slider pulled along a paused sweep finds each step as it was worked out)
+  if (!playing.size) { scatterAheadStop(); holdEnd(); }
   syncPanel(); updateSweepButtons(); scheduleSave(); requestRender();         // (drawn again: the rays finer once nothing plays)
 }
 export function pauseAll() {
   if (sweepJob) sweepJob.cancel();
   holdEnd();
   if (!playing.size) return;
-  playing.clear(); stepInvalidate('stopped'); scatterAheadStop();
+  playing.clear(); scatterAheadStop();
   syncPanel(); updateSweepButtons(); scheduleSave(); requestRender();
 }
 export function syncPhases() {

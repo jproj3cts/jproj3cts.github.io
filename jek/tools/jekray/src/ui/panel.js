@@ -13,8 +13,8 @@ import { H, requestRender, selFibre, selection, setSelFibreId, sy } from './rend
 import { drawBarShown } from './drawings.js';
 import { SWEEP_STEPS_MAX, getPath, setParam } from '../state/params.js';
 import {
-  WAVES, advOpen, fieldFramesOf, sweepEdited, sweepShowsField, isPlaying, jobHas, pause, play, swPool,
-  fieldRendered, swRelease, sweepDefault, sweepEta, sweepFrac, sweepJob, sweepKey, sweepValue
+  WAVES, advOpen, fieldFramesOf, sweepEdited, sweepShowsField, sweepSnap, isPlaying, jobHas, pause, play, swPool,
+  fieldRendered, swRelease, sweepDefault, sweepEta, sweepFrac, sweepJob, sweepKey
 } from './sweeps.js';
 import { V3D } from './view3d.js';
 import { ELEC_UI } from './elec.js';
@@ -240,7 +240,7 @@ function sweepControls(el, path, sw, label) {
   slider.addEventListener('input', () => {
     if (isPlaying(el, path) || rendering()) pause(el, path);
     beginEdit();
-    setParam(el, path, sweepValue(sw, slider.value / 1000));
+    setParam(el, path, sweepSnap(el, path, slider.value / 1000));
     changed(false);
   });
   slider.addEventListener('change', endEdit);

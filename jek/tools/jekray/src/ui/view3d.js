@@ -311,7 +311,7 @@ export const V3D = (() => {
     show();
     if (!active() || !R) return;
     resize();
-    const key = traceKeyNow() + '|' + netKey() + '|' + (lightOf().field3d || '') + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale + (fieldHeld() ? 'h' : '') : '') + '|' + scatVolKey();   // (a particle's Scale changes no trace)
+    const key = traceKeyNow() + '|' + netKey() + '|' + (lightOf().field3d || '') + '|' + picsKey() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale + (fieldHeld() ? 'h' : '') : '') + '|' + scatVolKey();   // (a particle's Scale changes no trace)
     if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
     if (R.camTab !== project.tab) { if (tool && tool.off && R.camTab !== null) tool.off(); R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
     // (and where the selected parts are and how they are turned, so their handles follow them, through an undo too)
@@ -946,7 +946,7 @@ export const V3D = (() => {
     // (filed by the trace's light and the particle's scattered field it carries: a triangle sweep's step on the way up and its
     // twin on the way down trace to the same light but each with a field of its own, and filed by the light alone the two
     // took turns, the light built again at every step of every cycle)
-    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().field3d || '', lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top, scatVolKey()].join('|'), sig0 = traceStoreOn() ? lightSig(lastTrace) : null;
+    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().field3d || '', picsKey(), lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top, scatVolKey()].join('|'), sig0 = traceStoreOn() ? lightSig(lastTrace) : null;
     const sig = sig0 !== null ? sig0 + '|' + scatVolKey() : null, got = sig !== null ? lc.get(sig) : null;
     if (got && got.k === lk) { stepTouch('light3d', sig); stepClaim('light3d', sig); for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; R.lightReused = (R.lightReused || 0) + 1; }
     else {
@@ -1329,6 +1329,8 @@ export const V3D = (() => {
   // leave the glow of an earlier step in place, or a light layer kept for an earlier step brought back)
   const SVOL_IDS = new WeakMap(); let svolSeq = 0;
   const svolId = G => { let k = SVOL_IDS.get(G); if (!k) SVOL_IDS.set(G, (k = ++svolSeq)); return k; };
+  // which of the particles' pictures are ticked (no part of the trace's key: engines/trace.js scatPics)
+  const picsKey = () => project.elements.filter(e => e.type === 'particle').map(e => (e.scatField ? 'f' : '-') + (e.scatShape3d ? 'p' : '-')).join('');
   const scatVolKey = () => ((lastTrace.scat && lastTrace.scat.fans) || []).map(F => F.field ? F.part + ':' + svolId(F.field) + ':' + F.field.top + ':' + scatDb(F) : '').join();
   // a particle's Scale (the Scattering tab's, scatScale), in dB on the bench (0: linear); in 3D logarithmic over half of
   // them (the light along a line of sight falls as 1/b where the irradiance falls as 1/b², so the glow reaches as far)

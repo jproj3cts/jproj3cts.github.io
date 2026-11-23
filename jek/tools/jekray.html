@@ -14644,7 +14644,7 @@ const traceKeyRest = () => project.maxBounces + '|' + project.minPower + '|' + p
 // what changes nothing in the light: a part's name and where it is written, its import notes, drawings; where a
 // fibre component or a chip part sits (their networks are solved by what joins what: a fibre's length is its own
 // setting), and the way a fibre or waveguide is drawn across the bench
-const COSMETIC = new Set(['hide3d', 'label', 'name', 'assumed', 'design', 'source', 'lineColour', 'fillColour', 'scatScale', 'faceMap', 'mapScale']);   // (scatScale: a particle's plots and pictures; faceMap, mapScale: how a screen's pattern is drawn)
+const COSMETIC = new Set(['hide3d', 'label', 'name', 'assumed', 'design', 'source', 'lineColour', 'fillColour', 'scatScale', 'faceMap', 'mapScale', 'scatField', 'scatShape3d']);   // (scatScale: a particle's plots and pictures; faceMap, mapScale: how a screen's pattern is drawn; scatField, scatShape3d: a particle's pictures, see scatPics)
 const PLACED = new Set(['x', 'y', 'angle']), DRAWN = new Set(['path', 'ta', 'tb', 'route']);
 function keyCut(k, v) {
   if (COSMETIC.has(k)) return undefined;
@@ -14652,11 +14652,32 @@ function keyCut(k, v) {
   if (DRAWN.has(k) && this && Array.isArray(this.a) && Array.isArray(this.b)) return undefined;
   return v;
 }
+/* A particle's pictures (its scattered field's estimate, scatField; its radiation pattern for the 3D view, scatShape3d)
+   are made with the trace but are no part of the light, so they are no part of its key: unticking one while a sweep
+   played traced every step again. A trace notes which it was asked for (scat.pics: { part id: [field, pattern] }) and
+   keeps what it made on each fan (fieldKept, lobeKept); it serves any bench that wants no more pictures than it has,
+   and what the bench shows of them (fan.field, fan.lobe) is set to the bench's ticks whenever a trace is taken up. */
+const picsWanted = () => project.elements.filter(e => e.type === 'particle' && (e.scatField || e.scatShape3d));
+const traceHasPics = T => picsWanted().every(e => { const a = T && T.scat && T.scat.pics && T.scat.pics[e.id]; return !!a && (!e.scatField || a[0]) && (!e.scatShape3d || a[1]); }) || !(T && T.scat);
+function scatPicsNote(T) {
+  if (!T || !T.scat) return;
+  T.scat.pics = {};
+  for (const e of project.elements) if (e.type === 'particle') T.scat.pics[e.id] = [!!e.scatField, !!e.scatShape3d];
+}
+function scatPics(T) {
+  for (const F of (T && T.scat && T.scat.fans) || []) {
+    if (F.fieldKept === undefined) F.fieldKept = F.field || null;
+    if (F.lobeKept === undefined) F.lobeKept = F.lobe || null;
+    const el = getEl(F.part);
+    F.field = el && el.scatField && F.fieldKept ? F.fieldKept : undefined;
+    F.lobe = el && el.scatShape3d && F.lobeKept ? F.lobeKept : undefined;
+  }
+}
 function traceScene() {
   for (const e of project.elements) if (isLaserLike(e)) syncLine(e);
   applySpins();                                  // a group turned about its pivot by its spin, first
   const key = traceKeyNow();
-  if (key === lastTraceKey && lastTrace.beams) return;
+  if (key === lastTraceKey && lastTrace.beams && traceHasPics(lastTrace)) { scatPics(lastTrace); return; }
   // a sweep playing round again: each step's trace kept from the cycle before (with the sources it made: a fibre tip's
   // launches, a particle's cones), taken while its particles' answers are the very ones it was traced with
   const keep = traceStoreOn() && !stepStore.bypass;
@@ -14664,11 +14685,12 @@ function traceScene() {
   // (or the one trace offered for the bench as it is now, from where a particle's answer was just worked out: offerTrace)
   const o = traceOffer;
   traceOffer = null;
-  const got = c && c.parts.every(([id, k]) => !k || scatFind(id, k, true)) ? c
-    : o && !MODS.packs.size && o.key === traceKeyBase() && o.parts.every(([id, k]) => !k || scatFind(id, k, true)) ? o : null;
+  const got = c && traceHasPics(c.T) && c.parts.every(([id, k]) => !k || scatFind(id, k, true)) ? c
+    : o && !MODS.packs.size && o.key === traceKeyBase() && traceHasPics(o.T) && o.parts.every(([id, k]) => !k || scatFind(id, k, true)) ? o : null;
   if (got) {
     statsCache.clear(); diffCache.clear(); binCache.clear();
     lastTrace = got.T; lastTraceKey = key; lastTraceMs = got.ms; setVSRC(got.V); traceStoreHits++;
+    scatPics(lastTrace);
     afterTrace();
     return;
   }
@@ -14678,6 +14700,7 @@ function traceScene() {
   // the key as the bench stands after it (a split source takes its laser's settings as it goes)
   lastTraceKey = traceKeyNow();
   lastTraceMs = performance.now() - t0;
+  scatPicsNote(lastTrace); scatPics(lastTrace);
   if (keep) keepTrace(traceKeyBase(), lastTrace, lastTraceMs);
 }
 /* While a sweep plays, the traces of its steps are kept, so the second cycle and after (and a sweep played over steps
@@ -14695,7 +14718,8 @@ let traceStoreTest = false;
 function setTraceStoreTest(on) { traceStoreTest = !!on; dropTraceStore(); }
 /* whether traces may be kept on this bench at all, and whether they are now: while a sweep plays */
 const traceStoreCan = () => (!TEST_MODE || traceStoreTest) && !IN_WORKER && !MODS.packs.size && !project.elements.some(e => TRACE_STATEFUL.has(e.type));
-const traceStoreOn = () => traceStoreCan() && hooks.playing();
+// (or the bench at one of the steps of the sweeps' run, paused: its slider pulled along a sweep already worked out)
+const traceStoreOn = () => traceStoreCan() && (hooks.playing() || (!!stepStore.run && stepNow() !== null));
 /* the particles' answers a trace was made with, [id, key] each, or null when one was still to come for it */
 function traceParts(T) {
   const P = (T.scat && T.scat.parts) || {}, parts = [];
@@ -20334,6 +20358,16 @@ function stepValue(sw, i, n, P) {
   }
   return sweepValue(sw, waveShape(sw.wave, j / n + sw.phase / 360));
 }
+/* The slider of a sweep at a fraction of its range: the nearest of the steps it plays on, so each place it is pulled to
+   is a step already worked out (its trace, field and particle's answer kept) and not a state between two of them,
+   worked out from nothing at every move of the hand */
+function sweepSnap(el, path, frac) {
+  const sw = el.sweeps[path], want = sweepValue(sw, frac);
+  const R = fieldRendered && fieldRendered.keys.has(sweepKey(el, path)) ? fieldRendered : null, n = R ? R.n : fieldFramesOf(sw), P = R ? R.period : 1 / sw.freq;
+  let best = want, d = Infinity;
+  for (let i = 0; i < n; i++) { const v = stepValue(sw, i, n, P), e = Math.abs(v - want); if (e < d) { d = e; best = v; } }
+  return best;
+}
 function sweepFrac(el, path) {
   const sw = el.sweeps[path], v = getPath(el, path);
   if (!sw || sw.max === sw.min || v === null || !isFinite(v)) return 0;
@@ -20514,14 +20548,15 @@ function cancelJobFor(el, path) {
 function pause(el, path) {
   cancelJobFor(el, path);
   playing.delete(sweepKey(el, path));
-  if (!playing.size) { stepInvalidate('stopped'); scatterAheadStop(); holdEnd(); }
+  // (what is kept for the steps stays: the slider pulled along a paused sweep finds each step as it was worked out)
+  if (!playing.size) { scatterAheadStop(); holdEnd(); }
   syncPanel(); updateSweepButtons(); scheduleSave(); requestRender();         // (drawn again: the rays finer once nothing plays)
 }
 function pauseAll() {
   if (sweepJob) sweepJob.cancel();
   holdEnd();
   if (!playing.size) return;
-  playing.clear(); stepInvalidate('stopped'); scatterAheadStop();
+  playing.clear(); scatterAheadStop();
   syncPanel(); updateSweepButtons(); scheduleSave(); requestRender();
 }
 function syncPhases() {
@@ -25229,7 +25264,7 @@ const V3D = (() => {
     show();
     if (!active() || !R) return;
     resize();
-    const key = traceKeyNow() + '|' + netKey() + '|' + (lightOf().field3d || '') + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale + (fieldHeld() ? 'h' : '') : '') + '|' + scatVolKey();   // (a particle's Scale changes no trace)
+    const key = traceKeyNow() + '|' + netKey() + '|' + (lightOf().field3d || '') + '|' + picsKey() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale + (fieldHeld() ? 'h' : '') : '') + '|' + scatVolKey();   // (a particle's Scale changes no trace)
     if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
     if (R.camTab !== project.tab) { if (tool && tool.off && R.camTab !== null) tool.off(); R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
     // (and where the selected parts are and how they are turned, so their handles follow them, through an undo too)
@@ -25864,7 +25899,7 @@ const V3D = (() => {
     // (filed by the trace's light and the particle's scattered field it carries: a triangle sweep's step on the way up and its
     // twin on the way down trace to the same light but each with a field of its own, and filed by the light alone the two
     // took turns, the light built again at every step of every cycle)
-    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().field3d || '', lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top, scatVolKey()].join('|'), sig0 = traceStoreOn() ? lightSig(lastTrace) : null;
+    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().field3d || '', picsKey(), lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top, scatVolKey()].join('|'), sig0 = traceStoreOn() ? lightSig(lastTrace) : null;
     const sig = sig0 !== null ? sig0 + '|' + scatVolKey() : null, got = sig !== null ? lc.get(sig) : null;
     if (got && got.k === lk) { stepTouch('light3d', sig); stepClaim('light3d', sig); for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; R.lightReused = (R.lightReused || 0) + 1; }
     else {
@@ -26247,6 +26282,8 @@ const V3D = (() => {
   // leave the glow of an earlier step in place, or a light layer kept for an earlier step brought back)
   const SVOL_IDS = new WeakMap(); let svolSeq = 0;
   const svolId = G => { let k = SVOL_IDS.get(G); if (!k) SVOL_IDS.set(G, (k = ++svolSeq)); return k; };
+  // which of the particles' pictures are ticked (no part of the trace's key: engines/trace.js scatPics)
+  const picsKey = () => project.elements.filter(e => e.type === 'particle').map(e => (e.scatField ? 'f' : '-') + (e.scatShape3d ? 'p' : '-')).join('');
   const scatVolKey = () => ((lastTrace.scat && lastTrace.scat.fans) || []).map(F => F.field ? F.part + ':' + svolId(F.field) + ':' + F.field.top + ':' + scatDb(F) : '').join();
   // a particle's Scale (the Scattering tab's, scatScale), in dB on the bench (0: linear); in 3D logarithmic over half of
   // them (the light along a line of sight falls as 1/b where the irradiance falls as 1/b², so the glow reaches as far)
@@ -31904,7 +31941,7 @@ function sweepControls(el, path, sw, label) {
   slider.addEventListener('input', () => {
     if (isPlaying(el, path) || rendering()) pause(el, path);
     beginEdit();
-    setParam(el, path, sweepValue(sw, slider.value / 1000));
+    setParam(el, path, sweepSnap(el, path, slider.value / 1000));
     changed(false);
   });
   slider.addEventListener('change', endEdit);
@@ -65025,7 +65062,7 @@ function adoptTrace(out) {
   TW.n++;
   if (out.key !== traceKeyNow()) { TW.rays = out.T.rays; return; }
   statsCache.clear(); diffCache.clear(); binCache.clear();
-  setLastTrace(out.T);
+  setLastTrace(out.T); scatPics(out.T);
   setLastTraceKey(out.key); setLastTraceMs(out.ms); setTraceCount(traceCount + 1);
   TW.rays = null; TW.full = null;
   afterTrace();

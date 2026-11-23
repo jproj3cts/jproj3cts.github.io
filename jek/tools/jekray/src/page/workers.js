@@ -3,7 +3,7 @@ import { project } from '../state/project.js';
 import { VSRC, getEl, serialize } from '../state/elements.js';
 import {
   TW_FREE, afterTrace, lastTrace, lastTraceKey, lastTraceMs, setLastTrace, setLastTraceKey,
-  setLastTraceMs, setTraceCount, traceCount, traceKeyNow, traceScene
+  setLastTraceMs, setTraceCount, scatPics, traceCount, traceKeyNow, traceScene
 } from '../engines/trace.js';
 import { requestRender } from '../ui/render.js';
 import { drag } from '../ui/pointer.js';
@@ -191,7 +191,7 @@ function adoptTrace(out) {
   TW.n++;
   if (out.key !== traceKeyNow()) { TW.rays = out.T.rays; return; }
   statsCache.clear(); diffCache.clear(); binCache.clear();
-  setLastTrace(out.T);
+  setLastTrace(out.T); scatPics(out.T);
   setLastTraceKey(out.key); setLastTraceMs(out.ms); setTraceCount(traceCount + 1);
   TW.rays = null; TW.full = null;
   afterTrace();

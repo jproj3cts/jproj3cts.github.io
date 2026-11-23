@@ -13716,7 +13716,8 @@ const TESTS = [
           // (a triangle's steps on the way down are those on the way up, some to the last digit and some not: 7 to 12 states of
           // its 12 steps, 5 to 8 of its 8; a ramp's 8 are 8.) Each run is a new one, and its kept frames are its own steps' and no more
           const runs = a1.steps >= 7 && a1.steps <= 12 && a2.steps >= 5 && a2.steps <= 8 && a3.steps === 8 && g2.gen > g1.gen && g3.gen > g2.gen && g1.layers.bench.run === a1.steps && g2.layers.bench.run === a2.steps && g3.layers.bench.run === 8 && g3.run.n === 8;
-          const stopped = g4.layers.trace.size === 0 && g4.layers.light3d.size === 0 && g4.layers.bench.size >= 8;
+          // (paused: what is kept for the steps stays, for the slider pulled along them)
+          const stopped = g4.layers.trace.size >= 8 && g4.layers.bench.size >= 8;
           const r = res[three ? '3d' : '2d'] = { a1: whole(a1, names), a2: whole(a2, names), a3: whole(a3, names), runs, stopped, steps: [a1.steps, a2.steps, a3.steps], bad: [...a1.bad, ...a2.bad, ...a3.bad].slice(0, 3) };
           if (!(r.a1 && r.a2 && r.a3 && runs && stopped)) ok = false;
           if (three) await J.view3d.set(false);

@@ -13797,7 +13797,7 @@ const TESTS = [
     },
   },
   {
-    name: 'Turning the 3D view on as the bench’s field arrives leaves the field worker working; a screen’s pattern shown on its face changes nothing a playing sweep has kept',
+    name: '3D turned on as the field arrives keeps the workers; a screen’s face pattern changes nothing a sweep has kept',
     why: 'the page as a reader has it (workers on), in a frame of its own. A 2D field: the 3D view is turned on at once, while the bench’s field is still on its way, so the view asks the field worker for the run it has just drawn. It answered with slices it had already handed over, failed, and from then on the page worked every field out itself: now every worker is still in use. Then the Mach–Zehnder example in 3D, Mirror A’s angle and the Combiner’s tip swept together with the field shown: once rendered and playing, Output 2’s “Show the diffraction pattern on its face” is ticked. How a pattern is drawn is no part of the light, so nothing is traced again, no field is worked out, each step’s scene is built once and its light taken as built, and the pattern is on the face (it traced every step again and worked the screen’s field out live, never catching up). 1 when all hold',
     want: 1, tol: 0, unit: '',
     run: async () => {
@@ -13830,8 +13830,11 @@ const TESTS = [
         d.elements.find(e => e.name === 'Combiner').sweeps = { tip: { min: -5, max: 5, freq: 0.5, phase: 0, wave: 'sine', steps: 12 } };
         J.load(d); await settle();
         await J.view3d.set(true); await settle();
-        J.sweepPlay('Mirror A', 'angle'); await wait(200); J.sweepPlay('Combiner', 'tip'); await settle(); await wait(4500);
-        J.set('Output 2', { faceMap: true }); await wait(2500);
+        J.sweepPlay('Mirror A', 'angle'); await wait(200); J.sweepPlay('Combiner', 'tip'); await settle();
+        // (played until every step is kept: no trace made for 2.5 s, a cycle and more; a slow machine takes longer to get there)
+        const quiet = async () => { let c = J.traceInfo().count, t = performance.now(); const t0 = t; while (performance.now() - t < 2500 && performance.now() - t0 < 40000) { await wait(100); const n = J.traceInfo().count; if (n !== c) { c = n; t = performance.now(); } } };
+        await quiet();
+        J.set('Output 2', { faceMap: true }); await wait(1000); await quiet();
         const b0 = J.view3d.builds(), t0 = J.traceInfo().count, l0 = J.framesInfo().live; let busy = 0, frames = 0;
         const tEnd = performance.now() + 4000;
         while (performance.now() < tEnd) { await new Promise(r => W.requestAnimationFrame(r)); frames++; if (J.activity().bench) busy++; }
@@ -13839,7 +13842,9 @@ const TESTS = [
         J.sweepPause();
         const ok = workers && res.also && res.playing === 2 && res.traced === 0 && res.live === 0 && res.busy === 0 && res.built === 0 && res.reused >= 4 && res.builds <= frames + 1 && (res.face || []).includes('Output 2');
         console.log('sweep store: workers and face pattern', JSON.stringify(res));
-        return ok ? 1 : 0;
+        // (what it found, where the suite's own log shows it)
+        if (!ok) throw new Error(JSON.stringify(res).replace(/"/g, ''));
+        return 1;
       } finally { f.remove(); }
     },
   },

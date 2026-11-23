@@ -263,6 +263,11 @@ function sweepEditCheck() {
 }
 /* the field's key at a sweep's first step, the bench put back after: what its rendered frames depend on (in 3D, with the
    board as the light meets it, which the volumes are cut to) */
+/* the bench put back as it was after a look at one of a sweep's steps: traced again here, unless a trace is slow, where
+   the next frame brings it up to date as it does any change (in the background while a sweep plays: page/workers.js
+   traceLater), not the page held for it */
+const SWEEP_CHECK_MS = 250, SWEEP_SLOW_MS = 200;
+function traceBack() { if (TEST_MODE || !(lastTraceMs > SWEEP_SLOW_MS)) traceScene(); else requestRender(); }
 function sweepRef(list, n, period) {
   const srcs = popSources();
   if (!srcs.length) return { key: '', n, period, tab: project.tab };
@@ -271,7 +276,7 @@ function sweepRef(list, n, period) {
   traceScene();
   const key = popKeyOf(lastTrace.beams, srcs) + '|' + sweepVol.boxKey();
   list.forEach(([el, path], k) => setParam(el, path, saved[k]));
-  traceScene();
+  traceBack();
   return { key, n, period, shape: sweepShapes(list), tab: project.tab };
 }
 /* what a sweep's steps are, other than its rate (which the steps hold at): From, To, its phase and shape; the frames
@@ -557,8 +562,14 @@ function renderSweepFrames(list, onDone) {
   sweepVol.begin();
   // every step already rendered (played before, paused, played again): straight on, no render pass
   {
+    // (Each step is traced here, on the page, to know its field: on a bench slow to trace that held the page for as long
+    // as all of them took, 48 s for 30 steps of a bench at 1.6 s a trace, at every Play and every change of Steps. So it is
+    // given a quarter of a second: not through them by then, it is not known, and the render sees to it on the workers,
+    // where a step whose field is kept already costs its trace alone.)
     let all = true;
+    const tEnd = performance.now() + SWEEP_CHECK_MS;
     for (let i = 0; i < n && all; i++) {
+      if (!TEST_MODE && performance.now() > tEnd) { all = false; break; }
       list.forEach(([el, path]) => setParam(el, path, stepValue(el.sweeps[path], i, n, period)));
       traceScene();
       const srcs = popSources();
@@ -568,7 +579,7 @@ function renderSweepFrames(list, onDone) {
       for (const scr of fieldReadouts()) { const J = all && popScreenPrep(scr); if (J && !fieldFrames.screens.has(J.key)) all = false; else if (J) stepClaim('screens', J.key); }
     }
     list.forEach(([el, path], k) => setParam(el, path, saved[k]));
-    traceScene();
+    traceBack();
     if (all) { fieldRendered = { keys: new Set(list.map(([el, path]) => sweepKey(el, path))), period, n, ref: sweepRef(list, n, period) }; changed(false); onDone(); return; }
   }
   // the cycle as it is now: a rate changed meanwhile moves the steps with it, each the same point of its cycle
@@ -808,14 +819,19 @@ function renderOnPool(pool, list, n, cyc, job, onDone) {
       const sets = list.map(([el, path]) => [el.id, path, stepValue(el.sweeps[path], i, n, cyc())]), vol = sweepVol.box();
       await prep(sets);
       if (!live()) return;
-      const o = await swAsk(W, proj, { sets, ids, vol, trace });
+      let o = await swAsk(W, proj, { sets, ids, vol, trace });
       if (!live()) return;
+      // (a field the worker says it has sent before, the same key: this step's too if it is still kept here; let go
+      // meanwhile, it is asked for in full)
+      const lost = (o.bench && o.bench.same && !(fieldFrames.bench.has(o.bench.key) && sweepVol.has(o.bench.key))) || o.screens.some(S => S && S.same && !fieldFrames.screens.has(S.key));
+      if (lost) { o = await swAsk(W, proj, { sets, ids, vol, trace: false, force: true }); if (!live()) return; }
       // (each kept as this step's: the swept values it was sent)
       const step = stepKeyOf(sets);
       traceAhead(o.trace, step);
-      if (o.bench) keepFrame(fieldFrames.bench, o.bench.key, { packed: o.bench.R }, step);
+      if (o.bench && o.bench.same) { stepClaim('bench', o.bench.key, step, true); sweepVol.mark(o.bench.key); }
+      else if (o.bench) keepFrame(fieldFrames.bench, o.bench.key, { packed: o.bench.R }, step);
       if (o.vol) sweepVol.keep(o.vol.key, o.vol.tab, o.vol.bb, o.vol.V, step);
-      for (const S of o.screens) if (S && S.D) keepFrame(fieldFrames.screens, S.key, diffFns(S.D), step);
+      for (const S of o.screens) { if (S && S.same) stepClaim('screens', S.key, step, true); else if (S && S.D) keepFrame(fieldFrames.screens, S.key, diffFns(S.D), step); }
       done.add(i); job.i = done.size - 1;
       // (the first step in: whether the cycle fits the budget, and if not, only the steps that do are rendered, evenly spread)
       if (done.size === 1) {

@@ -33,6 +33,8 @@ function stepTrace() {
 }
 export function workerMain() {
   let bench = { key: null, R: null }, wLoad = null;
+  // what a sweep's steps have been sent of the fields from here (kind 'step'), by key: afresh with each bench loaded
+  let sent = { bench: null, vol: '', screens: new Map() };
   // the scattering worker's jobs run a slice at a time, so a cancel sent for one (the bench moved on) is heard between
   // slices and the worker, with what it keeps (the answers it can combine), stays for the next
   const cancelled = new Set();
@@ -46,7 +48,7 @@ export function workerMain() {
       // the page's particles solved in a cavity: what the field runs take the cavity's light by (engines/scatter-cavity.js)
       if (proj) wLoad = JSON.parse(proj).cavLoad || null;
       if (e.data.mods) modAbsorb(e.data.mods);                 // the mods' results the page has (their code never comes here)
-      if (proj) { loadProject(JSON.parse(proj)); traceScene(); bench = { key: null, R: null }; }
+      if (proj) { loadProject(JSON.parse(proj)); traceScene(); bench = { key: null, R: null }; sent = { bench: null, vol: '', screens: new Map() }; }
       else if (e.data.mods) { traceScene(); bench = { key: null, R: null }; }   // traced again with them
       if ((proj || e.data.mods) && wLoad) lastTrace.cavLoad = wLoad;
       const before = kind === 'cavity' ? null : new Map(cavSolved);
@@ -72,10 +74,21 @@ export function workerMain() {
         traceScene();
         // (asked for on a bench slow to trace: the step's trace too, as it stands before the fields are run on it)
         const tr = args.trace ? stepTrace() : null;
-        const srcs = popSources();
-        const R = srcs.length ? popRun(lastTrace.beams, srcs, { draw: true }) : null, key = R && popKeyOf(lastTrace.beams, srcs);
-        out = { bench: R ? { key, R: fwPackRun(R, transfer) } : null, vol: R && args.vol ? volOut(R, key, args.vol, transfer) : null,
-          screens: (args.ids || []).map(id => { const el = getEl(id), J = el && popScreenPrep(el); return J ? { key: J.key, D: fwPackD(popDiffraction(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }))) } : null; }),
+        // (A field this worker has sent the page already, the same key and the same board for its volume, is not worked
+        // out or sent again: a sweep that moves nothing of the beams, a particle turned, has one field for all its steps,
+        // and working it out at every step was most of the render. The page says so if it no longer has it: force.)
+        const srcs = popSources(), key = srcs.length ? popKeyOf(lastTrace.beams, srcs) : null, vk = args.vol ? JSON.stringify(args.vol) : '';
+        const sameB = !!key && !args.force && sent.bench === key && sent.vol === vk;
+        const R = key && !sameB ? popRun(lastTrace.beams, srcs, { draw: true }) : null;
+        if (key && !sameB) { sent.bench = key; sent.vol = vk; }
+        out = { bench: sameB ? { key, same: true } : R ? { key, R: fwPackRun(R, transfer) } : null, vol: R && args.vol ? volOut(R, key, args.vol, transfer) : null,
+          screens: (args.ids || []).map(id => {
+            const el = getEl(id), J = el && popScreenPrep(el);
+            if (!J) return null;
+            if (!args.force && sent.screens.get(id) === J.key) return { key: J.key, same: true };
+            sent.screens.set(id, J.key);
+            return { key: J.key, D: fwPackD(popDiffraction(el, popRun(lastTrace.beams, J.srcs, { keep: J.keep }))) };
+          }),
           trace: tr };
       } else if (kind === 'antenna') {
         // an RF lens as an antenna: its far field, its tolerance or its scan, the bench traced again as they need

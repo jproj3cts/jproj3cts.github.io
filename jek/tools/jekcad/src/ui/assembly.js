@@ -1,8 +1,8 @@
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { h } from '../../../jekray/src/ui/dom.js';
-import { MATE_KINDS, MATE_NAMES, edgeConnector, faceConnector, normAsm, pickConnector, placed, qFromEuler, qToEuler, qabout, qnormal, qtimes, solveMates, turned3 } from '../core/assembly.js';
+import { MATE_KINDS, MATE_NAMES, asmHolds, asmLeaves, edgeConnector, faceConnector, leafInSub, normAsm, pickConnector, placed, qFromEuler, qToEuler, qabout, qnormal, qtimes, solveMates, turned3 } from '../core/assembly.js';
 import { normDoc, partLook } from '../core/doc.js';
-import { newDrawing } from '../core/drawing.js';
+import { bomRows, newDrawing } from '../core/drawing.js';
 import { sketchId } from '../core/sketch.js';
 import { evalExpr, fmtNum } from '../core/units.js';
 import { kernelAsk } from '../page/kernel.js';
@@ -33,9 +33,43 @@ export async function studioParts(t) {
   return out.parts;
 }
 /* the instances as the kernel is asked about them: each its studio, its part, its place and turn (ids: only those) */
-export function asmItems(ids) {
+export function asmItems(ids, all) {
   const A = app.asm;
-  return A ? A.instances.filter(I => (ids ? ids.includes(I.id) : !I.hidden)).map(I => ({ doc: tabOf(I.studio), part: I.part, id: I.id, p: I.p, q: I.q, name: instName(I) })) : [];
+  // (through the sub-assemblies: each part shown, by its path; an id asked for is a part's path or an instance at the
+  // top; all: the hidden ones too, as a bill of materials counts them)
+  return A ? leavesOf(A).filter(L => (ids ? ids.includes(L.id) || ids.includes(L.top) : all || !L.hidden)).map(L => ({ doc: tabOf(L.studio), part: L.part, id: L.id, p: L.p, q: L.q, name: leafName(L) })) : [];
+}
+/* the parts an assembly shows, through its sub-assemblies (core/assembly.js asmLeaves) */
+export const leavesOf = A => asmLeaves(A, tabOf);
+/* a part shown, by its path */
+const leafById = id => (app.asm ? leavesOf(app.asm).find(L => L.id === id) : null);
+/* the instance at the top a part shown moves with */
+const topOf = id => (app.asm && id ? app.asm.instances.find(I => I.id === String(id).split('/')[0]) || null : null);
+/* a part's mesh and where it is in its instance's frame: itself for a part at the top, its place in the sub-assembly
+   for one in a sub-assembly (a connector on it is kept in the sub-assembly's frame) */
+function connFrame(I, leaf) {
+  if (!I) return null;
+  if (!I.asm) { const M = localMesh(I); return M ? { M, rel: null } : null; }
+  const L = leafInSub(I, leaf, tabOf), s = L && STUDIO.get(L.studio), M = s && s.parts.find(p => p.id === L.part);
+  return M ? { M, rel: L } : null;
+}
+const relConn = (c, rel) => (rel ? Object.assign({}, c, { o: placed(rel, c.o), z: turned3(rel, c.z), x: turned3(rel, c.x) }) : c);
+/* a part shown's name: its own in the assembly, or its part's in its Part Studio (a sub-assembly's, after its name) */
+function leafName(L) {
+  const t = tabOf(L.studio), s = STUDIO.get(L.studio), i = s ? s.parts.findIndex(p => p.id === L.part) : -1;
+  const own = L.name || (t && i >= 0 ? partLook(t, L.part, i).name : 'Part');
+  if (!L.sub) return own;
+  const I = topOf(L.id);
+  return (I ? instName(I) : '?') + ' › ' + own;
+}
+/* a studio's part as last made: its look (name, colour, material, density) and its mesh (its volume) */
+export function partInfo(t, part) { const s = t && STUDIO.get(t.id), i = s ? s.parts.findIndex(p => p.id === part) : -1; return { look: partLook(t, part, Math.max(0, i)), mesh: i >= 0 ? s.parts[i] : null }; }
+/* the bill of materials of an assembly's parts (or a drawing's): by Part Studio and part, as they first come */
+export function bomOf(items) {
+  return bomRows(items.map(it => ({ doc: it.doc.id, part: it.part, it })), x => {
+    const { look: L, mesh: M } = partInfo(x.it.doc, x.part);
+    return { name: L.name, material: L.material, mass: M && L.density ? M.volume / 1000 * L.density : null };
+  });
 }
 /* a studio's part's mesh, as last made (a drawing's corners and round edges are found on it) */
 export function studioMesh(studio, part) { const s = STUDIO.get(studio); return s ? s.parts.find(p => p.id === part) || null : null; }
@@ -54,25 +88,26 @@ export async function asmRegen() {
   if (!A) return null;
   app.busy = true; emit('busy');
   try {
-    for (const sid of new Set(A.instances.map(I => I.studio))) { const t = tabOf(sid); if (t && !(await studioParts(t))) return null; }
+    for (const sid of new Set(leavesOf(A).map(L => L.studio))) { const t = tabOf(sid); if (t && !(await studioParts(t))) return null; }
   } catch (err) { app.busy = false; emit('busy'); app.error = err.message; toast('A Part Studio of this assembly could not be made: ' + err.message, true); return null; }
   if (app.asm !== A) return null;
   // a mate's connectors found again on their faces (a part changed in its studio keeps its mates where the faces went)
   let moved = false;
   for (const m of A.mates) for (const c of [m.a, m.b]) {
-    const I = A.instances.find(x => x.id === c.inst), M = I && localMesh(I);
+    // (on a sub-assembly's part: that part's faces, put where it is in the sub-assembly)
+    const I = A.instances.find(x => x.id === c.inst), F = connFrame(I, c.leaf), M = F && F.M;
     if (M && c.on === 'edge' && M.edgeGroups) {
       // (an edge has no name to be found by: the edge of the same kind nearest where the connector was)
       let be = null, bd2 = Infinity;
-      for (let j = 0; j < M.edgeGroups.length / 2; j++) { const k = edgeConnector(M, j); if (!k || !!k.round !== !!c.round) continue; const d = Math.hypot(k.o[0] - c.o[0], k.o[1] - c.o[1], k.o[2] - c.o[2]) + 5 * (1 - Math.abs(k.z[0] * c.z[0] + k.z[1] * c.z[1] + k.z[2] * c.z[2])); if (d < bd2) { bd2 = d; be = k; } }
+      for (let j = 0; j < M.edgeGroups.length / 2; j++) { const k0 = edgeConnector(M, j), k = k0 && relConn(k0, F.rel); if (!k || !!k.round !== !!c.round) continue; const d = Math.hypot(k.o[0] - c.o[0], k.o[1] - c.o[1], k.o[2] - c.o[2]) + 5 * (1 - Math.abs(k.z[0] * c.z[0] + k.z[1] * c.z[1] + k.z[2] * c.z[2])); if (d < bd2) { bd2 = d; be = k; } }
       if (be && bd2 > 1e-9) { const sg = be.z[0] * c.z[0] + be.z[1] * c.z[1] + be.z[2] * c.z[2] < 0 ? -1 : 1; Object.assign(c, { o: be.o, z: be.z.map(v => v * sg), x: be.x }); moved = true; }
       continue;
     }
     if (!M || !c.face || !M.faceNames) continue;
     let best = -1, bd = Infinity;
-    M.faceNames.forEach((nm, i) => { if (nm !== c.face) return; const k = faceConnector(M, i); if (!k) return; const d = Math.hypot(k.o[0] - c.o[0], k.o[1] - c.o[1], k.o[2] - c.o[2]); if (d < bd) { bd = d; best = i; } });
+    M.faceNames.forEach((nm, i) => { if (nm !== c.face) return; const k0 = faceConnector(M, i), k = k0 && relConn(k0, F.rel); if (!k) return; const d = Math.hypot(k.o[0] - c.o[0], k.o[1] - c.o[1], k.o[2] - c.o[2]); if (d < bd) { bd = d; best = i; } });
     if (best < 0) continue;
-    const k = faceConnector(M, best);
+    const k = relConn(faceConnector(M, best), F.rel);
     if (bd > 1e-9 || Math.hypot(k.z[0] - c.z[0], k.z[1] - c.z[1], k.z[2] - c.z[2]) > 1e-9) { Object.assign(c, { o: k.o, z: k.z, x: k.x }); moved = true; }
   }
   if (moved) solveMates(A);
@@ -85,13 +120,13 @@ export async function asmRegen() {
 /* the instances as the view's parts (only the ones that moved are made again) */
 function showAsm() {
   const A = app.asm, parts = [], live = new Set();
-  for (const I of A.instances) {
-    const t = tabOf(I.studio), s = STUDIO.get(I.studio), i = s ? s.parts.findIndex(p => p.id === I.part) : -1;
+  for (const L of leavesOf(A)) {
+    const t = tabOf(L.studio), s = STUDIO.get(L.studio), i = s ? s.parts.findIndex(p => p.id === L.part) : -1;
     if (i < 0) continue;
-    const key = s.key.length + '|' + I.p.join() + '|' + I.q.join() + '|' + (I.hidden ? 1 : 0) + '|' + (I.name || '') + '|' + JSON.stringify(t.parts[I.part] || {});
-    let b = BAKED.get(I.id);
-    if (!b || b.key !== key || b.src !== s.parts[i]) { b = { key, src: s.parts[i], part: bake(s.parts[i], I, partLook(t, I.part, i)) }; BAKED.set(I.id, b); }
-    parts.push(b.part); live.add(I.id);
+    const nm = L.sub ? leafName(L) : L.name || '', key = s.key.length + '|' + L.p.join() + '|' + L.q.join() + '|' + (L.hidden ? 1 : 0) + '|' + nm + '|' + JSON.stringify(t.parts[L.part] || {});
+    let b = BAKED.get(L.id);
+    if (!b || b.key !== key || b.src !== s.parts[i]) { b = { key, src: s.parts[i], part: bake(s.parts[i], { id: L.id, p: L.p, q: L.q, name: nm, hidden: L.hidden }, partLook(t, L.part, i)) }; BAKED.set(L.id, b); }
+    parts.push(b.part); live.add(L.id);
   }
   for (const id of [...BAKED.keys()]) if (!live.has(id)) BAKED.delete(id);
   app.result = { features: [], parts, frames: {}, vars: {}, errors: [], asm: true };
@@ -134,15 +169,15 @@ export function deleteTab(id) {
   const t = tabOf(id);
   if (!t || !editGate()) return false;
   if (t.kind === 'studio' && studios().length === 1) { toast('A document keeps at least one Part Studio'); return false; }
-  const used = (t.kind === 'studio' ? app.file.tabs.filter(a => a.kind === 'assembly' && a.instances.some(I => I.studio === id)).map(a => a.name) : []).concat(app.file.tabs.filter(a => a.kind === 'drawing' && a.of === id).map(a => a.name + ' (its dimensions)'));
+  const used = (t.kind === 'studio' || t.kind === 'assembly' ? app.file.tabs.filter(a => a.kind === 'assembly' && a.instances.some(I => I.studio === id || I.asm === id)).map(a => a.name) : []).concat(app.file.tabs.filter(a => a.kind === 'drawing' && a.of === id).map(a => a.name + ' (its dimensions)'));
   if (!confirm('Delete “' + t.name + '”?' + (used.length ? ' Its parts go from ' + used.join(', ') + ' too.' : '') + ' Undo brings it back.')) return false;
   if (app.sketch) { toast('Finish the sketch first'); return false; }
   checkpoint();
   const i = app.file.tabs.indexOf(t);
   app.file.tabs.splice(i, 1);
-  for (const a of app.file.tabs) if (a.kind === 'assembly') { a.instances = a.instances.filter(I => I.studio !== id); const live = new Set(a.instances.map(I => I.id)); a.mates = a.mates.filter(m => live.has(m.a.inst) && live.has(m.b.inst)); }
+  for (const a of app.file.tabs) if (a.kind === 'assembly') { a.instances = a.instances.filter(I => I.studio !== id && I.asm !== id); const live = new Set(a.instances.map(I => I.id)); a.mates = a.mates.filter(m => live.has(m.a.inst) && live.has(m.b.inst)); }
   STUDIO.delete(id);
-  for (const a of app.file.tabs) if (a.kind === 'drawing' && a.of === id) { a.of = studios()[0].id; a.part = null; a.dims = a.dims.filter(d => d.t === 'ext'); }
+  for (const a of app.file.tabs) if (a.kind === 'drawing' && a.of === id) { a.of = studios()[0].id; a.part = null; for (const sh of a.sheets) { sh.dims = sh.dims.filter(d => d.t === 'ext'); sh.balloons = []; sh.notes = sh.notes.map(n => { const { view, a: at2, ...rest } = n; void view; void at2; return rest; }); } }
   if (app.file.active === id) { app.file.active = (app.file.tabs[Math.max(0, i - 1)] || app.file.tabs[0]).id; app.sel = []; app.picked = null; if (app.editing && hooks.cadCloseDialog) hooks.cadCloseDialog(); bindTab(); emit('tab'); }
   changed();
   return true;
@@ -230,7 +265,7 @@ export function renderTabs() {
   if (asm) renderAsm();
 }
 /* ---------- instances ---------- */
-const instName = I => { const t = tabOf(I.studio), s = STUDIO.get(I.studio), i = s ? s.parts.findIndex(p => p.id === I.part) : -1; return I.name || (t && i >= 0 ? partLook(t, I.part, i).name : 'Part'); };
+const instName = I => { if (I.asm) { const t = tabOf(I.asm); return I.name || (t ? t.name : 'Assembly'); } const t = tabOf(I.studio), s = STUDIO.get(I.studio), i = s ? s.parts.findIndex(p => p.id === I.part) : -1; return I.name || (t && i >= 0 ? partLook(t, I.part, i).name : 'Part'); };
 export function addInstance(studio, part) {
   const A = app.asm;
   if (!A || !editGate()) return null;
@@ -239,6 +274,27 @@ export function addInstance(studio, part) {
   let x = 0;
   if (A.instances.length && app.result) for (const p of app.result.parts) if (p.bbox) x = Math.max(x, p.bbox[1][0] + 10);
   const s = STUDIO.get(studio), M = s && s.parts.find(p => p.id === part), I = { id: sketchId('i'), studio, part, p: [M && M.bbox && A.instances.length ? x - M.bbox[0][0] : 0, 0, 0], q: [0, 0, 0, 1] };
+  if (!A.instances.length) I.fixed = true;
+  A.instances.push(I);
+  changed();
+  return I.id;
+}
+/* another Assembly tab put in as one instance, a sub-assembly: it moves as one, its parts where it has them; never
+   one that holds this assembly (it would hold itself) */
+export async function addSubAssembly(asmId) {
+  const A = app.asm, S = tabOf(asmId);
+  if (!A || !S || S.kind !== 'assembly' || !editGate()) return null;
+  if (asmHolds(S, A.id, tabOf)) { toast('“' + S.name + '” holds this assembly: it cannot go into it'); return null; }
+  const leaves = asmLeaves(S, tabOf);
+  if (!leaves.length) { toast('“' + S.name + '” has no parts yet'); return null; }
+  for (const sid of new Set(leaves.map(L => L.studio))) { const t = tabOf(sid); if (t && !(await studioParts(t))) return null; }
+  if (app.asm !== A) return null;
+  checkpoint();
+  // set down beside what is there, by its parts' boxes as the sub-assembly has them
+  let x = 0, x0 = Infinity;
+  if (A.instances.length && app.result) for (const p of app.result.parts) if (p.bbox) x = Math.max(x, p.bbox[1][0] + 10);
+  for (const L of leaves) { const s = STUDIO.get(L.studio), M = s && s.parts.find(p => p.id === L.part); if (M && M.bbox) for (const c of [0, 1]) for (const d of [0, 1]) for (const e of [0, 1]) x0 = Math.min(x0, placed(L, [M.bbox[c][0], M.bbox[d][1], M.bbox[e][2]])[0]); }
+  const I = { id: sketchId('i'), asm: asmId, p: [A.instances.length && Number.isFinite(x0) ? x - x0 : 0, 0, 0], q: [0, 0, 0, 1] };
   if (!A.instances.length) I.fixed = true;
   A.instances.push(I);
   changed();
@@ -279,6 +335,16 @@ async function openInsert() {
       parts.forEach((p, i) => { const L = partLook(t, p.id, i); rows.push(h('button', { type: 'button', class: 'rt-btn cad-insrow', 'data-studio': t.id, 'data-part': p.id, onclick: () => { addInstance(t.id, p.id); toast('Put in ' + L.name + ': click more, or Close'); } }, h('span', { class: 'cad-swatch', style: 'background:' + L.colour }), L.name, h('span', { class: 'rt-subsmall' }, ' ' + fmtNum(p.volume / 1000, 3) + ' cm³'))); });
     }
   } catch (err) { rows.push(h('p', { class: 'rt-subsmall' }, 'A Part Studio could not be made: ' + err.message)); }
+  // the other assemblies, each put in whole as a sub-assembly (not one that holds this one)
+  const subs = app.file.tabs.filter(t => t.kind === 'assembly' && t.id !== app.asm.id);
+  if (subs.length) {
+    rows.push(h('h3', { class: 'cad-shead' }, 'Assemblies'));
+    for (const t of subs) {
+      const n = asmLeaves(t, tabOf).length, no = asmHolds(t, app.asm.id, tabOf);
+      rows.push(h('button', Object.assign({ type: 'button', class: 'rt-btn cad-insrow', 'data-subasm': t.id, title: no ? 'It holds this assembly' : 'Put it in whole: it moves as one', onclick: async () => { if (await addSubAssembly(t.id)) toast('Put in ' + t.name + ' as a sub-assembly: click more, or Close'); } }, no || !n ? { disabled: '' } : {}),
+        h('span', { class: 'ic2', 'data-icon': 'assembly' }), t.name, h('span', { class: 'rt-subsmall' }, ' ' + n + (n === 1 ? ' part' : ' parts') + (no ? ', holds this one' : ''))));
+    }
+  }
   // and the parts kept in My parts (io/cad-parts.js), each brought in with its Part Studio
   if (hooks.cadMineRows) { try { rows.push(...await hooks.cadMineRows()); } catch (err) { /* My parts not there: the studios' parts alone */ } }
   AS.insertBusy = false;
@@ -298,7 +364,8 @@ export function matePick(p) {
   const M0 = AS.mate, A = app.asm;
   if (!M0 || !A) return false;
   if (!p || !(p.kind === 'face' || p.kind === 'edge' || p.kind === 'vertex')) { toast('Click a face, an edge or a corner of a part'); return true; }
-  const I = A.instances.find(x => x.id === p.part), M = I && localMesh(I), c = M && pickConnector(M, p);
+  // (a part of a sub-assembly: the connector on it, put in the sub-assembly's frame, with the part it is on)
+  const I = topOf(p.part), F = I && connFrame(I, p.part), c0 = F && pickConnector(F.M, p), c = c0 && Object.assign(relConn(c0, F.rel), I.asm ? { leaf: p.part } : {});
   if (!c) return true;
   const other = M0.field === 'a' ? M0.b : M0.a;
   if (other && other.inst === I.id) { toast('The two faces are on two different parts'); return true; }
@@ -382,25 +449,36 @@ export function toggleMate(id, key) {
   changed();
 }
 /* ---------- the assembly's side panel: its instances and its mates ---------- */
-function selInst() { const A = app.asm, ids = new Set(app.sel.map(s => s.part).filter(Boolean)); return A ? A.instances.filter(I => ids.has(I.id)) : []; }
+function selInst() { const A = app.asm, ids = new Set(app.sel.map(s => s.part).filter(Boolean).map(id => String(id).split('/')[0])); return A ? A.instances.filter(I => ids.has(I.id)) : []; }
+/* the box round an instance where it is now (a sub-assembly's round all its parts) */
+function instBox(id) {
+  let lo = null, hi = null;
+  for (const [k, b] of BAKED) {
+    if (k !== id && !k.startsWith(id + '/')) continue;
+    const bb = b.part.bbox; if (!bb) continue;
+    lo = lo ? lo.map((v, i) => Math.min(v, bb[0][i])) : bb[0].slice(); hi = hi ? hi.map((v, i) => Math.max(v, bb[1][i])) : bb[1].slice();
+  }
+  return lo ? [lo, hi] : null;
+}
 export function renderAsm() {
   const A = app.asm, box = document.getElementById('asmSide');
   if (!A || !box) return;
   const picked = new Set(selInst().map(I => I.id));
   const ib = (icon, title, fn, on2) => { const b = h('button', { type: 'button', class: 'cad-eye' + (on2 ? ' off' : ''), title, 'aria-label': title, 'data-icon': icon, onclick: e => { e.stopPropagation(); fn(); } }); return b; };
   const inst = A.instances.map(I => h('li', { class: 'cad-irow' + (picked.has(I.id) ? ' picked' : '') + (I.hidden ? ' hid' : ''), 'data-inst': I.id, title: 'Click to select; double-click to rename',
-    onclick: e => { if (e.target.closest('button')) return; app.sel = [{ part: I.id, kind: 'part' }]; emit('sel'); },
+    onclick: e => { if (e.target.closest('button')) return; app.sel = leavesOf(A).filter(L => L.top === I.id).map(L => ({ part: L.id, kind: 'part' })); emit('sel'); },
     ondblclick: () => { if (!editGate()) return; const v = prompt('Name of this part in the assembly', instName(I)); if (v !== null && v.trim()) { checkpoint(); I.name = v.trim().slice(0, 80); changed(); } } },
-    h('span', { class: 'ic2', 'data-icon': 'cube' }), h('span', { class: 'nm' }, instName(I) + (I.fixed ? ' (fixed)' : '')),
+    h('span', { class: 'ic2', 'data-icon': I.asm ? 'assembly' : 'cube' }), h('span', { class: 'nm' }, instName(I) + (I.asm ? ' (' + leavesOf({ instances: [I] }).length + ' parts)' : '') + (I.fixed ? ' (fixed)' : '')),
     ib('pin', I.fixed ? 'Let this part move' : 'Fix this part where it is', () => { if (!editGate()) return; checkpoint(); if (I.fixed) delete I.fixed; else I.fixed = true; changed(); }, !I.fixed),
     ib(I.hidden ? 'eyeoff' : 'eye', I.hidden ? 'Show' : 'Hide', () => { if (!editGate()) return; checkpoint(); if (I.hidden) delete I.hidden; else I.hidden = true; changed(); }, I.hidden),
     ib('trash', 'Take this part out of the assembly', () => deleteInstance(I.id))));
   const mateMenu = (m, xy) => openTabMenu(null, [['Edit…', () => mateEdit(m.id)], ['Flip', () => toggleMate(m.id, 'flip')], [m.suppressed ? 'Unsuppress' : 'Suppress', () => toggleMate(m.id, 'suppressed')], ['Delete', () => deleteMate(m.id)]], xy);
-  const mates = A.mates.map(m => { const a = A.instances.find(I => I.id === m.a.inst), b = A.instances.find(I => I.id === m.b.inst); return h('li', { class: 'cad-irow' + (m.suppressed ? ' hid' : '') + (AS.mateSel === m.id ? ' picked' : ''), 'data-mateid': m.id, title: MATE_NAMES[m.t] + ': ' + (a ? instName(a) : '?') + ' to ' + (b ? instName(b) : '?') + (m.off ? ', ' + fmtNum(m.off, 3) + ' mm apart' : '') + (m.lo !== undefined || m.hi !== undefined ? ', limited' : '') + '. Click to choose it (Delete takes it away), double-click to change it, right-click for more.',
+  const connName = c => { const L = c.leaf && leafById(c.leaf), I = A.instances.find(x => x.id === c.inst); return L ? leafName(L) : I ? instName(I) : '?'; };
+  const mates = A.mates.map(m => { const an = connName(m.a), bn = connName(m.b); return h('li', { class: 'cad-irow' + (m.suppressed ? ' hid' : '') + (AS.mateSel === m.id ? ' picked' : ''), 'data-mateid': m.id, title: MATE_NAMES[m.t] + ': ' + an + ' to ' + bn + (m.off ? ', ' + fmtNum(m.off, 3) + ' mm apart' : '') + (m.lo !== undefined || m.hi !== undefined ? ', limited' : '') + '. Click to choose it (Delete takes it away), double-click to change it, right-click for more.',
     onclick: e => { if (e.target.closest('button')) return; AS.mateSel = AS.mateSel === m.id ? null : m.id; renderAsm(); },
     oncontextmenu: e => { e.preventDefault(); AS.mateSel = m.id; renderAsm(); mateMenu(m, [e.clientX, e.clientY]); },
     ondblclick: e => { if (!e.target.closest('button')) mateEdit(m.id); } },
-    h('span', { class: 'ic2', 'data-icon': 'mate' }), h('span', { class: 'nm' }, m.name + ' · ' + (a ? instName(a) : '?') + ' → ' + (b ? instName(b) : '?')),
+    h('span', { class: 'ic2', 'data-icon': 'mate' }), h('span', { class: 'nm' }, m.name + ' · ' + an + ' → ' + bn),
     ib('flip', 'Flip: the other way round', () => toggleMate(m.id, 'flip'), !m.flip),
     ib(m.suppressed ? 'eyeoff' : 'eye', m.suppressed ? 'Unsuppress' : 'Suppress', () => toggleMate(m.id, 'suppressed'), m.suppressed),
     ib('trash', 'Delete this mate', () => deleteMate(m.id))); });
@@ -420,11 +498,25 @@ export function renderAsm() {
   }
   box.replaceChildren(h('h2', { class: 'cad-shead' }, 'Parts in this assembly (' + A.instances.length + ')'),
     A.instances.length ? h('ul', { class: 'cad-plist', id: 'instList' }, ...inst) : h('p', { class: 'cad-empty' }, 'Nothing yet. Click Insert and pick parts from the Part Studios.'),
+    ...bomSection(),
     h('h2', { class: 'cad-shead' }, 'Mates (' + A.mates.length + ')'),
     A.mates.length ? h('ul', { class: 'cad-plist', id: 'mateList' }, ...mates) : h('p', { class: 'cad-empty' }, 'A mate joins a face of one part to a face of another: Fastened leaves nothing free, Revolute a turn, Slider a slide.'),
     ...rows,
-    ...(AS.clash ? [h('h2', { class: 'cad-shead' }, 'Parts that run into each other (' + AS.clash.length + ')'), AS.clash.length ? h('ul', { class: 'cad-plist', id: 'clashList' }, ...AS.clash.map(c => { const a = A.instances.find(I => I.id === c.a), b = A.instances.find(I => I.id === c.b); return h('li', { class: 'cad-irow', onclick: () => { app.sel = [{ part: c.a, kind: 'part' }, { part: c.b, kind: 'part' }]; emit('sel'); } }, h('span', { class: 'nm' }, (a ? instName(a) : '?') + ' and ' + (b ? instName(b) : '?') + ': ' + fmtNum(c.volume, 3) + ' mm³ shared')); })) : h('p', { class: 'cad-empty' }, 'None: no two parts share any volume.')] : []));
+    ...(AS.clash ? [h('h2', { class: 'cad-shead' }, 'Parts that run into each other (' + AS.clash.length + ')'), AS.clash.length ? h('ul', { class: 'cad-plist', id: 'clashList' }, ...AS.clash.map(c => { const a = leafById(c.a), b = leafById(c.b); return h('li', { class: 'cad-irow', onclick: () => { app.sel = [{ part: c.a, kind: 'part' }, { part: c.b, kind: 'part' }]; emit('sel'); } }, h('span', { class: 'nm' }, (a ? leafName(a) : '?') + ' and ' + (b ? leafName(b) : '?') + ': ' + fmtNum(c.volume, 3) + ' mm³ shared')); })) : h('p', { class: 'cad-empty' }, 'None: no two parts share any volume.')] : []));
   emit('icons', box);
+}
+/* the bill of materials in the side panel: every part through the sub-assemblies, by Part Studio and part, with
+   how many, the material and the mass (from the part's material in its Part Studio) */
+function bomSection() {
+  const rows = bomOf(asmItems(null, true)), A = app.asm;
+  if (!rows.length) return [];
+  const total = rows.reduce((t, r) => t + (Number.isFinite(r.mass) ? r.mass * r.qty : 0), 0), some = rows.some(r => Number.isFinite(r.mass));
+  const fmtG = g => (g >= 1000 ? fmtNum(g / 1000, 3) + ' kg' : fmtNum(g, 3) + ' g');
+  return [h('h2', { class: 'cad-shead' }, 'Bill of materials (' + rows.reduce((t, r) => t + r.qty, 0) + ' parts)'),
+    h('table', { class: 'cad-bom', id: 'bomTable' }, h('thead', null, h('tr', null, ...['Item', 'Name', 'Qty', 'Material', 'Mass'].map(t => h('th', null, t)))),
+      h('tbody', null, ...rows.map(r => h('tr', { 'data-item': String(r.item) }, h('td', null, String(r.item)), h('td', null, r.name), h('td', null, String(r.qty)), h('td', null, r.material || '—'), h('td', null, Number.isFinite(r.mass) ? fmtG(r.mass * r.qty) : '—'))))),
+    h('p', { class: 'rt-subsmall' }, (some ? 'All told ' + fmtG(total) + '. ' : 'Set a part’s material in its Part Studio for its mass. ') + 'A drawing of ' + A.name + ' can show this list, and balloons with its item numbers.'),
+    h('div', { class: 'rt-actions' }, h('button', { type: 'button', class: 'rt-btn', id: 'bomExport', 'data-need': 'account', 'data-what': 'export a bill of materials', onclick: () => { if (hooks.cadExportBom) hooks.cadExportBom(); } }, 'Export CSV'))];
 }
 /* which parts run into each other, as they are placed now: listed in the side panel, and selected */
 export async function checkClash() {
@@ -444,9 +536,9 @@ export async function checkClash() {
 /* ---------- the handle on the part selected: an arrow along each axis to slide it, an arc about each to turn it ---------- */
 const TRIAD_PX = 64, AXES = [[1, 0, 0], [0, 1, 0], [0, 0, 1]], AXIS_COL = ['#d9534f', '#3fa35a', '#3b82d6'];
 function triad() {
-  const A = app.asm, one = A && !AS.mate && selInst().length === 1 ? selInst()[0] : null, b = one && BAKED.get(one.id);
-  if (!one || one.fixed || one.hidden || !b || !b.part.bbox) return null;
-  const o = b.part.bbox[0].map((v, i) => (v + b.part.bbox[1][i]) / 2), L = TRIAD_PX * 2 * V.hh / V.h, o2 = project(o);
+  const A = app.asm, one = A && !AS.mate && selInst().length === 1 ? selInst()[0] : null, bb = one && instBox(one.id);
+  if (!one || one.fixed || one.hidden || !bb) return null;
+  const o = bb[0].map((v, i) => (v + bb[1][i]) / 2), L = TRIAD_PX * 2 * V.hh / V.h, o2 = project(o);
   const tips = AXES.map(e => project([o[0] + e[0] * L, o[1] + e[1] * L, o[2] + e[2] * L]));
   // each arc goes from one axis to the next, about the third; its handle is at its middle
   const arcs = [0, 1, 2].map(k => { const i = (k + 1) % 3, j = (k + 2) % 3, pts = []; for (let s = 0; s <= 10; s++) { const t = s / 10 * Math.PI / 2, c = Math.cos(t) * 0.72 * L, d = Math.sin(t) * 0.72 * L; pts.push(project([0, 1, 2].map(x => o[x] + AXES[i][x] * c + AXES[j][x] * d))); } return pts; });
@@ -478,7 +570,7 @@ export function asmDragStart(p, sx, sy, turn) {
   // the handle first: an arrow slides the part along its axis, an arc turns it about its own
   const hd = triadAt(sx, sy);
   if (hd) { AS.drag = { id: hd.T0.one.id, x: sx, y: sy, moved: false, fixed: false, handle: hd.type, k: hd.k, o: hd.T0.o.slice(), o2: hd.T0.o2.slice(), tip: hd.T0.tips[hd.k].slice(), L: hd.T0.L }; return true; }
-  const A = app.asm, I = A && p && A.instances.find(x => x.id === p.part);
+  const A = app.asm, I = A && p && topOf(p.part);
   if (!I || AS.mate) return false;
   AS.drag = { id: I.id, x: sx, y: sy, turn, moved: false, fixed: !!I.fixed };
   return true;
@@ -505,7 +597,7 @@ export function asmDragMove(sx, sy) {
     poseInstance(I.id, [d.o[0] + t[0], d.o[1] + t[1], d.o[2] + t[2]], qtimes(r, I.q), true);
   } else if (d.turn) {
     // about the line of sight, through the part's middle
-    const b = BAKED.get(I.id), c = b && b.part.bbox ? b.part.bbox[0].map((v, i) => (v + b.part.bbox[1][i]) / 2) : I.p, r = qabout(a.z, -dx * 0.01), rel = [I.p[0] - c[0], I.p[1] - c[1], I.p[2] - c[2]], t = turned3({ q: r }, rel);
+    const bb = instBox(I.id), c = bb ? bb[0].map((v, i) => (v + bb[1][i]) / 2) : I.p, r = qabout(a.z, -dx * 0.01), rel = [I.p[0] - c[0], I.p[1] - c[1], I.p[2] - c[2]], t = turned3({ q: r }, rel);
     poseInstance(I.id, [c[0] + t[0], c[1] + t[1], c[2] + t[2]], qtimes(r, I.q), true);
   } else poseInstance(I.id, [0, 1, 2].map(i => I.p[i] + a.x[i] * dx * s - a.y[i] * dy * s), null, true);
 }

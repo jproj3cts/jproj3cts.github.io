@@ -143,6 +143,7 @@ export function wireMenus() {
 }
 /* the icons, drawn in front of each [data-icon] */
 export const CAD_ICONS = {
+  balloon: 'M13.5 6a3.5 3.5 0 1 1 -7 0a3.5 3.5 0 1 1 7 0Z M7.6 8.4L2.5 13.5',
   new: 'M4 1.5h5.5L12.5 4.5V14.5H4Z M9.5 1.5V4.5H12.5', open: 'M1.5 4.5V13.5H13L14.5 7.5H4L2.5 13 M1.5 4.5V2.5H6L7.5 4H12.5V7.5', save: 'M2.5 2.5H11L13.5 5V13.5H2.5Z M5 2.5V6H10V2.5 M5 13.5V9.5H11V13.5',
   export: 'M8 1.5V10 M5 7L8 10L11 7 M2.5 11V14H13.5V11', import: 'M8 10V1.5 M5 4.5L8 1.5L11 4.5 M2.5 11V14H13.5V11', undo: 'M5.5 3.5L2.5 6.5L5.5 9.5 M2.5 6.5H10Q13.5 6.5 13.5 10Q13.5 13.5 10 13.5H6', redo: 'M10.5 3.5L13.5 6.5L10.5 9.5 M13.5 6.5H6Q2.5 6.5 2.5 10Q2.5 13.5 6 13.5H10',
   angle: 'M2 14H14 M2 14L11 3 M8 14A6 6 0 0 0 6.2 9.6', detail: 'M6.5 6.5m-4.5 0a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0 -9 0 M10 10L14 14', section: 'M2 2H14V14H2Z M8 1V15 M4 4L8 8 M4 8L8 12 M4 12L6 14',

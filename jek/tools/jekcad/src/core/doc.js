@@ -132,7 +132,11 @@ export function normFile(d) {
   if (!tabs.some(t => t.kind === 'studio')) tabs.unshift(Object.assign(normDoc({}), { id: tid({}), kind: 'studio', name: 'Part Studio 1' }));
   // an assembly's instances are of parts of studios that are there
   const studios = new Set(tabs.filter(t => t.kind === 'studio').map(t => t.id));
-  for (const t of tabs) if (t.kind === 'assembly') { t.instances = t.instances.filter(I => studios.has(I.studio)); const live = new Set(t.instances.map(I => I.id)); t.mates = t.mates.filter(m => live.has(m.a.inst) && live.has(m.b.inst)); }
+  // (and a sub-assembly is another Assembly tab that is there and does not hold this one, at any depth)
+  const asms = new Map(tabs.filter(t => t.kind === 'assembly').map(t => [t.id, t]));
+  const holds = (A, id, d) => !!A && d < 9 && (A.id === id || A.instances.some(I => I.asm && (I.asm === id || holds(asms.get(I.asm), id, d + 1))));
+  for (const t of tabs) if (t.kind === 'assembly') t.instances = t.instances.filter(I => (I.asm ? asms.has(I.asm) && I.asm !== t.id : studios.has(I.studio)));
+  for (const t of tabs) if (t.kind === 'assembly') { t.instances = t.instances.filter(I => !I.asm || !holds(asms.get(I.asm), t.id, 0)); const live = new Set(t.instances.map(I => I.id)); t.mates = t.mates.filter(m => live.has(m.a.inst) && live.has(m.b.inst)); }
   // a drawing is of a Part Studio or an Assembly that is there (else of the first Part Studio)
   for (const t of tabs) if (t.kind === 'drawing' && !tabs.some(x => x.id === t.of && x.kind !== 'drawing')) { t.of = tabs.find(x => x.kind === 'studio').id; t.part = null; t.dims = t.dims.filter(m => m.t === 'ext'); }
   const name = isStr(d.name, 120) && d.name.trim() ? d.name : 'Part Studio 1';

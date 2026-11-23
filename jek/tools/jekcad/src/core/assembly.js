@@ -43,16 +43,18 @@ function asmConn(c) {
   const z = asmUnit(asmFin3(c.z, [0, 0, 1]));
   let x = asmFin3(c.x, [1, 0, 0]); x = [0, 1, 2].map(i => x[i] - z[i] * asmDot(x, z));
   if (Math.hypot(...x) < 1e-9) x = Math.abs(z[2]) < 0.9 ? asmCross([0, 0, 1], z) : [1, 0, 0];
-  return Object.assign({ inst: c.inst, o: asmFin3(c.o, [0, 0, 0]), z, x: asmUnit(x) }, asmStr(c.face, 160) ? { face: c.face } : {}, c.round ? { round: true } : {}, c.on === 'edge' || c.on === 'vertex' ? { on: c.on } : {});
+  // (leaf: on a sub-assembly, the path of the part in it the connector is on; o, z and x are in the sub-assembly's frame)
+  return Object.assign({ inst: c.inst, o: asmFin3(c.o, [0, 0, 0]), z, x: asmUnit(x) }, asmStr(c.leaf, 400) ? { leaf: c.leaf } : {}, asmStr(c.face, 160) ? { face: c.face } : {}, c.round ? { round: true } : {}, c.on === 'edge' || c.on === 'vertex' ? { on: c.on } : {});
 }
 export function normAsm(a, n) {
   a = a && typeof a === 'object' ? a : {};
   const ids = new Set(), instances = [];
   for (const I of (Array.isArray(a.instances) ? a.instances : []).slice(0, 500)) {
-    if (!I || !asmStr(I.studio, 40) || !asmStr(I.part, 80)) continue;
-    const id = asmStr(I.id, 40) && !ids.has(I.id) ? I.id : sketchId('i'); ids.add(id);
+    // an instance is of a Part Studio's part, or (asm) of another Assembly tab, a sub-assembly that moves as one
+    if (!I || (!asmStr(I.asm, 40) && (!asmStr(I.studio, 40) || !asmStr(I.part, 80)))) continue;
+    const id = asmStr(I.id, 40) && !ids.has(I.id) && !I.id.includes('/') ? I.id : sketchId('i'); ids.add(id);
     const q = Array.isArray(I.q) && I.q.length === 4 && I.q.every(Number.isFinite) && Math.hypot(...I.q) > 1e-9 ? qnormal(I.q.map(Number)) : [0, 0, 0, 1];
-    instances.push(Object.assign({ id, studio: I.studio, part: I.part, p: asmFin3(I.p, [0, 0, 0]), q }, asmStr(I.name, 80) ? { name: I.name } : {}, I.fixed ? { fixed: true } : {}, I.hidden ? { hidden: true } : {}));
+    instances.push(Object.assign({ id }, asmStr(I.asm, 40) ? { asm: I.asm } : { studio: I.studio, part: I.part }, { p: asmFin3(I.p, [0, 0, 0]), q }, asmStr(I.name, 80) ? { name: I.name } : {}, I.fixed ? { fixed: true } : {}, I.hidden ? { hidden: true } : {}));
   }
   const mids = new Set(), mates = [];
   for (const m of (Array.isArray(a.mates) ? a.mates : []).slice(0, 1000)) {
@@ -66,6 +68,33 @@ export function normAsm(a, n) {
       Number.isFinite(m.lo) && (m.t === 'slider' || m.t === 'cylindrical' || m.t === 'revolute') ? { lo: +m.lo } : {}, Number.isFinite(m.hi) && (m.t === 'slider' || m.t === 'cylindrical' || m.t === 'revolute') ? { hi: +m.hi } : {}));
   }
   return { id: asmStr(a.id, 40) ? a.id : sketchId('t'), kind: 'assembly', name: asmStr(a.name, 120) && a.name.trim() ? a.name : 'Assembly ' + (n || 1), instances, mates };
+}
+
+/* ---------- sub-assemblies ---------- */
+/* every part an assembly shows, through its sub-assemblies: its id (the path of instance ids, joined by '/'), the
+   instance at the top it moves with, its studio and part, where it is (a sub-assembly's place and turn put on the
+   parts in it), and whether it is hidden (or in a hidden sub-assembly). tabOf(id) finds a tab. base: where the
+   assembly itself is (a sub-assembly's frame); none at the top. */
+export function asmLeaves(A, tabOf, base, path, hiddenUp, depth) {
+  const out = [];
+  if (!A || !Array.isArray(A.instances) || (depth || 0) > 8) return out;
+  for (const I of A.instances) {
+    const p = base ? placed(base, I.p) : I.p.slice(), q = base ? qnormal(qtimes(base.q, I.q)) : I.q.slice(), id = path ? path + '/' + I.id : I.id, hidden = !!hiddenUp || !!I.hidden;
+    if (I.asm) { const S = tabOf(I.asm); if (S && S.kind === 'assembly') out.push(...asmLeaves(S, tabOf, { p, q }, id, hidden, (depth || 0) + 1)); continue; }
+    out.push({ id, top: id.split('/')[0], studio: I.studio, part: I.part, p, q, hidden, name: I.name || null, sub: id.includes('/') });
+  }
+  return out;
+}
+/* whether assembly A has assembly id among its sub-assemblies, at any depth (or is it): what may not go into it */
+export function asmHolds(A, id, tabOf, depth) {
+  if (!A || (depth || 0) > 8) return false;
+  if (A.id === id) return true;
+  return (A.instances || []).some(I => I.asm && (I.asm === id || asmHolds(tabOf(I.asm), id, tabOf, (depth || 0) + 1)));
+}
+/* where a part of a sub-assembly is in the sub-assembly's own frame (its leaf, by path from the instance) */
+export function leafInSub(I, leafId, tabOf) {
+  if (!I || !I.asm) return null;
+  return asmLeaves(tabOf(I.asm), tabOf, null, I.id).find(L => L.id === leafId) || null;
 }
 
 /* ---------- a connector from a face of a part's mesh ----------

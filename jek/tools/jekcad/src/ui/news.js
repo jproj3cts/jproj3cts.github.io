@@ -3,8 +3,15 @@ import { h } from '../../../jekray/src/ui/dom.js';
 /* ==========================================================================
    The version, and what is new in it (Help › What’s new)
    ========================================================================== */
-export const APP_VERSION = '0.11.0';
+export const APP_VERSION = '0.12.0';
 export const NEWS = [
+  { v: '0.12.0', date: '23 Nov 2026', items: [
+    '<b>Sub-assemblies</b>: Insert puts another Assembly in as one piece. It moves as one, and a mate can join any part inside it.',
+    '<b>Bill of materials</b> in an assembly’s panel, counted through its sub-assemblies, with materials and masses, and Export CSV.',
+    'Drawings gain <b>sheets</b>, <b>tolerances</b> on dimensions, <b>notes</b> on leaders, and <b>balloons</b> with the bill of materials above the title block. The PDF has a page for each sheet.',
+    'A Part Studio that took a while to make opens much faster the next time: this browser keeps its parts.',
+    'A fillet or chamfer too big for its edges says the largest size that fits them.',
+  ] },
   { v: '0.11.0', date: '17 Nov 2026', items: [
     'Select a face, an edge or a region and the feature that made it is marked in the list.',
     'A mate is deleted from its row: click it and press Delete, right-click it, or Delete in its panel. The buttons on the assembly’s rows now show when you point at them.',

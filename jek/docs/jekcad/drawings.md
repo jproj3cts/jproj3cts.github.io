@@ -52,18 +52,41 @@ Dimensions cannot be put on the isometric view.
 
 With **Centre marks** ticked in the panel (as it is to start with), every hole and round edge seen end on gets a centre mark. Threads are drawn as ISO 6410 shows them: a thin three-quarter circle seen down the thread, and thin lines along it from the side, dashed while they are hidden.
 
+## Tolerances
+
+Click a dimension in the panel's list (or on the sheet) and **The dimension chosen** appears under the list. Choose a tolerance:
+
+| Tolerance | Reads |
+|---|---|
+| ± one value | 40 ±0.1 |
+| + and − values | 40 +0.2 -0.05 |
+| Limits | 40.2/39.95, worked out from the plus and minus values |
+| Fit | Ø6 H7 |
+
+**Before it** and **After it** add text, such as 4× before a hole's diameter. Click **Apply**. A thread's label (M6×1) takes no tolerance.
+
+## Notes and balloons
+
+**Note** puts text on the sheet. Click a corner or a round edge of a view first, then where the text goes, for a note on a leader that follows the model. Or click an empty place for a note with no leader. Type `\n` in the text for a new line. Drag a note to move it, double-click it in the panel to change it, and select it and press Delete to take it off.
+
+**Balloon** takes a corner or a round edge of a part in a view and puts a balloon with the part's item number in the bill of materials. The first balloon on a sheet shows the bill of materials above the title block; **Bill of materials on this sheet** in the panel takes it off or puts it back. Drag a balloon to move it.
+
+## Sheets
+
+A drawing can have up to 20 sheets. The **Sheet** list at the top of the panel moves between them. The buttons beside it add a sheet, rename this one and delete it. A new sheet has the front, top, right and isometric views on the same paper as the sheet open. Each sheet has its own paper, scale, views, dimensions, notes and balloons; the title block and what the drawing is of are shared.
+
 ## Title block
 
 The title, drawn by, material, drawing number and a note are typed in the panel. The date, the scale and the sheet are filled in.
 
 ## Export
 
-**Export PDF** writes the sheet at its true size, with lines as lines, so it prints to scale. **Export DXF** writes it for other CAD programs: AutoCAD R12, in millimetres, on layers for visible, thin, hidden and centre lines, dimensions and text. Both need a free account, as every export does.
+**Export PDF** writes each sheet as a page at its true size, with lines as lines, so it prints to scale. **Export DXF** writes the sheets side by side for other CAD programs: AutoCAD R12, in millimetres, on layers for visible, thin, hidden and centre lines, dimensions and text. Both need a free account, as every export does.
 
 ## What a drawing does not do yet
 
 - There are no broken views, auxiliary views or section views along a line that bends.
-- There are no tolerances, ordinate dimensions or notes with leaders.
+- There are no ordinate dimensions or GD&T frames (a note can carry the text).
 - The sketch's dimensions are not brought onto the sheet for you.
-- There is no DWG export, and one sheet per drawing.
+- There is no DWG export.
 - Smooth edges, such as where a fillet meets a face, are not drawn.

@@ -2046,6 +2046,11 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
   .cad-inslist { display: flex; flex-direction: column; gap: 0.25rem; max-height: 50vh; overflow: auto; margin: 0.4rem 0; }
   .cad-insrow { display: flex; align-items: center; gap: 0.5rem; justify-content: flex-start; text-align: left; }
   .cad-insicon { width: 32px; height: 32px; border-radius: 3px; flex: none; }
+  .cad-bom { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin: 0.2rem 0; }
+  .cad-bom th, .cad-bom td { text-align: left; padding: 0.15rem 0.3rem; border-bottom: 1px solid var(--jek-line, rgba(127,127,127,0.25)); }
+  .cad-bom th { font-weight: 600; color: var(--jek-ink-soft); }
+  .cad-sheets select { flex: 1; min-width: 0; }
+  .cad-sheets .cad-eye { opacity: 1; }
   .cad-swatch { width: 0.9rem; height: 0.9rem; border-radius: 2px; border: 1px solid var(--jek-line); flex: none; }
   .cad-side { flex: none; width: 272px; overflow: auto; background: var(--rt-surface); border-right: 1px solid var(--jek-line); padding: 0.4rem 0.3rem; font-size: 0.82rem; }
   .cad-main.side-off .cad-side { display: none; }
@@ -2301,13 +2306,15 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
         <button type="button" class="rt-btn quiet cad-fbtn" data-drw="dim" data-icon="dim" title="Dimension (D): click two corners of a view, then where it goes; or click a circle for its diameter, an arc for its radius">Dimension</button>
         <button type="button" class="rt-btn quiet cad-fbtn" data-drw="ang" data-icon="angle" title="Angle: click two straight lines of a view, then where it goes">Angle</button>
         <button type="button" class="rt-btn quiet cad-fbtn" data-drw="overall" data-icon="measure" title="Add each view’s overall width and height">Overall sizes</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="note" data-icon="text" title="Note: click where the text goes; click a corner or a round edge first for a leader to it">Note</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="balloon" data-icon="balloon" title="Balloon: click a corner or a round edge of a part for its item in the bill of materials">Balloon</button>
         <span class="rt-qsep" aria-hidden="true"></span>
         <button type="button" class="rt-btn quiet cad-fbtn" data-drw="section" data-icon="section" title="Section: click in a view where it cuts, up the view (Shift: across it)">Section</button>
         <button type="button" class="rt-btn quiet cad-fbtn" data-drw="detail" data-icon="detail" title="Detail: click the middle of what to enlarge, then how far round it">Detail</button>
         <span class="rt-qsep" aria-hidden="true"></span>
         <button type="button" class="rt-btn quiet cad-fbtn" data-drw="fit" data-icon="fit" title="Fit the sheet in the window (F)">Fit sheet</button>
-        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="pdf" data-icon="export" data-need="account" data-what="export a PDF" title="Export the sheet as a PDF, at its true size">Export PDF</button>
-        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="dxf" data-icon="export" data-need="account" data-what="export a DXF" title="Export the sheet as a DXF (AutoCAD R12, millimetres) for other CAD programs">Export DXF</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="pdf" data-icon="export" data-need="account" data-what="export a PDF" title="Export the sheets as a PDF, a page each, at their true size">Export PDF</button>
+        <button type="button" class="rt-btn quiet cad-fbtn" data-drw="dxf" data-icon="export" data-need="account" data-what="export a DXF" title="Export the sheets as a DXF (AutoCAD R12, millimetres, side by side) for other CAD programs">Export DXF</button>
       </div>
       <div class="rt-row cad-fbar cad-skbar" id="sketchBar" role="group" aria-label="Sketch tools" hidden></div>
     </div>
@@ -4237,16 +4244,18 @@ function asmConn(c) {
   const z = asmUnit(asmFin3(c.z, [0, 0, 1]));
   let x = asmFin3(c.x, [1, 0, 0]); x = [0, 1, 2].map(i => x[i] - z[i] * asmDot(x, z));
   if (Math.hypot(...x) < 1e-9) x = Math.abs(z[2]) < 0.9 ? asmCross([0, 0, 1], z) : [1, 0, 0];
-  return Object.assign({ inst: c.inst, o: asmFin3(c.o, [0, 0, 0]), z, x: asmUnit(x) }, asmStr(c.face, 160) ? { face: c.face } : {}, c.round ? { round: true } : {}, c.on === 'edge' || c.on === 'vertex' ? { on: c.on } : {});
+  // (leaf: on a sub-assembly, the path of the part in it the connector is on; o, z and x are in the sub-assembly's frame)
+  return Object.assign({ inst: c.inst, o: asmFin3(c.o, [0, 0, 0]), z, x: asmUnit(x) }, asmStr(c.leaf, 400) ? { leaf: c.leaf } : {}, asmStr(c.face, 160) ? { face: c.face } : {}, c.round ? { round: true } : {}, c.on === 'edge' || c.on === 'vertex' ? { on: c.on } : {});
 }
 function normAsm(a, n) {
   a = a && typeof a === 'object' ? a : {};
   const ids = new Set(), instances = [];
   for (const I of (Array.isArray(a.instances) ? a.instances : []).slice(0, 500)) {
-    if (!I || !asmStr(I.studio, 40) || !asmStr(I.part, 80)) continue;
-    const id = asmStr(I.id, 40) && !ids.has(I.id) ? I.id : sketchId('i'); ids.add(id);
+    // an instance is of a Part Studio's part, or (asm) of another Assembly tab, a sub-assembly that moves as one
+    if (!I || (!asmStr(I.asm, 40) && (!asmStr(I.studio, 40) || !asmStr(I.part, 80)))) continue;
+    const id = asmStr(I.id, 40) && !ids.has(I.id) && !I.id.includes('/') ? I.id : sketchId('i'); ids.add(id);
     const q = Array.isArray(I.q) && I.q.length === 4 && I.q.every(Number.isFinite) && Math.hypot(...I.q) > 1e-9 ? qnormal(I.q.map(Number)) : [0, 0, 0, 1];
-    instances.push(Object.assign({ id, studio: I.studio, part: I.part, p: asmFin3(I.p, [0, 0, 0]), q }, asmStr(I.name, 80) ? { name: I.name } : {}, I.fixed ? { fixed: true } : {}, I.hidden ? { hidden: true } : {}));
+    instances.push(Object.assign({ id }, asmStr(I.asm, 40) ? { asm: I.asm } : { studio: I.studio, part: I.part }, { p: asmFin3(I.p, [0, 0, 0]), q }, asmStr(I.name, 80) ? { name: I.name } : {}, I.fixed ? { fixed: true } : {}, I.hidden ? { hidden: true } : {}));
   }
   const mids = new Set(), mates = [];
   for (const m of (Array.isArray(a.mates) ? a.mates : []).slice(0, 1000)) {
@@ -4260,6 +4269,33 @@ function normAsm(a, n) {
       Number.isFinite(m.lo) && (m.t === 'slider' || m.t === 'cylindrical' || m.t === 'revolute') ? { lo: +m.lo } : {}, Number.isFinite(m.hi) && (m.t === 'slider' || m.t === 'cylindrical' || m.t === 'revolute') ? { hi: +m.hi } : {}));
   }
   return { id: asmStr(a.id, 40) ? a.id : sketchId('t'), kind: 'assembly', name: asmStr(a.name, 120) && a.name.trim() ? a.name : 'Assembly ' + (n || 1), instances, mates };
+}
+
+/* ---------- sub-assemblies ---------- */
+/* every part an assembly shows, through its sub-assemblies: its id (the path of instance ids, joined by '/'), the
+   instance at the top it moves with, its studio and part, where it is (a sub-assembly's place and turn put on the
+   parts in it), and whether it is hidden (or in a hidden sub-assembly). tabOf(id) finds a tab. base: where the
+   assembly itself is (a sub-assembly's frame); none at the top. */
+function asmLeaves(A, tabOf, base, path, hiddenUp, depth) {
+  const out = [];
+  if (!A || !Array.isArray(A.instances) || (depth || 0) > 8) return out;
+  for (const I of A.instances) {
+    const p = base ? placed(base, I.p) : I.p.slice(), q = base ? qnormal(qtimes(base.q, I.q)) : I.q.slice(), id = path ? path + '/' + I.id : I.id, hidden = !!hiddenUp || !!I.hidden;
+    if (I.asm) { const S = tabOf(I.asm); if (S && S.kind === 'assembly') out.push(...asmLeaves(S, tabOf, { p, q }, id, hidden, (depth || 0) + 1)); continue; }
+    out.push({ id, top: id.split('/')[0], studio: I.studio, part: I.part, p, q, hidden, name: I.name || null, sub: id.includes('/') });
+  }
+  return out;
+}
+/* whether assembly A has assembly id among its sub-assemblies, at any depth (or is it): what may not go into it */
+function asmHolds(A, id, tabOf, depth) {
+  if (!A || (depth || 0) > 8) return false;
+  if (A.id === id) return true;
+  return (A.instances || []).some(I => I.asm && (I.asm === id || asmHolds(tabOf(I.asm), id, tabOf, (depth || 0) + 1)));
+}
+/* where a part of a sub-assembly is in the sub-assembly's own frame (its leaf, by path from the instance) */
+function leafInSub(I, leafId, tabOf) {
+  if (!I || !I.asm) return null;
+  return asmLeaves(tabOf(I.asm), tabOf, null, I.id).find(L => L.id === leafId) || null;
 }
 
 /* ---------- a connector from a face of a part's mesh ----------
@@ -4470,36 +4506,85 @@ function normRef(r) {
   return Object.assign({ ref: { kind: ref.kind, part: ref.part, faces: ref.faces.slice(), pt: ref.pt.slice() } }, okS(r.inst, 40) ? { inst: r.inst } : {});
 }
 const dfin = (v, d) => (Number.isFinite(v) ? +v : d);
-function normDrawing(d, n) {
-  d = d && typeof d === 'object' ? d : {};
+/* a dimension's tolerance: ± one value (sym), + and − values (dev), the limits worked out from them (lim), or a
+   fit's letters (fit, as H7); with text before and after it (pre, as "4×"; suf) */
+const TOL_KINDS = ['sym', 'dev', 'lim', 'fit'];
+function normTol(m) {
+  const o = {};
+  if (m.tol && typeof m.tol === 'object' && TOL_KINDS.includes(m.tol.k)) {
+    const t = m.tol, num = v => (Number.isFinite(+v) && v !== '' && v !== null ? Math.abs(+v) : 0);
+    o.tol = t.k === 'fit' ? (dstr(t.fit, 12) && t.fit.trim() ? { k: 'fit', fit: t.fit.trim() } : null) : { k: t.k, p: num(t.p), m: t.k === 'sym' ? num(t.p) : num(t.m) };
+    if (!o.tol) delete o.tol;
+  }
+  if (dstr(m.pre, 24) && m.pre.trim()) o.pre = m.pre.trim();
+  if (dstr(m.suf, 24) && m.suf.trim()) o.suf = m.suf.trim();
+  return o;
+}
+/* one sheet of a drawing: its paper and scale, its views, dimensions, notes and balloons, and whether it shows the
+   bill of materials */
+function normSheet(d, k, vtaken) {
   const vids = new Set(), views = [], src = (Array.isArray(d.views) ? d.views : []).slice(0, 24), used = new Set();
   const at = v => (Array.isArray(v.at) && v.at.length === 2 && v.at.every(Number.isFinite) ? { at: v.at.map(Number) } : {});
-  const idOf = v => { const id = dstr(v.id, 40) && v.id && !vids.has(v.id) ? v.id : sketchId('v'); vids.add(id); return id; };
+  const idOf = v => { const id = dstr(v.id, 40) && v.id && !vids.has(v.id) && !vtaken.has(v.id) ? v.id : sketchId('v'); vids.add(id); vtaken.add(id); return id; };
   for (const v of src) if (v && VIEW_DIRS[v.dir]) views.push(Object.assign({ id: idOf(v), dir: v.dir }, at(v)));
-  const principal = new Set(views.filter(v => v.dir !== 'iso').map(v => v.id));
+  const principal = new Set(views.filter(v => v.dir !== 'iso').map(v => v.id)), byOld = new Map();
+  src.forEach((v, i) => { if (v && VIEW_DIRS[v.dir]) byOld.set(v.id, views[[...src.slice(0, i)].filter(x => x && VIEW_DIRS[x.dir]).length].id); });
+  const old = id => byOld.get(id) || id;
   const letter = v => { let L = dstr(v.label, 2) && /^[A-Z]{1,2}$/.test(v.label) && !used.has(v.label) ? v.label : [...LETTERS].find(c => !used.has(c)) || 'Z'; used.add(L); return L; };
   // a section of a principal view (not the isometric one); a detail of any view but a detail
-  for (const v of src) if (v && v.dir === 'section' && principal.has(v.of)) views.push(Object.assign({ id: idOf(v), dir: 'section', of: v.of, axis: v.axis === 'h' ? 'h' : 'v', pos: dfin(v.pos, 0), label: letter(v) }, v.flip ? { flip: true } : {}, at(v)));
+  for (const v of src) if (v && v.dir === 'section' && principal.has(old(v.of))) { const nv = Object.assign({ id: idOf(v), dir: 'section', of: old(v.of), axis: v.axis === 'h' ? 'h' : 'v', pos: dfin(v.pos, 0), label: letter(v) }, v.flip ? { flip: true } : {}, at(v)); byOld.set(v.id, nv.id); views.push(nv); }
   const parents = new Set(views.map(v => v.id));
-  for (const v of src) if (v && v.dir === 'detail' && parents.has(v.of) && Array.isArray(v.c) && v.c.length === 2 && v.c.every(Number.isFinite) && dfin(v.r, 0) > 0)
-    views.push(Object.assign({ id: idOf(v), dir: 'detail', of: v.of, c: v.c.map(Number), r: +v.r, k: [1.5, 2, 3, 4, 5, 10].includes(+v.k) ? +v.k : 2, label: letter(v) }, at(v)));
+  for (const v of src) if (v && v.dir === 'detail' && parents.has(old(v.of)) && Array.isArray(v.c) && v.c.length === 2 && v.c.every(Number.isFinite) && dfin(v.r, 0) > 0) { const nv = Object.assign({ id: idOf(v), dir: 'detail', of: old(v.of), c: v.c.map(Number), r: +v.r, k: [1.5, 2, 3, 4, 5, 10].includes(+v.k) ? +v.k : 2, label: letter(v) }, at(v)); byOld.set(v.id, nv.id); views.push(nv); }
   const dims = [], dids = new Set(), live = new Set(views.map(v => v.id));
   for (const m of (Array.isArray(d.dims) ? d.dims : []).slice(0, 400)) {
-    if (!m || !live.has(m.view) || !['lin', 'dia', 'rad', 'ang', 'ext'].includes(m.t)) continue;
+    if (!m || !live.has(old(m.view)) || !['lin', 'dia', 'rad', 'ang', 'ext'].includes(m.t)) continue;
     const id = dstr(m.id, 40) && m.id && !dids.has(m.id) ? m.id : sketchId('q'); dids.add(id);
-    const o = { id, view: m.view, t: m.t, off: dfin(m.off, m.t === 'ang' ? 15 : 10) };
+    const o = { id, view: old(m.view), t: m.t, off: dfin(m.off, m.t === 'ang' ? 15 : 10) };
     if (m.t === 'lin') { const a = normRef(m.a), b = normRef(m.b); if (!a || !b) continue; Object.assign(o, { a, b, dir: ['h', 'v', 'a'].includes(m.dir) ? m.dir : 'h' }); }
     else if (m.t === 'dia' || m.t === 'rad') { const a = normRef(m.a); if (!a || a.ref.kind !== 'edge') continue; Object.assign(o, { a, ang: dfin(m.ang, 45) }); }
-    else if (m.t === 'ang') { const r = ['a', 'b', 'c', 'd'].map(k => normRef(m[k])); if (r.some(x => !x)) continue; Object.assign(o, { a: r[0], b: r[1], c: r[2], d: r[3] }); }
+    else if (m.t === 'ang') { const r = ['a', 'b', 'c', 'd'].map(k2 => normRef(m[k2])); if (r.some(x => !x)) continue; Object.assign(o, { a: r[0], b: r[1], c: r[2], d: r[3] }); }
     else o.axis = m.axis === 'y' ? 'y' : 'x';
-    dims.push(o);
+    dims.push(Object.assign(o, normTol(m)));
   }
+  // notes: text where it sits on the sheet, and, with a leader, the corner or edge of a view it points at
+  const notes = [], nids = new Set();
+  for (const m of (Array.isArray(d.notes) ? d.notes : []).slice(0, 200)) {
+    if (!m || !dstr(m.text, 400) || !m.text.trim() || !Array.isArray(m.at) || m.at.length !== 2 || !m.at.every(Number.isFinite)) continue;
+    const id = dstr(m.id, 40) && m.id && !nids.has(m.id) ? m.id : sketchId('n'); nids.add(id);
+    const a = m.a ? normRef(m.a) : null;
+    notes.push(Object.assign({ id, text: m.text.replace(/\r/g, ''), at: m.at.map(Number) }, a && live.has(old(m.view)) ? { view: old(m.view), a } : {}));
+  }
+  // balloons: a part's item number in the bill of materials, on a leader to a corner or edge of it
+  const balloons = [], bids = new Set();
+  for (const m of (Array.isArray(d.balloons) ? d.balloons : []).slice(0, 200)) {
+    const a = m && normRef(m.a);
+    if (!a || !live.has(old(m.view))) continue;
+    const id = dstr(m.id, 40) && m.id && !bids.has(m.id) ? m.id : sketchId('b'); bids.add(id);
+    balloons.push({ id, view: old(m.view), a, off: Array.isArray(m.off) && m.off.length === 2 && m.off.every(Number.isFinite) ? m.off.map(Number) : [12, -12] });
+  }
+  return { id: dstr(d.id, 40) && d.id ? d.id : sketchId('s'), name: dstr(d.name, 60) && d.name.trim() ? d.name : 'Sheet ' + (k + 1), sheet: SHEETS[d.sheet] ? d.sheet : 'A4',
+    scale: Number.isFinite(d.scale) && d.scale > 0 ? +d.scale : 0, hidden: !!d.hidden, marks: d.marks !== false, bom: !!d.bom, views, dims, notes, balloons };
+}
+/* what a drawing's open sheet holds, read and written on the drawing itself (not kept with it: a sheet keeps them) */
+const SHEET_KEYS = ['sheet', 'scale', 'hidden', 'marks', 'bom', 'views', 'dims', 'notes', 'balloons'];
+function sheetAccess(D) {
+  for (const k of SHEET_KEYS) Object.defineProperty(D, k, { get() { return this.sheets[this.at][k]; }, set(v) { this.sheets[this.at][k] = v; }, enumerable: false, configurable: true });
+  return D;
+}
+/* a drawing with sheet k open (as the drawing, for writing a sheet that is not the one shown) */
+function sheetOf(D, k) { const o = Object.create(D); Object.defineProperty(o, 'at', { value: k, enumerable: false }); return o; }
+function normDrawing(d, n) {
+  d = d && typeof d === 'object' ? d : {};
+  // (a drawing from before it had sheets is its one sheet)
+  const src = Array.isArray(d.sheets) && d.sheets.length ? d.sheets.slice(0, 20) : [d], vtaken = new Set();
+  const sheets = src.map((x, k) => normSheet(x && typeof x === 'object' ? x : {}, k, vtaken));
   const t = d.title && typeof d.title === 'object' ? d.title : {}, title = {};
   for (const k of ['title', 'by', 'material', 'note', 'number']) if (dstr(t[k], 120) && t[k]) title[k] = t[k];
-  return { id: dstr(d.id, 40) && d.id ? d.id : sketchId('t'), kind: 'drawing', name: dstr(d.name, 120) && d.name.trim() ? d.name : 'Drawing ' + (n || 1),
-    of: dstr(d.of, 40) ? d.of : '', part: dstr(d.part, 80) && d.part ? d.part : null, sheet: SHEETS[d.sheet] ? d.sheet : 'A4',
-    scale: Number.isFinite(d.scale) && d.scale > 0 ? +d.scale : 0, hidden: !!d.hidden, marks: d.marks !== false, views, dims, title };
+  return sheetAccess({ id: dstr(d.id, 40) && d.id ? d.id : sketchId('t'), kind: 'drawing', name: dstr(d.name, 120) && d.name.trim() ? d.name : 'Drawing ' + (n || 1),
+    of: dstr(d.of, 40) ? d.of : '', part: dstr(d.part, 80) && d.part ? d.part : null, title, sheets, at: Number.isInteger(d.at) && d.at >= 0 && d.at < sheets.length ? d.at : 0 });
 }
+/* a new, empty sheet for a drawing (its paper and scale as the open one's) */
+const newSheet = (D, k) => normSheet({ sheet: D.sheet, scale: D.scale, views: [{ dir: 'front' }, { dir: 'top' }, { dir: 'right' }, { dir: 'iso' }] }, k, new Set(D.sheets.flatMap(x => x.views.map(v => v.id))));
 /* a new drawing of a tab: the three views and the isometric one */
 const newDrawing = (of, n) => normDrawing({ of, views: [{ dir: 'front' }, { dir: 'top' }, { dir: 'right' }, { dir: 'iso' }] }, n);
 /* the next letter free for a section or a detail */
@@ -4583,7 +4668,7 @@ function layoutOf(D, data0) {
     if (v.at) continue;
     const P = vs.find(x => x.id === v.of), want = P && P.at ? P.at : [W / 2, H / 2], hw = v.w * v.s / 2 + 4, hh = v.h * v.s / 2 + 4;
     const boxes = placedViews().filter(o => o !== v).map(o => [o.at[0] - o.w * o.s / 2 - 14, o.at[1] - o.h * o.s / 2 - 8, o.at[0] + o.w * o.s / 2 + 8, o.at[1] + o.h * o.s / 2 + 18]);
-    boxes.push([W - m - TITLE_W, H - m - TITLE_H - 4, W - m, H - m]);
+    boxes.push([W - m - TITLE_W, H - m - TITLE_H - 4 - (D.bom && data0 && data0.bomRows ? bomHeight(data0.bomRows) : 0), W - m, H - m]);
     const cover = (x, y) => { let a = 0; for (const b of boxes) { const ox = Math.min(x + hw, b[2]) - Math.max(x - hw, b[0]), oy = Math.min(y + hh + 8, b[3]) - Math.max(y - hh, b[1]); if (ox > 0 && oy > 0) a += ox * oy; } return a; };
     let best = [W / 2, H / 2], bs = Infinity;
     for (let x = m + hw; x <= W - m - hw + 1e-9; x += 3) for (let y = m + hh; y <= H - m - hh - 8 + 1e-9; y += 3) {
@@ -4653,6 +4738,41 @@ function dimGeom(L, d, got) {
   return { lines, arrows: [[A, B], [B, A]], text, at, value, hit: [at[0] - text.length * 1.1 - 1, at[1] - 2.5, at[0] + text.length * 1.1 + 1, at[1] + 2.5], P, Q, A, B };
 }
 
+/* ---------- a dimension's text with its tolerance ----------
+   g: the dimension's geometry (its text and value). ± (sym), + and − (dev), the limits (lim: the largest over the
+   least, the dimension's sign kept, as Ø or R), a fit's letters; text before and after it */
+function tolText(d, g) {
+  let t = g.text;
+  const T = d.tol, n = drwText, sign = (t.match(/^[ØR]/) || [''])[0], unit = /°$/.test(t) ? '°' : '';
+  if (T && !/^M/.test(t)) {
+    if (T.k === 'sym') t += ' ±' + n(T.p) + unit;
+    else if (T.k === 'dev') t += ' +' + n(T.p) + ' -' + n(T.m);
+    else if (T.k === 'lim') t = sign + n(g.value + T.p) + unit + '/' + n(g.value - T.m) + unit;
+    else if (T.k === 'fit') t += ' ' + T.fit;
+  }
+  return (d.pre ? d.pre + ' ' : '') + t + (d.suf ? ' ' + d.suf : '');
+}
+/* ---------- the bill of materials ----------
+   rows: [{ item, name, qty, material }] (an assembly's parts by Part Studio and part, numbered as they first come) */
+const BOM_ROW = 6, BOM_COLS = [['ITEM', 14], ['NAME', 74], ['QTY', 14], ['MATERIAL', 48]];
+const bomHeight = rows => (rows && rows.length ? (rows.length + 1) * BOM_ROW + 6 : 0);
+function bomRows(items, lookOf) {
+  const rows = [], at = new Map();
+  for (const it of items) {
+    const key = it.doc + '|' + it.part;
+    if (!at.has(key)) { const L = lookOf(it) || {}; at.set(key, rows.length); rows.push({ item: rows.length + 1, name: L.name || 'Part', qty: 0, material: L.material || '', mass: L.mass, key }); }
+    rows[at.get(key)].qty++;
+  }
+  return rows;
+}
+/* the bill of materials as CSV (RFC 4180): item, name, quantity, material, each one's mass and all of them's */
+function bomCsv(rows) {
+  const q = v => { const t = v === null || v === undefined ? '' : String(v); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+  const out = [['Item', 'Name', 'Quantity', 'Material', 'Mass each (g)', 'Mass (g)'].join(',')];
+  for (const r of rows) out.push([r.item, r.name, r.qty, r.material, Number.isFinite(r.mass) ? +r.mass.toFixed(3) : '', Number.isFinite(r.mass) ? +(r.mass * r.qty).toFixed(3) : ''].map(q).join(','));
+  return '\ufeff' + out.join('\r\n') + '\r\n';
+}
+
 /* ---------- hatching: lines at 45° across closed outlines (inside by the even-odd rule) ---------- */
 function hatchLines(rings, gap) {
   // turned by −45°, the hatch lines are level: each one cut where the outlines cross it, and the pieces inside kept
@@ -4686,9 +4806,21 @@ function drawSheet(pen, D, data, opts) {
   const cell = (x, y, label, value, big) => { pen.text(x + 1.5, y + 3.2, label, 2, 'l'); if (value) pen.text(x + 1.5, y + (big ? 10.5 : 8.6), String(value).slice(0, big ? 60 : 40), big ? 5 : 3.2, 'l', big); };
   cell(tx, ty, 'TITLE', T.title || D.name, true);
   cell(tx, ty + 14, 'DRAWN BY', T.by || ''); cell(tx + 60, ty + 14, 'DATE', opts.date || ''); cell(tx + 105, ty + 14, 'SCALE', scaleText(L.s));
-  cell(tx, ty + 25, 'MATERIAL', T.material || ''); cell(tx + 60, ty + 25, 'DRAWING NO.', T.number || ''); cell(tx + 105, ty + 25, 'SHEET', D.sheet + ' · mm · third angle');
+  cell(tx, ty + 25, 'MATERIAL', T.material || ''); cell(tx + 60, ty + 25, 'DRAWING NO.', T.number || ''); cell(tx + 105, ty + 25, 'SHEET', (opts.sheetNo ? opts.sheetNo[0] + ' of ' + opts.sheetNo[1] + ' · ' : '') + D.sheet + ' · mm');
   if (T.note) pen.text(m + 3, H - m - 3, T.note.slice(0, 120), 2.6, 'l');
-  if (opts.source) pen.text(W - m - 1.5, ty - 1.5, opts.source + ' · JEKcad', 2, 'r');
+  // the bill of materials above the title block
+  const bom = D.bom && opts.bom && opts.bom.length ? opts.bom : null;
+  if (bom) {
+    const bh = (bom.length + 1) * BOM_ROW, by0 = ty - 4 - bh, x0 = W - m - TITLE_W;
+    pen.poly([x0, by0, W - m, by0, W - m, by0 + bh, x0, by0 + bh, x0, by0], 0.35);
+    let cx = x0; for (const [, w] of BOM_COLS.slice(0, -1)) { cx += w; pen.line(cx, by0, cx, by0 + bh, 0.18); }
+    for (let i = 1; i <= bom.length; i++) pen.line(x0, by0 + i * BOM_ROW, W - m, by0 + i * BOM_ROW, i === bom.length ? 0.35 : 0.13);
+    // (the heading at the foot, the items going up from it: the way a list above a title block reads)
+    const rowY = i => by0 + bh - (i + 1) * BOM_ROW + 4.3;
+    cx = x0; for (const [name, w] of BOM_COLS) { pen.text(cx + 1.5, by0 + bh - BOM_ROW + 4.2, name, 2.2, 'l', true); cx += w; }
+    bom.forEach((r, i) => { const y = rowY(i + 1); let c2 = x0; const cells = [String(r.item), r.name, String(r.qty), r.material || '']; cells.forEach((v, k) => { pen.text(c2 + 1.5, y, String(v).slice(0, k === 1 ? 38 : 24), 2.6, 'l'); c2 += BOM_COLS[k][1]; }); });
+  }
+  if (opts.source) pen.text(W - m - 1.5, (bom ? ty - 4 - (bom.length + 1) * BOM_ROW : ty) - 1.5, opts.source + ' · JEKcad', 2, 'r');
   // the views
   for (const v of L.views) {
     const dv = dat && dat.views && dat.views[v.id];
@@ -4745,8 +4877,38 @@ function drawSheet(pen, D, data, opts) {
     const hot = opts.picked === d.id, w = hot ? 0.35 : 0.18;
     for (const l of g.lines) pen.line(l[0], l[1], l[2], l[3], w, null, hot);
     for (const [tip, from] of g.arrows) { const dx = from[0] - tip[0], dy = from[1] - tip[1], len = Math.hypot(dx, dy) || 1, u = [dx / len, dy / len], a = 2.4, b = 0.55; pen.fill([tip[0], tip[1], tip[0] + u[0] * a - u[1] * b, tip[1] + u[1] * a + u[0] * b, tip[0] + u[0] * a + u[1] * b, tip[1] + u[1] * a - u[0] * b], hot); }
-    pen.text(g.at[0], g.at[1] + 1.1, g.text, 3, 'c', false, hot);
-    out.dims.push({ id: d.id, g });
+    const label = tolText(d, g);
+    pen.text(g.at[0], g.at[1] + 1.1, label, 3, 'c', false, hot);
+    // (the text with its tolerance is wider: so is where it is clicked)
+    const grow = Math.max(0, (label.length - g.text.length) * 0.95);
+    out.dims.push({ id: d.id, g: Object.assign({}, g, { label, hit: [g.hit[0] - grow, g.hit[1], g.hit[2] + grow, g.hit[3]] }) });
+  }
+  // a point of the model on the sheet, as a view shows it (what a note's leader or a balloon points at)
+  const onSheet = (vid, got) => { const v = L.views.find(x => x.id === vid); return v && v.box && got && got.pt ? L.toSheet(v, framePoint(v.F, got.pt)) : got && got.c && v && v.box ? L.toSheet(v, framePoint(v.F, got.c)) : null; };
+  const arrowTo = (tip, from, hot) => { const dx = from[0] - tip[0], dy = from[1] - tip[1], len = Math.hypot(dx, dy) || 1, u = [dx / len, dy / len]; pen.fill([tip[0], tip[1], tip[0] + u[0] * 2.4 - u[1] * 0.55, tip[1] + u[1] * 2.4 + u[0] * 0.55, tip[0] + u[0] * 2.4 + u[1] * 0.55, tip[1] + u[1] * 2.4 - u[0] * 0.55], hot); };
+  out.notes = []; out.balloons = [];
+  for (const nt of D.notes || []) {
+    const hot = opts.picked === nt.id, lines = nt.text.split('\n').slice(0, 12), size = 3, lh = size * 1.35, wmax = Math.max(...lines.map(x => x.length)) * size * 0.55;
+    lines.forEach((t, i) => pen.text(nt.at[0], nt.at[1] + i * lh, t, size, 'l', false, hot));
+    const tip = nt.view ? onSheet(nt.view, opts.located && opts.located[nt.id] && opts.located[nt.id].a) : null;
+    if (tip) {
+      // the leader from the nearer end of the first line, with a short shoulder
+      const left = tip[0] < nt.at[0] + wmax / 2, sx0 = left ? nt.at[0] - 1 : nt.at[0] + wmax + 1, sy0 = nt.at[1] - size * 0.35, kx = sx0 + (left ? -3 : 3);
+      pen.line(sx0, sy0, kx, sy0, 0.18, null, hot); pen.line(kx, sy0, tip[0], tip[1], 0.18, null, hot); arrowTo(tip, [kx, sy0], hot);
+    }
+    out.notes.push({ id: nt.id, hit: [nt.at[0] - 1, nt.at[1] - size, nt.at[0] + wmax + 1, nt.at[1] + (lines.length - 1) * lh + 1], tip });
+  }
+  for (const b of D.balloons || []) {
+    const tip = onSheet(b.view, opts.located && opts.located[b.id] && opts.located[b.id].a);
+    if (!tip) continue;
+    const hot = opts.picked === b.id, no = opts.balloonNo && opts.balloonNo[b.id], C = [tip[0] + b.off[0], tip[1] + b.off[1]], r = 3.6, d0 = Math.hypot(b.off[0], b.off[1]) || 1;
+    const edge = [C[0] - b.off[0] / d0 * r, C[1] - b.off[1] / d0 * r];
+    pen.line(edge[0], edge[1], tip[0], tip[1], 0.18, null, hot);
+    pen.fill(Array.from({ length: 12 }, (_, i) => [tip[0] + 0.6 * Math.cos(i / 6 * Math.PI), tip[1] + 0.6 * Math.sin(i / 6 * Math.PI)]).flat(), hot);
+    const ring = []; for (let i = 0; i <= 36; i++) { const a = i / 36 * 2 * Math.PI; ring.push(C[0] + r * Math.cos(a), C[1] + r * Math.sin(a)); }
+    pen.poly(ring, hot ? 0.35 : 0.25);
+    pen.text(C[0], C[1] + 1.2, no ? String(no) : '?', 3.4, 'c', true, hot);
+    out.balloons.push({ id: b.id, hit: [C[0] - r, C[1] - r, C[0] + r, C[1] + r], tip, C });
   }
   return out;
 }
@@ -4756,11 +4918,31 @@ function drawSheet(pen, D, data, opts) {
    has), so it prints at its true size and stays sharp. */
 const HELV = [278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584];
 const helvWidth = (str, size) => { let w = 0; for (const ch of str) { const c = ch.charCodeAt(0); w += c >= 32 && c <= 126 ? HELV[c - 32] : c === 0xd8 ? 778 : c === 0xb0 ? 400 : 584; } return w * size / 1000; };
-function pdfOfSheet(D, data, opts) {
-  const [W, H] = SHEETS[D.sheet] || SHEETS.A4, k = 72 / 25.4, f = v => +(+v).toFixed(3), ops = [];
+const pdfOfSheet = (D, data, opts) => pdfOfSheets([{ D, data, opts }]);
+/* every sheet a page, each of its own size: pages [{ D, data, opts }] */
+function pdfOfSheets(pages) {
+  const k = 72 / 25.4, f = v => +(+v).toFixed(3), streams = [];
+  const esc = str => { let o = ''; for (const ch of str) { const c = ch.charCodeAt(0); o += c === 40 || c === 41 || c === 92 ? '\\' + ch : c >= 32 && c <= 126 ? ch : c <= 255 ? '\\' + c.toString(8).padStart(3, '0') : c === 0x2212 ? '-' : '?'; } return o; };
+  for (const pg of pages) streams.push(pdfPage(pg.D, pg.data, pg.opts, f, esc, k));
+  const D0 = pages[0].D, n = pages.length;
+  // 1 catalog, 2 pages, 3 and 4 the fonts, 5 the info; then each page and its content
+  const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [' + pages.map((p, i) => (6 + 2 * i) + ' 0 R').join(' ') + '] /Count ' + n + ' >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
+    '<< /Title (' + esc((D0.title && D0.title.title) || D0.name) + ') /Creator (JEKcad) >>'];
+  pages.forEach((pg, i) => { const [W, H] = SHEETS[pg.D.sheet] || SHEETS.A4; objs.push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + f(W * k) + ' ' + f(H * k) + '] /Contents ' + (7 + 2 * i) + ' 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> >>', '<< /Length ' + streams[i].length + ' >>\nstream\n' + streams[i] + 'endstream'); });
+  let out = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
+  const at = [];
+  objs.forEach((o, i) => { at.push(out.length); out += (i + 1) + ' 0 obj\n' + o + '\nendobj\n'; });
+  const xref = out.length;
+  out += 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n' + at.map(a => String(a).padStart(10, '0') + ' 00000 n \n').join('') + 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root 1 0 R /Info 5 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
+  const bytes = new Uint8Array(out.length);
+  for (let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 255;
+  return bytes;
+}
+function pdfPage(D, data, opts, f, esc, k) {
+  const [, H] = SHEETS[D.sheet] || SHEETS.A4, ops = [];
   let lw = -1, ds = null;
   const style = (w, dash) => { if (w !== lw) { ops.push(f(w) + ' w'); lw = w; } const d = dash ? dash.map(f).join(' ') : ''; if (d !== ds) { ops.push('[' + d + '] 0 d'); ds = d; } };
-  const esc = str => { let o = ''; for (const ch of str) { const c = ch.charCodeAt(0); o += c === 40 || c === 41 || c === 92 ? '\\' + ch : c >= 32 && c <= 126 ? ch : c <= 255 ? '\\' + c.toString(8).padStart(3, '0') : '?'; } return o; };
   const pen = {
     line(x1, y1, x2, y2, w, dash) { style(w || 0.2, dash); ops.push(f(x1) + ' ' + f(y1) + ' m ' + f(x2) + ' ' + f(y2) + ' l S'); },
     poly(run, w, dash) { if (run.length < 4) return; style(w || 0.2, dash); let o = f(run[0]) + ' ' + f(run[1]) + ' m'; for (let i = 2; i + 1 < run.length; i += 2) o += ' ' + f(run[i]) + ' ' + f(run[i + 1]) + ' l'; ops.push(o + ' S'); },
@@ -4768,42 +4950,40 @@ function pdfOfSheet(D, data, opts) {
     text(x, y, str, size, align, bold) { const w = helvWidth(str, size), x0 = align === 'c' ? x - w / 2 : align === 'r' ? x - w : x; ops.push('BT /' + (bold ? 'F2' : 'F1') + ' ' + f(size) + ' Tf 1 0 0 -1 ' + f(x0) + ' ' + f(y) + ' Tm (' + esc(str) + ') Tj ET'); },
   };
   drawSheet(pen, D, data, Object.assign({}, opts, { picked: null }));
-  const stream = '1 J 1 j 0 G 0 g\n' + f(k) + ' 0 0 ' + f(-k) + ' 0 ' + f(H * k) + ' cm\n' + ops.join('\n') + '\n';
-  const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + f(W * k) + ' ' + f(H * k) + '] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>',
-    '<< /Length ' + stream.length + ' >>\nstream\n' + stream + 'endstream',
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
-    '<< /Title (' + esc((D.title && D.title.title) || D.name) + ') /Creator (JEKcad) >>'];
-  let out = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
-  const at = [];
-  objs.forEach((o, i) => { at.push(out.length); out += (i + 1) + ' 0 obj\n' + o + '\nendobj\n'; });
-  const xref = out.length;
-  out += 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n' + at.map(a => String(a).padStart(10, '0') + ' 00000 n \n').join('') + 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root 1 0 R /Info 7 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
-  const bytes = new Uint8Array(out.length);
-  for (let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 255;
-  return bytes;
+  return '1 J 1 j 0 G 0 g\n' + f(k) + ' 0 0 ' + f(-k) + ' 0 ' + f(H * k) + ' cm\n' + ops.join('\n') + '\n';
 }
 
 /* ---------- a DXF of the sheet, written here ----------
    AutoCAD R12 text, in millimetres, the sheet's corner at the origin and y up: lines as LINEs on layers by what they
    are (VISIBLE, THIN, HIDDEN, CENTRE, DIMENSIONS, TEXT), dashed by the HIDDEN and CENTER line types, arrowheads as
    SOLIDs, text as TEXT (Ø as %%c, ° as %%d). Every CAD program reads R12. */
-function dxfOfSheet(D, data, opts) {
-  const [, H] = SHEETS[D.sheet] || SHEETS.A4, f = v => String(+(+v).toFixed(4)), E = [];
+const dxfOfSheet = (D, data, opts) => dxfOfSheets([{ D, data, opts }]);
+/* every sheet in the one file, side by side from the origin with 20 mm between them, their tops level */
+function dxfOfSheets(pages) {
+  const f = v => String(+(+v).toFixed(4)), E = [], Htop = Math.max(...pages.map(pg => (SHEETS[pg.D.sheet] || SHEETS.A4)[1]));
   const pair = (c, v) => E.push(String(c), String(v));
+  let ox = 0;
+  for (const pg of pages) { dxfSheet(pg.D, pg.data, pg.opts, pair, f, ox, Htop); ox += (SHEETS[pg.D.sheet] || SHEETS.A4)[0] + 20; }
+  return dxfFile(E, f, ox - 20, Htop);
+}
+function dxfSheet(D, data, opts, pair, f, ox, Htop) {
+  const [, H0] = SHEETS[D.sheet] || SHEETS.A4, H = Htop, X = x => f(+x + ox);
+  void H0;
   const layerOf = (w, dash, dim) => (dim ? 'DIMENSIONS' : dash === HIDDEN ? 'HIDDEN' : dash === CHAIN ? 'CENTRE' : w >= 0.3 ? 'VISIBLE' : 'THIN');
   const ltypeOf = dash => (dash === HIDDEN ? 'HIDDEN' : dash === CHAIN ? 'CENTER' : dash ? 'DASHED' : 'CONTINUOUS');
   let dimMode = false;
-  const line = (x1, y1, x2, y2, w, dash) => { pair(0, 'LINE'); pair(8, layerOf(w, dash, dimMode)); pair(6, ltypeOf(dash)); pair(10, f(x1)); pair(20, f(H - y1)); pair(30, 0); pair(11, f(x2)); pair(21, f(H - y2)); pair(31, 0); };
-  const txt = s => { let o = ''; for (const ch of s) o += ch === 'Ø' ? '%%c' : ch === '°' ? '%%d' : ch === '×' ? 'x' : ch === '·' ? '-' : ch.charCodeAt(0) < 127 ? ch : '?'; return o; };
+  const line = (x1, y1, x2, y2, w, dash) => { pair(0, 'LINE'); pair(8, layerOf(w, dash, dimMode)); pair(6, ltypeOf(dash)); pair(10, X(x1)); pair(20, f(H - y1)); pair(30, 0); pair(11, X(x2)); pair(21, f(H - y2)); pair(31, 0); };
+  const txt = s => { let o = ''; for (const ch of s) o += ch === 'Ø' ? '%%c' : ch === '°' ? '%%d' : ch === '±' ? '%%p' : ch === '×' ? 'x' : ch === '·' ? '-' : ch.charCodeAt(0) < 127 ? ch : '?'; return o; };
   const pen = {
     line, poly(run, w, dash) { for (let i = 0; i + 3 < run.length; i += 2) line(run[i], run[i + 1], run[i + 2], run[i + 3], w, dash); },
-    fill(p) { const q = p.length >= 8 ? p : p.concat(p.slice(-2)); pair(0, 'SOLID'); pair(8, 'DIMENSIONS'); for (let i = 0; i < 4; i++) { pair(10 + i, f(q[2 * i])); pair(20 + i, f(H - q[2 * i + 1])); pair(30 + i, 0); } },
-    text(x, y, s, size, align) { const h = size * 0.72, al = align === 'c' ? 1 : align === 'r' ? 2 : 0; pair(0, 'TEXT'); pair(8, 'TEXT'); pair(10, f(x)); pair(20, f(H - y)); pair(30, 0); pair(40, f(h)); pair(1, txt(s)); if (al) { pair(72, al); pair(11, f(x)); pair(21, f(H - y)); pair(31, 0); } },
+    fill(p) { const q = p.length >= 8 ? p.slice(0, 8) : p.concat(p.slice(-2)); pair(0, 'SOLID'); pair(8, 'DIMENSIONS'); for (let i = 0; i < 4; i++) { pair(10 + i, X(q[2 * i])); pair(20 + i, f(H - q[2 * i + 1])); pair(30 + i, 0); } },
+    text(x, y, s, size, align) { const h = size * 0.72, al = align === 'c' ? 1 : align === 'r' ? 2 : 0; pair(0, 'TEXT'); pair(8, 'TEXT'); pair(10, X(x)); pair(20, f(H - y)); pair(30, 0); pair(40, f(h)); pair(1, txt(s)); if (al) { pair(72, al); pair(11, X(x)); pair(21, f(H - y)); pair(31, 0); } },
   };
   pen.phase = ph => { dimMode = ph === 'dims'; };
   drawSheet(pen, D, data, Object.assign({}, opts, { picked: null }));
-  const head = ['0', 'SECTION', '2', 'HEADER', '9', '$ACADVER', '1', 'AC1009', '9', '$INSUNITS', '70', '4', '9', '$EXTMIN', '10', '0', '20', '0', '9', '$EXTMAX', '10', f((SHEETS[D.sheet] || SHEETS.A4)[0]), '20', f(H), '0', 'ENDSEC'];
+}
+function dxfFile(E, f, Wall, H) {
+  const head = ['0', 'SECTION', '2', 'HEADER', '9', '$ACADVER', '1', 'AC1009', '9', '$INSUNITS', '70', '4', '9', '$EXTMIN', '10', '0', '20', '0', '9', '$EXTMAX', '10', f(Wall), '20', f(H), '0', 'ENDSEC'];
   const ltype = (name, desc, pat) => ['0', 'LTYPE', '2', name, '70', '0', '3', desc, '72', '65', '73', String(pat.length), '40', f(pat.reduce((s, x) => s + Math.abs(x), 0)), ...pat.flatMap(x => ['49', f(x)])];
   const layer = (name, col, lt) => ['0', 'LAYER', '2', name, '70', '0', '62', String(col), '6', lt];
   const tables = ['0', 'SECTION', '2', 'TABLES', '0', 'TABLE', '2', 'LTYPE', '70', '4', ...ltype('CONTINUOUS', 'Solid line', []), ...ltype('HIDDEN', 'Hidden __ __ __', [3, -1.5]), ...ltype('CENTER', 'Center ____ _ ____', [12, -3, 2, -3]), ...ltype('DASHED', 'Dashed __ __', [6, -2]), '0', 'ENDTAB',
@@ -4939,7 +5119,11 @@ function normFile(d) {
   if (!tabs.some(t => t.kind === 'studio')) tabs.unshift(Object.assign(normDoc({}), { id: tid({}), kind: 'studio', name: 'Part Studio 1' }));
   // an assembly's instances are of parts of studios that are there
   const studios = new Set(tabs.filter(t => t.kind === 'studio').map(t => t.id));
-  for (const t of tabs) if (t.kind === 'assembly') { t.instances = t.instances.filter(I => studios.has(I.studio)); const live = new Set(t.instances.map(I => I.id)); t.mates = t.mates.filter(m => live.has(m.a.inst) && live.has(m.b.inst)); }
+  // (and a sub-assembly is another Assembly tab that is there and does not hold this one, at any depth)
+  const asms = new Map(tabs.filter(t => t.kind === 'assembly').map(t => [t.id, t]));
+  const holds = (A, id, d) => !!A && d < 9 && (A.id === id || A.instances.some(I => I.asm && (I.asm === id || holds(asms.get(I.asm), id, d + 1))));
+  for (const t of tabs) if (t.kind === 'assembly') t.instances = t.instances.filter(I => (I.asm ? asms.has(I.asm) && I.asm !== t.id : studios.has(I.studio)));
+  for (const t of tabs) if (t.kind === 'assembly') { t.instances = t.instances.filter(I => !I.asm || !holds(asms.get(I.asm), t.id, 0)); const live = new Set(t.instances.map(I => I.id)); t.mates = t.mates.filter(m => live.has(m.a.inst) && live.has(m.b.inst)); }
   // a drawing is of a Part Studio or an Assembly that is there (else of the first Part Studio)
   for (const t of tabs) if (t.kind === 'drawing' && !tabs.some(x => x.id === t.of && x.kind !== 'drawing')) { t.of = tabs.find(x => x.kind === 'studio').id; t.part = null; t.dims = t.dims.filter(m => m.t === 'ext'); }
   const name = isStr(d.name, 120) && d.name.trim() ? d.name : 'Part Studio 1';
@@ -7214,6 +7398,7 @@ function wireMenus() {
 }
 /* the icons, drawn in front of each [data-icon] */
 const CAD_ICONS = {
+  balloon: 'M13.5 6a3.5 3.5 0 1 1 -7 0a3.5 3.5 0 1 1 7 0Z M7.6 8.4L2.5 13.5',
   new: 'M4 1.5h5.5L12.5 4.5V14.5H4Z M9.5 1.5V4.5H12.5', open: 'M1.5 4.5V13.5H13L14.5 7.5H4L2.5 13 M1.5 4.5V2.5H6L7.5 4H12.5V7.5', save: 'M2.5 2.5H11L13.5 5V13.5H2.5Z M5 2.5V6H10V2.5 M5 13.5V9.5H11V13.5',
   export: 'M8 1.5V10 M5 7L8 10L11 7 M2.5 11V14H13.5V11', import: 'M8 10V1.5 M5 4.5L8 1.5L11 4.5 M2.5 11V14H13.5V11', undo: 'M5.5 3.5L2.5 6.5L5.5 9.5 M2.5 6.5H10Q13.5 6.5 13.5 10Q13.5 13.5 10 13.5H6', redo: 'M10.5 3.5L13.5 6.5L10.5 9.5 M13.5 6.5H6Q2.5 6.5 2.5 10Q2.5 13.5 6 13.5H10',
   angle: 'M2 14H14 M2 14L11 3 M8 14A6 6 0 0 0 6.2 9.6', detail: 'M6.5 6.5m-4.5 0a4.5 4.5 0 1 0 9 0a4.5 4.5 0 1 0 -9 0 M10 10L14 14', section: 'M2 2H14V14H2Z M8 1V15 M4 4L8 8 M4 8L8 12 M4 12L6 14',
@@ -9931,9 +10116,43 @@ async function studioParts(t) {
   return out.parts;
 }
 /* the instances as the kernel is asked about them: each its studio, its part, its place and turn (ids: only those) */
-function asmItems(ids) {
+function asmItems(ids, all) {
   const A = app.asm;
-  return A ? A.instances.filter(I => (ids ? ids.includes(I.id) : !I.hidden)).map(I => ({ doc: tabOf(I.studio), part: I.part, id: I.id, p: I.p, q: I.q, name: instName(I) })) : [];
+  // (through the sub-assemblies: each part shown, by its path; an id asked for is a part's path or an instance at the
+  // top; all: the hidden ones too, as a bill of materials counts them)
+  return A ? leavesOf(A).filter(L => (ids ? ids.includes(L.id) || ids.includes(L.top) : all || !L.hidden)).map(L => ({ doc: tabOf(L.studio), part: L.part, id: L.id, p: L.p, q: L.q, name: leafName(L) })) : [];
+}
+/* the parts an assembly shows, through its sub-assemblies (core/assembly.js asmLeaves) */
+const leavesOf = A => asmLeaves(A, tabOf);
+/* a part shown, by its path */
+const leafById = id => (app.asm ? leavesOf(app.asm).find(L => L.id === id) : null);
+/* the instance at the top a part shown moves with */
+const topOf = id => (app.asm && id ? app.asm.instances.find(I => I.id === String(id).split('/')[0]) || null : null);
+/* a part's mesh and where it is in its instance's frame: itself for a part at the top, its place in the sub-assembly
+   for one in a sub-assembly (a connector on it is kept in the sub-assembly's frame) */
+function connFrame(I, leaf) {
+  if (!I) return null;
+  if (!I.asm) { const M = localMesh(I); return M ? { M, rel: null } : null; }
+  const L = leafInSub(I, leaf, tabOf), s = L && STUDIO.get(L.studio), M = s && s.parts.find(p => p.id === L.part);
+  return M ? { M, rel: L } : null;
+}
+const relConn = (c, rel) => (rel ? Object.assign({}, c, { o: placed(rel, c.o), z: turned3(rel, c.z), x: turned3(rel, c.x) }) : c);
+/* a part shown's name: its own in the assembly, or its part's in its Part Studio (a sub-assembly's, after its name) */
+function leafName(L) {
+  const t = tabOf(L.studio), s = STUDIO.get(L.studio), i = s ? s.parts.findIndex(p => p.id === L.part) : -1;
+  const own = L.name || (t && i >= 0 ? partLook(t, L.part, i).name : 'Part');
+  if (!L.sub) return own;
+  const I = topOf(L.id);
+  return (I ? instName(I) : '?') + ' › ' + own;
+}
+/* a studio's part as last made: its look (name, colour, material, density) and its mesh (its volume) */
+function partInfo(t, part) { const s = t && STUDIO.get(t.id), i = s ? s.parts.findIndex(p => p.id === part) : -1; return { look: partLook(t, part, Math.max(0, i)), mesh: i >= 0 ? s.parts[i] : null }; }
+/* the bill of materials of an assembly's parts (or a drawing's): by Part Studio and part, as they first come */
+function bomOf(items) {
+  return bomRows(items.map(it => ({ doc: it.doc.id, part: it.part, it })), x => {
+    const { look: L, mesh: M } = partInfo(x.it.doc, x.part);
+    return { name: L.name, material: L.material, mass: M && L.density ? M.volume / 1000 * L.density : null };
+  });
 }
 /* a studio's part's mesh, as last made (a drawing's corners and round edges are found on it) */
 function studioMesh(studio, part) { const s = STUDIO.get(studio); return s ? s.parts.find(p => p.id === part) || null : null; }
@@ -9952,25 +10171,26 @@ async function asmRegen() {
   if (!A) return null;
   app.busy = true; emit('busy');
   try {
-    for (const sid of new Set(A.instances.map(I => I.studio))) { const t = tabOf(sid); if (t && !(await studioParts(t))) return null; }
+    for (const sid of new Set(leavesOf(A).map(L => L.studio))) { const t = tabOf(sid); if (t && !(await studioParts(t))) return null; }
   } catch (err) { app.busy = false; emit('busy'); app.error = err.message; toast('A Part Studio of this assembly could not be made: ' + err.message, true); return null; }
   if (app.asm !== A) return null;
   // a mate's connectors found again on their faces (a part changed in its studio keeps its mates where the faces went)
   let moved = false;
   for (const m of A.mates) for (const c of [m.a, m.b]) {
-    const I = A.instances.find(x => x.id === c.inst), M = I && localMesh(I);
+    // (on a sub-assembly's part: that part's faces, put where it is in the sub-assembly)
+    const I = A.instances.find(x => x.id === c.inst), F = connFrame(I, c.leaf), M = F && F.M;
     if (M && c.on === 'edge' && M.edgeGroups) {
       // (an edge has no name to be found by: the edge of the same kind nearest where the connector was)
       let be = null, bd2 = Infinity;
-      for (let j = 0; j < M.edgeGroups.length / 2; j++) { const k = edgeConnector(M, j); if (!k || !!k.round !== !!c.round) continue; const d = Math.hypot(k.o[0] - c.o[0], k.o[1] - c.o[1], k.o[2] - c.o[2]) + 5 * (1 - Math.abs(k.z[0] * c.z[0] + k.z[1] * c.z[1] + k.z[2] * c.z[2])); if (d < bd2) { bd2 = d; be = k; } }
+      for (let j = 0; j < M.edgeGroups.length / 2; j++) { const k0 = edgeConnector(M, j), k = k0 && relConn(k0, F.rel); if (!k || !!k.round !== !!c.round) continue; const d = Math.hypot(k.o[0] - c.o[0], k.o[1] - c.o[1], k.o[2] - c.o[2]) + 5 * (1 - Math.abs(k.z[0] * c.z[0] + k.z[1] * c.z[1] + k.z[2] * c.z[2])); if (d < bd2) { bd2 = d; be = k; } }
       if (be && bd2 > 1e-9) { const sg = be.z[0] * c.z[0] + be.z[1] * c.z[1] + be.z[2] * c.z[2] < 0 ? -1 : 1; Object.assign(c, { o: be.o, z: be.z.map(v => v * sg), x: be.x }); moved = true; }
       continue;
     }
     if (!M || !c.face || !M.faceNames) continue;
     let best = -1, bd = Infinity;
-    M.faceNames.forEach((nm, i) => { if (nm !== c.face) return; const k = faceConnector(M, i); if (!k) return; const d = Math.hypot(k.o[0] - c.o[0], k.o[1] - c.o[1], k.o[2] - c.o[2]); if (d < bd) { bd = d; best = i; } });
+    M.faceNames.forEach((nm, i) => { if (nm !== c.face) return; const k0 = faceConnector(M, i), k = k0 && relConn(k0, F.rel); if (!k) return; const d = Math.hypot(k.o[0] - c.o[0], k.o[1] - c.o[1], k.o[2] - c.o[2]); if (d < bd) { bd = d; best = i; } });
     if (best < 0) continue;
-    const k = faceConnector(M, best);
+    const k = relConn(faceConnector(M, best), F.rel);
     if (bd > 1e-9 || Math.hypot(k.z[0] - c.z[0], k.z[1] - c.z[1], k.z[2] - c.z[2]) > 1e-9) { Object.assign(c, { o: k.o, z: k.z, x: k.x }); moved = true; }
   }
   if (moved) solveMates(A);
@@ -9983,13 +10203,13 @@ async function asmRegen() {
 /* the instances as the view's parts (only the ones that moved are made again) */
 function showAsm() {
   const A = app.asm, parts = [], live = new Set();
-  for (const I of A.instances) {
-    const t = tabOf(I.studio), s = STUDIO.get(I.studio), i = s ? s.parts.findIndex(p => p.id === I.part) : -1;
+  for (const L of leavesOf(A)) {
+    const t = tabOf(L.studio), s = STUDIO.get(L.studio), i = s ? s.parts.findIndex(p => p.id === L.part) : -1;
     if (i < 0) continue;
-    const key = s.key.length + '|' + I.p.join() + '|' + I.q.join() + '|' + (I.hidden ? 1 : 0) + '|' + (I.name || '') + '|' + JSON.stringify(t.parts[I.part] || {});
-    let b = BAKED.get(I.id);
-    if (!b || b.key !== key || b.src !== s.parts[i]) { b = { key, src: s.parts[i], part: bake(s.parts[i], I, partLook(t, I.part, i)) }; BAKED.set(I.id, b); }
-    parts.push(b.part); live.add(I.id);
+    const nm = L.sub ? leafName(L) : L.name || '', key = s.key.length + '|' + L.p.join() + '|' + L.q.join() + '|' + (L.hidden ? 1 : 0) + '|' + nm + '|' + JSON.stringify(t.parts[L.part] || {});
+    let b = BAKED.get(L.id);
+    if (!b || b.key !== key || b.src !== s.parts[i]) { b = { key, src: s.parts[i], part: bake(s.parts[i], { id: L.id, p: L.p, q: L.q, name: nm, hidden: L.hidden }, partLook(t, L.part, i)) }; BAKED.set(L.id, b); }
+    parts.push(b.part); live.add(L.id);
   }
   for (const id of [...BAKED.keys()]) if (!live.has(id)) BAKED.delete(id);
   app.result = { features: [], parts, frames: {}, vars: {}, errors: [], asm: true };
@@ -10032,15 +10252,15 @@ function deleteTab(id) {
   const t = tabOf(id);
   if (!t || !editGate()) return false;
   if (t.kind === 'studio' && studios().length === 1) { toast('A document keeps at least one Part Studio'); return false; }
-  const used = (t.kind === 'studio' ? app.file.tabs.filter(a => a.kind === 'assembly' && a.instances.some(I => I.studio === id)).map(a => a.name) : []).concat(app.file.tabs.filter(a => a.kind === 'drawing' && a.of === id).map(a => a.name + ' (its dimensions)'));
+  const used = (t.kind === 'studio' || t.kind === 'assembly' ? app.file.tabs.filter(a => a.kind === 'assembly' && a.instances.some(I => I.studio === id || I.asm === id)).map(a => a.name) : []).concat(app.file.tabs.filter(a => a.kind === 'drawing' && a.of === id).map(a => a.name + ' (its dimensions)'));
   if (!confirm('Delete “' + t.name + '”?' + (used.length ? ' Its parts go from ' + used.join(', ') + ' too.' : '') + ' Undo brings it back.')) return false;
   if (app.sketch) { toast('Finish the sketch first'); return false; }
   checkpoint();
   const i = app.file.tabs.indexOf(t);
   app.file.tabs.splice(i, 1);
-  for (const a of app.file.tabs) if (a.kind === 'assembly') { a.instances = a.instances.filter(I => I.studio !== id); const live = new Set(a.instances.map(I => I.id)); a.mates = a.mates.filter(m => live.has(m.a.inst) && live.has(m.b.inst)); }
+  for (const a of app.file.tabs) if (a.kind === 'assembly') { a.instances = a.instances.filter(I => I.studio !== id && I.asm !== id); const live = new Set(a.instances.map(I => I.id)); a.mates = a.mates.filter(m => live.has(m.a.inst) && live.has(m.b.inst)); }
   STUDIO.delete(id);
-  for (const a of app.file.tabs) if (a.kind === 'drawing' && a.of === id) { a.of = studios()[0].id; a.part = null; a.dims = a.dims.filter(d => d.t === 'ext'); }
+  for (const a of app.file.tabs) if (a.kind === 'drawing' && a.of === id) { a.of = studios()[0].id; a.part = null; for (const sh of a.sheets) { sh.dims = sh.dims.filter(d => d.t === 'ext'); sh.balloons = []; sh.notes = sh.notes.map(n => { const { view, a: at2, ...rest } = n; void view; void at2; return rest; }); } }
   if (app.file.active === id) { app.file.active = (app.file.tabs[Math.max(0, i - 1)] || app.file.tabs[0]).id; app.sel = []; app.picked = null; if (app.editing && hooks.cadCloseDialog) hooks.cadCloseDialog(); bindTab(); emit('tab'); }
   changed();
   return true;
@@ -10128,7 +10348,7 @@ function renderTabs() {
   if (asm) renderAsm();
 }
 /* ---------- instances ---------- */
-const instName = I => { const t = tabOf(I.studio), s = STUDIO.get(I.studio), i = s ? s.parts.findIndex(p => p.id === I.part) : -1; return I.name || (t && i >= 0 ? partLook(t, I.part, i).name : 'Part'); };
+const instName = I => { if (I.asm) { const t = tabOf(I.asm); return I.name || (t ? t.name : 'Assembly'); } const t = tabOf(I.studio), s = STUDIO.get(I.studio), i = s ? s.parts.findIndex(p => p.id === I.part) : -1; return I.name || (t && i >= 0 ? partLook(t, I.part, i).name : 'Part'); };
 function addInstance(studio, part) {
   const A = app.asm;
   if (!A || !editGate()) return null;
@@ -10137,6 +10357,27 @@ function addInstance(studio, part) {
   let x = 0;
   if (A.instances.length && app.result) for (const p of app.result.parts) if (p.bbox) x = Math.max(x, p.bbox[1][0] + 10);
   const s = STUDIO.get(studio), M = s && s.parts.find(p => p.id === part), I = { id: sketchId('i'), studio, part, p: [M && M.bbox && A.instances.length ? x - M.bbox[0][0] : 0, 0, 0], q: [0, 0, 0, 1] };
+  if (!A.instances.length) I.fixed = true;
+  A.instances.push(I);
+  changed();
+  return I.id;
+}
+/* another Assembly tab put in as one instance, a sub-assembly: it moves as one, its parts where it has them; never
+   one that holds this assembly (it would hold itself) */
+async function addSubAssembly(asmId) {
+  const A = app.asm, S = tabOf(asmId);
+  if (!A || !S || S.kind !== 'assembly' || !editGate()) return null;
+  if (asmHolds(S, A.id, tabOf)) { toast('“' + S.name + '” holds this assembly: it cannot go into it'); return null; }
+  const leaves = asmLeaves(S, tabOf);
+  if (!leaves.length) { toast('“' + S.name + '” has no parts yet'); return null; }
+  for (const sid of new Set(leaves.map(L => L.studio))) { const t = tabOf(sid); if (t && !(await studioParts(t))) return null; }
+  if (app.asm !== A) return null;
+  checkpoint();
+  // set down beside what is there, by its parts' boxes as the sub-assembly has them
+  let x = 0, x0 = Infinity;
+  if (A.instances.length && app.result) for (const p of app.result.parts) if (p.bbox) x = Math.max(x, p.bbox[1][0] + 10);
+  for (const L of leaves) { const s = STUDIO.get(L.studio), M = s && s.parts.find(p => p.id === L.part); if (M && M.bbox) for (const c of [0, 1]) for (const d of [0, 1]) for (const e of [0, 1]) x0 = Math.min(x0, placed(L, [M.bbox[c][0], M.bbox[d][1], M.bbox[e][2]])[0]); }
+  const I = { id: sketchId('i'), asm: asmId, p: [A.instances.length && Number.isFinite(x0) ? x - x0 : 0, 0, 0], q: [0, 0, 0, 1] };
   if (!A.instances.length) I.fixed = true;
   A.instances.push(I);
   changed();
@@ -10177,6 +10418,16 @@ async function openInsert() {
       parts.forEach((p, i) => { const L = partLook(t, p.id, i); rows.push(h('button', { type: 'button', class: 'rt-btn cad-insrow', 'data-studio': t.id, 'data-part': p.id, onclick: () => { addInstance(t.id, p.id); toast('Put in ' + L.name + ': click more, or Close'); } }, h('span', { class: 'cad-swatch', style: 'background:' + L.colour }), L.name, h('span', { class: 'rt-subsmall' }, ' ' + fmtNum(p.volume / 1000, 3) + ' cm³'))); });
     }
   } catch (err) { rows.push(h('p', { class: 'rt-subsmall' }, 'A Part Studio could not be made: ' + err.message)); }
+  // the other assemblies, each put in whole as a sub-assembly (not one that holds this one)
+  const subs = app.file.tabs.filter(t => t.kind === 'assembly' && t.id !== app.asm.id);
+  if (subs.length) {
+    rows.push(h('h3', { class: 'cad-shead' }, 'Assemblies'));
+    for (const t of subs) {
+      const n = asmLeaves(t, tabOf).length, no = asmHolds(t, app.asm.id, tabOf);
+      rows.push(h('button', Object.assign({ type: 'button', class: 'rt-btn cad-insrow', 'data-subasm': t.id, title: no ? 'It holds this assembly' : 'Put it in whole: it moves as one', onclick: async () => { if (await addSubAssembly(t.id)) toast('Put in ' + t.name + ' as a sub-assembly: click more, or Close'); } }, no || !n ? { disabled: '' } : {}),
+        h('span', { class: 'ic2', 'data-icon': 'assembly' }), t.name, h('span', { class: 'rt-subsmall' }, ' ' + n + (n === 1 ? ' part' : ' parts') + (no ? ', holds this one' : ''))));
+    }
+  }
   // and the parts kept in My parts (io/cad-parts.js), each brought in with its Part Studio
   if (hooks.cadMineRows) { try { rows.push(...await hooks.cadMineRows()); } catch (err) { /* My parts not there: the studios' parts alone */ } }
   AS.insertBusy = false;
@@ -10196,7 +10447,8 @@ function matePick(p) {
   const M0 = AS.mate, A = app.asm;
   if (!M0 || !A) return false;
   if (!p || !(p.kind === 'face' || p.kind === 'edge' || p.kind === 'vertex')) { toast('Click a face, an edge or a corner of a part'); return true; }
-  const I = A.instances.find(x => x.id === p.part), M = I && localMesh(I), c = M && pickConnector(M, p);
+  // (a part of a sub-assembly: the connector on it, put in the sub-assembly's frame, with the part it is on)
+  const I = topOf(p.part), F = I && connFrame(I, p.part), c0 = F && pickConnector(F.M, p), c = c0 && Object.assign(relConn(c0, F.rel), I.asm ? { leaf: p.part } : {});
   if (!c) return true;
   const other = M0.field === 'a' ? M0.b : M0.a;
   if (other && other.inst === I.id) { toast('The two faces are on two different parts'); return true; }
@@ -10280,25 +10532,36 @@ function toggleMate(id, key) {
   changed();
 }
 /* ---------- the assembly's side panel: its instances and its mates ---------- */
-function selInst() { const A = app.asm, ids = new Set(app.sel.map(s => s.part).filter(Boolean)); return A ? A.instances.filter(I => ids.has(I.id)) : []; }
+function selInst() { const A = app.asm, ids = new Set(app.sel.map(s => s.part).filter(Boolean).map(id => String(id).split('/')[0])); return A ? A.instances.filter(I => ids.has(I.id)) : []; }
+/* the box round an instance where it is now (a sub-assembly's round all its parts) */
+function instBox(id) {
+  let lo = null, hi = null;
+  for (const [k, b] of BAKED) {
+    if (k !== id && !k.startsWith(id + '/')) continue;
+    const bb = b.part.bbox; if (!bb) continue;
+    lo = lo ? lo.map((v, i) => Math.min(v, bb[0][i])) : bb[0].slice(); hi = hi ? hi.map((v, i) => Math.max(v, bb[1][i])) : bb[1].slice();
+  }
+  return lo ? [lo, hi] : null;
+}
 function renderAsm() {
   const A = app.asm, box = document.getElementById('asmSide');
   if (!A || !box) return;
   const picked = new Set(selInst().map(I => I.id));
   const ib = (icon, title, fn, on2) => { const b = h('button', { type: 'button', class: 'cad-eye' + (on2 ? ' off' : ''), title, 'aria-label': title, 'data-icon': icon, onclick: e => { e.stopPropagation(); fn(); } }); return b; };
   const inst = A.instances.map(I => h('li', { class: 'cad-irow' + (picked.has(I.id) ? ' picked' : '') + (I.hidden ? ' hid' : ''), 'data-inst': I.id, title: 'Click to select; double-click to rename',
-    onclick: e => { if (e.target.closest('button')) return; app.sel = [{ part: I.id, kind: 'part' }]; emit('sel'); },
+    onclick: e => { if (e.target.closest('button')) return; app.sel = leavesOf(A).filter(L => L.top === I.id).map(L => ({ part: L.id, kind: 'part' })); emit('sel'); },
     ondblclick: () => { if (!editGate()) return; const v = prompt('Name of this part in the assembly', instName(I)); if (v !== null && v.trim()) { checkpoint(); I.name = v.trim().slice(0, 80); changed(); } } },
-    h('span', { class: 'ic2', 'data-icon': 'cube' }), h('span', { class: 'nm' }, instName(I) + (I.fixed ? ' (fixed)' : '')),
+    h('span', { class: 'ic2', 'data-icon': I.asm ? 'assembly' : 'cube' }), h('span', { class: 'nm' }, instName(I) + (I.asm ? ' (' + leavesOf({ instances: [I] }).length + ' parts)' : '') + (I.fixed ? ' (fixed)' : '')),
     ib('pin', I.fixed ? 'Let this part move' : 'Fix this part where it is', () => { if (!editGate()) return; checkpoint(); if (I.fixed) delete I.fixed; else I.fixed = true; changed(); }, !I.fixed),
     ib(I.hidden ? 'eyeoff' : 'eye', I.hidden ? 'Show' : 'Hide', () => { if (!editGate()) return; checkpoint(); if (I.hidden) delete I.hidden; else I.hidden = true; changed(); }, I.hidden),
     ib('trash', 'Take this part out of the assembly', () => deleteInstance(I.id))));
   const mateMenu = (m, xy) => openTabMenu(null, [['Edit…', () => mateEdit(m.id)], ['Flip', () => toggleMate(m.id, 'flip')], [m.suppressed ? 'Unsuppress' : 'Suppress', () => toggleMate(m.id, 'suppressed')], ['Delete', () => deleteMate(m.id)]], xy);
-  const mates = A.mates.map(m => { const a = A.instances.find(I => I.id === m.a.inst), b = A.instances.find(I => I.id === m.b.inst); return h('li', { class: 'cad-irow' + (m.suppressed ? ' hid' : '') + (AS.mateSel === m.id ? ' picked' : ''), 'data-mateid': m.id, title: MATE_NAMES[m.t] + ': ' + (a ? instName(a) : '?') + ' to ' + (b ? instName(b) : '?') + (m.off ? ', ' + fmtNum(m.off, 3) + ' mm apart' : '') + (m.lo !== undefined || m.hi !== undefined ? ', limited' : '') + '. Click to choose it (Delete takes it away), double-click to change it, right-click for more.',
+  const connName = c => { const L = c.leaf && leafById(c.leaf), I = A.instances.find(x => x.id === c.inst); return L ? leafName(L) : I ? instName(I) : '?'; };
+  const mates = A.mates.map(m => { const an = connName(m.a), bn = connName(m.b); return h('li', { class: 'cad-irow' + (m.suppressed ? ' hid' : '') + (AS.mateSel === m.id ? ' picked' : ''), 'data-mateid': m.id, title: MATE_NAMES[m.t] + ': ' + an + ' to ' + bn + (m.off ? ', ' + fmtNum(m.off, 3) + ' mm apart' : '') + (m.lo !== undefined || m.hi !== undefined ? ', limited' : '') + '. Click to choose it (Delete takes it away), double-click to change it, right-click for more.',
     onclick: e => { if (e.target.closest('button')) return; AS.mateSel = AS.mateSel === m.id ? null : m.id; renderAsm(); },
     oncontextmenu: e => { e.preventDefault(); AS.mateSel = m.id; renderAsm(); mateMenu(m, [e.clientX, e.clientY]); },
     ondblclick: e => { if (!e.target.closest('button')) mateEdit(m.id); } },
-    h('span', { class: 'ic2', 'data-icon': 'mate' }), h('span', { class: 'nm' }, m.name + ' · ' + (a ? instName(a) : '?') + ' → ' + (b ? instName(b) : '?')),
+    h('span', { class: 'ic2', 'data-icon': 'mate' }), h('span', { class: 'nm' }, m.name + ' · ' + an + ' → ' + bn),
     ib('flip', 'Flip: the other way round', () => toggleMate(m.id, 'flip'), !m.flip),
     ib(m.suppressed ? 'eyeoff' : 'eye', m.suppressed ? 'Unsuppress' : 'Suppress', () => toggleMate(m.id, 'suppressed'), m.suppressed),
     ib('trash', 'Delete this mate', () => deleteMate(m.id))); });
@@ -10318,11 +10581,25 @@ function renderAsm() {
   }
   box.replaceChildren(h('h2', { class: 'cad-shead' }, 'Parts in this assembly (' + A.instances.length + ')'),
     A.instances.length ? h('ul', { class: 'cad-plist', id: 'instList' }, ...inst) : h('p', { class: 'cad-empty' }, 'Nothing yet. Click Insert and pick parts from the Part Studios.'),
+    ...bomSection(),
     h('h2', { class: 'cad-shead' }, 'Mates (' + A.mates.length + ')'),
     A.mates.length ? h('ul', { class: 'cad-plist', id: 'mateList' }, ...mates) : h('p', { class: 'cad-empty' }, 'A mate joins a face of one part to a face of another: Fastened leaves nothing free, Revolute a turn, Slider a slide.'),
     ...rows,
-    ...(AS.clash ? [h('h2', { class: 'cad-shead' }, 'Parts that run into each other (' + AS.clash.length + ')'), AS.clash.length ? h('ul', { class: 'cad-plist', id: 'clashList' }, ...AS.clash.map(c => { const a = A.instances.find(I => I.id === c.a), b = A.instances.find(I => I.id === c.b); return h('li', { class: 'cad-irow', onclick: () => { app.sel = [{ part: c.a, kind: 'part' }, { part: c.b, kind: 'part' }]; emit('sel'); } }, h('span', { class: 'nm' }, (a ? instName(a) : '?') + ' and ' + (b ? instName(b) : '?') + ': ' + fmtNum(c.volume, 3) + ' mm³ shared')); })) : h('p', { class: 'cad-empty' }, 'None: no two parts share any volume.')] : []));
+    ...(AS.clash ? [h('h2', { class: 'cad-shead' }, 'Parts that run into each other (' + AS.clash.length + ')'), AS.clash.length ? h('ul', { class: 'cad-plist', id: 'clashList' }, ...AS.clash.map(c => { const a = leafById(c.a), b = leafById(c.b); return h('li', { class: 'cad-irow', onclick: () => { app.sel = [{ part: c.a, kind: 'part' }, { part: c.b, kind: 'part' }]; emit('sel'); } }, h('span', { class: 'nm' }, (a ? leafName(a) : '?') + ' and ' + (b ? leafName(b) : '?') + ': ' + fmtNum(c.volume, 3) + ' mm³ shared')); })) : h('p', { class: 'cad-empty' }, 'None: no two parts share any volume.')] : []));
   emit('icons', box);
+}
+/* the bill of materials in the side panel: every part through the sub-assemblies, by Part Studio and part, with
+   how many, the material and the mass (from the part's material in its Part Studio) */
+function bomSection() {
+  const rows = bomOf(asmItems(null, true)), A = app.asm;
+  if (!rows.length) return [];
+  const total = rows.reduce((t, r) => t + (Number.isFinite(r.mass) ? r.mass * r.qty : 0), 0), some = rows.some(r => Number.isFinite(r.mass));
+  const fmtG = g => (g >= 1000 ? fmtNum(g / 1000, 3) + ' kg' : fmtNum(g, 3) + ' g');
+  return [h('h2', { class: 'cad-shead' }, 'Bill of materials (' + rows.reduce((t, r) => t + r.qty, 0) + ' parts)'),
+    h('table', { class: 'cad-bom', id: 'bomTable' }, h('thead', null, h('tr', null, ...['Item', 'Name', 'Qty', 'Material', 'Mass'].map(t => h('th', null, t)))),
+      h('tbody', null, ...rows.map(r => h('tr', { 'data-item': String(r.item) }, h('td', null, String(r.item)), h('td', null, r.name), h('td', null, String(r.qty)), h('td', null, r.material || '—'), h('td', null, Number.isFinite(r.mass) ? fmtG(r.mass * r.qty) : '—'))))),
+    h('p', { class: 'rt-subsmall' }, (some ? 'All told ' + fmtG(total) + '. ' : 'Set a part’s material in its Part Studio for its mass. ') + 'A drawing of ' + A.name + ' can show this list, and balloons with its item numbers.'),
+    h('div', { class: 'rt-actions' }, h('button', { type: 'button', class: 'rt-btn', id: 'bomExport', 'data-need': 'account', 'data-what': 'export a bill of materials', onclick: () => { if (hooks.cadExportBom) hooks.cadExportBom(); } }, 'Export CSV'))];
 }
 /* which parts run into each other, as they are placed now: listed in the side panel, and selected */
 async function checkClash() {
@@ -10342,9 +10619,9 @@ async function checkClash() {
 /* ---------- the handle on the part selected: an arrow along each axis to slide it, an arc about each to turn it ---------- */
 const TRIAD_PX = 64, AXES = [[1, 0, 0], [0, 1, 0], [0, 0, 1]], AXIS_COL = ['#d9534f', '#3fa35a', '#3b82d6'];
 function triad() {
-  const A = app.asm, one = A && !AS.mate && selInst().length === 1 ? selInst()[0] : null, b = one && BAKED.get(one.id);
-  if (!one || one.fixed || one.hidden || !b || !b.part.bbox) return null;
-  const o = b.part.bbox[0].map((v, i) => (v + b.part.bbox[1][i]) / 2), L = TRIAD_PX * 2 * V.hh / V.h, o2 = project(o);
+  const A = app.asm, one = A && !AS.mate && selInst().length === 1 ? selInst()[0] : null, bb = one && instBox(one.id);
+  if (!one || one.fixed || one.hidden || !bb) return null;
+  const o = bb[0].map((v, i) => (v + bb[1][i]) / 2), L = TRIAD_PX * 2 * V.hh / V.h, o2 = project(o);
   const tips = AXES.map(e => project([o[0] + e[0] * L, o[1] + e[1] * L, o[2] + e[2] * L]));
   // each arc goes from one axis to the next, about the third; its handle is at its middle
   const arcs = [0, 1, 2].map(k => { const i = (k + 1) % 3, j = (k + 2) % 3, pts = []; for (let s = 0; s <= 10; s++) { const t = s / 10 * Math.PI / 2, c = Math.cos(t) * 0.72 * L, d = Math.sin(t) * 0.72 * L; pts.push(project([0, 1, 2].map(x => o[x] + AXES[i][x] * c + AXES[j][x] * d))); } return pts; });
@@ -10376,7 +10653,7 @@ function asmDragStart(p, sx, sy, turn) {
   // the handle first: an arrow slides the part along its axis, an arc turns it about its own
   const hd = triadAt(sx, sy);
   if (hd) { AS.drag = { id: hd.T0.one.id, x: sx, y: sy, moved: false, fixed: false, handle: hd.type, k: hd.k, o: hd.T0.o.slice(), o2: hd.T0.o2.slice(), tip: hd.T0.tips[hd.k].slice(), L: hd.T0.L }; return true; }
-  const A = app.asm, I = A && p && A.instances.find(x => x.id === p.part);
+  const A = app.asm, I = A && p && topOf(p.part);
   if (!I || AS.mate) return false;
   AS.drag = { id: I.id, x: sx, y: sy, turn, moved: false, fixed: !!I.fixed };
   return true;
@@ -10403,7 +10680,7 @@ function asmDragMove(sx, sy) {
     poseInstance(I.id, [d.o[0] + t[0], d.o[1] + t[1], d.o[2] + t[2]], qtimes(r, I.q), true);
   } else if (d.turn) {
     // about the line of sight, through the part's middle
-    const b = BAKED.get(I.id), c = b && b.part.bbox ? b.part.bbox[0].map((v, i) => (v + b.part.bbox[1][i]) / 2) : I.p, r = qabout(a.z, -dx * 0.01), rel = [I.p[0] - c[0], I.p[1] - c[1], I.p[2] - c[2]], t = turned3({ q: r }, rel);
+    const bb = instBox(I.id), c = bb ? bb[0].map((v, i) => (v + bb[1][i]) / 2) : I.p, r = qabout(a.z, -dx * 0.01), rel = [I.p[0] - c[0], I.p[1] - c[1], I.p[2] - c[2]], t = turned3({ q: r }, rel);
     poseInstance(I.id, [c[0] + t[0], c[1] + t[1], c[2] + t[2]], qtimes(r, I.q), true);
   } else poseInstance(I.id, [0, 1, 2].map(i => I.p[i] + a.x[i] * dx * s - a.y[i] * dy * s), null, true);
 }
@@ -10432,9 +10709,12 @@ function wireAssembly() {
    drawn on the view's overlay canvas, and written as a PDF or a DXF from the same drawing. A dimension holds to
    corners and round edges of the model by the kernel's references, so it follows the model when it changes.
    Tools: Dimension (two corners and a place; a circle for its diameter, an arc for its radius, a tapped hole for
-   its thread), Angle (two straight lines and a place), Section (a line across a view), Detail (a circle on a view).
+   its thread), Angle (two straight lines and a place), Section (a line across a view), Detail (a circle on a view),
+   Note (text, with a leader to a corner or a round edge if the first click is on one), Balloon (a part's item in
+   the bill of materials, on a leader to it). A drawing has sheets (core/drawing.js: the one open is read and
+   written through the drawing); a dimension can carry a tolerance. The PDF has a page for each sheet.
    ========================================================================== */
-const DR = { tool: 'select', data: null, key: '', located: {}, snaps: [], threads: [], pick: null, pick2: null, lines: [], hover: null, sel: null, cam: null, drag: null, mouse: null, drawn: null, detailC: null };
+const DR = { tool: 'select', data: null, key: '', located: {}, snaps: [], threads: [], pick: null, pick2: null, lines: [], hover: null, sel: null, cam: null, drag: null, mouse: null, drawn: null, detailC: null, bom: [], balloonNo: {}, noteTip: null };
 const drwTab = id => app.file.tabs.find(t => t.id === id);
 /* what the drawing is of, as the kernel is asked: each part with its place */
 async function drwItems(D) {
@@ -10445,12 +10725,13 @@ async function drwItems(D) {
     if (!parts) return null;
     return parts.filter((p, i) => !partLook(src, p.id, i).hidden && (!D.part || p.id === D.part)).map(p => ({ doc: src, part: p.id, id: p.id, p: [0, 0, 0], q: [0, 0, 0, 1] }));
   }
+  // (an assembly: every part it shows, through its sub-assemblies)
   const out = [];
-  for (const I of src.instances) {
-    if (I.hidden) continue;
-    const t = drwTab(I.studio);
+  for (const L of asmLeaves(src, drwTab)) {
+    if (L.hidden) continue;
+    const t = drwTab(L.studio);
     if (!t || !(await studioParts(t))) continue;
-    out.push({ doc: t, part: I.part, id: I.id, inst: I.id, p: I.p, q: I.q });
+    out.push({ doc: t, part: L.part, id: L.id, inst: L.id, p: L.p, q: L.q });
   }
   return out;
 }
@@ -10497,20 +10778,11 @@ async function drwRegen() {
       }
       for (const t of M.threads || []) DR.threads.push(Object.assign({}, t, { from: placed(it, t.from), dir: turned3(it, t.dir) }));
     }
-    // what each dimension holds to
-    const reqs = [], slots = [];
-    for (const d of D.dims) for (const k of ['a', 'b', 'c', 'd']) {
-      if (!d[k]) continue;
-      const it = items.find(x => (d[k].inst ? x.inst === d[k].inst : x.part === d[k].ref.part));
-      if (!it) continue;
-      reqs.push({ doc: it.doc, part: it.part, p: it.p, q: it.q, ref: d[k].ref }); slots.push([d.id, k]);
-    }
-    const located = {};
-    if (reqs.length) { const got = await kernelAsk('drawLocate', { reqs }); got.forEach((g, i) => { const [id, k] = slots[i]; (located[id] || (located[id] = {}))[k] = g; }); }
+    // what each dimension, note and balloon holds to; the bill of materials, and each balloon's item in it
+    const m = await sheetMarks(D, items);
     if (app.drw !== D) return null;
-    // (a diameter on a tapped hole reads as its thread)
-    for (const d of D.dims) if (d.t === 'dia' && located[d.id] && located[d.id].a) { const lab = threadAt(located[d.id].a); if (lab) located[d.id].a = Object.assign({}, located[d.id].a, { label: lab }); }
-    DR.located = located;
+    Object.assign(DR, m);
+    if (DR.data) DR.data.bomRows = D.bom ? DR.bom : null;
     app.result = { features: [], parts: [], frames: {}, vars: {}, errors: [], drw: true };
     app.sel = [];
     app.error = null; app.regenCount++;
@@ -10519,6 +10791,25 @@ async function drwRegen() {
     renderDrw();
     return app.result;
   } catch (err) { app.error = err.message; toast('The drawing could not be made: ' + err.message, true); return null; } finally { app.busy = false; emit('busy'); }
+}
+/* what a sheet's dimensions, notes and balloons hold to, found on the model; the bill of materials of the parts
+   shown, each balloon's item number in it */
+async function sheetMarks(D, items) {
+  const reqs = [], slots = [], marks = [...D.dims, ...(D.notes || []).filter(n => n.a), ...(D.balloons || [])];
+  const itemOf = r => items.find(x => (r.inst ? x.inst === r.inst : x.part === r.ref.part));
+  for (const d of marks) for (const k of ['a', 'b', 'c', 'd']) {
+    if (!d[k]) continue;
+    const it = itemOf(d[k]);
+    if (!it) continue;
+    reqs.push({ doc: it.doc, part: it.part, p: it.p, q: it.q, ref: d[k].ref }); slots.push([d.id, k]);
+  }
+  const located = {};
+  if (reqs.length) { const got = await kernelAsk('drawLocate', { reqs }); got.forEach((g, i) => { const [id, k] = slots[i]; (located[id] || (located[id] = {}))[k] = g; }); }
+  // (a diameter on a tapped hole reads as its thread)
+  for (const d of D.dims) if (d.t === 'dia' && located[d.id] && located[d.id].a) { const lab = threadAt(located[d.id].a); if (lab) located[d.id].a = Object.assign({}, located[d.id].a, { label: lab }); }
+  const bom = bomOf(items), balloonNo = {};
+  for (const b of D.balloons || []) { const it = itemOf(b.a), row = it && bom.find(r => r.key === it.doc.id + '|' + it.part); if (row) balloonNo[b.id] = row.item; }
+  return { located, bom, balloonNo };
 }
 /* ---------- the sheet on the screen ---------- */
 function fitSheet() {
@@ -10530,7 +10821,7 @@ const drwScr = p => [DR.cam.x + p[0] * DR.cam.z, DR.cam.y + p[1] * DR.cam.z];
 const drwMm = (sx, sy) => [(sx - DR.cam.x) / DR.cam.z, (sy - DR.cam.y) / DR.cam.z];
 const drwToday = () => new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const drwSource = D => { const t = drwTab(D.of); return t ? t.name : ''; };
-const drwOpts = D => ({ located: DR.located, date: drwToday(), source: drwSource(D), picked: DR.sel });
+const drwOpts = D => ({ located: DR.located, date: drwToday(), source: drwSource(D), picked: DR.sel, bom: DR.bom, balloonNo: DR.balloonNo, sheetNo: [D.at + 1, D.sheets.length] });
 /* a view's own coordinates of a point on the sheet */
 const sheetToView = (v, q) => [v.c[0] + (q[0] - v.at[0]) / v.s, v.c[1] - (q[1] - v.at[1]) / v.s];
 function drawDrw(c) {
@@ -10553,6 +10844,7 @@ function drawDrw(c) {
   const L = DR.drawn.layout;
   const mark = (s, col) => { const v = L.views.find(x => x.id === s.view); if (!v) return; const p = drwScr(L.toSheet(v, framePoint(v.F, s.w))); c.beginPath(); if (s.kind === 'edge') c.arc(p[0], p[1], Math.max(3, s.r * v.s * z), 0, 2 * Math.PI); else c.rect(p[0] - 4, p[1] - 4, 8, 8); c.strokeStyle = col; c.lineWidth = 2; c.stroke(); };
   const seg = (l, col) => { c.beginPath(); c.moveTo(X(l[0]), Y(l[1])); c.lineTo(X(l[2]), Y(l[3])); c.strokeStyle = col; c.lineWidth = 3; c.stroke(); };
+  if (DR.tool === 'balloon' || DR.tool === 'note') { if (DR.hover) mark(DR.hover, blue); if (DR.noteTip) mark(DR.noteTip, hot); }
   if (DR.tool === 'dim') { if (DR.hover) mark(DR.hover, blue); if (DR.pick) mark(DR.pick, hot); if (DR.pick2) mark(DR.pick2, hot); }
   if (DR.tool === 'dim' && DR.pick && DR.pick2 && DR.mouse) {
     const d = drwPlacing(DR.mouse), g = d && dimGeom(L, d, { a: { pt: DR.pick.w }, b: { pt: DR.pick2.w } });
@@ -10638,6 +10930,8 @@ async function drwRefs(snaps) {
   const got = await kernelAsk('drawLocate', { reqs: snaps.map(s => ({ doc: s.item.doc, part: s.item.part, p: s.item.p, q: s.item.q, pick: { part: s.item.part, kind: s.kind, index: s.index } })) });
   return got.map((g, i) => (g && g.ref ? Object.assign({ ref: g.ref }, snaps[i].item.inst ? { inst: snaps[i].item.inst } : {}) : null));
 }
+/* a note or a balloon under the pointer */
+const drwMarkAt = (sx, sy) => { const q = drwMm(sx, sy), inn = h2 => q[0] >= h2[0] && q[0] <= h2[2] && q[1] >= h2[1] && q[1] <= h2[3], d = DR.drawn; if (!d) return null; const b = (d.balloons || []).find(x => inn(x.hit)); if (b) return { kind: 'balloon', id: b.id }; const n = (d.notes || []).find(x => inn(x.hit)); return n ? { kind: 'note', id: n.id } : null; };
 const drwDimAt = (sx, sy) => { const q = drwMm(sx, sy); return ((DR.drawn && DR.drawn.dims) || []).find(d => q[0] >= d.g.hit[0] && q[0] <= d.g.hit[2] && q[1] >= d.g.hit[1] && q[1] <= d.g.hit[3]) || null; };
 function drwViewAt(sx, sy, principalOnly) {
   const L = DR.drawn && DR.drawn.layout, q = drwMm(sx, sy);
@@ -10648,9 +10942,10 @@ function drwDown(e, sx, sy) {
   const D = app.drw; if (!D || !DR.cam) return;
   if (e.button === 1 || e.button === 2) { DR.drag = { kind: 'pan', x: sx, y: sy }; return; }
   if (DR.tool !== 'select') return;                    // (the tools act on the click's release)
-  const d = drwDimAt(sx, sy), v = d ? null : drwViewAt(sx, sy);
-  DR.sel = d ? d.id : null;
-  if (d) DR.drag = { kind: 'dim', id: d.id, x: sx, y: sy, moved: false };
+  const mk = drwMarkAt(sx, sy), d = mk ? null : drwDimAt(sx, sy), v = d || mk ? null : drwViewAt(sx, sy);
+  DR.sel = mk ? mk.id : d ? d.id : null;
+  if (mk) DR.drag = { kind: mk.kind, id: mk.id, x: sx, y: sy, moved: false };
+  else if (d) DR.drag = { kind: 'dim', id: d.id, x: sx, y: sy, moved: false };
   else if (v) DR.drag = { kind: 'view', id: v.id, x: sx, y: sy, moved: false, at: v.at.slice() };
   emit('view'); renderDrw();
 }
@@ -10659,9 +10954,10 @@ function drwMove(e, sx, sy) {
   DR.mouse = { sx, sy, shift: e.shiftKey };
   const g = DR.drag;
   if (g && g.kind === 'pan') { DR.cam.x += sx - g.x; DR.cam.y += sy - g.y; g.x = sx; g.y = sy; emit('view'); return; }
-  if (g && (g.kind === 'dim' || g.kind === 'view')) {
+  if (g && (g.kind === 'dim' || g.kind === 'view' || g.kind === 'note' || g.kind === 'balloon')) {
     const dx = (sx - g.x) / DR.cam.z, dy = (sy - g.y) / DR.cam.z;
     if (!g.moved) { if (Math.hypot(sx - g.x, sy - g.y) < 4) return; if (!editGate()) { DR.drag = null; return; } checkpoint(); g.moved = true; }
+    if (g.kind === 'note' || g.kind === 'balloon') { const o = (g.kind === 'note' ? D.notes : D.balloons).find(x => x.id === g.id); if (o) { if (g.kind === 'note') o.at = [o.at[0] + dx, o.at[1] + dy]; else o.off = [o.off[0] + dx, o.off[1] + dy]; } g.x = sx; g.y = sy; emit('view'); return; }
     if (g.kind === 'view') { const v = D.views.find(x => x.id === g.id); v.at = [g.at[0] + dx, g.at[1] + dy]; }
     else {
       const d = D.dims.find(x => x.id === g.id), geo = DR.drawn.dims.find(x => x.id === g.id);
@@ -10673,7 +10969,7 @@ function drwMove(e, sx, sy) {
     }
     emit('view'); return;
   }
-  if (DR.tool === 'dim') { DR.hover = DR.pick && DR.pick2 ? null : drwSnap(sx, sy); emit('view'); }
+  if (DR.tool === 'dim' || DR.tool === 'balloon' || (DR.tool === 'note' && !DR.noteTip)) { DR.hover = DR.tool === 'dim' && DR.pick && DR.pick2 ? null : drwSnap(sx, sy); emit('view'); }
   else if (DR.tool === 'ang') { DR.hover = DR.lines.length < 2 ? drwLineAt(sx, sy) : null; emit('view'); }
   else if (DR.tool === 'section' || DR.tool === 'detail') emit('view');
 }
@@ -10684,6 +10980,34 @@ async function drwUp(e, sx, sy) {
   if (g) return;
   if (e.button !== 0) return;
   const L = DR.drawn && DR.drawn.layout;
+  if (DR.tool === 'note') {
+    // a first click on a corner or a round edge: the leader's point, then a second where the text goes; elsewhere,
+    // the text there with no leader
+    const q = drwMm(sx, sy);
+    if (!DR.noteTip) {
+      const sn = drwSnap(sx, sy);
+      if (sn) { DR.noteTip = sn; toast('Now click where the note’s text goes'); emit('view'); return; }
+    }
+    if (!editGate()) { DR.noteTip = null; return; }
+    const text = prompt('The note (\\n starts a new line)', '');
+    const tip = DR.noteTip; DR.noteTip = null;
+    if (text === null || !text.trim()) { emit('view'); return; }
+    const refs = tip ? await drwRefs([tip]) : [null];
+    checkpoint();
+    D.notes.push(Object.assign({ id: sketchId('n'), text: text.replace(/\\n/g, '\n').slice(0, 400), at: q.map(v => +v.toFixed(3)) }, tip && refs[0] ? { view: tip.view, a: refs[0] } : {}));
+    changed(); return;
+  }
+  if (DR.tool === 'balloon') {
+    const sn = drwSnap(sx, sy);
+    if (!sn) { toast('Click a corner or a round edge of a part in a view: its balloon gives its item in the bill of materials'); return; }
+    if (!editGate()) return;
+    const refs = await drwRefs([sn]);
+    if (!refs[0]) { toast('That part could not be held to', true); return; }
+    checkpoint();
+    D.balloons.push({ id: sketchId('b'), view: sn.view, a: refs[0], off: [12, -12] });
+    if (!D.bom) { D.bom = true; toast('The bill of materials is shown on this sheet: untick it in the panel to take it off'); }
+    changed(); return;
+  }
   if (DR.tool === 'section') {
     const v = drwViewAt(sx, sy, true);
     if (!v) { toast('Click in the front, top or right view (or another square-on view) where the section cuts it: up the view, or across it with Shift'); return; }
@@ -10751,14 +11075,38 @@ async function drwUp(e, sx, sy) {
 function drwWheel(sx, sy, f) { if (!DR.cam) return; const z = Math.max(0.3, Math.min(40, DR.cam.z / f)), q = drwMm(sx, sy); DR.cam.z = z; DR.cam.x = sx - q[0] * z; DR.cam.y = sy - q[1] * z; emit('view'); }
 function drwKey(k) {
   const D = app.drw; if (!D) return false;
-  if (k === 'escape') { if (DR.pick || DR.pick2 || DR.lines.length || DR.detailC) { DR.pick = DR.pick2 = DR.detailC = null; DR.lines = []; } else if (DR.tool !== 'select') setDrwTool('select'); else DR.sel = null; emit('view'); renderDrw(); return true; }
+  if (k === 'escape') { if (DR.pick || DR.pick2 || DR.lines.length || DR.detailC || DR.noteTip) { DR.pick = DR.pick2 = DR.detailC = DR.noteTip = null; DR.lines = []; } else if (DR.tool !== 'select') setDrwTool('select'); else DR.sel = null; emit('view'); renderDrw(); return true; }
   if ((k === 'delete' || k === 'backspace') && DR.sel) { deleteDim(DR.sel); return true; }
   if (k === 'd') { setDrwTool('dim'); return true; }
   if (k === 'f') { fitSheet(); emit('view'); return true; }
   return false;
 }
-function setDrwTool(t) { DR.tool = t; DR.pick = DR.pick2 = DR.hover = DR.detailC = null; DR.lines = []; for (const b of document.querySelectorAll('#drwBar [data-drw]')) b.classList.toggle('on', b.dataset.drw === t); emit('view'); }
-function deleteDim(id) { const D = app.drw; if (!D || !editGate()) return; checkpoint(); D.dims = D.dims.filter(d => d.id !== id); if (DR.sel === id) DR.sel = null; changed(); }
+function setDrwTool(t) { DR.tool = t; DR.pick = DR.pick2 = DR.hover = DR.detailC = DR.noteTip = null; DR.lines = []; for (const b of document.querySelectorAll('#drwBar [data-drw]')) b.classList.toggle('on', b.dataset.drw === t); emit('view'); }
+/* a dimension, a note or a balloon taken off the sheet */
+function deleteDim(id) { const D = app.drw; if (!D || !editGate()) return; checkpoint(); D.dims = D.dims.filter(d => d.id !== id); D.notes = D.notes.filter(d => d.id !== id); D.balloons = D.balloons.filter(d => d.id !== id); if (DR.sel === id) DR.sel = null; changed(); }
+/* a note's text changed (asked for); empty takes it away */
+function editNote(id, text) {
+  const D = app.drw, n = D && D.notes.find(x => x.id === id);
+  if (!n || !editGate()) return false;
+  const t = text !== undefined ? text : prompt('The note (\\n starts a new line)', n.text.replace(/\n/g, '\\n'));
+  if (t === null) return false;
+  checkpoint();
+  if (!String(t).trim()) D.notes = D.notes.filter(x => x.id !== id); else n.text = String(t).replace(/\\n/g, '\n').slice(0, 400);
+  changed();
+  return true;
+}
+/* a dimension's tolerance and the text before and after it */
+function setTol(id, tol, pre, suf) {
+  const D = app.drw, d = D && D.dims.find(x => x.id === id);
+  if (!d || !editGate()) return false;
+  checkpoint();
+  if (tol && tol.k) d.tol = tol.k === 'fit' ? { k: 'fit', fit: String(tol.fit || '').trim().slice(0, 12) } : { k: tol.k, p: Math.abs(+tol.p || 0), m: Math.abs(+(tol.k === 'sym' ? tol.p : tol.m) || 0) }; else delete d.tol;
+  if (d.tol && d.tol.k === 'fit' && !d.tol.fit) delete d.tol;
+  if (pre !== undefined) { if (String(pre).trim()) d.pre = String(pre).trim().slice(0, 24); else delete d.pre; }
+  if (suf !== undefined) { if (String(suf).trim()) d.suf = String(suf).trim().slice(0, 24); else delete d.suf; }
+  changed();
+  return true;
+}
 /* a view taken off the sheet: with its sections and details, and the dimensions on any of them */
 function removeView(id) {
   const D = app.drw; if (!D) return;
@@ -10789,13 +11137,32 @@ function renderDrw() {
   const L = DR.drawn && DR.drawn.layout;
   const vname = v => (v.dir === 'section' ? 'Section ' + v.label + '-' + v.label : v.dir === 'detail' ? 'Detail ' + v.label : VIEW_DIRS[v.dir].name);
   const derived = D.views.filter(v => v.dir === 'section' || v.dir === 'detail');
-  const rows = [h('h2', { class: 'cad-shead' }, 'This drawing'),
-    sel('drw-of', 'Of', sources, D.of, v => set(() => { D.of = v; D.part = null; D.dims = D.dims.filter(d => d.t === 'ext'); })),
-    src && src.kind === 'studio' ? sel('drw-part', 'Part', [['', 'All its parts'], ...parts], D.part || '', v => set(() => { D.part = v || null; D.dims = D.dims.filter(d => d.t === 'ext' || !v || d.a.ref.part === v); })) : null,
+  const sheetRow = h('div', { class: 'cad-frow cad-sheets' }, h('label', { for: 'drw-at' }, 'Sheet'),
+    h('select', { id: 'drw-at', onchange: e => setSheet(+e.target.value) }, ...D.sheets.map((sh, k) => h('option', Object.assign({ value: k }, k === D.at ? { selected: '' } : {}), (k + 1) + '. ' + sh.name))),
+    h('button', { type: 'button', class: 'cad-eye', id: 'drwSheetAdd', title: 'Add a sheet', 'aria-label': 'Add a sheet', 'data-icon': 'new', onclick: () => addSheet() }),
+    h('button', { type: 'button', class: 'cad-eye', id: 'drwSheetName', title: 'Rename this sheet', 'aria-label': 'Rename this sheet', 'data-icon': 'text', onclick: () => { const v = prompt('Name of this sheet', D.sheets[D.at].name); if (v && v.trim()) set(() => { D.sheets[D.at].name = v.trim().slice(0, 60); }, true); } }),
+    D.sheets.length > 1 ? h('button', { type: 'button', class: 'cad-eye', id: 'drwSheetDel', title: 'Delete this sheet', 'aria-label': 'Delete this sheet', 'data-icon': 'trash', onclick: () => deleteSheet() }) : null);
+  // the dimension chosen: its tolerance, and text before and after it
+  const dsel = D.dims.find(d => d.id === DR.sel), T = dsel && dsel.tol;
+  const tolBox = dsel ? (() => {
+    const kind = h('select', { id: 'drw-tolk', 'aria-label': 'Kind of tolerance' }, ...[['', 'None'], ['sym', '± one value'], ['dev', '+ and − values'], ['lim', 'Limits'], ['fit', 'Fit (as H7)']].map(([v, t]) => h('option', Object.assign({ value: v }, (T ? T.k : '') === v ? { selected: '' } : {}), t)));
+    const inp = (id, label, val) => h('div', { class: 'cad-frow' }, h('label', { for: id }, label), h('input', { type: 'text', id, value: val === undefined || val === null ? '' : String(val), spellcheck: 'false', maxlength: '24', onkeydown: e => e.stopPropagation() }));
+    const apply = () => { const g = id => document.getElementById(id).value; const k = g('drw-tolk'); setTol(dsel.id, k ? { k, p: g('drw-tolp'), m: g('drw-tolm'), fit: g('drw-tolf') } : null, g('drw-pre'), g('drw-suf')); };
+    return [h('h2', { class: 'cad-shead' }, 'The dimension chosen'), h('div', { class: 'cad-frow' }, h('label', { for: 'drw-tolk' }, 'Tolerance'), kind),
+      inp('drw-tolp', 'Plus (or ±)', T && T.k !== 'fit' ? T.p : ''), inp('drw-tolm', 'Minus', T && T.k !== 'fit' ? T.m : ''), inp('drw-tolf', 'Fit', T && T.k === 'fit' ? T.fit : ''),
+      inp('drw-pre', 'Before it', dsel.pre || ''), inp('drw-suf', 'After it', dsel.suf || ''),
+      h('div', { class: 'rt-actions' }, h('button', { type: 'button', class: 'rt-btn primary', id: 'drwTolApply', onclick: apply }, 'Apply'))];
+  })() : [];
+  const noteRows = D.notes.length ? h('ul', { class: 'cad-plist', id: 'drwNotes' }, ...D.notes.map(n => h('li', { class: 'cad-irow' + (DR.sel === n.id ? ' picked' : ''), 'data-note': n.id, title: 'Click to select; double-click to change; drag it on the sheet to move it', onclick: e => { if (e.target.closest('button')) return; DR.sel = n.id; emit('view'); renderDrw(); }, ondblclick: () => editNote(n.id) },
+    h('span', { class: 'nm' }, n.text.split('\n')[0].slice(0, 40) + (n.a ? ' ↙' : '')), h('button', { type: 'button', class: 'cad-eye', title: 'Delete this note', 'aria-label': 'Delete this note', 'data-icon': 'trash', onclick: () => deleteDim(n.id) })))) : h('p', { class: 'cad-empty' }, 'Note puts text on the sheet: click a corner or a round edge first for a leader to it.');
+  const rows = [sheetRow, h('h2', { class: 'cad-shead' }, 'This drawing'),
+    sel('drw-of', 'Of', sources, D.of, v => set(() => { D.of = v; D.part = null; for (const sh of D.sheets) { sh.dims = sh.dims.filter(d => d.t === 'ext'); sh.balloons = []; sh.notes = sh.notes.map(n => { const { view, a, ...rest } = n; void view; void a; return rest; }); } })),
+    src && src.kind === 'studio' ? sel('drw-part', 'Part', [['', 'All its parts'], ...parts], D.part || '', v => set(() => { D.part = v || null; for (const sh of D.sheets) { sh.dims = sh.dims.filter(d => d.t === 'ext' || !v || d.a.ref.part === v); sh.balloons = sh.balloons.filter(b => !v || b.a.ref.part === v); } })) : null,
     sel('drw-sheet', 'Sheet', Object.keys(SHEETS).map(k => [k, k + ' (' + SHEETS[k][0] + ' × ' + SHEETS[k][1] + ' mm)']), D.sheet, v => set(() => { D.sheet = v; for (const x of D.views) delete x.at; DR.cam = null; }, true)),
     sel('drw-scale', 'Scale', [[0, 'To fit' + (L && !D.scale ? ' (' + scaleText(L.s) + ')' : '')], ...[10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02].map(k => [k, scaleText(k)])], D.scale || 0, v => set(() => { D.scale = +v || 0; for (const x of D.views) delete x.at; }, true)),
     check('drw-hidden', 'Show hidden lines, dashed', D.hidden, v => { D.hidden = v; }),
     check('drw-marks', 'Centre marks on holes and round edges', D.marks, v => { D.marks = v; }),
+    check('drw-bom', 'Bill of materials on this sheet', D.bom, v => { D.bom = v; for (const x of D.views) delete x.at; }),
     h('h2', { class: 'cad-shead' }, 'Views'),
     h('div', { class: 'cad-drwviews' }, ...Object.keys(VIEW_DIRS).map(k => h('label', { class: 'cad-check' }, h('input', Object.assign({ type: 'checkbox', 'data-view': k, onchange: e => set(() => { if (e.target.checked) D.views.push({ id: sketchId('v'), dir: k }); else for (const v of D.views.filter(x => x.dir === k)) removeView(v.id); for (const x of D.views) if (VIEW_DIRS[x.dir]) delete x.at; }) }, D.views.some(v => v.dir === k) ? { checked: '' } : {})), ' ' + VIEW_DIRS[k].name))),
     derived.length ? h('ul', { class: 'cad-plist', id: 'drwDerived' }, ...derived.map(v => { const P = D.views.find(x => x.id === v.of); return h('li', { class: 'cad-irow', 'data-dview': v.id },
@@ -10806,14 +11173,59 @@ function renderDrw() {
     h('h2', { class: 'cad-shead' }, 'Title block'), txt('title', 'Title'), txt('by', 'Drawn by'), txt('material', 'Material'), txt('number', 'Drawing no.'), txt('note', 'Note'),
     h('h2', { class: 'cad-shead' }, 'Dimensions (' + D.dims.length + ')'),
     D.dims.length ? h('ul', { class: 'cad-plist', id: 'drwDims' }, ...D.dims.map(d => { const g = DR.drawn && DR.drawn.dims.find(x => x.id === d.id), v = D.views.find(x => x.id === d.view); return h('li', { class: 'cad-irow' + (DR.sel === d.id ? ' picked' : '') + (g ? '' : ' hid'), 'data-dim': d.id, title: g ? 'Click to select; drag it on the sheet to move it' : 'What this held to is no longer on the model', onclick: e => { if (e.target.closest('button')) return; DR.sel = d.id; emit('view'); renderDrw(); } },
-      h('span', { class: 'nm' }, (g ? g.g.text + (d.t === 'ang' || /^M/.test(g.g.text) ? '' : ' mm') : 'lost') + ' · ' + (v ? vname(v) : '?') + DIM_KIND[d.t]), h('button', { type: 'button', class: 'cad-eye', title: 'Delete this dimension', 'aria-label': 'Delete this dimension', 'data-icon': 'trash', onclick: () => deleteDim(d.id) })); }))
-      : h('p', { class: 'cad-empty' }, 'None yet. Click Dimension, then two corners of a view and where it goes, or a circle or an arc. Overall sizes adds each view’s width and height.')];
+      h('span', { class: 'nm' }, (g ? (g.g.label || g.g.text) + (d.t === 'ang' || /^M/.test(g.g.text) || d.tol ? '' : ' mm') : 'lost') + ' · ' + (v ? vname(v) : '?') + DIM_KIND[d.t]), h('button', { type: 'button', class: 'cad-eye', title: 'Delete this dimension', 'aria-label': 'Delete this dimension', 'data-icon': 'trash', onclick: () => deleteDim(d.id) })); }))
+      : h('p', { class: 'cad-empty' }, 'None yet. Click Dimension, then two corners of a view and where it goes, or a circle or an arc. Overall sizes adds each view’s width and height.'),
+    ...tolBox,
+    h('h2', { class: 'cad-shead' }, 'Notes (' + D.notes.length + ')'), noteRows,
+    D.balloons.length ? h('p', { class: 'rt-subsmall' }, D.balloons.length + (D.balloons.length === 1 ? ' balloon' : ' balloons') + ' on this sheet: drag one to move it, select it and press Delete to take it off.') : null];
   box.replaceChildren(...rows.filter(Boolean));
   emit('icons', box);
 }
 /* the sheet as a PDF's or a DXF's bytes and its name (io/files.js makes the file, behind its gate) */
-function drwPdf() { const D = app.drw; return D && DR.data ? { name: D.name, bytes: pdfOfSheet(D, DR.data, drwOpts(D)) } : null; }
-function drwDxf() { const D = app.drw; return D && DR.data ? { name: D.name, bytes: dxfOfSheet(D, DR.data, drwOpts(D)) } : null; }
+/* every sheet as it is written: the one open as it is shown, each other one's views and marks made for it */
+async function drwPages() {
+  const D = app.drw;
+  if (!D || !DR.data) return null;
+  const items = await drwItems(D), pages = [];
+  if (!items) return null;
+  for (let k = 0; k < D.sheets.length; k++) {
+    const Dk = sheetOf(D, k);
+    if (k === D.at) { pages.push({ D: Dk, data: DR.data, opts: Object.assign(drwOpts(D), { picked: null }) }); continue; }
+    const got = await kernelAsk('drawing', { items, views: kernelViews(Dk) });
+    const data = { views: Object.fromEntries((got || []).map(g => [g.id, g])) }, m = await sheetMarks(Dk, items);
+    if (Dk.bom) data.bomRows = m.bom;
+    pages.push({ D: Dk, data, opts: { located: m.located, date: drwToday(), source: drwSource(D), bom: m.bom, balloonNo: m.balloonNo, sheetNo: [k + 1, D.sheets.length] } });
+  }
+  return app.drw === D ? pages : null;
+}
+async function drwPdf() { const D = app.drw, pages = await drwPages(); return pages ? { name: D.name, bytes: pdfOfSheets(pages), sheets: pages.length } : null; }
+async function drwDxf() { const D = app.drw, pages = await drwPages(); return pages ? { name: D.name, bytes: dxfOfSheets(pages), sheets: pages.length } : null; }
+/* ---------- sheets ---------- */
+function setSheet(k) {
+  const D = app.drw;
+  if (!D || k === D.at || k < 0 || k >= D.sheets.length) return false;
+  D.at = k; DR.key = ''; DR.cam = null; DR.sel = null; DR.data = null; setDrwTool('select');
+  changed();
+  return true;
+}
+function addSheet() {
+  const D = app.drw; if (!D || !editGate()) return null;
+  if (D.sheets.length >= 20) { toast('A drawing has 20 sheets at most'); return null; }
+  checkpoint();
+  D.sheets.push(newSheet(D, D.sheets.length));
+  D.at = D.sheets.length - 1; DR.key = ''; DR.cam = null; DR.sel = null; DR.data = null;
+  changed();
+  return D.at;
+}
+function deleteSheet() {
+  const D = app.drw; if (!D || !editGate()) return false;
+  if (D.sheets.length < 2) { toast('A drawing keeps at least one sheet'); return false; }
+  if (!confirm('Delete “' + D.sheets[D.at].name + '” and everything on it? Undo brings it back.')) return false;
+  checkpoint();
+  D.sheets.splice(D.at, 1); D.at = Math.max(0, D.at - 1); DR.key = ''; DR.cam = null; DR.sel = null; DR.data = null;
+  changed();
+  return true;
+}
 function wireDrawing() {
   hooks.cadDrwRegen = drwRegen;
   hooks.cadSheet = c => drawDrw(c);
@@ -10966,7 +11378,7 @@ function wirePointer() {
     // Delete, with whole parts selected (the Parts filter, or their rows): they are deleted
     // (in an assembly, a mate's row chosen: that mate; else the parts selected)
     if ((k === 'delete' || k === 'backspace') && app.asm && AS.mateSel && !AS.mate) { deleteMate(AS.mateSel); return; }
-    if ((k === 'delete' || k === 'backspace') && app.asm) { for (const id of new Set(app.sel.map(s => s.part).filter(Boolean))) deleteInstance(id); return; }
+    if ((k === 'delete' || k === 'backspace') && app.asm) { for (const id of new Set(app.sel.map(s => s.part).filter(Boolean).map(id => String(id).split('/')[0]))) deleteInstance(id); return; }
     if ((k === 'delete' || k === 'backspace') && !app.editing && app.sel.length && app.sel.every(s => s.kind === 'part')) { for (const s of app.sel.slice()) deletePart(s.part); return; }
     if (k === 'f') { fit(); return; }
     if (k === 'n') { normalToSel(); return; }
@@ -10989,8 +11401,15 @@ async function normalToSel() {
 /* ==========================================================================
    The version, and what is new in it (Help › What’s new)
    ========================================================================== */
-const APP_VERSION = '0.11.0';
+const APP_VERSION = '0.12.0';
 const NEWS = [
+  { v: '0.12.0', date: '23 Nov 2026', items: [
+    '<b>Sub-assemblies</b>: Insert puts another Assembly in as one piece. It moves as one, and a mate can join any part inside it.',
+    '<b>Bill of materials</b> in an assembly’s panel, counted through its sub-assemblies, with materials and masses, and Export CSV.',
+    'Drawings gain <b>sheets</b>, <b>tolerances</b> on dimensions, <b>notes</b> on leaders, and <b>balloons</b> with the bill of materials above the title block. The PDF has a page for each sheet.',
+    'A Part Studio that took a while to make opens much faster the next time: this browser keeps its parts.',
+    'A fillet or chamfer too big for its edges says the largest size that fits them.',
+  ] },
   { v: '0.11.0', date: '17 Nov 2026', items: [
     'Select a face, an edge or a region and the feature that made it is marked in the list.',
     'A mate is deleted from its row: click it and press Delete, right-click it, or Delete in its panel. The buttons on the assembly’s rows now show when you point at them.',
@@ -11187,27 +11606,38 @@ async function exportParts(fmt, ids) {
     return true;
   } catch (err) { toast('Could not export: ' + err.message, true); return false; }
 }
-/* a drawing's sheet as a PDF (a free account's, as every export is) */
-function exportPdf() {
+/* a drawing's sheets as a PDF, a page each (a free account's, as every export is) */
+async function exportPdf() {
   if (!accountGate('export a PDF')) return false;
-  const out = drwPdf();
+  const out = await drwPdf();
   if (!out) { toast('Open a Drawing tab first: the + at the foot of the view adds one', true); return false; }
   downloadFile(safeName(out.name) + '.pdf', out.bytes, 'application/pdf');
   track('export', 'cad-pdf');
   toast('Exported ' + safeName(out.name) + '.pdf');
   return true;
 }
-/* a drawing's sheet as a DXF, for other CAD programs */
-function exportDxf() {
+/* a drawing's sheets as a DXF, for other CAD programs (side by side) */
+async function exportDxf() {
   if (!accountGate('export a DXF')) return false;
-  const out = drwDxf();
+  const out = await drwDxf();
   if (!out) { toast('Open a Drawing tab first: the + at the foot of the view adds one', true); return false; }
   downloadFile(safeName(out.name) + '.dxf', out.bytes, 'application/dxf');
   track('export', 'cad-dxf');
   toast('Exported ' + safeName(out.name) + '.dxf');
   return true;
 }
+/* an assembly's bill of materials as CSV, for a spreadsheet */
+function exportBom() {
+  if (!accountGate('export a bill of materials')) return false;
+  const rows = app.asm ? bomOf(asmItems(null, true)) : null;
+  if (!rows || !rows.length) { toast('Open an Assembly with parts in it first', true); return false; }
+  downloadFile(safeName(app.asm.name) + ' BOM.csv', bomCsv(rows), 'text/csv');
+  track('export', 'cad-bom');
+  toast('Exported ' + safeName(app.asm.name) + ' BOM.csv');
+  return true;
+}
 function wireFiles() {
+  hooks.cadExportBom = exportBom;
   hooks.cadExportPdf = exportPdf;
   hooks.cadExportDxf = exportDxf;
   hooks.cadSaveLater = scheduleSave;
@@ -12708,8 +13138,8 @@ window.JEKcad = {
   deleteFeature, moveFeature, setRollback, exportParts, importStep, saveFile, kernel: kernelAsk, cloudPush,
   pickAt, pickHere, overlayPick, selectPick, project, toScreen, fit, viewFrom, setMode, png: viewPng, sketchOn: () => !!app.sketch,
   share: cadShare, shareHash: cadShareHash, readShare: cadReadShare, openShare: cadOpenShare,
-  dr: DR, addOverall, deleteDim, drwPdf, drwDxf, fitSheet, removeView, setDrwTool, exportPdf, exportDxf,
-  as: AS, addTab, switchTab, renameTab, deleteTab, addInstance, poseInstance, mateOpen, matePick, mateApply, mateEdit, checkClash, triadPoints, keepCadPart, insertCadPart, cadMineContent,
+  dr: DR, addOverall, deleteDim, drwPdf, drwDxf, fitSheet, removeView, setDrwTool, exportPdf, exportDxf, addSheet, setSheet, deleteSheet, setTol, editNote, exportBom,
+  as: AS, addTab, switchTab, renameTab, deleteTab, addInstance, addSubAssembly, poseInstance, mateOpen, matePick, mateApply, mateEdit, checkClash, triadPoints, keepCadPart, insertCadPart, cadMineContent,
   flyStart, flyStop, flyTurn, cubePart, turnStep, deletePart, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
 };
 })();

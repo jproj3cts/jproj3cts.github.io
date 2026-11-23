@@ -151,7 +151,7 @@ export function wirePointer() {
     // Delete, with whole parts selected (the Parts filter, or their rows): they are deleted
     // (in an assembly, a mate's row chosen: that mate; else the parts selected)
     if ((k === 'delete' || k === 'backspace') && app.asm && AS.mateSel && !AS.mate) { deleteMate(AS.mateSel); return; }
-    if ((k === 'delete' || k === 'backspace') && app.asm) { for (const id of new Set(app.sel.map(s => s.part).filter(Boolean))) deleteInstance(id); return; }
+    if ((k === 'delete' || k === 'backspace') && app.asm) { for (const id of new Set(app.sel.map(s => s.part).filter(Boolean).map(id => String(id).split('/')[0]))) deleteInstance(id); return; }
     if ((k === 'delete' || k === 'backspace') && !app.editing && app.sel.length && app.sel.every(s => s.kind === 'part')) { for (const s of app.sel.slice()) deletePart(s.part); return; }
     if (k === 'f') { fit(); return; }
     if (k === 'n') { normalToSel(); return; }

@@ -58,36 +58,85 @@ function normRef(r) {
   return Object.assign({ ref: { kind: ref.kind, part: ref.part, faces: ref.faces.slice(), pt: ref.pt.slice() } }, okS(r.inst, 40) ? { inst: r.inst } : {});
 }
 const dfin = (v, d) => (Number.isFinite(v) ? +v : d);
-export function normDrawing(d, n) {
-  d = d && typeof d === 'object' ? d : {};
+/* a dimension's tolerance: ± one value (sym), + and − values (dev), the limits worked out from them (lim), or a
+   fit's letters (fit, as H7); with text before and after it (pre, as "4×"; suf) */
+const TOL_KINDS = ['sym', 'dev', 'lim', 'fit'];
+function normTol(m) {
+  const o = {};
+  if (m.tol && typeof m.tol === 'object' && TOL_KINDS.includes(m.tol.k)) {
+    const t = m.tol, num = v => (Number.isFinite(+v) && v !== '' && v !== null ? Math.abs(+v) : 0);
+    o.tol = t.k === 'fit' ? (dstr(t.fit, 12) && t.fit.trim() ? { k: 'fit', fit: t.fit.trim() } : null) : { k: t.k, p: num(t.p), m: t.k === 'sym' ? num(t.p) : num(t.m) };
+    if (!o.tol) delete o.tol;
+  }
+  if (dstr(m.pre, 24) && m.pre.trim()) o.pre = m.pre.trim();
+  if (dstr(m.suf, 24) && m.suf.trim()) o.suf = m.suf.trim();
+  return o;
+}
+/* one sheet of a drawing: its paper and scale, its views, dimensions, notes and balloons, and whether it shows the
+   bill of materials */
+function normSheet(d, k, vtaken) {
   const vids = new Set(), views = [], src = (Array.isArray(d.views) ? d.views : []).slice(0, 24), used = new Set();
   const at = v => (Array.isArray(v.at) && v.at.length === 2 && v.at.every(Number.isFinite) ? { at: v.at.map(Number) } : {});
-  const idOf = v => { const id = dstr(v.id, 40) && v.id && !vids.has(v.id) ? v.id : sketchId('v'); vids.add(id); return id; };
+  const idOf = v => { const id = dstr(v.id, 40) && v.id && !vids.has(v.id) && !vtaken.has(v.id) ? v.id : sketchId('v'); vids.add(id); vtaken.add(id); return id; };
   for (const v of src) if (v && VIEW_DIRS[v.dir]) views.push(Object.assign({ id: idOf(v), dir: v.dir }, at(v)));
-  const principal = new Set(views.filter(v => v.dir !== 'iso').map(v => v.id));
+  const principal = new Set(views.filter(v => v.dir !== 'iso').map(v => v.id)), byOld = new Map();
+  src.forEach((v, i) => { if (v && VIEW_DIRS[v.dir]) byOld.set(v.id, views[[...src.slice(0, i)].filter(x => x && VIEW_DIRS[x.dir]).length].id); });
+  const old = id => byOld.get(id) || id;
   const letter = v => { let L = dstr(v.label, 2) && /^[A-Z]{1,2}$/.test(v.label) && !used.has(v.label) ? v.label : [...LETTERS].find(c => !used.has(c)) || 'Z'; used.add(L); return L; };
   // a section of a principal view (not the isometric one); a detail of any view but a detail
-  for (const v of src) if (v && v.dir === 'section' && principal.has(v.of)) views.push(Object.assign({ id: idOf(v), dir: 'section', of: v.of, axis: v.axis === 'h' ? 'h' : 'v', pos: dfin(v.pos, 0), label: letter(v) }, v.flip ? { flip: true } : {}, at(v)));
+  for (const v of src) if (v && v.dir === 'section' && principal.has(old(v.of))) { const nv = Object.assign({ id: idOf(v), dir: 'section', of: old(v.of), axis: v.axis === 'h' ? 'h' : 'v', pos: dfin(v.pos, 0), label: letter(v) }, v.flip ? { flip: true } : {}, at(v)); byOld.set(v.id, nv.id); views.push(nv); }
   const parents = new Set(views.map(v => v.id));
-  for (const v of src) if (v && v.dir === 'detail' && parents.has(v.of) && Array.isArray(v.c) && v.c.length === 2 && v.c.every(Number.isFinite) && dfin(v.r, 0) > 0)
-    views.push(Object.assign({ id: idOf(v), dir: 'detail', of: v.of, c: v.c.map(Number), r: +v.r, k: [1.5, 2, 3, 4, 5, 10].includes(+v.k) ? +v.k : 2, label: letter(v) }, at(v)));
+  for (const v of src) if (v && v.dir === 'detail' && parents.has(old(v.of)) && Array.isArray(v.c) && v.c.length === 2 && v.c.every(Number.isFinite) && dfin(v.r, 0) > 0) { const nv = Object.assign({ id: idOf(v), dir: 'detail', of: old(v.of), c: v.c.map(Number), r: +v.r, k: [1.5, 2, 3, 4, 5, 10].includes(+v.k) ? +v.k : 2, label: letter(v) }, at(v)); byOld.set(v.id, nv.id); views.push(nv); }
   const dims = [], dids = new Set(), live = new Set(views.map(v => v.id));
   for (const m of (Array.isArray(d.dims) ? d.dims : []).slice(0, 400)) {
-    if (!m || !live.has(m.view) || !['lin', 'dia', 'rad', 'ang', 'ext'].includes(m.t)) continue;
+    if (!m || !live.has(old(m.view)) || !['lin', 'dia', 'rad', 'ang', 'ext'].includes(m.t)) continue;
     const id = dstr(m.id, 40) && m.id && !dids.has(m.id) ? m.id : sketchId('q'); dids.add(id);
-    const o = { id, view: m.view, t: m.t, off: dfin(m.off, m.t === 'ang' ? 15 : 10) };
+    const o = { id, view: old(m.view), t: m.t, off: dfin(m.off, m.t === 'ang' ? 15 : 10) };
     if (m.t === 'lin') { const a = normRef(m.a), b = normRef(m.b); if (!a || !b) continue; Object.assign(o, { a, b, dir: ['h', 'v', 'a'].includes(m.dir) ? m.dir : 'h' }); }
     else if (m.t === 'dia' || m.t === 'rad') { const a = normRef(m.a); if (!a || a.ref.kind !== 'edge') continue; Object.assign(o, { a, ang: dfin(m.ang, 45) }); }
-    else if (m.t === 'ang') { const r = ['a', 'b', 'c', 'd'].map(k => normRef(m[k])); if (r.some(x => !x)) continue; Object.assign(o, { a: r[0], b: r[1], c: r[2], d: r[3] }); }
+    else if (m.t === 'ang') { const r = ['a', 'b', 'c', 'd'].map(k2 => normRef(m[k2])); if (r.some(x => !x)) continue; Object.assign(o, { a: r[0], b: r[1], c: r[2], d: r[3] }); }
     else o.axis = m.axis === 'y' ? 'y' : 'x';
-    dims.push(o);
+    dims.push(Object.assign(o, normTol(m)));
   }
+  // notes: text where it sits on the sheet, and, with a leader, the corner or edge of a view it points at
+  const notes = [], nids = new Set();
+  for (const m of (Array.isArray(d.notes) ? d.notes : []).slice(0, 200)) {
+    if (!m || !dstr(m.text, 400) || !m.text.trim() || !Array.isArray(m.at) || m.at.length !== 2 || !m.at.every(Number.isFinite)) continue;
+    const id = dstr(m.id, 40) && m.id && !nids.has(m.id) ? m.id : sketchId('n'); nids.add(id);
+    const a = m.a ? normRef(m.a) : null;
+    notes.push(Object.assign({ id, text: m.text.replace(/\r/g, ''), at: m.at.map(Number) }, a && live.has(old(m.view)) ? { view: old(m.view), a } : {}));
+  }
+  // balloons: a part's item number in the bill of materials, on a leader to a corner or edge of it
+  const balloons = [], bids = new Set();
+  for (const m of (Array.isArray(d.balloons) ? d.balloons : []).slice(0, 200)) {
+    const a = m && normRef(m.a);
+    if (!a || !live.has(old(m.view))) continue;
+    const id = dstr(m.id, 40) && m.id && !bids.has(m.id) ? m.id : sketchId('b'); bids.add(id);
+    balloons.push({ id, view: old(m.view), a, off: Array.isArray(m.off) && m.off.length === 2 && m.off.every(Number.isFinite) ? m.off.map(Number) : [12, -12] });
+  }
+  return { id: dstr(d.id, 40) && d.id ? d.id : sketchId('s'), name: dstr(d.name, 60) && d.name.trim() ? d.name : 'Sheet ' + (k + 1), sheet: SHEETS[d.sheet] ? d.sheet : 'A4',
+    scale: Number.isFinite(d.scale) && d.scale > 0 ? +d.scale : 0, hidden: !!d.hidden, marks: d.marks !== false, bom: !!d.bom, views, dims, notes, balloons };
+}
+/* what a drawing's open sheet holds, read and written on the drawing itself (not kept with it: a sheet keeps them) */
+export const SHEET_KEYS = ['sheet', 'scale', 'hidden', 'marks', 'bom', 'views', 'dims', 'notes', 'balloons'];
+function sheetAccess(D) {
+  for (const k of SHEET_KEYS) Object.defineProperty(D, k, { get() { return this.sheets[this.at][k]; }, set(v) { this.sheets[this.at][k] = v; }, enumerable: false, configurable: true });
+  return D;
+}
+/* a drawing with sheet k open (as the drawing, for writing a sheet that is not the one shown) */
+export function sheetOf(D, k) { const o = Object.create(D); Object.defineProperty(o, 'at', { value: k, enumerable: false }); return o; }
+export function normDrawing(d, n) {
+  d = d && typeof d === 'object' ? d : {};
+  // (a drawing from before it had sheets is its one sheet)
+  const src = Array.isArray(d.sheets) && d.sheets.length ? d.sheets.slice(0, 20) : [d], vtaken = new Set();
+  const sheets = src.map((x, k) => normSheet(x && typeof x === 'object' ? x : {}, k, vtaken));
   const t = d.title && typeof d.title === 'object' ? d.title : {}, title = {};
   for (const k of ['title', 'by', 'material', 'note', 'number']) if (dstr(t[k], 120) && t[k]) title[k] = t[k];
-  return { id: dstr(d.id, 40) && d.id ? d.id : sketchId('t'), kind: 'drawing', name: dstr(d.name, 120) && d.name.trim() ? d.name : 'Drawing ' + (n || 1),
-    of: dstr(d.of, 40) ? d.of : '', part: dstr(d.part, 80) && d.part ? d.part : null, sheet: SHEETS[d.sheet] ? d.sheet : 'A4',
-    scale: Number.isFinite(d.scale) && d.scale > 0 ? +d.scale : 0, hidden: !!d.hidden, marks: d.marks !== false, views, dims, title };
+  return sheetAccess({ id: dstr(d.id, 40) && d.id ? d.id : sketchId('t'), kind: 'drawing', name: dstr(d.name, 120) && d.name.trim() ? d.name : 'Drawing ' + (n || 1),
+    of: dstr(d.of, 40) ? d.of : '', part: dstr(d.part, 80) && d.part ? d.part : null, title, sheets, at: Number.isInteger(d.at) && d.at >= 0 && d.at < sheets.length ? d.at : 0 });
 }
+/* a new, empty sheet for a drawing (its paper and scale as the open one's) */
+export const newSheet = (D, k) => normSheet({ sheet: D.sheet, scale: D.scale, views: [{ dir: 'front' }, { dir: 'top' }, { dir: 'right' }, { dir: 'iso' }] }, k, new Set(D.sheets.flatMap(x => x.views.map(v => v.id))));
 /* a new drawing of a tab: the three views and the isometric one */
 export const newDrawing = (of, n) => normDrawing({ of, views: [{ dir: 'front' }, { dir: 'top' }, { dir: 'right' }, { dir: 'iso' }] }, n);
 /* the next letter free for a section or a detail */
@@ -171,7 +220,7 @@ export function layoutOf(D, data0) {
     if (v.at) continue;
     const P = vs.find(x => x.id === v.of), want = P && P.at ? P.at : [W / 2, H / 2], hw = v.w * v.s / 2 + 4, hh = v.h * v.s / 2 + 4;
     const boxes = placedViews().filter(o => o !== v).map(o => [o.at[0] - o.w * o.s / 2 - 14, o.at[1] - o.h * o.s / 2 - 8, o.at[0] + o.w * o.s / 2 + 8, o.at[1] + o.h * o.s / 2 + 18]);
-    boxes.push([W - m - TITLE_W, H - m - TITLE_H - 4, W - m, H - m]);
+    boxes.push([W - m - TITLE_W, H - m - TITLE_H - 4 - (D.bom && data0 && data0.bomRows ? bomHeight(data0.bomRows) : 0), W - m, H - m]);
     const cover = (x, y) => { let a = 0; for (const b of boxes) { const ox = Math.min(x + hw, b[2]) - Math.max(x - hw, b[0]), oy = Math.min(y + hh + 8, b[3]) - Math.max(y - hh, b[1]); if (ox > 0 && oy > 0) a += ox * oy; } return a; };
     let best = [W / 2, H / 2], bs = Infinity;
     for (let x = m + hw; x <= W - m - hw + 1e-9; x += 3) for (let y = m + hh; y <= H - m - hh - 8 + 1e-9; y += 3) {
@@ -241,6 +290,41 @@ export function dimGeom(L, d, got) {
   return { lines, arrows: [[A, B], [B, A]], text, at, value, hit: [at[0] - text.length * 1.1 - 1, at[1] - 2.5, at[0] + text.length * 1.1 + 1, at[1] + 2.5], P, Q, A, B };
 }
 
+/* ---------- a dimension's text with its tolerance ----------
+   g: the dimension's geometry (its text and value). ± (sym), + and − (dev), the limits (lim: the largest over the
+   least, the dimension's sign kept, as Ø or R), a fit's letters; text before and after it */
+export function tolText(d, g) {
+  let t = g.text;
+  const T = d.tol, n = drwText, sign = (t.match(/^[ØR]/) || [''])[0], unit = /°$/.test(t) ? '°' : '';
+  if (T && !/^M/.test(t)) {
+    if (T.k === 'sym') t += ' ±' + n(T.p) + unit;
+    else if (T.k === 'dev') t += ' +' + n(T.p) + ' -' + n(T.m);
+    else if (T.k === 'lim') t = sign + n(g.value + T.p) + unit + '/' + n(g.value - T.m) + unit;
+    else if (T.k === 'fit') t += ' ' + T.fit;
+  }
+  return (d.pre ? d.pre + ' ' : '') + t + (d.suf ? ' ' + d.suf : '');
+}
+/* ---------- the bill of materials ----------
+   rows: [{ item, name, qty, material }] (an assembly's parts by Part Studio and part, numbered as they first come) */
+const BOM_ROW = 6, BOM_COLS = [['ITEM', 14], ['NAME', 74], ['QTY', 14], ['MATERIAL', 48]];
+export const bomHeight = rows => (rows && rows.length ? (rows.length + 1) * BOM_ROW + 6 : 0);
+export function bomRows(items, lookOf) {
+  const rows = [], at = new Map();
+  for (const it of items) {
+    const key = it.doc + '|' + it.part;
+    if (!at.has(key)) { const L = lookOf(it) || {}; at.set(key, rows.length); rows.push({ item: rows.length + 1, name: L.name || 'Part', qty: 0, material: L.material || '', mass: L.mass, key }); }
+    rows[at.get(key)].qty++;
+  }
+  return rows;
+}
+/* the bill of materials as CSV (RFC 4180): item, name, quantity, material, each one's mass and all of them's */
+export function bomCsv(rows) {
+  const q = v => { const t = v === null || v === undefined ? '' : String(v); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+  const out = [['Item', 'Name', 'Quantity', 'Material', 'Mass each (g)', 'Mass (g)'].join(',')];
+  for (const r of rows) out.push([r.item, r.name, r.qty, r.material, Number.isFinite(r.mass) ? +r.mass.toFixed(3) : '', Number.isFinite(r.mass) ? +(r.mass * r.qty).toFixed(3) : ''].map(q).join(','));
+  return '\ufeff' + out.join('\r\n') + '\r\n';
+}
+
 /* ---------- hatching: lines at 45° across closed outlines (inside by the even-odd rule) ---------- */
 export function hatchLines(rings, gap) {
   // turned by −45°, the hatch lines are level: each one cut where the outlines cross it, and the pieces inside kept
@@ -274,9 +358,21 @@ export function drawSheet(pen, D, data, opts) {
   const cell = (x, y, label, value, big) => { pen.text(x + 1.5, y + 3.2, label, 2, 'l'); if (value) pen.text(x + 1.5, y + (big ? 10.5 : 8.6), String(value).slice(0, big ? 60 : 40), big ? 5 : 3.2, 'l', big); };
   cell(tx, ty, 'TITLE', T.title || D.name, true);
   cell(tx, ty + 14, 'DRAWN BY', T.by || ''); cell(tx + 60, ty + 14, 'DATE', opts.date || ''); cell(tx + 105, ty + 14, 'SCALE', scaleText(L.s));
-  cell(tx, ty + 25, 'MATERIAL', T.material || ''); cell(tx + 60, ty + 25, 'DRAWING NO.', T.number || ''); cell(tx + 105, ty + 25, 'SHEET', D.sheet + ' · mm · third angle');
+  cell(tx, ty + 25, 'MATERIAL', T.material || ''); cell(tx + 60, ty + 25, 'DRAWING NO.', T.number || ''); cell(tx + 105, ty + 25, 'SHEET', (opts.sheetNo ? opts.sheetNo[0] + ' of ' + opts.sheetNo[1] + ' · ' : '') + D.sheet + ' · mm');
   if (T.note) pen.text(m + 3, H - m - 3, T.note.slice(0, 120), 2.6, 'l');
-  if (opts.source) pen.text(W - m - 1.5, ty - 1.5, opts.source + ' · JEKcad', 2, 'r');
+  // the bill of materials above the title block
+  const bom = D.bom && opts.bom && opts.bom.length ? opts.bom : null;
+  if (bom) {
+    const bh = (bom.length + 1) * BOM_ROW, by0 = ty - 4 - bh, x0 = W - m - TITLE_W;
+    pen.poly([x0, by0, W - m, by0, W - m, by0 + bh, x0, by0 + bh, x0, by0], 0.35);
+    let cx = x0; for (const [, w] of BOM_COLS.slice(0, -1)) { cx += w; pen.line(cx, by0, cx, by0 + bh, 0.18); }
+    for (let i = 1; i <= bom.length; i++) pen.line(x0, by0 + i * BOM_ROW, W - m, by0 + i * BOM_ROW, i === bom.length ? 0.35 : 0.13);
+    // (the heading at the foot, the items going up from it: the way a list above a title block reads)
+    const rowY = i => by0 + bh - (i + 1) * BOM_ROW + 4.3;
+    cx = x0; for (const [name, w] of BOM_COLS) { pen.text(cx + 1.5, by0 + bh - BOM_ROW + 4.2, name, 2.2, 'l', true); cx += w; }
+    bom.forEach((r, i) => { const y = rowY(i + 1); let c2 = x0; const cells = [String(r.item), r.name, String(r.qty), r.material || '']; cells.forEach((v, k) => { pen.text(c2 + 1.5, y, String(v).slice(0, k === 1 ? 38 : 24), 2.6, 'l'); c2 += BOM_COLS[k][1]; }); });
+  }
+  if (opts.source) pen.text(W - m - 1.5, (bom ? ty - 4 - (bom.length + 1) * BOM_ROW : ty) - 1.5, opts.source + ' · JEKcad', 2, 'r');
   // the views
   for (const v of L.views) {
     const dv = dat && dat.views && dat.views[v.id];
@@ -333,8 +429,38 @@ export function drawSheet(pen, D, data, opts) {
     const hot = opts.picked === d.id, w = hot ? 0.35 : 0.18;
     for (const l of g.lines) pen.line(l[0], l[1], l[2], l[3], w, null, hot);
     for (const [tip, from] of g.arrows) { const dx = from[0] - tip[0], dy = from[1] - tip[1], len = Math.hypot(dx, dy) || 1, u = [dx / len, dy / len], a = 2.4, b = 0.55; pen.fill([tip[0], tip[1], tip[0] + u[0] * a - u[1] * b, tip[1] + u[1] * a + u[0] * b, tip[0] + u[0] * a + u[1] * b, tip[1] + u[1] * a - u[0] * b], hot); }
-    pen.text(g.at[0], g.at[1] + 1.1, g.text, 3, 'c', false, hot);
-    out.dims.push({ id: d.id, g });
+    const label = tolText(d, g);
+    pen.text(g.at[0], g.at[1] + 1.1, label, 3, 'c', false, hot);
+    // (the text with its tolerance is wider: so is where it is clicked)
+    const grow = Math.max(0, (label.length - g.text.length) * 0.95);
+    out.dims.push({ id: d.id, g: Object.assign({}, g, { label, hit: [g.hit[0] - grow, g.hit[1], g.hit[2] + grow, g.hit[3]] }) });
+  }
+  // a point of the model on the sheet, as a view shows it (what a note's leader or a balloon points at)
+  const onSheet = (vid, got) => { const v = L.views.find(x => x.id === vid); return v && v.box && got && got.pt ? L.toSheet(v, framePoint(v.F, got.pt)) : got && got.c && v && v.box ? L.toSheet(v, framePoint(v.F, got.c)) : null; };
+  const arrowTo = (tip, from, hot) => { const dx = from[0] - tip[0], dy = from[1] - tip[1], len = Math.hypot(dx, dy) || 1, u = [dx / len, dy / len]; pen.fill([tip[0], tip[1], tip[0] + u[0] * 2.4 - u[1] * 0.55, tip[1] + u[1] * 2.4 + u[0] * 0.55, tip[0] + u[0] * 2.4 + u[1] * 0.55, tip[1] + u[1] * 2.4 - u[0] * 0.55], hot); };
+  out.notes = []; out.balloons = [];
+  for (const nt of D.notes || []) {
+    const hot = opts.picked === nt.id, lines = nt.text.split('\n').slice(0, 12), size = 3, lh = size * 1.35, wmax = Math.max(...lines.map(x => x.length)) * size * 0.55;
+    lines.forEach((t, i) => pen.text(nt.at[0], nt.at[1] + i * lh, t, size, 'l', false, hot));
+    const tip = nt.view ? onSheet(nt.view, opts.located && opts.located[nt.id] && opts.located[nt.id].a) : null;
+    if (tip) {
+      // the leader from the nearer end of the first line, with a short shoulder
+      const left = tip[0] < nt.at[0] + wmax / 2, sx0 = left ? nt.at[0] - 1 : nt.at[0] + wmax + 1, sy0 = nt.at[1] - size * 0.35, kx = sx0 + (left ? -3 : 3);
+      pen.line(sx0, sy0, kx, sy0, 0.18, null, hot); pen.line(kx, sy0, tip[0], tip[1], 0.18, null, hot); arrowTo(tip, [kx, sy0], hot);
+    }
+    out.notes.push({ id: nt.id, hit: [nt.at[0] - 1, nt.at[1] - size, nt.at[0] + wmax + 1, nt.at[1] + (lines.length - 1) * lh + 1], tip });
+  }
+  for (const b of D.balloons || []) {
+    const tip = onSheet(b.view, opts.located && opts.located[b.id] && opts.located[b.id].a);
+    if (!tip) continue;
+    const hot = opts.picked === b.id, no = opts.balloonNo && opts.balloonNo[b.id], C = [tip[0] + b.off[0], tip[1] + b.off[1]], r = 3.6, d0 = Math.hypot(b.off[0], b.off[1]) || 1;
+    const edge = [C[0] - b.off[0] / d0 * r, C[1] - b.off[1] / d0 * r];
+    pen.line(edge[0], edge[1], tip[0], tip[1], 0.18, null, hot);
+    pen.fill(Array.from({ length: 12 }, (_, i) => [tip[0] + 0.6 * Math.cos(i / 6 * Math.PI), tip[1] + 0.6 * Math.sin(i / 6 * Math.PI)]).flat(), hot);
+    const ring = []; for (let i = 0; i <= 36; i++) { const a = i / 36 * 2 * Math.PI; ring.push(C[0] + r * Math.cos(a), C[1] + r * Math.sin(a)); }
+    pen.poly(ring, hot ? 0.35 : 0.25);
+    pen.text(C[0], C[1] + 1.2, no ? String(no) : '?', 3.4, 'c', true, hot);
+    out.balloons.push({ id: b.id, hit: [C[0] - r, C[1] - r, C[0] + r, C[1] + r], tip, C });
   }
   return out;
 }
@@ -344,11 +470,31 @@ export function drawSheet(pen, D, data, opts) {
    has), so it prints at its true size and stays sharp. */
 const HELV = [278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584];
 const helvWidth = (str, size) => { let w = 0; for (const ch of str) { const c = ch.charCodeAt(0); w += c >= 32 && c <= 126 ? HELV[c - 32] : c === 0xd8 ? 778 : c === 0xb0 ? 400 : 584; } return w * size / 1000; };
-export function pdfOfSheet(D, data, opts) {
-  const [W, H] = SHEETS[D.sheet] || SHEETS.A4, k = 72 / 25.4, f = v => +(+v).toFixed(3), ops = [];
+export const pdfOfSheet = (D, data, opts) => pdfOfSheets([{ D, data, opts }]);
+/* every sheet a page, each of its own size: pages [{ D, data, opts }] */
+export function pdfOfSheets(pages) {
+  const k = 72 / 25.4, f = v => +(+v).toFixed(3), streams = [];
+  const esc = str => { let o = ''; for (const ch of str) { const c = ch.charCodeAt(0); o += c === 40 || c === 41 || c === 92 ? '\\' + ch : c >= 32 && c <= 126 ? ch : c <= 255 ? '\\' + c.toString(8).padStart(3, '0') : c === 0x2212 ? '-' : '?'; } return o; };
+  for (const pg of pages) streams.push(pdfPage(pg.D, pg.data, pg.opts, f, esc, k));
+  const D0 = pages[0].D, n = pages.length;
+  // 1 catalog, 2 pages, 3 and 4 the fonts, 5 the info; then each page and its content
+  const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [' + pages.map((p, i) => (6 + 2 * i) + ' 0 R').join(' ') + '] /Count ' + n + ' >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
+    '<< /Title (' + esc((D0.title && D0.title.title) || D0.name) + ') /Creator (JEKcad) >>'];
+  pages.forEach((pg, i) => { const [W, H] = SHEETS[pg.D.sheet] || SHEETS.A4; objs.push('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + f(W * k) + ' ' + f(H * k) + '] /Contents ' + (7 + 2 * i) + ' 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> >>', '<< /Length ' + streams[i].length + ' >>\nstream\n' + streams[i] + 'endstream'); });
+  let out = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
+  const at = [];
+  objs.forEach((o, i) => { at.push(out.length); out += (i + 1) + ' 0 obj\n' + o + '\nendobj\n'; });
+  const xref = out.length;
+  out += 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n' + at.map(a => String(a).padStart(10, '0') + ' 00000 n \n').join('') + 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root 1 0 R /Info 5 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
+  const bytes = new Uint8Array(out.length);
+  for (let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 255;
+  return bytes;
+}
+function pdfPage(D, data, opts, f, esc, k) {
+  const [, H] = SHEETS[D.sheet] || SHEETS.A4, ops = [];
   let lw = -1, ds = null;
   const style = (w, dash) => { if (w !== lw) { ops.push(f(w) + ' w'); lw = w; } const d = dash ? dash.map(f).join(' ') : ''; if (d !== ds) { ops.push('[' + d + '] 0 d'); ds = d; } };
-  const esc = str => { let o = ''; for (const ch of str) { const c = ch.charCodeAt(0); o += c === 40 || c === 41 || c === 92 ? '\\' + ch : c >= 32 && c <= 126 ? ch : c <= 255 ? '\\' + c.toString(8).padStart(3, '0') : '?'; } return o; };
   const pen = {
     line(x1, y1, x2, y2, w, dash) { style(w || 0.2, dash); ops.push(f(x1) + ' ' + f(y1) + ' m ' + f(x2) + ' ' + f(y2) + ' l S'); },
     poly(run, w, dash) { if (run.length < 4) return; style(w || 0.2, dash); let o = f(run[0]) + ' ' + f(run[1]) + ' m'; for (let i = 2; i + 1 < run.length; i += 2) o += ' ' + f(run[i]) + ' ' + f(run[i + 1]) + ' l'; ops.push(o + ' S'); },
@@ -356,42 +502,40 @@ export function pdfOfSheet(D, data, opts) {
     text(x, y, str, size, align, bold) { const w = helvWidth(str, size), x0 = align === 'c' ? x - w / 2 : align === 'r' ? x - w : x; ops.push('BT /' + (bold ? 'F2' : 'F1') + ' ' + f(size) + ' Tf 1 0 0 -1 ' + f(x0) + ' ' + f(y) + ' Tm (' + esc(str) + ') Tj ET'); },
   };
   drawSheet(pen, D, data, Object.assign({}, opts, { picked: null }));
-  const stream = '1 J 1 j 0 G 0 g\n' + f(k) + ' 0 0 ' + f(-k) + ' 0 ' + f(H * k) + ' cm\n' + ops.join('\n') + '\n';
-  const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + f(W * k) + ' ' + f(H * k) + '] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>',
-    '<< /Length ' + stream.length + ' >>\nstream\n' + stream + 'endstream',
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
-    '<< /Title (' + esc((D.title && D.title.title) || D.name) + ') /Creator (JEKcad) >>'];
-  let out = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
-  const at = [];
-  objs.forEach((o, i) => { at.push(out.length); out += (i + 1) + ' 0 obj\n' + o + '\nendobj\n'; });
-  const xref = out.length;
-  out += 'xref\n0 ' + (objs.length + 1) + '\n0000000000 65535 f \n' + at.map(a => String(a).padStart(10, '0') + ' 00000 n \n').join('') + 'trailer\n<< /Size ' + (objs.length + 1) + ' /Root 1 0 R /Info 7 0 R >>\nstartxref\n' + xref + '\n%%EOF\n';
-  const bytes = new Uint8Array(out.length);
-  for (let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 255;
-  return bytes;
+  return '1 J 1 j 0 G 0 g\n' + f(k) + ' 0 0 ' + f(-k) + ' 0 ' + f(H * k) + ' cm\n' + ops.join('\n') + '\n';
 }
 
 /* ---------- a DXF of the sheet, written here ----------
    AutoCAD R12 text, in millimetres, the sheet's corner at the origin and y up: lines as LINEs on layers by what they
    are (VISIBLE, THIN, HIDDEN, CENTRE, DIMENSIONS, TEXT), dashed by the HIDDEN and CENTER line types, arrowheads as
    SOLIDs, text as TEXT (Ø as %%c, ° as %%d). Every CAD program reads R12. */
-export function dxfOfSheet(D, data, opts) {
-  const [, H] = SHEETS[D.sheet] || SHEETS.A4, f = v => String(+(+v).toFixed(4)), E = [];
+export const dxfOfSheet = (D, data, opts) => dxfOfSheets([{ D, data, opts }]);
+/* every sheet in the one file, side by side from the origin with 20 mm between them, their tops level */
+export function dxfOfSheets(pages) {
+  const f = v => String(+(+v).toFixed(4)), E = [], Htop = Math.max(...pages.map(pg => (SHEETS[pg.D.sheet] || SHEETS.A4)[1]));
   const pair = (c, v) => E.push(String(c), String(v));
+  let ox = 0;
+  for (const pg of pages) { dxfSheet(pg.D, pg.data, pg.opts, pair, f, ox, Htop); ox += (SHEETS[pg.D.sheet] || SHEETS.A4)[0] + 20; }
+  return dxfFile(E, f, ox - 20, Htop);
+}
+function dxfSheet(D, data, opts, pair, f, ox, Htop) {
+  const [, H0] = SHEETS[D.sheet] || SHEETS.A4, H = Htop, X = x => f(+x + ox);
+  void H0;
   const layerOf = (w, dash, dim) => (dim ? 'DIMENSIONS' : dash === HIDDEN ? 'HIDDEN' : dash === CHAIN ? 'CENTRE' : w >= 0.3 ? 'VISIBLE' : 'THIN');
   const ltypeOf = dash => (dash === HIDDEN ? 'HIDDEN' : dash === CHAIN ? 'CENTER' : dash ? 'DASHED' : 'CONTINUOUS');
   let dimMode = false;
-  const line = (x1, y1, x2, y2, w, dash) => { pair(0, 'LINE'); pair(8, layerOf(w, dash, dimMode)); pair(6, ltypeOf(dash)); pair(10, f(x1)); pair(20, f(H - y1)); pair(30, 0); pair(11, f(x2)); pair(21, f(H - y2)); pair(31, 0); };
-  const txt = s => { let o = ''; for (const ch of s) o += ch === 'Ø' ? '%%c' : ch === '°' ? '%%d' : ch === '×' ? 'x' : ch === '·' ? '-' : ch.charCodeAt(0) < 127 ? ch : '?'; return o; };
+  const line = (x1, y1, x2, y2, w, dash) => { pair(0, 'LINE'); pair(8, layerOf(w, dash, dimMode)); pair(6, ltypeOf(dash)); pair(10, X(x1)); pair(20, f(H - y1)); pair(30, 0); pair(11, X(x2)); pair(21, f(H - y2)); pair(31, 0); };
+  const txt = s => { let o = ''; for (const ch of s) o += ch === 'Ø' ? '%%c' : ch === '°' ? '%%d' : ch === '±' ? '%%p' : ch === '×' ? 'x' : ch === '·' ? '-' : ch.charCodeAt(0) < 127 ? ch : '?'; return o; };
   const pen = {
     line, poly(run, w, dash) { for (let i = 0; i + 3 < run.length; i += 2) line(run[i], run[i + 1], run[i + 2], run[i + 3], w, dash); },
-    fill(p) { const q = p.length >= 8 ? p : p.concat(p.slice(-2)); pair(0, 'SOLID'); pair(8, 'DIMENSIONS'); for (let i = 0; i < 4; i++) { pair(10 + i, f(q[2 * i])); pair(20 + i, f(H - q[2 * i + 1])); pair(30 + i, 0); } },
-    text(x, y, s, size, align) { const h = size * 0.72, al = align === 'c' ? 1 : align === 'r' ? 2 : 0; pair(0, 'TEXT'); pair(8, 'TEXT'); pair(10, f(x)); pair(20, f(H - y)); pair(30, 0); pair(40, f(h)); pair(1, txt(s)); if (al) { pair(72, al); pair(11, f(x)); pair(21, f(H - y)); pair(31, 0); } },
+    fill(p) { const q = p.length >= 8 ? p.slice(0, 8) : p.concat(p.slice(-2)); pair(0, 'SOLID'); pair(8, 'DIMENSIONS'); for (let i = 0; i < 4; i++) { pair(10 + i, X(q[2 * i])); pair(20 + i, f(H - q[2 * i + 1])); pair(30 + i, 0); } },
+    text(x, y, s, size, align) { const h = size * 0.72, al = align === 'c' ? 1 : align === 'r' ? 2 : 0; pair(0, 'TEXT'); pair(8, 'TEXT'); pair(10, X(x)); pair(20, f(H - y)); pair(30, 0); pair(40, f(h)); pair(1, txt(s)); if (al) { pair(72, al); pair(11, X(x)); pair(21, f(H - y)); pair(31, 0); } },
   };
   pen.phase = ph => { dimMode = ph === 'dims'; };
   drawSheet(pen, D, data, Object.assign({}, opts, { picked: null }));
-  const head = ['0', 'SECTION', '2', 'HEADER', '9', '$ACADVER', '1', 'AC1009', '9', '$INSUNITS', '70', '4', '9', '$EXTMIN', '10', '0', '20', '0', '9', '$EXTMAX', '10', f((SHEETS[D.sheet] || SHEETS.A4)[0]), '20', f(H), '0', 'ENDSEC'];
+}
+function dxfFile(E, f, Wall, H) {
+  const head = ['0', 'SECTION', '2', 'HEADER', '9', '$ACADVER', '1', 'AC1009', '9', '$INSUNITS', '70', '4', '9', '$EXTMIN', '10', '0', '20', '0', '9', '$EXTMAX', '10', f(Wall), '20', f(H), '0', 'ENDSEC'];
   const ltype = (name, desc, pat) => ['0', 'LTYPE', '2', name, '70', '0', '3', desc, '72', '65', '73', String(pat.length), '40', f(pat.reduce((s, x) => s + Math.abs(x), 0)), ...pat.flatMap(x => ['49', f(x)])];
   const layer = (name, col, lt) => ['0', 'LAYER', '2', name, '70', '0', '62', String(col), '6', lt];
   const tables = ['0', 'SECTION', '2', 'TABLES', '0', 'TABLE', '2', 'LTYPE', '70', '4', ...ltype('CONTINUOUS', 'Solid line', []), ...ltype('HIDDEN', 'Hidden __ __ __', [3, -1.5]), ...ltype('CENTER', 'Center ____ _ ____', [12, -3, 2, -3]), ...ltype('DASHED', 'Dashed __ __', [6, -2]), '0', 'ENDTAB',

@@ -160,3 +160,32 @@ test('a mate’s offset and limits; connectors on an edge and on a corner', asyn
   assert.equal(pickConnector(M, { kind: 'edge', index: 0 }).on, 'edge');
   assert.equal(normAsm({ instances: [{ id: 'A', studio: 's', part: 'p' }, { id: 'B', studio: 's', part: 'p' }], mates: [{ t: 'revolute', a: Object.assign({ inst: 'A' }, rims[0]), b: Object.assign({ inst: 'B' }, long) }] }).mates[0].a.on, 'edge');
 });
+
+/* sub-assemblies: an Assembly tab put in another as one instance. Its parts are where it puts them (its place and
+   turn on theirs), by paths of instance ids; an assembly that holds another cannot go into it; a file in which two
+   hold each other opens with the loop taken out */
+test('sub-assemblies: their parts placed through them, and no assembly inside itself', async () => {
+  const { asmLeaves, asmHolds, leafInSub, qabout } = await import('../../src/core/assembly.js');
+  const { normFile } = await import('../../src/core/doc.js');
+  const sub = { id: 'tS', kind: 'assembly', name: 'Sub', instances: [{ id: 'a', studio: 's', part: 'p1', p: [0, 0, 0], q: [0, 0, 0, 1] }, { id: 'b', studio: 's', part: 'p2', p: [10, 0, 0], q: [0, 0, 0, 1] }], mates: [] };
+  const turn = qabout([0, 0, 1], Math.PI / 2);
+  const main = { id: 'tM', kind: 'assembly', name: 'Main', instances: [{ id: 'u', asm: 'tS', p: [100, 0, 0], q: turn }, { id: 'c', studio: 's', part: 'p1', p: [0, 50, 0], q: [0, 0, 0, 1], hidden: true }], mates: [] };
+  const tabs = { tS: sub, tM: main }, tabOf = id => tabs[id];
+  const L = asmLeaves(main, tabOf);
+  assert.deepEqual(L.map(x => x.id), ['u/a', 'u/b', 'c']);
+  assert.deepEqual(L.map(x => x.top), ['u', 'u', 'c']);
+  // (b is 10 along x in Sub; Sub is turned a quarter about z and 100 along x: b is at (100, 10, 0))
+  const b = L.find(x => x.id === 'u/b');
+  assert.ok(Math.hypot(b.p[0] - 100, b.p[1] - 10, b.p[2]) < 1e-9, JSON.stringify(b.p));
+  assert.ok(L.find(x => x.id === 'c').hidden && !b.hidden);
+  assert.deepEqual(leafInSub(main.instances[0], 'u/b', tabOf).p, [10, 0, 0], 'in the sub-assembly’s own frame');
+  assert.ok(asmHolds(main, 'tS', tabOf) && asmHolds(main, 'tM', tabOf) && !asmHolds(sub, 'tM', tabOf));
+  // a file where Sub also holds Main: opened, one of the two lets go of the other, and its mates on it go with it
+  const loop = JSON.parse(JSON.stringify({ format: 'jekcad', version: 2, name: 'Loop', tabs: [{ id: 's', kind: 'studio', name: 'PS', features: [] }, sub, main] }));
+  loop.tabs[1].instances.push({ id: 'x', asm: 'tM', p: [0, 0, 0], q: [0, 0, 0, 1] });
+  loop.tabs[1].mates.push({ id: 'm', t: 'fastened', a: { inst: 'x', o: [0, 0, 0], z: [0, 0, 1], x: [1, 0, 0] }, b: { inst: 'a', o: [0, 0, 0], z: [0, 0, 1], x: [1, 0, 0] } });
+  const F = normFile(loop), S2 = F.tabs.find(t => t.id === 'tS'), M2 = F.tabs.find(t => t.id === 'tM');
+  const holdsEach = S2.instances.some(I => I.asm === 'tM') && M2.instances.some(I => I.asm === 'tS');
+  assert.ok(!holdsEach, 'the loop is gone');
+  assert.ok(S2.mates.every(m => S2.instances.some(I => I.id === m.a.inst) && S2.instances.some(I => I.id === m.b.inst)));
+});

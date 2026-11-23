@@ -18,6 +18,8 @@ Changing a part studio (sketching, adding or editing features, typing dimensions
 
 A .jekcad file is JSON. Fields a newer JEKcad adds are given defaults when an older file opens.
 
+A Part Studio that takes more than a quarter of a second to make is kept in this browser once made: its parts, not your file. Opening it again reads them back rather than making every feature again. The lens holder in our tests opens in under a tenth of a second this way, against a second the first time. The browser keeps the 24 Part Studios used last, 80 MB at most, and keeps them only when it keeps your work (as autosave does).
+
 ## Autosave
 
 The part studio you are working on is kept in this browser as you work. When you come back, it is where you left it. Undo goes back through every change since the page opened.

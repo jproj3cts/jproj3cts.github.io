@@ -39,7 +39,11 @@ export const SCAT_NHARD = 24000;          // and never more than this
 const WAVE_BINS = 12;                    // a focus's waves on the bench: bins across its pupil each way (waveInt)
 const SCAT_TINY = 0.1;                    // |m| k (half the longest dimension) under which Auto takes the single dipole
 
-const scatFields = el => [el.trapShape, el.trapLen, particleAz(el), el.trapTilt, el.scatModel, el.scatDip, el.scatAt, el.scatDx, el.scatDy, el.scatDz, el.scatNA, el.scatDir, el.scatAng];
+/* A particle's tilt as its scattering depends on it: every shape here is the same end for end (a sphere, a rod with flat
+   or round ends, a spheroid), so a rod tilted by t and by t + 180 degrees is one rod, solved once and kept once. Its
+   answer is worked out at the tilt brought into 0 to 180, which is also what its key holds. */
+export const scatTilt = el => { const t = +el.trapTilt || 0; return ((t % 180) + 180) % 180; };
+const scatFields = el => [el.trapShape, el.trapLen, particleAz(el), scatTilt(el), el.scatModel, el.scatDip, el.scatAt, el.scatDx, el.scatDy, el.scatDz, el.scatNA, el.scatDir, el.scatAng];
 /* A Particle part is a point of the bench, in whatever light reaches it: the beams of a trace that pass it, each
    with where along it the particle is nearest (t), how far the particle is off its axis in the bench plane (x, to
    the beam's left) and above it (dz), and the beam's irradiance there against the others'. A beam counts when the
@@ -354,7 +358,7 @@ export function* scatterGen(el, R, opts) {
   { const l = Math.sqrt(abs2(pol)); pol = l > 0 ? pol.map(v => v / l) : [a0[0], 0, a0[1], 0, a0[2], 0]; }
   const single = launches.length === 1 && launches[0].n === 1;
   // the particle's axis and its frame
-  const az = (particleAz(el) || 0) * deg, tl = (el.trapTilt || 0) * deg, axis = [Math.cos(tl) * Math.cos(az), Math.cos(tl) * Math.sin(az), Math.sin(tl)];
+  const az = (particleAz(el) || 0) * deg, tl = scatTilt(el) * deg, axis = [Math.cos(tl) * Math.cos(az), Math.cos(tl) * Math.sin(az), Math.sin(tl)];
   const body = frameOn(axis);
   const flags = [];
   if (pick.mieShape) flags.push('mieShape');

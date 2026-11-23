@@ -66,7 +66,8 @@ function stepLeave(name, key) {
 export function stepKeep(name, key, v, o = {}) {
   const map = stepMaps[name], was = map.get(key), R = stepStore.run, wm = was !== undefined ? stepMeta.get(was) : null;
   // (held by the run already under this key: a sweep that moves nothing of the beams has one field for all its steps)
-  const held = !!wm && !!R && wm.step !== null && wm.gen === stepStore.gen;
+  // (one a run took over from the run before, at its beginning, is not yet counted as this run's: carried)
+  const held = !!wm && !!R && wm.step !== null && wm.gen === stepStore.gen && !wm.carried;
   if (was !== undefined) { map.delete(key); if (was !== v && stepDrops[name]) stepDrops[name](was); }
   map.set(key, v);
   let step = o.step !== undefined ? o.step : stepNow();
@@ -151,7 +152,7 @@ export function stepClaim(name, key, step, count) {
   let s = step !== undefined ? step : stepNow();
   if (s !== null && R && R.as.has(s)) s = R.as.get(s);
   // (count: taken over from an earlier run, it is counted as kept for this step, as one made now would be)
-  if (m && R && s !== null && R.keys.has(s)) { const mine = m.step !== null && m.gen === stepStore.gen; m.step = s; m.gen = stepStore.gen; if (count && !mine) stepStore.kept += m.bytes; }
+  if (m && R && s !== null && R.keys.has(s)) { const mine = m.step !== null && m.gen === stepStore.gen && !m.carried; m.step = s; m.gen = stepStore.gen; if (count) { if (!mine) stepStore.kept += m.bytes; m.carried = false; } }
 }
 export function stepDelete(name, key) { stepLeave(name, key); }
 export function stepDropLayer(name) { for (const k of [...stepMaps[name].keys()]) stepLeave(name, k); }
@@ -178,7 +179,7 @@ export function stepRunBegin(list, n, valueAt, shape, heldAt) {
   if (R && R.shape === sh) { R.keys = keys; R.as = as; return stepStore.gen; }
   const gen = ++stepStore.gen;
   stepStore.run = { shape: sh, n, list: list.map(q => [q[0], q[1]]), keys, as };
-  for (const map of Object.values(stepMaps)) for (const x of map.values()) { const m = stepMeta.get(x); if (m && m.step !== null && keys.has(m.step)) m.gen = gen; }
+  for (const map of Object.values(stepMaps)) for (const x of map.values()) { const m = stepMeta.get(x); if (m && m.step !== null && keys.has(m.step)) { m.gen = gen; m.carried = true; } }
   return gen;
 }
 /* The one way kept things are let go:

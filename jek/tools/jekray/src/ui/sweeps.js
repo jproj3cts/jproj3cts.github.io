@@ -388,7 +388,7 @@ export function renderStride(n, stepBytes) {
 function stepDone(job, i) {
   job.done.add(i);
   if (job.done.size === 1) job.stride = job.rs.k = renderStride(job.n, keptNow.bytes);
-  else if (job.done.size === 2 && strideSecond(job)) { const k = job.stride; job.todo.push(...job.held.filter(q => q % k === 0)); job.held = job.held.filter(q => q % k !== 0); }
+  else if (job.done.size === 2 && job.stride > 1 && strideSecond(job)) { const k = job.stride; job.todo.push(...job.held.filter(q => q % k === 0)); job.held = job.held.filter(q => q % k !== 0); }
   keptNow.bytes = 0;
 }
 /* the second step in: the steps apart again, from what it added; true when they come closer (the caller takes up the

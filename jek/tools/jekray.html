@@ -14076,7 +14076,8 @@ function stepLeave(name, key) {
 function stepKeep(name, key, v, o = {}) {
   const map = stepMaps[name], was = map.get(key), R = stepStore.run, wm = was !== undefined ? stepMeta.get(was) : null;
   // (held by the run already under this key: a sweep that moves nothing of the beams has one field for all its steps)
-  const held = !!wm && !!R && wm.step !== null && wm.gen === stepStore.gen;
+  // (one a run took over from the run before, at its beginning, is not yet counted as this run's: carried)
+  const held = !!wm && !!R && wm.step !== null && wm.gen === stepStore.gen && !wm.carried;
   if (was !== undefined) { map.delete(key); if (was !== v && stepDrops[name]) stepDrops[name](was); }
   map.set(key, v);
   let step = o.step !== undefined ? o.step : stepNow();
@@ -14161,7 +14162,7 @@ function stepClaim(name, key, step, count) {
   let s = step !== undefined ? step : stepNow();
   if (s !== null && R && R.as.has(s)) s = R.as.get(s);
   // (count: taken over from an earlier run, it is counted as kept for this step, as one made now would be)
-  if (m && R && s !== null && R.keys.has(s)) { const mine = m.step !== null && m.gen === stepStore.gen; m.step = s; m.gen = stepStore.gen; if (count && !mine) stepStore.kept += m.bytes; }
+  if (m && R && s !== null && R.keys.has(s)) { const mine = m.step !== null && m.gen === stepStore.gen && !m.carried; m.step = s; m.gen = stepStore.gen; if (count) { if (!mine) stepStore.kept += m.bytes; m.carried = false; } }
 }
 function stepDelete(name, key) { stepLeave(name, key); }
 function stepDropLayer(name) { for (const k of [...stepMaps[name].keys()]) stepLeave(name, k); }
@@ -14188,7 +14189,7 @@ function stepRunBegin(list, n, valueAt, shape, heldAt) {
   if (R && R.shape === sh) { R.keys = keys; R.as = as; return stepStore.gen; }
   const gen = ++stepStore.gen;
   stepStore.run = { shape: sh, n, list: list.map(q => [q[0], q[1]]), keys, as };
-  for (const map of Object.values(stepMaps)) for (const x of map.values()) { const m = stepMeta.get(x); if (m && m.step !== null && keys.has(m.step)) m.gen = gen; }
+  for (const map of Object.values(stepMaps)) for (const x of map.values()) { const m = stepMeta.get(x); if (m && m.step !== null && keys.has(m.step)) { m.gen = gen; m.carried = true; } }
   return gen;
 }
 /* The one way kept things are let go:
@@ -20650,7 +20651,7 @@ function renderStride(n, stepBytes) {
 function stepDone(job, i) {
   job.done.add(i);
   if (job.done.size === 1) job.stride = job.rs.k = renderStride(job.n, keptNow.bytes);
-  else if (job.done.size === 2 && strideSecond(job)) { const k = job.stride; job.todo.push(...job.held.filter(q => q % k === 0)); job.held = job.held.filter(q => q % k !== 0); }
+  else if (job.done.size === 2 && job.stride > 1 && strideSecond(job)) { const k = job.stride; job.todo.push(...job.held.filter(q => q % k === 0)); job.held = job.held.filter(q => q % k !== 0); }
   keptNow.bytes = 0;
 }
 /* the second step in: the steps apart again, from what it added; true when they come closer (the caller takes up the
@@ -47403,7 +47404,11 @@ const SCAT_NHARD = 24000;          // and never more than this
 const WAVE_BINS = 12;                    // a focus's waves on the bench: bins across its pupil each way (waveInt)
 const SCAT_TINY = 0.1;                    // |m| k (half the longest dimension) under which Auto takes the single dipole
 
-const scatFields = el => [el.trapShape, el.trapLen, particleAz(el), el.trapTilt, el.scatModel, el.scatDip, el.scatAt, el.scatDx, el.scatDy, el.scatDz, el.scatNA, el.scatDir, el.scatAng];
+/* A particle's tilt as its scattering depends on it: every shape here is the same end for end (a sphere, a rod with flat
+   or round ends, a spheroid), so a rod tilted by t and by t + 180 degrees is one rod, solved once and kept once. Its
+   answer is worked out at the tilt brought into 0 to 180, which is also what its key holds. */
+const scatTilt = el => { const t = +el.trapTilt || 0; return ((t % 180) + 180) % 180; };
+const scatFields = el => [el.trapShape, el.trapLen, particleAz(el), scatTilt(el), el.scatModel, el.scatDip, el.scatAt, el.scatDx, el.scatDy, el.scatDz, el.scatNA, el.scatDir, el.scatAng];
 /* A Particle part is a point of the bench, in whatever light reaches it: the beams of a trace that pass it, each
    with where along it the particle is nearest (t), how far the particle is off its axis in the bench plane (x, to
    the beam's left) and above it (dz), and the beam's irradiance there against the others'. A beam counts when the
@@ -47718,7 +47723,7 @@ function* scatterGen(el, R, opts) {
   { const l = Math.sqrt(abs2(pol)); pol = l > 0 ? pol.map(v => v / l) : [a0[0], 0, a0[1], 0, a0[2], 0]; }
   const single = launches.length === 1 && launches[0].n === 1;
   // the particle's axis and its frame
-  const az = (particleAz(el) || 0) * deg, tl = (el.trapTilt || 0) * deg, axis = [Math.cos(tl) * Math.cos(az), Math.cos(tl) * Math.sin(az), Math.sin(tl)];
+  const az = (particleAz(el) || 0) * deg, tl = scatTilt(el) * deg, axis = [Math.cos(tl) * Math.cos(az), Math.cos(tl) * Math.sin(az), Math.sin(tl)];
   const body = frameOn(axis);
   const flags = [];
   if (pick.mieShape) flags.push('mieShape');
@@ -62049,7 +62054,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
-    'A sweep that leaves the beams as they are (a particle turned, a part moved off the beam) now works out every step: it was judged too large for memory by its one shared field and rendered one step in three, the rest showing a stale picture of the particle\u2019s light. Ticking a particle\u2019s <b>Draw an estimate of its scattered field</b> or <b>Draw its radiation pattern in 3D</b> off while a sweep plays no longer traces every step again. A paused sweep keeps what was worked out, and its slider goes to the sweep\u2019s own steps, so pulling it shows each at once.',
+    'A sweep that leaves the beams as they are (a particle turned, a part moved off the beam) now works out every step: it was judged too large for memory by its one shared field and rendered one step in three, the rest showing a stale picture of the particle\u2019s light. Ticking a particle\u2019s <b>Draw an estimate of its scattered field</b> or <b>Draw its radiation pattern in 3D</b> off while a sweep plays no longer traces every step again. A paused sweep keeps what was worked out, and its slider goes to the sweep\u2019s own steps, so pulling it shows each at once. A rod tilted by half a turn more is the same rod, so its scattering is solved once for both: a sweep right round solves half as many.',
     'The <b>electrical feedthrough</b> has one connector, as a node has: a signal wired into it goes on from it on the same tab and from its partner on the other. It had an in and an out, and its out gave only what went into its partner, so a generator into a feedthrough and on to a scope on one tab read nothing. Benches saved with the old two connectors open as they were.',
     'A photodiode\u2019s oscilloscope in <b>Roll</b> follows a sweep: while any sweep plays it plots the reading against the sweeps\u2019 own time, a point a step over the last cycle, the level and each beat\u2019s swing as lines of their own (it stood still before, three beat periods wide). <b>Draw light by its power</b> is now <b>Fade weak rays and beams</b>, under Show the rays. <b>View \u203a True colour field in 3D</b> draws the diffracted field in the light\u2019s own colours, so white light through a prism fans out from red to blue. In 3D the wheel zooms towards the point the view is being turned about while the turn is held, and for a moment after. <b>How the rays look\u2026</b> is with the experimental features for now.',
     'Sweeps, steadier: a sweep\u2019s <b>Steps</b>, <b>From</b> and <b>To</b> are taken when you press Enter or leave the box, not at each digit (every digit used to start its render again). A sine or triangle sweep works each position out once, not once on the way up and again on the way down, so its field renders in about half the time. After a change of Steps a field too large for memory keeps to the steps that fit. A rod\u2019s <b>Axis tilt up</b> swept past 180\u00b0 comes round (0 to 360\u00b0 turns it right round). Ticking a screen\u2019s <b>Show the diffraction pattern on its face</b> while a sweep plays no longer makes it stutter, and turning 3D on while the field is still arriving no longer leaves every later field to be worked out on the page.',

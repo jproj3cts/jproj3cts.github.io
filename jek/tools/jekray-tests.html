@@ -13948,6 +13948,41 @@ const TESTS = [
       } finally { await V.set(false); }
     },
   },
+  {
+    name: 'A sweep that moves nothing of the beams keeps one field for all its steps and renders every step; its slider goes to its steps',
+    why: 'a 2D field through a lens, and a mirror off the beam swept in x over 12 steps on a ramp, the budget lowered to three and a half fields: every step of the sweep has the same field, one frame. Whether a cycle fits was judged by the first step’s frame as if each step kept one (twelve would not fit: one step in six rendered, and a particle’s answers solved only for those, the rest shown stale). The second step says what a step really adds, nothing here, so every step is rendered: none put by, the one frame kept, every step found. Then the sweep’s slider, pulled to a place between two steps, sets the nearer step’s value, not the value between. 1 when all hold',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const doc = rigDoc();
+      const bench = { format: 'jekray', version: 1, light: { rays: true, envelope: false, field: true, scale: 'lin', byPower: true }, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -60, y: 0, angle: 0, wavelength: 633, rays: 11, width: 4, gauss: true, w0: 1, popModel: '2d', popN: 64 },
+        { type: 'lens', id: 'L', name: 'L', x: 0, y: 0, angle: 0, f: 50, length: 20 },
+        { type: 'mirror', id: 'M', name: 'M', x: 60, y: 0, angle: 30, length: 20 },
+        { type: 'mirror', id: 'O', name: 'Off', x: -40, y: 80, angle: 0, length: 10, sweeps: { x: { min: -45, max: -35, freq: 1, phase: 0, wave: 'ramp', steps: 12 } } }] };
+      try {
+        J.sweepPause(); J.load(bench); J.frameBudget(0, true);
+        J.trace(); await new Promise(r => setTimeout(r, 50));
+        // one field's size: the bench's own, rendered once
+        const b0 = J.frameBudget();
+        await J.sweepPlay('Off', 'x'); J.sweepPause();
+        const b1 = J.frameBudget(), per = b1.bytes - b0.bytes;
+        J.frameBudget(0, true); J.frameBudget(3.5 * per);
+        await J.sweepPlay('Off', 'x');
+        const b2 = J.frameBudget(), found = J.renderedSteps();
+        J.sweepPause();
+        // the slider, between two steps (12 steps of a ramp from -45 to -35 are 10/12 apart)
+        J.select('Off');
+        const line = doc.querySelector('#panel .rt-sweep-line'); if (line) line.click();
+        const sl = doc.querySelector('#panel .rt-sweep input[type=range]');
+        sl.value = '430'; sl.dispatchEvent(new (rigWin().Event)('input', { bubbles: true })); sl.dispatchEvent(new (rigWin().Event)('change', { bubbles: true }));
+        const x = J.byName('Off').x, steps = Array.from({ length: 12 }, (_, i) => J.sweepStepValue('Off', 'x', i, 12)), onStep = steps.some(v => v === x), near = Math.abs(x - (-45 + 4.3)) <= 5 / 12 + 1e-9;
+        const res = { per, frames: [b1.frames - b0.frames, b2.frames], kept: b2.kept, found, x, onStep, near };
+        const ok = per > 0 && b1.frames - b0.frames === 1 && b2.frames === 1 && b2.kept === null && found === 1 && onStep && near;
+        if (!ok) console.log('sweep store: one field for every step', JSON.stringify(res));
+        return ok ? 1 : 0;
+      } finally { J.sweepPause(); J.frameBudget(0); }
+    },
+  },
   { group: 'Smoothness' },
   {
     name: 'A field sweep whose frames would not fit in memory renders every so many steps, keeps within the budget, and plays',

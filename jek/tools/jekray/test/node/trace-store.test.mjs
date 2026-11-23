@@ -133,3 +133,29 @@ test('the workers’ traces are taken: most benches play their steps from them',
   if (process.env.SHOW) console.log('# taken', FROM.length, 'not', NOT.join(', '));
   assert.ok(FROM.length >= 0.7 * demos.length, FROM.length + ' of ' + demos.length + ' (not: ' + NOT.join(', ') + ')');
 });
+
+/* A particle's pictures (its scattered field's estimate, its 3D radiation pattern) are made with the trace but are no
+   part of the light: ticking one off leaves the trace's key as it was and the trace in use; ticking one on that the
+   trace was not made with traces again, once, and the trace then has it. What the bench shows of them follows its ticks. */
+test('a particle’s picture ticks are no part of the trace’s key; a trace serves a bench that wants no more pictures than it has', async () => {
+  const d = JSON.parse(fs.readFileSync(new URL('optical-tweezers.jekray', DIR), 'utf8'));
+  await openBench(d);
+  const P = ST.project.elements.find(e => e.type === 'particle');
+  assert.ok(P, 'the example has a particle');
+  P.scatLight = true; P.scatField = true; P.scatShape3d = false;
+  TR.setLastTraceKey(null); TR.traceScene();
+  const fan = () => ((TR.lastTrace.scat && TR.lastTrace.scat.fans) || []).find(F => F.part === P.id);
+  assert.ok(fan(), 'the particle is in the light');
+  const k0 = TR.traceKeyNow(), n0 = TR.traceCount, T0 = TR.lastTrace;
+  assert.ok(fan().field, 'made with its field picture');
+  P.scatField = false; TR.traceScene();
+  assert.equal(TR.traceKeyNow(), k0, 'the key as it was');
+  assert.equal(TR.traceCount, n0, 'nothing traced');
+  assert.ok(TR.lastTrace === T0 && !fan().field && fan().fieldKept, 'the same trace, the picture not shown, kept');
+  P.scatField = true; TR.traceScene();
+  assert.ok(TR.traceCount === n0 && fan().field, 'shown again, nothing traced');
+  P.scatShape3d = true; TR.traceScene();
+  assert.equal(TR.traceCount, n0 + 1, 'a picture it was not made with: traced once');
+  assert.ok(fan().lobe && fan().field, 'and it has both');
+  TR.traceScene(); assert.equal(TR.traceCount, n0 + 1);
+});

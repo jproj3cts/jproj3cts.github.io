@@ -14070,11 +14070,14 @@ function stepLeave(name, key) {
   if (stepDrops[name]) stepDrops[name](v);
 }
 /* An entry kept: layer name, its key there, its value (an object), and
-   o.bytes its size (o.count: counted in stepStore.kept), o.n its count in the layer's own unit (a trace's rays); o.step its step's key (left out: the step
+   o.bytes its size (o.count: counted in stepStore.kept, unless the run holds one under this key already), o.n its count in the layer's own unit (a trace's rays); o.step its step's key (left out: the step
    the bench is at); o.cap the most entries the layer holds at all; o.loose { count, bytes, n }: the most of the layer's
    loose entries, by number, bytes or its own unit (the oldest go first, one always left) */
 function stepKeep(name, key, v, o = {}) {
-  const map = stepMaps[name], was = map.get(key), R = stepStore.run;
+  const map = stepMaps[name], was = map.get(key), R = stepStore.run, wm = was !== undefined ? stepMeta.get(was) : null;
+  // (held by the run already under this key: a sweep that moves nothing of the beams has one field for all its steps)
+  // (one a run took over from the run before, at its beginning, is not yet counted as this run's: carried)
+  const held = !!wm && !!R && wm.step !== null && wm.gen === stepStore.gen && !wm.carried;
   if (was !== undefined) { map.delete(key); if (was !== v && stepDrops[name]) stepDrops[name](was); }
   map.set(key, v);
   let step = o.step !== undefined ? o.step : stepNow();
@@ -14082,7 +14085,7 @@ function stepKeep(name, key, v, o = {}) {
   if (step !== null && !(R && R.keys.has(step))) step = null;
   const m = { bytes: o.bytes || 0, n: o.n || 0, age: ++stepStore.age, step, gen: stepStore.gen };
   stepMeta.set(v, m);
-  if (o.count) stepStore.kept += m.bytes;         // (what a render's step kept, for how many of its steps fit: ui/sweeps.js)
+  if (o.count && !held) stepStore.kept += m.bytes;         // (what a render's step kept, for how many of its steps fit: ui/sweeps.js)
   if (o.cap) while (map.size > o.cap) stepLeave(name, map.keys().next().value);
   if (o.loose) stepLooseTrim(name, o.loose, v);
   stepTrim(v);
@@ -14154,11 +14157,12 @@ function stepSwap(name, key, v2) {
   return v2;
 }
 /* an entry the page has already, found to be a step's of the run (the step the bench is at, unless given) */
-function stepClaim(name, key, step) {
+function stepClaim(name, key, step, count) {
   const v = stepMaps[name].get(key), m = v !== undefined ? stepMeta.get(v) : null, R = stepStore.run;
   let s = step !== undefined ? step : stepNow();
   if (s !== null && R && R.as.has(s)) s = R.as.get(s);
-  if (m && R && s !== null && R.keys.has(s)) { m.step = s; m.gen = stepStore.gen; }
+  // (count: taken over from an earlier run, it is counted as kept for this step, as one made now would be)
+  if (m && R && s !== null && R.keys.has(s)) { const mine = m.step !== null && m.gen === stepStore.gen && !m.carried; m.step = s; m.gen = stepStore.gen; if (count) { if (!mine) stepStore.kept += m.bytes; m.carried = false; } }
 }
 function stepDelete(name, key) { stepLeave(name, key); }
 function stepDropLayer(name) { for (const k of [...stepMaps[name].keys()]) stepLeave(name, k); }
@@ -14185,7 +14189,7 @@ function stepRunBegin(list, n, valueAt, shape, heldAt) {
   if (R && R.shape === sh) { R.keys = keys; R.as = as; return stepStore.gen; }
   const gen = ++stepStore.gen;
   stepStore.run = { shape: sh, n, list: list.map(q => [q[0], q[1]]), keys, as };
-  for (const map of Object.values(stepMaps)) for (const x of map.values()) { const m = stepMeta.get(x); if (m && m.step !== null && keys.has(m.step)) m.gen = gen; }
+  for (const map of Object.values(stepMaps)) for (const x of map.values()) { const m = stepMeta.get(x); if (m && m.step !== null && keys.has(m.step)) { m.gen = gen; m.carried = true; } }
   return gen;
 }
 /* The one way kept things are let go:
@@ -14644,7 +14648,7 @@ const traceKeyRest = () => project.maxBounces + '|' + project.minPower + '|' + p
 // what changes nothing in the light: a part's name and where it is written, its import notes, drawings; where a
 // fibre component or a chip part sits (their networks are solved by what joins what: a fibre's length is its own
 // setting), and the way a fibre or waveguide is drawn across the bench
-const COSMETIC = new Set(['hide3d', 'label', 'name', 'assumed', 'design', 'source', 'lineColour', 'fillColour', 'scatScale', 'faceMap', 'mapScale']);   // (scatScale: a particle's plots and pictures; faceMap, mapScale: how a screen's pattern is drawn)
+const COSMETIC = new Set(['hide3d', 'label', 'name', 'assumed', 'design', 'source', 'lineColour', 'fillColour', 'scatScale', 'faceMap', 'mapScale', 'scatField', 'scatShape3d']);   // (scatScale: a particle's plots and pictures; faceMap, mapScale: how a screen's pattern is drawn; scatField, scatShape3d: a particle's pictures, see scatPics)
 const PLACED = new Set(['x', 'y', 'angle']), DRAWN = new Set(['path', 'ta', 'tb', 'route']);
 function keyCut(k, v) {
   if (COSMETIC.has(k)) return undefined;
@@ -14652,11 +14656,32 @@ function keyCut(k, v) {
   if (DRAWN.has(k) && this && Array.isArray(this.a) && Array.isArray(this.b)) return undefined;
   return v;
 }
+/* A particle's pictures (its scattered field's estimate, scatField; its radiation pattern for the 3D view, scatShape3d)
+   are made with the trace but are no part of the light, so they are no part of its key: unticking one while a sweep
+   played traced every step again. A trace notes which it was asked for (scat.pics: { part id: [field, pattern] }) and
+   keeps what it made on each fan (fieldKept, lobeKept); it serves any bench that wants no more pictures than it has,
+   and what the bench shows of them (fan.field, fan.lobe) is set to the bench's ticks whenever a trace is taken up. */
+const picsWanted = () => project.elements.filter(e => e.type === 'particle' && (e.scatField || e.scatShape3d));
+const traceHasPics = T => picsWanted().every(e => { const a = T && T.scat && T.scat.pics && T.scat.pics[e.id]; return !!a && (!e.scatField || a[0]) && (!e.scatShape3d || a[1]); }) || !(T && T.scat);
+function scatPicsNote(T) {
+  if (!T || !T.scat) return;
+  T.scat.pics = {};
+  for (const e of project.elements) if (e.type === 'particle') T.scat.pics[e.id] = [!!e.scatField, !!e.scatShape3d];
+}
+function scatPics(T) {
+  for (const F of (T && T.scat && T.scat.fans) || []) {
+    if (F.fieldKept === undefined) F.fieldKept = F.field || null;
+    if (F.lobeKept === undefined) F.lobeKept = F.lobe || null;
+    const el = getEl(F.part);
+    F.field = el && el.scatField && F.fieldKept ? F.fieldKept : undefined;
+    F.lobe = el && el.scatShape3d && F.lobeKept ? F.lobeKept : undefined;
+  }
+}
 function traceScene() {
   for (const e of project.elements) if (isLaserLike(e)) syncLine(e);
   applySpins();                                  // a group turned about its pivot by its spin, first
   const key = traceKeyNow();
-  if (key === lastTraceKey && lastTrace.beams) return;
+  if (key === lastTraceKey && lastTrace.beams && traceHasPics(lastTrace)) { scatPics(lastTrace); return; }
   // a sweep playing round again: each step's trace kept from the cycle before (with the sources it made: a fibre tip's
   // launches, a particle's cones), taken while its particles' answers are the very ones it was traced with
   const keep = traceStoreOn() && !stepStore.bypass;
@@ -14664,11 +14689,12 @@ function traceScene() {
   // (or the one trace offered for the bench as it is now, from where a particle's answer was just worked out: offerTrace)
   const o = traceOffer;
   traceOffer = null;
-  const got = c && c.parts.every(([id, k]) => !k || scatFind(id, k, true)) ? c
-    : o && !MODS.packs.size && o.key === traceKeyBase() && o.parts.every(([id, k]) => !k || scatFind(id, k, true)) ? o : null;
+  const got = c && traceHasPics(c.T) && c.parts.every(([id, k]) => !k || scatFind(id, k, true)) ? c
+    : o && !MODS.packs.size && o.key === traceKeyBase() && traceHasPics(o.T) && o.parts.every(([id, k]) => !k || scatFind(id, k, true)) ? o : null;
   if (got) {
     statsCache.clear(); diffCache.clear(); binCache.clear();
     lastTrace = got.T; lastTraceKey = key; lastTraceMs = got.ms; setVSRC(got.V); traceStoreHits++;
+    scatPics(lastTrace);
     afterTrace();
     return;
   }
@@ -14678,6 +14704,7 @@ function traceScene() {
   // the key as the bench stands after it (a split source takes its laser's settings as it goes)
   lastTraceKey = traceKeyNow();
   lastTraceMs = performance.now() - t0;
+  scatPicsNote(lastTrace); scatPics(lastTrace);
   if (keep) keepTrace(traceKeyBase(), lastTrace, lastTraceMs);
 }
 /* While a sweep plays, the traces of its steps are kept, so the second cycle and after (and a sweep played over steps
@@ -14695,7 +14722,8 @@ let traceStoreTest = false;
 function setTraceStoreTest(on) { traceStoreTest = !!on; dropTraceStore(); }
 /* whether traces may be kept on this bench at all, and whether they are now: while a sweep plays */
 const traceStoreCan = () => (!TEST_MODE || traceStoreTest) && !IN_WORKER && !MODS.packs.size && !project.elements.some(e => TRACE_STATEFUL.has(e.type));
-const traceStoreOn = () => traceStoreCan() && hooks.playing();
+// (or the bench at one of the steps of the sweeps' run, paused: its slider pulled along a sweep already worked out)
+const traceStoreOn = () => traceStoreCan() && (hooks.playing() || (!!stepStore.run && stepNow() !== null));
 /* the particles' answers a trace was made with, [id, key] each, or null when one was still to come for it */
 function traceParts(T) {
   const P = (T.scat && T.scat.parts) || {}, parts = [];
@@ -20334,6 +20362,16 @@ function stepValue(sw, i, n, P) {
   }
   return sweepValue(sw, waveShape(sw.wave, j / n + sw.phase / 360));
 }
+/* The slider of a sweep at a fraction of its range: the nearest of the steps it plays on, so each place it is pulled to
+   is a step already worked out (its trace, field and particle's answer kept) and not a state between two of them,
+   worked out from nothing at every move of the hand */
+function sweepSnap(el, path, frac) {
+  const sw = el.sweeps[path], want = sweepValue(sw, frac);
+  const R = fieldRendered && fieldRendered.keys.has(sweepKey(el, path)) ? fieldRendered : null, n = R ? R.n : fieldFramesOf(sw), P = R ? R.period : 1 / sw.freq;
+  let best = want, d = Infinity;
+  for (let i = 0; i < n; i++) { const v = stepValue(sw, i, n, P), e = Math.abs(v - want); if (e < d) { d = e; best = v; } }
+  return best;
+}
 function sweepFrac(el, path) {
   const sw = el.sweeps[path], v = getPath(el, path);
   if (!sw || sw.max === sw.min || v === null || !isFinite(v)) return 0;
@@ -20514,14 +20552,15 @@ function cancelJobFor(el, path) {
 function pause(el, path) {
   cancelJobFor(el, path);
   playing.delete(sweepKey(el, path));
-  if (!playing.size) { stepInvalidate('stopped'); scatterAheadStop(); holdEnd(); }
+  // (what is kept for the steps stays: the slider pulled along a paused sweep finds each step as it was worked out)
+  if (!playing.size) { scatterAheadStop(); holdEnd(); }
   syncPanel(); updateSweepButtons(); scheduleSave(); requestRender();         // (drawn again: the rays finer once nothing plays)
 }
 function pauseAll() {
   if (sweepJob) sweepJob.cancel();
   holdEnd();
   if (!playing.size) return;
-  playing.clear(); stepInvalidate('stopped'); scatterAheadStop();
+  playing.clear(); scatterAheadStop();
   syncPanel(); updateSweepButtons(); scheduleSave(); requestRender();
 }
 function syncPhases() {
@@ -20603,13 +20642,25 @@ function renderStride(n, stepBytes) {
   const fit = Math.max(1, Math.floor(0.85 * frameBudget / stepBytes));
   return fit >= n ? 1 : Math.ceil(n / fit);
 }
-/* a render's step done (sequential renders): kept among those rendered, and after the first, the steps apart worked out */
+/* a render's step done (sequential renders): kept among those rendered. After the first, the steps apart worked out from
+   what it kept, as if every step took as much. The second says what each further step really takes: a sweep that
+   moves nothing of the beams (a particle turned, a detector moved) has one field for all its steps, the first step's,
+   and each step after adds little or nothing, so the cycle fits after all and the steps put by are taken up again
+   (strideSecond). Taken for a cycle of 60 such fields, only a third of the steps were rendered, and of a particle's
+   answers solved. */
 function stepDone(job, i) {
   job.done.add(i);
-  // (by what the step holds, kept now or there already: a step found kept, as the first is after a change of Steps, kept
-  // nothing now, and taken for an empty one let a cycle too large for the budget be rendered whole)
-  if (job.done.size === 1) { job.stride = job.rs.k = renderStride(job.n, Math.max(keptNow.bytes, stepBytesAt())); if (job.stride > 1) strideNote(job.n, job.stride); }
+  if (job.done.size === 1) job.stride = job.rs.k = renderStride(job.n, keptNow.bytes);
+  else if (job.done.size === 2 && job.stride > 1 && strideSecond(job)) { const k = job.stride; job.todo.push(...job.held.filter(q => q % k === 0)); job.held = job.held.filter(q => q % k !== 0); }
   keptNow.bytes = 0;
+}
+/* the second step in: the steps apart again, from what it added; true when they come closer (the caller takes up the
+   steps it had put by). Said only now, once it is known */
+function strideSecond(job) {
+  const s2 = renderStride(job.n, keptNow.bytes), closer = s2 < job.stride;
+  if (closer) job.stride = job.rs.k = s2;
+  if (job.stride > 1) strideNote(job.n, job.stride);
+  return closer;
 }
 const strideNote = (n, k) => toast('This sweep\u2019s field is too large to keep at all ' + n + ' steps in this browser\u2019s memory: one step in ' + k + ' is rendered, each shown until the next', true);
 /* the 3D view's field volume, rendered with each step while that view shows the field: box() the
@@ -20785,7 +20836,7 @@ function renderSweepFrames(list, onDone) {
   }
   // the cycle as it is now: a rate changed meanwhile moves the steps with it, each the same point of its cycle
   const cyc = () => commonPeriod(list.map(([el, path]) => el.sweeps[path] || { freq: 1 / period })) || period;
-  const job = { list, i: 0, n, t0: null, i0: 0, ref: sweepRef(list, n, period), done: new Set(), stride: 1, rs };
+  const job = { list, i: 0, n, t0: null, i0: 0, ref: sweepRef(list, n, period), done: new Set(), stride: 1, rs, todo: Array.from({ length: n }, (_, k) => k), held: [] };
   keptNow.bytes = 0;
   const timing = i => { if (job.t0 === null) { job.t0 = performance.now(); job.i0 = i; } };   // timed from the first step that needs working out
   sweepJob = job;
@@ -20818,8 +20869,9 @@ function renderSweepFrames(list, onDone) {
     // the same, each field worked out in the worker while the page stays free
     const live = () => sweepJob === job;
     (async () => {
-      for (let i = 0; i < n; i++) {
-        if (job.stride > 1 && i % job.stride) continue;           // (a cycle too large to keep whole: see renderStride)
+      for (let q = 0; q < job.todo.length; q++) {
+        const i = job.todo[q];
+        if (job.stride > 1 && i % job.stride) { job.held.push(i); continue; }           // (a cycle too large to keep whole: see renderStride; put by, see stepDone)
         if (gone()) { job.quiet = true; job.cancel(); return; }
         job.i = i;
         const at = () => list.forEach(([el, path]) => setParam(el, path, stepValue(el.sweeps[path], i, n, cyc())));
@@ -20835,6 +20887,8 @@ function renderSweepFrames(list, onDone) {
           if (MODS.packs.size) { await modsReady(); if (!live()) return; }
           const key = popKeyOf(lastTrace.beams, srcs), beams = lastTrace.beams;
           if (sweepVol.has(key)) sweepVol.mark(key);
+          // (one kept already is this step's, counted with what the step keeps if an earlier run left it)
+          if (fieldFrames.bench.has(key)) stepClaim('bench', key, undefined, true);
           // (and its 3D volume, when the view shows the field and has not got it: rendered in 2D, played in 3D)
           if (!fieldFrames.bench.has(key) || !sweepVol.has(key)) {
             timing(i); job.stage = 'the bench';
@@ -20857,6 +20911,7 @@ function renderSweepFrames(list, onDone) {
           at();
           traceScene();
           const J = popScreenPrep(scr);
+          if (J && fieldFrames.screens.has(J.key)) stepClaim('screens', J.key, undefined, true);
           if (!J || fieldFrames.screens.has(J.key)) continue;
           timing(i); job.stage = scr.name;
           const o = await fwRequest('screen', 'sweep', { id: scr.id });
@@ -20879,8 +20934,9 @@ function renderSweepFrames(list, onDone) {
   // run a field to the end, a slice at a time, handing control back between slices
   const run = function* (gen) { let r; while (!(r = gen.next()).done) yield; return r.value; };
   const frames = (function* () {
-    for (let i = 0; i < n; i++) {
-      if (job.stride > 1 && i % job.stride) continue;
+    for (let q = 0; q < job.todo.length; q++) {
+      const i = job.todo[q];
+      if (job.stride > 1 && i % job.stride) { job.held.push(i); continue; }
       if (gone()) { job.quiet = true; job.cancel(); return; }
       job.i = i;
       list.forEach(([el, path]) => setParam(el, path, stepValue(el.sweeps[path], i, n, cyc())));
@@ -20894,6 +20950,7 @@ function renderSweepFrames(list, onDone) {
       if (srcs.length) {
         traceScene();
         const key = popKeyOf(lastTrace.beams, srcs);
+        if (fieldFrames.bench.has(key)) stepClaim('bench', key, undefined, true);
         if (!fieldFrames.bench.has(key)) {
           timing(i); job.stage = 'the bench';
           const n = lastTrace.beams.filter(b => srcs.some(e => e.id === b.src)).length;
@@ -20913,6 +20970,7 @@ function renderSweepFrames(list, onDone) {
         job.part = (k + 1) / (screens.length + 1);
         traceScene();                  // the bench may have been redrawn meanwhile: this sample's trace
         const J = popScreenPrep(scr);
+        if (J && fieldFrames.screens.has(J.key)) stepClaim('screens', J.key, undefined, true);
         if (!J || fieldFrames.screens.has(J.key)) continue;
         timing(i); job.stage = scr.name;
         const R = yield* run(popRunGen(lastTrace.beams, J.srcs, { keep: J.keep }));
@@ -21024,13 +21082,16 @@ function renderOnPool(pool, list, n, cyc, job, onDone) {
       done.add(i); job.i = done.size - 1;
       // (the first step in: whether the cycle fits the budget, and if not, only the steps that do are rendered, evenly spread)
       if (done.size === 1) {
-        job.stride = job.rs.k = renderStride(n, Math.max(keptNow.bytes, stepBytesAt(step)));
+        job.stride = job.rs.k = renderStride(n, keptNow.bytes);
         if (job.stride > 1) {
-          strideNote(n, job.stride);
+          job.held = order.slice(next).filter(k => k % job.stride !== 0);
           const rest = order.slice(next).filter(k => k % job.stride === 0);
           order.length = next; order.push(...rest);
           first = Math.min(first, Math.ceil(n / job.stride));
         }
+      } else if (done.size === 2 && job.stride > 1 && strideSecond(job)) {
+        // (the second step in added less than a whole field: the steps put by that fit after all are rendered too)
+        order.push(...job.held.filter(k => k % job.stride === 0)); job.held = job.held.filter(k => k % job.stride !== 0);
       }
       keptNow.bytes = 0;
       if (!job.layered) holdCheck(job);
@@ -21251,6 +21312,15 @@ function sweepAudit(opts = {}) {
       for (const scr of fieldReadouts()) {
         const J = popScreenPrep(scr);
         if (J && fieldFrames.screens.has(J.key)) note('screens', i, auditOf(fieldFrames.screens.get(J.key), popDiffraction(scr, popRun(T.beams, J.srcs, { keep: J.keep }))));
+      }
+      // (each particle at this step: whether its answer is kept, and how the trace found it)
+      for (const el of project.elements) {
+        const J = el.type === 'particle' && el.scatLight !== false && scatterPrep(el);
+        if (!J) continue;
+        const A = out.answers || (out.answers = { steps: 0, kept: 0, states: {}, missing: [] });
+        const st = ((T.scat && T.scat.parts && T.scat.parts[el.id]) || {}).state || 'none';
+        A.steps++; A.states[st] = (A.states[st] || 0) + 1;
+        if (scatKept.has(J.key)) A.kept++; else if (A.missing.length < 6) A.missing.push(key);
       }
       if (opts.scat) for (const el of project.elements) {
         const J = el.type === 'particle' && el.scatLight !== false && scatterPrep(el);
@@ -25229,7 +25299,7 @@ const V3D = (() => {
     show();
     if (!active() || !R) return;
     resize();
-    const key = traceKeyNow() + '|' + netKey() + '|' + (lightOf().field3d || '') + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale + (fieldHeld() ? 'h' : '') : '') + '|' + scatVolKey();   // (a particle's Scale changes no trace)
+    const key = traceKeyNow() + '|' + netKey() + '|' + (lightOf().field3d || '') + '|' + picsKey() + '|' + project.tab + '|' + benchBg() + benchHoles() + names + '|' + R.w + 'x' + R.h + '|' + faceMapsKey() + '|' + project.elements.filter(e => e.hide3d).map(e => e.id).join() + '|L' + (lightOf().rays ? 'r' : '') + (lightOf().envelope ? 'e' : '') + (byPowerOn() ? 'p' : '') + (lightOf().field ? 'f|v' + VOL.rev + lightOf().scale + (fieldHeld() ? 'h' : '') : '') + '|' + scatVolKey();   // (a particle's Scale changes no trace)
     if (key !== R.key || lastTrace !== R.trace) { R.key = key; R.trace = lastTrace; build(); }
     if (R.camTab !== project.tab) { if (tool && tool.off && R.camTab !== null) tool.off(); R.camTab = project.tab; if (s.cam) setCam(s.cam.p, s.cam.t); else fit('iso', false); }
     // (and where the selected parts are and how they are turned, so their handles follow them, through an undo too)
@@ -25864,7 +25934,7 @@ const V3D = (() => {
     // (filed by the trace's light and the particle's scattered field it carries: a triangle sweep's step on the way up and its
     // twin on the way down trace to the same light but each with a field of its own, and filed by the light alone the two
     // took turns, the light built again at every step of every cycle)
-    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().field3d || '', lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top, scatVolKey()].join('|'), sig0 = traceStoreOn() ? lightSig(lastTrace) : null;
+    const lk = [R.boardKey, benchLight(), lightOf().rays, lightOf().envelope, byPowerOn(), lightOf().field, lightOf().field3d || '', picsKey(), lightOf().scale, VL.data ? VL.data.id : VL.busy ? 'b' : '-', project.tab, (volShared() || {}).top, scatVolKey()].join('|'), sig0 = traceStoreOn() ? lightSig(lastTrace) : null;
     const sig = sig0 !== null ? sig0 + '|' + scatVolKey() : null, got = sig !== null ? lc.get(sig) : null;
     if (got && got.k === lk) { stepTouch('light3d', sig); stepClaim('light3d', sig); for (const o of got.objs) G.light.add(o); R.nRays = got.nRays; R.nBeams = got.nBeams; R.lightReused = (R.lightReused || 0) + 1; }
     else {
@@ -26247,6 +26317,8 @@ const V3D = (() => {
   // leave the glow of an earlier step in place, or a light layer kept for an earlier step brought back)
   const SVOL_IDS = new WeakMap(); let svolSeq = 0;
   const svolId = G => { let k = SVOL_IDS.get(G); if (!k) SVOL_IDS.set(G, (k = ++svolSeq)); return k; };
+  // which of the particles' pictures are ticked (no part of the trace's key: engines/trace.js scatPics)
+  const picsKey = () => project.elements.filter(e => e.type === 'particle').map(e => (e.scatField ? 'f' : '-') + (e.scatShape3d ? 'p' : '-')).join('');
   const scatVolKey = () => ((lastTrace.scat && lastTrace.scat.fans) || []).map(F => F.field ? F.part + ':' + svolId(F.field) + ':' + F.field.top + ':' + scatDb(F) : '').join();
   // a particle's Scale (the Scattering tab's, scatScale), in dB on the bench (0: linear); in 3D logarithmic over half of
   // them (the light along a line of sight falls as 1/b where the irradiance falls as 1/b², so the glow reaches as far)
@@ -31904,7 +31976,7 @@ function sweepControls(el, path, sw, label) {
   slider.addEventListener('input', () => {
     if (isPlaying(el, path) || rendering()) pause(el, path);
     beginEdit();
-    setParam(el, path, sweepValue(sw, slider.value / 1000));
+    setParam(el, path, sweepSnap(el, path, slider.value / 1000));
     changed(false);
   });
   slider.addEventListener('change', endEdit);
@@ -39595,15 +39667,25 @@ async function particlesAhead(list, n, valueAt, live, wanted) {
   // page need not trace the step when it plays: TRACE_SHARE_MS in ui/sweeps.js)
   const proj = fwProject(), slow = lastTraceMs > TRACE_SHARE_MS;
   try {
-    for (let i = 0; i < n; i++) for (const [k, el] of parts.entries()) {
-      if (SCW.ahead !== run || !live()) { if (SCW.ahead === run) SCW.ahead = null; return; }
-      // (a step the render does not keep: not solved, and not counted in what is left)
-      if (wanted && !wanted(i)) { run.of--; continue; }
-      run.i = i;
-      await scatterAhead(el.id, proj, list.map(([e, p]) => [e.id, p, valueAt(e, p, i)]), slow && k === parts.length - 1);
-      if (SCW.ahead !== run) return;
-      run.done++;
-      syncPanel();
+    // (a step the render does not keep is put by, not solved and not counted in what is left, and looked at again after
+    // the rest: the render may take it up after all, once it knows what each step takes: ui/sweeps.js stepDone)
+    const todo = Array.from({ length: n }, (_, i) => i), put = [];
+    for (let q = 0; q < todo.length || put.length; q++) {
+      if (q >= todo.length) {
+        const again = put.filter(j => !wanted || wanted(j));
+        if (!again.length) break;
+        for (const j of again) { put.splice(put.indexOf(j), 1); todo.push(j); run.of += parts.length; }
+      }
+      const i = todo[q];
+      if (wanted && !wanted(i)) { put.push(i); run.of -= parts.length; continue; }
+      for (const [k, el] of parts.entries()) {
+        if (SCW.ahead !== run || !live()) { if (SCW.ahead === run) SCW.ahead = null; return; }
+        run.i = i;
+        await scatterAhead(el.id, proj, list.map(([e, p]) => [e.id, p, valueAt(e, p, i)]), slow && k === parts.length - 1);
+        if (SCW.ahead !== run) return;
+        run.done++;
+        syncPanel();
+      }
     }
   } catch (err) { /* the worker failed: the steps are worked out live */ }
   if (SCW.ahead === run) SCW.ahead = null;
@@ -47322,7 +47404,11 @@ const SCAT_NHARD = 24000;          // and never more than this
 const WAVE_BINS = 12;                    // a focus's waves on the bench: bins across its pupil each way (waveInt)
 const SCAT_TINY = 0.1;                    // |m| k (half the longest dimension) under which Auto takes the single dipole
 
-const scatFields = el => [el.trapShape, el.trapLen, particleAz(el), el.trapTilt, el.scatModel, el.scatDip, el.scatAt, el.scatDx, el.scatDy, el.scatDz, el.scatNA, el.scatDir, el.scatAng];
+/* A particle's tilt as its scattering depends on it: every shape here is the same end for end (a sphere, a rod with flat
+   or round ends, a spheroid), so a rod tilted by t and by t + 180 degrees is one rod, solved once and kept once. Its
+   answer is worked out at the tilt brought into 0 to 180, which is also what its key holds. */
+const scatTilt = el => { const t = +el.trapTilt || 0; return ((t % 180) + 180) % 180; };
+const scatFields = el => [el.trapShape, el.trapLen, particleAz(el), scatTilt(el), el.scatModel, el.scatDip, el.scatAt, el.scatDx, el.scatDy, el.scatDz, el.scatNA, el.scatDir, el.scatAng];
 /* A Particle part is a point of the bench, in whatever light reaches it: the beams of a trace that pass it, each
    with where along it the particle is nearest (t), how far the particle is off its axis in the bench plane (x, to
    the beam's left) and above it (dz), and the beam's irradiance there against the others'. A beam counts when the
@@ -47637,7 +47723,7 @@ function* scatterGen(el, R, opts) {
   { const l = Math.sqrt(abs2(pol)); pol = l > 0 ? pol.map(v => v / l) : [a0[0], 0, a0[1], 0, a0[2], 0]; }
   const single = launches.length === 1 && launches[0].n === 1;
   // the particle's axis and its frame
-  const az = (particleAz(el) || 0) * deg, tl = (el.trapTilt || 0) * deg, axis = [Math.cos(tl) * Math.cos(az), Math.cos(tl) * Math.sin(az), Math.sin(tl)];
+  const az = (particleAz(el) || 0) * deg, tl = scatTilt(el) * deg, axis = [Math.cos(tl) * Math.cos(az), Math.cos(tl) * Math.sin(az), Math.sin(tl)];
   const body = frameOn(axis);
   const flags = [];
   if (pick.mieShape) flags.push('mieShape');
@@ -61968,6 +62054,7 @@ const APP_VERSION = '1.1', APP_DATE = '12 October 2026';
    shown first with the rest folded away */
 const NEWS = [
   ['1.1', APP_DATE, [
+    'A sweep that leaves the beams as they are (a particle turned, a part moved off the beam) now works out every step: it was judged too large for memory by its one shared field and rendered one step in three, the rest showing a stale picture of the particle\u2019s light. Ticking a particle\u2019s <b>Draw an estimate of its scattered field</b> or <b>Draw its radiation pattern in 3D</b> off while a sweep plays no longer traces every step again. A paused sweep keeps what was worked out, and its slider goes to the sweep\u2019s own steps, so pulling it shows each at once. A rod tilted by half a turn more is the same rod, so its scattering is solved once for both: a sweep right round solves half as many.',
     'The <b>electrical feedthrough</b> has one connector, as a node has: a signal wired into it goes on from it on the same tab and from its partner on the other. It had an in and an out, and its out gave only what went into its partner, so a generator into a feedthrough and on to a scope on one tab read nothing. Benches saved with the old two connectors open as they were.',
     'A photodiode\u2019s oscilloscope in <b>Roll</b> follows a sweep: while any sweep plays it plots the reading against the sweeps\u2019 own time, a point a step over the last cycle, the level and each beat\u2019s swing as lines of their own (it stood still before, three beat periods wide). <b>Draw light by its power</b> is now <b>Fade weak rays and beams</b>, under Show the rays. <b>View \u203a True colour field in 3D</b> draws the diffracted field in the light\u2019s own colours, so white light through a prism fans out from red to blue. In 3D the wheel zooms towards the point the view is being turned about while the turn is held, and for a moment after. <b>How the rays look\u2026</b> is with the experimental features for now.',
     'Sweeps, steadier: a sweep\u2019s <b>Steps</b>, <b>From</b> and <b>To</b> are taken when you press Enter or leave the box, not at each digit (every digit used to start its render again). A sine or triangle sweep works each position out once, not once on the way up and again on the way down, so its field renders in about half the time. After a change of Steps a field too large for memory keeps to the steps that fit. A rod\u2019s <b>Axis tilt up</b> swept past 180\u00b0 comes round (0 to 360\u00b0 turns it right round). Ticking a screen\u2019s <b>Show the diffraction pattern on its face</b> while a sweep plays no longer makes it stutter, and turning 3D on while the field is still arriving no longer leaves every later field to be worked out on the page.',
@@ -65025,7 +65112,7 @@ function adoptTrace(out) {
   TW.n++;
   if (out.key !== traceKeyNow()) { TW.rays = out.T.rays; return; }
   statsCache.clear(); diffCache.clear(); binCache.clear();
-  setLastTrace(out.T);
+  setLastTrace(out.T); scatPics(out.T);
   setLastTraceKey(out.key); setLastTraceMs(out.ms); setTraceCount(traceCount + 1);
   TW.rays = null; TW.full = null;
   afterTrace();

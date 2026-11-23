@@ -133,3 +133,44 @@ test('the workers’ traces are taken: most benches play their steps from them',
   if (process.env.SHOW) console.log('# taken', FROM.length, 'not', NOT.join(', '));
   assert.ok(FROM.length >= 0.7 * demos.length, FROM.length + ' of ' + demos.length + ' (not: ' + NOT.join(', ') + ')');
 });
+
+/* A particle's pictures (its scattered field's estimate, its 3D radiation pattern) are made with the trace but are no
+   part of the light: ticking one off leaves the trace's key as it was and the trace in use; ticking one on that the
+   trace was not made with traces again, once, and the trace then has it. What the bench shows of them follows its ticks. */
+test('a particle’s picture ticks are no part of the trace’s key; a trace serves a bench that wants no more pictures than it has', async () => {
+  const d = JSON.parse(fs.readFileSync(new URL('optical-tweezers.jekray', DIR), 'utf8'));
+  await openBench(d);
+  const P = ST.project.elements.find(e => e.type === 'particle');
+  assert.ok(P, 'the example has a particle');
+  P.scatLight = true; P.scatField = true; P.scatShape3d = false;
+  TR.setLastTraceKey(null); TR.traceScene();
+  const fan = () => ((TR.lastTrace.scat && TR.lastTrace.scat.fans) || []).find(F => F.part === P.id);
+  assert.ok(fan(), 'the particle is in the light');
+  const k0 = TR.traceKeyNow(), n0 = TR.traceCount, T0 = TR.lastTrace;
+  assert.ok(fan().field, 'made with its field picture');
+  P.scatField = false; TR.traceScene();
+  assert.equal(TR.traceKeyNow(), k0, 'the key as it was');
+  assert.equal(TR.traceCount, n0, 'nothing traced');
+  assert.ok(TR.lastTrace === T0 && !fan().field && fan().fieldKept, 'the same trace, the picture not shown, kept');
+  P.scatField = true; TR.traceScene();
+  assert.ok(TR.traceCount === n0 && fan().field, 'shown again, nothing traced');
+  P.scatShape3d = true; TR.traceScene();
+  assert.equal(TR.traceCount, n0 + 1, 'a picture it was not made with: traced once');
+  assert.ok(fan().lobe && fan().field, 'and it has both');
+  TR.traceScene(); assert.equal(TR.traceCount, n0 + 1);
+});
+
+/* a rod tilted by t and by t + 180 degrees is one rod: one key for its scattering, so one answer solved and kept for both */
+test('a particle’s scattering is keyed by its tilt within half a turn: t and t + 180 are one answer', async () => {
+  const SC = await import('../../src/engines/scatter.js');
+  await openBench(JSON.parse(fs.readFileSync(new URL('optical-tweezers.jekray', DIR), 'utf8')));
+  const P = ST.project.elements.find(e => e.type === 'particle');
+  P.trapShape = 'cylinder'; P.trapLen = 400;
+  const key = t => { P.trapTilt = t; TR.setLastTraceKey(null); TR.traceScene(); return SC.scatterPrep(P).key; };
+  const k48 = key(48);
+  assert.equal(key(-132), k48, '48 and -132');
+  assert.equal(key(228 - 360), k48);
+  assert.notEqual(key(138), k48, 'a quarter turn on is another rod');
+  assert.equal(key(180), key(0)); assert.equal(key(-180), key(0));
+  for (const [t, c] of [[48, 48], [-132, 48], [156, 156], [-24, 156], [180, 0], [-180, 0], [0, 0], [90, 90], [-90, 90]]) assert.equal(SC.scatTilt({ trapTilt: t }), c, 'tilt ' + t);
+});

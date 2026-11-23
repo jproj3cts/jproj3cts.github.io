@@ -82,6 +82,15 @@ export function sweepAudit(opts = {}) {
         const J = popScreenPrep(scr);
         if (J && fieldFrames.screens.has(J.key)) note('screens', i, auditOf(fieldFrames.screens.get(J.key), popDiffraction(scr, popRun(T.beams, J.srcs, { keep: J.keep }))));
       }
+      // (each particle at this step: whether its answer is kept, and how the trace found it)
+      for (const el of project.elements) {
+        const J = el.type === 'particle' && el.scatLight !== false && scatterPrep(el);
+        if (!J) continue;
+        const A = out.answers || (out.answers = { steps: 0, kept: 0, states: {}, missing: [] });
+        const st = ((T.scat && T.scat.parts && T.scat.parts[el.id]) || {}).state || 'none';
+        A.steps++; A.states[st] = (A.states[st] || 0) + 1;
+        if (scatKept.has(J.key)) A.kept++; else if (A.missing.length < 6) A.missing.push(key);
+      }
       if (opts.scat) for (const el of project.elements) {
         const J = el.type === 'particle' && el.scatLight !== false && scatterPrep(el);
         if (J && scatKept.has(J.key)) note('scat', i, auditOf(scatKept.get(J.key).S, scatterRun(el, popRun(T.beams, J.srcs, { keep: J.keep, bare: true }), { trap: false }), ['ms', 'trapRaw']));

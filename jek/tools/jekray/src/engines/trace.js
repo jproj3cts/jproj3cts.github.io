@@ -18,7 +18,7 @@ import { PARTS } from '../parts/registry.js';
 import { deg, project } from '../state/project.js';
 import { faceAmps } from '../core/face-pol.js';
 import { scatFind, scatRevNow } from './scatter.js';
-import { stepDropLayer, stepKeep, stepMaps, stepStore } from './sweep-store.js';
+import { stepDropLayer, stepKeep, stepMaps, stepNow, stepStore } from './sweep-store.js';
 import { placeFromScreen, scatterLaunch } from './scatter-light.js';
 import { pmapLaunch, pmapStep } from './scatter-pupil-map.js';
 import { FREE_3D, VSRC, applySpins, beamOn, getEl, lampBody, lampEmits, lampRaysOf, lightOf, raysOn, setVSRC } from '../state/elements.js';
@@ -476,7 +476,7 @@ const traceKeyRest = () => project.maxBounces + '|' + project.minPower + '|' + p
 // what changes nothing in the light: a part's name and where it is written, its import notes, drawings; where a
 // fibre component or a chip part sits (their networks are solved by what joins what: a fibre's length is its own
 // setting), and the way a fibre or waveguide is drawn across the bench
-const COSMETIC = new Set(['hide3d', 'label', 'name', 'assumed', 'design', 'source', 'lineColour', 'fillColour', 'scatScale', 'faceMap', 'mapScale']);   // (scatScale: a particle's plots and pictures; faceMap, mapScale: how a screen's pattern is drawn)
+const COSMETIC = new Set(['hide3d', 'label', 'name', 'assumed', 'design', 'source', 'lineColour', 'fillColour', 'scatScale', 'faceMap', 'mapScale', 'scatField', 'scatShape3d']);   // (scatScale: a particle's plots and pictures; faceMap, mapScale: how a screen's pattern is drawn; scatField, scatShape3d: a particle's pictures, see scatPics)
 const PLACED = new Set(['x', 'y', 'angle']), DRAWN = new Set(['path', 'ta', 'tb', 'route']);
 function keyCut(k, v) {
   if (COSMETIC.has(k)) return undefined;
@@ -484,11 +484,32 @@ function keyCut(k, v) {
   if (DRAWN.has(k) && this && Array.isArray(this.a) && Array.isArray(this.b)) return undefined;
   return v;
 }
+/* A particle's pictures (its scattered field's estimate, scatField; its radiation pattern for the 3D view, scatShape3d)
+   are made with the trace but are no part of the light, so they are no part of its key: unticking one while a sweep
+   played traced every step again. A trace notes which it was asked for (scat.pics: { part id: [field, pattern] }) and
+   keeps what it made on each fan (fieldKept, lobeKept); it serves any bench that wants no more pictures than it has,
+   and what the bench shows of them (fan.field, fan.lobe) is set to the bench's ticks whenever a trace is taken up. */
+const picsWanted = () => project.elements.filter(e => e.type === 'particle' && (e.scatField || e.scatShape3d));
+const traceHasPics = T => picsWanted().every(e => { const a = T && T.scat && T.scat.pics && T.scat.pics[e.id]; return !!a && (!e.scatField || a[0]) && (!e.scatShape3d || a[1]); }) || !(T && T.scat);
+function scatPicsNote(T) {
+  if (!T || !T.scat) return;
+  T.scat.pics = {};
+  for (const e of project.elements) if (e.type === 'particle') T.scat.pics[e.id] = [!!e.scatField, !!e.scatShape3d];
+}
+export function scatPics(T) {
+  for (const F of (T && T.scat && T.scat.fans) || []) {
+    if (F.fieldKept === undefined) F.fieldKept = F.field || null;
+    if (F.lobeKept === undefined) F.lobeKept = F.lobe || null;
+    const el = getEl(F.part);
+    F.field = el && el.scatField && F.fieldKept ? F.fieldKept : undefined;
+    F.lobe = el && el.scatShape3d && F.lobeKept ? F.lobeKept : undefined;
+  }
+}
 export function traceScene() {
   for (const e of project.elements) if (isLaserLike(e)) syncLine(e);
   applySpins();                                  // a group turned about its pivot by its spin, first
   const key = traceKeyNow();
-  if (key === lastTraceKey && lastTrace.beams) return;
+  if (key === lastTraceKey && lastTrace.beams && traceHasPics(lastTrace)) { scatPics(lastTrace); return; }
   // a sweep playing round again: each step's trace kept from the cycle before (with the sources it made: a fibre tip's
   // launches, a particle's cones), taken while its particles' answers are the very ones it was traced with
   const keep = traceStoreOn() && !stepStore.bypass;
@@ -496,11 +517,12 @@ export function traceScene() {
   // (or the one trace offered for the bench as it is now, from where a particle's answer was just worked out: offerTrace)
   const o = traceOffer;
   traceOffer = null;
-  const got = c && c.parts.every(([id, k]) => !k || scatFind(id, k, true)) ? c
-    : o && !MODS.packs.size && o.key === traceKeyBase() && o.parts.every(([id, k]) => !k || scatFind(id, k, true)) ? o : null;
+  const got = c && traceHasPics(c.T) && c.parts.every(([id, k]) => !k || scatFind(id, k, true)) ? c
+    : o && !MODS.packs.size && o.key === traceKeyBase() && traceHasPics(o.T) && o.parts.every(([id, k]) => !k || scatFind(id, k, true)) ? o : null;
   if (got) {
     statsCache.clear(); diffCache.clear(); binCache.clear();
     lastTrace = got.T; lastTraceKey = key; lastTraceMs = got.ms; setVSRC(got.V); traceStoreHits++;
+    scatPics(lastTrace);
     afterTrace();
     return;
   }
@@ -510,6 +532,7 @@ export function traceScene() {
   // the key as the bench stands after it (a split source takes its laser's settings as it goes)
   lastTraceKey = traceKeyNow();
   lastTraceMs = performance.now() - t0;
+  scatPicsNote(lastTrace); scatPics(lastTrace);
   if (keep) keepTrace(traceKeyBase(), lastTrace, lastTraceMs);
 }
 /* While a sweep plays, the traces of its steps are kept, so the second cycle and after (and a sweep played over steps
@@ -527,7 +550,8 @@ let traceStoreTest = false;
 export function setTraceStoreTest(on) { traceStoreTest = !!on; dropTraceStore(); }
 /* whether traces may be kept on this bench at all, and whether they are now: while a sweep plays */
 const traceStoreCan = () => (!TEST_MODE || traceStoreTest) && !IN_WORKER && !MODS.packs.size && !project.elements.some(e => TRACE_STATEFUL.has(e.type));
-export const traceStoreOn = () => traceStoreCan() && hooks.playing();
+// (or the bench at one of the steps of the sweeps' run, paused: its slider pulled along a sweep already worked out)
+export const traceStoreOn = () => traceStoreCan() && (hooks.playing() || (!!stepStore.run && stepNow() !== null));
 /* the particles' answers a trace was made with, [id, key] each, or null when one was still to come for it */
 function traceParts(T) {
   const P = (T.scat && T.scat.parts) || {}, parts = [];

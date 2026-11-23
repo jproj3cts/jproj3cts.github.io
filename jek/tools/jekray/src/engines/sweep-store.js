@@ -60,11 +60,13 @@ function stepLeave(name, key) {
   if (stepDrops[name]) stepDrops[name](v);
 }
 /* An entry kept: layer name, its key there, its value (an object), and
-   o.bytes its size (o.count: counted in stepStore.kept), o.n its count in the layer's own unit (a trace's rays); o.step its step's key (left out: the step
+   o.bytes its size (o.count: counted in stepStore.kept, unless the run holds one under this key already), o.n its count in the layer's own unit (a trace's rays); o.step its step's key (left out: the step
    the bench is at); o.cap the most entries the layer holds at all; o.loose { count, bytes, n }: the most of the layer's
    loose entries, by number, bytes or its own unit (the oldest go first, one always left) */
 export function stepKeep(name, key, v, o = {}) {
-  const map = stepMaps[name], was = map.get(key), R = stepStore.run;
+  const map = stepMaps[name], was = map.get(key), R = stepStore.run, wm = was !== undefined ? stepMeta.get(was) : null;
+  // (held by the run already under this key: a sweep that moves nothing of the beams has one field for all its steps)
+  const held = !!wm && !!R && wm.step !== null && wm.gen === stepStore.gen;
   if (was !== undefined) { map.delete(key); if (was !== v && stepDrops[name]) stepDrops[name](was); }
   map.set(key, v);
   let step = o.step !== undefined ? o.step : stepNow();
@@ -72,7 +74,7 @@ export function stepKeep(name, key, v, o = {}) {
   if (step !== null && !(R && R.keys.has(step))) step = null;
   const m = { bytes: o.bytes || 0, n: o.n || 0, age: ++stepStore.age, step, gen: stepStore.gen };
   stepMeta.set(v, m);
-  if (o.count) stepStore.kept += m.bytes;         // (what a render's step kept, for how many of its steps fit: ui/sweeps.js)
+  if (o.count && !held) stepStore.kept += m.bytes;         // (what a render's step kept, for how many of its steps fit: ui/sweeps.js)
   if (o.cap) while (map.size > o.cap) stepLeave(name, map.keys().next().value);
   if (o.loose) stepLooseTrim(name, o.loose, v);
   stepTrim(v);
@@ -144,11 +146,12 @@ export function stepSwap(name, key, v2) {
   return v2;
 }
 /* an entry the page has already, found to be a step's of the run (the step the bench is at, unless given) */
-export function stepClaim(name, key, step) {
+export function stepClaim(name, key, step, count) {
   const v = stepMaps[name].get(key), m = v !== undefined ? stepMeta.get(v) : null, R = stepStore.run;
   let s = step !== undefined ? step : stepNow();
   if (s !== null && R && R.as.has(s)) s = R.as.get(s);
-  if (m && R && s !== null && R.keys.has(s)) { m.step = s; m.gen = stepStore.gen; }
+  // (count: taken over from an earlier run, it is counted as kept for this step, as one made now would be)
+  if (m && R && s !== null && R.keys.has(s)) { const mine = m.step !== null && m.gen === stepStore.gen; m.step = s; m.gen = stepStore.gen; if (count && !mine) stepStore.kept += m.bytes; }
 }
 export function stepDelete(name, key) { stepLeave(name, key); }
 export function stepDropLayer(name) { for (const k of [...stepMaps[name].keys()]) stepLeave(name, k); }

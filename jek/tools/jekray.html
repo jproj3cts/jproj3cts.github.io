@@ -14070,11 +14070,13 @@ function stepLeave(name, key) {
   if (stepDrops[name]) stepDrops[name](v);
 }
 /* An entry kept: layer name, its key there, its value (an object), and
-   o.bytes its size (o.count: counted in stepStore.kept), o.n its count in the layer's own unit (a trace's rays); o.step its step's key (left out: the step
+   o.bytes its size (o.count: counted in stepStore.kept, unless the run holds one under this key already), o.n its count in the layer's own unit (a trace's rays); o.step its step's key (left out: the step
    the bench is at); o.cap the most entries the layer holds at all; o.loose { count, bytes, n }: the most of the layer's
    loose entries, by number, bytes or its own unit (the oldest go first, one always left) */
 function stepKeep(name, key, v, o = {}) {
-  const map = stepMaps[name], was = map.get(key), R = stepStore.run;
+  const map = stepMaps[name], was = map.get(key), R = stepStore.run, wm = was !== undefined ? stepMeta.get(was) : null;
+  // (held by the run already under this key: a sweep that moves nothing of the beams has one field for all its steps)
+  const held = !!wm && !!R && wm.step !== null && wm.gen === stepStore.gen;
   if (was !== undefined) { map.delete(key); if (was !== v && stepDrops[name]) stepDrops[name](was); }
   map.set(key, v);
   let step = o.step !== undefined ? o.step : stepNow();
@@ -14082,7 +14084,7 @@ function stepKeep(name, key, v, o = {}) {
   if (step !== null && !(R && R.keys.has(step))) step = null;
   const m = { bytes: o.bytes || 0, n: o.n || 0, age: ++stepStore.age, step, gen: stepStore.gen };
   stepMeta.set(v, m);
-  if (o.count) stepStore.kept += m.bytes;         // (what a render's step kept, for how many of its steps fit: ui/sweeps.js)
+  if (o.count && !held) stepStore.kept += m.bytes;         // (what a render's step kept, for how many of its steps fit: ui/sweeps.js)
   if (o.cap) while (map.size > o.cap) stepLeave(name, map.keys().next().value);
   if (o.loose) stepLooseTrim(name, o.loose, v);
   stepTrim(v);
@@ -14154,11 +14156,12 @@ function stepSwap(name, key, v2) {
   return v2;
 }
 /* an entry the page has already, found to be a step's of the run (the step the bench is at, unless given) */
-function stepClaim(name, key, step) {
+function stepClaim(name, key, step, count) {
   const v = stepMaps[name].get(key), m = v !== undefined ? stepMeta.get(v) : null, R = stepStore.run;
   let s = step !== undefined ? step : stepNow();
   if (s !== null && R && R.as.has(s)) s = R.as.get(s);
-  if (m && R && s !== null && R.keys.has(s)) { m.step = s; m.gen = stepStore.gen; }
+  // (count: taken over from an earlier run, it is counted as kept for this step, as one made now would be)
+  if (m && R && s !== null && R.keys.has(s)) { const mine = m.step !== null && m.gen === stepStore.gen; m.step = s; m.gen = stepStore.gen; if (count && !mine) stepStore.kept += m.bytes; }
 }
 function stepDelete(name, key) { stepLeave(name, key); }
 function stepDropLayer(name) { for (const k of [...stepMaps[name].keys()]) stepLeave(name, k); }
@@ -20638,13 +20641,25 @@ function renderStride(n, stepBytes) {
   const fit = Math.max(1, Math.floor(0.85 * frameBudget / stepBytes));
   return fit >= n ? 1 : Math.ceil(n / fit);
 }
-/* a render's step done (sequential renders): kept among those rendered, and after the first, the steps apart worked out */
+/* a render's step done (sequential renders): kept among those rendered. After the first, the steps apart worked out from
+   what it kept, as if every step took as much. The second says what each further step really takes: a sweep that
+   moves nothing of the beams (a particle turned, a detector moved) has one field for all its steps, the first step's,
+   and each step after adds little or nothing, so the cycle fits after all and the steps put by are taken up again
+   (strideSecond). Taken for a cycle of 60 such fields, only a third of the steps were rendered, and of a particle's
+   answers solved. */
 function stepDone(job, i) {
   job.done.add(i);
-  // (by what the step holds, kept now or there already: a step found kept, as the first is after a change of Steps, kept
-  // nothing now, and taken for an empty one let a cycle too large for the budget be rendered whole)
-  if (job.done.size === 1) { job.stride = job.rs.k = renderStride(job.n, Math.max(keptNow.bytes, stepBytesAt())); if (job.stride > 1) strideNote(job.n, job.stride); }
+  if (job.done.size === 1) job.stride = job.rs.k = renderStride(job.n, keptNow.bytes);
+  else if (job.done.size === 2 && strideSecond(job)) { const k = job.stride; job.todo.push(...job.held.filter(q => q % k === 0)); job.held = job.held.filter(q => q % k !== 0); }
   keptNow.bytes = 0;
+}
+/* the second step in: the steps apart again, from what it added; true when they come closer (the caller takes up the
+   steps it had put by). Said only now, once it is known */
+function strideSecond(job) {
+  const s2 = renderStride(job.n, keptNow.bytes), closer = s2 < job.stride;
+  if (closer) job.stride = job.rs.k = s2;
+  if (job.stride > 1) strideNote(job.n, job.stride);
+  return closer;
 }
 const strideNote = (n, k) => toast('This sweep\u2019s field is too large to keep at all ' + n + ' steps in this browser\u2019s memory: one step in ' + k + ' is rendered, each shown until the next', true);
 /* the 3D view's field volume, rendered with each step while that view shows the field: box() the
@@ -20820,7 +20835,7 @@ function renderSweepFrames(list, onDone) {
   }
   // the cycle as it is now: a rate changed meanwhile moves the steps with it, each the same point of its cycle
   const cyc = () => commonPeriod(list.map(([el, path]) => el.sweeps[path] || { freq: 1 / period })) || period;
-  const job = { list, i: 0, n, t0: null, i0: 0, ref: sweepRef(list, n, period), done: new Set(), stride: 1, rs };
+  const job = { list, i: 0, n, t0: null, i0: 0, ref: sweepRef(list, n, period), done: new Set(), stride: 1, rs, todo: Array.from({ length: n }, (_, k) => k), held: [] };
   keptNow.bytes = 0;
   const timing = i => { if (job.t0 === null) { job.t0 = performance.now(); job.i0 = i; } };   // timed from the first step that needs working out
   sweepJob = job;
@@ -20853,8 +20868,9 @@ function renderSweepFrames(list, onDone) {
     // the same, each field worked out in the worker while the page stays free
     const live = () => sweepJob === job;
     (async () => {
-      for (let i = 0; i < n; i++) {
-        if (job.stride > 1 && i % job.stride) continue;           // (a cycle too large to keep whole: see renderStride)
+      for (let q = 0; q < job.todo.length; q++) {
+        const i = job.todo[q];
+        if (job.stride > 1 && i % job.stride) { job.held.push(i); continue; }           // (a cycle too large to keep whole: see renderStride; put by, see stepDone)
         if (gone()) { job.quiet = true; job.cancel(); return; }
         job.i = i;
         const at = () => list.forEach(([el, path]) => setParam(el, path, stepValue(el.sweeps[path], i, n, cyc())));
@@ -20870,6 +20886,8 @@ function renderSweepFrames(list, onDone) {
           if (MODS.packs.size) { await modsReady(); if (!live()) return; }
           const key = popKeyOf(lastTrace.beams, srcs), beams = lastTrace.beams;
           if (sweepVol.has(key)) sweepVol.mark(key);
+          // (one kept already is this step's, counted with what the step keeps if an earlier run left it)
+          if (fieldFrames.bench.has(key)) stepClaim('bench', key, undefined, true);
           // (and its 3D volume, when the view shows the field and has not got it: rendered in 2D, played in 3D)
           if (!fieldFrames.bench.has(key) || !sweepVol.has(key)) {
             timing(i); job.stage = 'the bench';
@@ -20892,6 +20910,7 @@ function renderSweepFrames(list, onDone) {
           at();
           traceScene();
           const J = popScreenPrep(scr);
+          if (J && fieldFrames.screens.has(J.key)) stepClaim('screens', J.key, undefined, true);
           if (!J || fieldFrames.screens.has(J.key)) continue;
           timing(i); job.stage = scr.name;
           const o = await fwRequest('screen', 'sweep', { id: scr.id });
@@ -20914,8 +20933,9 @@ function renderSweepFrames(list, onDone) {
   // run a field to the end, a slice at a time, handing control back between slices
   const run = function* (gen) { let r; while (!(r = gen.next()).done) yield; return r.value; };
   const frames = (function* () {
-    for (let i = 0; i < n; i++) {
-      if (job.stride > 1 && i % job.stride) continue;
+    for (let q = 0; q < job.todo.length; q++) {
+      const i = job.todo[q];
+      if (job.stride > 1 && i % job.stride) { job.held.push(i); continue; }
       if (gone()) { job.quiet = true; job.cancel(); return; }
       job.i = i;
       list.forEach(([el, path]) => setParam(el, path, stepValue(el.sweeps[path], i, n, cyc())));
@@ -20929,6 +20949,7 @@ function renderSweepFrames(list, onDone) {
       if (srcs.length) {
         traceScene();
         const key = popKeyOf(lastTrace.beams, srcs);
+        if (fieldFrames.bench.has(key)) stepClaim('bench', key, undefined, true);
         if (!fieldFrames.bench.has(key)) {
           timing(i); job.stage = 'the bench';
           const n = lastTrace.beams.filter(b => srcs.some(e => e.id === b.src)).length;
@@ -20948,6 +20969,7 @@ function renderSweepFrames(list, onDone) {
         job.part = (k + 1) / (screens.length + 1);
         traceScene();                  // the bench may have been redrawn meanwhile: this sample's trace
         const J = popScreenPrep(scr);
+        if (J && fieldFrames.screens.has(J.key)) stepClaim('screens', J.key, undefined, true);
         if (!J || fieldFrames.screens.has(J.key)) continue;
         timing(i); job.stage = scr.name;
         const R = yield* run(popRunGen(lastTrace.beams, J.srcs, { keep: J.keep }));
@@ -21059,13 +21081,16 @@ function renderOnPool(pool, list, n, cyc, job, onDone) {
       done.add(i); job.i = done.size - 1;
       // (the first step in: whether the cycle fits the budget, and if not, only the steps that do are rendered, evenly spread)
       if (done.size === 1) {
-        job.stride = job.rs.k = renderStride(n, Math.max(keptNow.bytes, stepBytesAt(step)));
+        job.stride = job.rs.k = renderStride(n, keptNow.bytes);
         if (job.stride > 1) {
-          strideNote(n, job.stride);
+          job.held = order.slice(next).filter(k => k % job.stride !== 0);
           const rest = order.slice(next).filter(k => k % job.stride === 0);
           order.length = next; order.push(...rest);
           first = Math.min(first, Math.ceil(n / job.stride));
         }
+      } else if (done.size === 2 && job.stride > 1 && strideSecond(job)) {
+        // (the second step in added less than a whole field: the steps put by that fit after all are rendered too)
+        order.push(...job.held.filter(k => k % job.stride === 0)); job.held = job.held.filter(k => k % job.stride !== 0);
       }
       keptNow.bytes = 0;
       if (!job.layered) holdCheck(job);
@@ -39641,15 +39666,25 @@ async function particlesAhead(list, n, valueAt, live, wanted) {
   // page need not trace the step when it plays: TRACE_SHARE_MS in ui/sweeps.js)
   const proj = fwProject(), slow = lastTraceMs > TRACE_SHARE_MS;
   try {
-    for (let i = 0; i < n; i++) for (const [k, el] of parts.entries()) {
-      if (SCW.ahead !== run || !live()) { if (SCW.ahead === run) SCW.ahead = null; return; }
-      // (a step the render does not keep: not solved, and not counted in what is left)
-      if (wanted && !wanted(i)) { run.of--; continue; }
-      run.i = i;
-      await scatterAhead(el.id, proj, list.map(([e, p]) => [e.id, p, valueAt(e, p, i)]), slow && k === parts.length - 1);
-      if (SCW.ahead !== run) return;
-      run.done++;
-      syncPanel();
+    // (a step the render does not keep is put by, not solved and not counted in what is left, and looked at again after
+    // the rest: the render may take it up after all, once it knows what each step takes: ui/sweeps.js stepDone)
+    const todo = Array.from({ length: n }, (_, i) => i), put = [];
+    for (let q = 0; q < todo.length || put.length; q++) {
+      if (q >= todo.length) {
+        const again = put.filter(j => !wanted || wanted(j));
+        if (!again.length) break;
+        for (const j of again) { put.splice(put.indexOf(j), 1); todo.push(j); run.of += parts.length; }
+      }
+      const i = todo[q];
+      if (wanted && !wanted(i)) { put.push(i); run.of -= parts.length; continue; }
+      for (const [k, el] of parts.entries()) {
+        if (SCW.ahead !== run || !live()) { if (SCW.ahead === run) SCW.ahead = null; return; }
+        run.i = i;
+        await scatterAhead(el.id, proj, list.map(([e, p]) => [e.id, p, valueAt(e, p, i)]), slow && k === parts.length - 1);
+        if (SCW.ahead !== run) return;
+        run.done++;
+        syncPanel();
+      }
     }
   } catch (err) { /* the worker failed: the steps are worked out live */ }
   if (SCW.ahead === run) SCW.ahead = null;

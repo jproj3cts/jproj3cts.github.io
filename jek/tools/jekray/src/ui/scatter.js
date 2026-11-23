@@ -236,15 +236,25 @@ export async function particlesAhead(list, n, valueAt, live, wanted) {
   // page need not trace the step when it plays: TRACE_SHARE_MS in ui/sweeps.js)
   const proj = fwProject(), slow = lastTraceMs > TRACE_SHARE_MS;
   try {
-    for (let i = 0; i < n; i++) for (const [k, el] of parts.entries()) {
-      if (SCW.ahead !== run || !live()) { if (SCW.ahead === run) SCW.ahead = null; return; }
-      // (a step the render does not keep: not solved, and not counted in what is left)
-      if (wanted && !wanted(i)) { run.of--; continue; }
-      run.i = i;
-      await scatterAhead(el.id, proj, list.map(([e, p]) => [e.id, p, valueAt(e, p, i)]), slow && k === parts.length - 1);
-      if (SCW.ahead !== run) return;
-      run.done++;
-      syncPanel();
+    // (a step the render does not keep is put by, not solved and not counted in what is left, and looked at again after
+    // the rest: the render may take it up after all, once it knows what each step takes: ui/sweeps.js stepDone)
+    const todo = Array.from({ length: n }, (_, i) => i), put = [];
+    for (let q = 0; q < todo.length || put.length; q++) {
+      if (q >= todo.length) {
+        const again = put.filter(j => !wanted || wanted(j));
+        if (!again.length) break;
+        for (const j of again) { put.splice(put.indexOf(j), 1); todo.push(j); run.of += parts.length; }
+      }
+      const i = todo[q];
+      if (wanted && !wanted(i)) { put.push(i); run.of -= parts.length; continue; }
+      for (const [k, el] of parts.entries()) {
+        if (SCW.ahead !== run || !live()) { if (SCW.ahead === run) SCW.ahead = null; return; }
+        run.i = i;
+        await scatterAhead(el.id, proj, list.map(([e, p]) => [e.id, p, valueAt(e, p, i)]), slow && k === parts.length - 1);
+        if (SCW.ahead !== run) return;
+        run.done++;
+        syncPanel();
+      }
     }
   } catch (err) { /* the worker failed: the steps are worked out live */ }
   if (SCW.ahead === run) SCW.ahead = null;

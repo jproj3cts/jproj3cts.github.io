@@ -212,6 +212,6 @@ html, body { margin: 0; background: var(--jek-well); }
 /* the preview's actions: Open across the panel, then History and More */
 .space-home .rt-hprevacts { display: grid; grid-template-columns: 1fr var(--ctl); gap: 0.5rem; }
 .space-home .rt-hprevacts #appPreviewOpen { grid-column: 1 / -1; }
-/* on an app's page the list's tools sit over its list, to its right */
-.space-home .rt-hlisttools { display: flex; justify-content: flex-end; margin: 0 0 0.8rem; }
+/* on an app’s page the list’s tools sit over its list, from its left edge */
+.space-home .rt-hlisttools { display: flex; justify-content: flex-start; margin: 0 0 0.8rem; }
 .space-home .rt-hlisttools #homeTools { display: flex; }

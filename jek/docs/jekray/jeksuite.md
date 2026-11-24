@@ -3,7 +3,7 @@ layout: docs
 title: JEKsuite
 permalink: /jek/docs/jekray/jeksuite/
 redirect_from: /jek/docs/jekray/jekspace/
-description: "JEKsuite, the JEK hub: the apps (JEKray with its Optical, RF and Coating designers, JEKion and JEKcad) and every bench you keep in the cloud, of every app, in one place, with your account, plan and teams."
+description: "JEKsuite, the JEK hub: the apps (JEKray with its Optics, RF and Coating designers, JEKion and JEKcad) and every bench you keep in the cloud, of every app, in one place, with your account, plan and teams."
 ---
 
 **JEKsuite** ([jeksys.net/jek/tools/jeksuite.html](/jek/tools/jeksuite.html)) is where the JEK apps and your cloud benches meet. It opens in a tab of its own: from an app, the cloud button beside the bench's name, **File › My benches on JEKsuite…**, or a link ending `#benches`. The same tab is reused each time, and so is each app's, so a bench chosen in JEKsuite opens in its app's tab rather than a new one.
@@ -16,7 +16,7 @@ description: "JEKsuite, the JEK hub: the apps (JEKray with its Optical, RF and C
 
 The button beside your initials in the bar turns the page dark or light; **System**, which follows your computer, is in the account menu.
 
-Down the left: the apps, each with its mark in its colour (JEKray yellow, its three designers (the Optics, RF and Coating designers) indented under it in shades of the same yellow, JEKion light blue, JEKcad red); your workspaces (your own, and each team you are in), the one shown with its folders under it as a tree; then **Recent**, **My parts** (or a team's parts), **My links** and the **Bin**. Each folder in the tree says how many benches it holds, the folders inside it counted too, and a folder with folders in it opens with the ▸ beside it. The folders of the place shown are also in the page, each with a dot for every app that has benches in it, and in the path along the top.
+Down the left: the apps, each with its mark in its colour (JEKray yellow, its Optics, RF and Coating designers indented under it in shades of the same yellow, JEKion light blue, JEKcad red); your workspaces (your own, and each team you are in), the one shown with its folders under it as a tree; then **Recent**, **My parts** (or a team's parts), **My links** and the **Bin**. Each folder in the tree says how many benches it holds, the folders inside it counted too, and a folder with folders in it opens with the ▸ beside it. The folders of the place shown are also in the page, each with a dot for every app that has benches in it, and in the path along the top.
 
 Each bench is a card with its picture and a label for its app; one with no picture yet shows its app's mark. Click a card to open the bench in its app. Where benches of several apps are shown, a row of chips above them shows one app's alone; the chip you pressed is kept for your next visit. In **Recent** and in a search, each bench says which folder it is in, and the folder's name goes there.
 

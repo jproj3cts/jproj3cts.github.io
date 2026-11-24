@@ -24,18 +24,6 @@ function cohMatrix(src, Ls) {
   for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) G[i * n + j] = f(Ls[i] - Ls[j]);
   return G;
 }
-/* |sum of v|^2 with each cross term weighted by G; each v a flat [re, im, re, im, ...] */
-function pcIntensity(vs, G) {
-  const n = vs.length, c = vs.length ? vs[0].length : 0;
-  let I = 0;
-  for (let i = 0; i < n; i++) for (let j = i; j < n; j++) {
-    const a = vs[i], b = vs[j];
-    let d = 0;
-    for (let k = 0; k < c; k++) d += a[k] * b[k];
-    I += (i === j ? 1 : 2 * G[i * n + j]) * d;
-  }
-  return I;
-}
 /* The same weighting as a sum of intensities: gamma's eigenvectors split one launch into
    mutually incoherent parts, each a coherent sum of the launch's fields with weights of its
    own. Returns those weights, one array per part, or null when the launch coheres in full.

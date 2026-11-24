@@ -157,11 +157,6 @@ export function smallAlpha(V, aspect, mr, mi, k) {
   };
   return [one(Lz), one((1 - Lz) / 2)];
 }
-/* a dipole's cross-sections in a plane wave it answers with p = alpha E (alpha [re, im] along the field) */
-export const dipoleCross = (k, alpha) => {
-  const sca = 8 * Math.PI / 3 * k ** 4 * (alpha[0] * alpha[0] + alpha[1] * alpha[1]), ext = 4 * Math.PI * k * alpha[1];
-  return { sca, ext, abs: ext - sca };
-};
 /* |F|^2 of each direction, summed over the fields given (launches add as powers) */
 export function farPower(Fs, n, out) {
   const I = out || new Float64Array(n);

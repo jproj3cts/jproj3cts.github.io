@@ -100,7 +100,6 @@ export const EXAMPLES = [
    their own on the validation page yet (polarisation spectroscopy, a lattice), or fail one
    (a levitated sphere's gas damping, against Gieseler et al.'s measurements) */
 const BETA_EXAMPLES = new Set(['polarisation-spectroscopy', 'optical-lattice', 'levitated-nanoparticle']);
-const exampleTitle = k => { for (const [, , list] of EXAMPLES) for (const [id, t] of list) if (id === k) return t; return k; };
 /* on a phone: the link emailed, to open on a computer later. The address goes to the API, which sends one fixed
    email and keeps no copy of it (jek-api src/remind.js) */
 export function remindForm() {

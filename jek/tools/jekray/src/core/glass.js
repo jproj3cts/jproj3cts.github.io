@@ -190,8 +190,6 @@ export function agfIndex(f, c, um) {
   }
   return Math.sqrt(Math.max(1, n2));
 }
-/* Absorption coefficient in 1/mm: intensity falls as exp(-alpha * path) */
-const absorbOf = mat => (mat && mat.abs > 0) ? mat.abs : 0;
 /* Absorption at a wavelength: from the measured k where there is one, else the fixed value */
 export function absorbAt(mat, nm) {
   if (!mat) return 0;

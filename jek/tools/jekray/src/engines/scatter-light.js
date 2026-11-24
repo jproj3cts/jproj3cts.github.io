@@ -36,8 +36,6 @@ import { scatFieldBuild, scatFieldDirs, scatLobeBuild, scatLobeDirs, scatThrough
    where the driving beam runs on into it), for each coherent launch that drives the particle. */
 export const SC_MAX_CONES = 8;
 export let SC_RINGS = 8, SC_SPOKES = 24;
-/* (the tests: a finer cone, to tell what a figure owes to the cone's sampling) */
-export function setScGrid(rings, spokes) { SC_RINGS = rings; SC_SPOKES = spokes; }
 const SC_PLANE = 48;                        // the fan's rays in the bench plane, which the 2D view draws
 const SC_UP = [[30, 24], [60, 12], [80, 6]];   // and its rings above and below the plane: elevation (degrees), rays round
 const SC_LOOK = 17;                         // the rays that look at a part before its whole cone is probed: its axis and two rings of eight

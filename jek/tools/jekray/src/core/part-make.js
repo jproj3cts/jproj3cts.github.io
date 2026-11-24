@@ -48,5 +48,3 @@ export function partMakeOf(make, n, T) {
   });
   return out;
 }
-/* surface form as ISO 10110 writes it: 3/A(B) */
-export const formText = f => '3/' + (+f.form.toFixed(2)) + '(' + (+f.irr.toFixed(2)) + ')';

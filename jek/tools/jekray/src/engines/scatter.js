@@ -33,7 +33,6 @@ import { PUP_FRESNEL, pupApplyChains, pupChains, pupGmres, pupGrid, pupLock, pup
    on cuts and over the sphere, and the far field's amplitude itself (far), from which the
    scattered light could be put back on the bench. */
 export const SCAT_MODELS = ['auto', 'rayleigh', 'mie', 'dda'];
-export const SCAT_DIRS = ['fwd', 'back', 'side', 'up', 'angle'];
 export const SCAT_NMAX = 12000;           // dipoles in a run, unless more across are asked for
 export const SCAT_NHARD = 24000;          // and never more than this
 const WAVE_BINS = 12;                    // a focus's waves on the bench: bins across its pupil each way (waveInt)

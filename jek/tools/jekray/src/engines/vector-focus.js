@@ -1,4 +1,3 @@
-import { clamp } from '../core/constants.js';
 import { popFieldSeries, popInside, popRadii, popStats, qdht } from './field.js';
 import { polCoeff, polMatrix } from './polarisation.js';
 import { beamAxes, popScreen } from './phase-screen.js';

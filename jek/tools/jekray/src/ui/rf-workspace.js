@@ -41,7 +41,6 @@ import { track } from '../io/usage.js';
    optical designer's. The steps for the whole system (Optimise, Analyses, Tolerance, Make it) are tabs.
    ========================================================================== */
 let RW = null;                     // { asm, tab, sel (freq, feed, goal or a part's id), design (sel's lens being designed), draft, synth }
-export const rfDesignOpen = () => !!RW;
 const rwFmt = (v, p) => fmtWs(v, p || 5, 1e-9);
 /* where a waist sits from the last vertex, in words rather than a signed distance */
 const rwAt = v => Math.abs(v) < 1e-6 ? 'at the last face' : v < 0 ? rwFmt(-v, 4) + ' mm before the last face' : rwFmt(v, 4) + ' mm after the last face';
@@ -156,16 +155,6 @@ function rwAfterUndo() {
 
 /* drawn again after a field's change, focus kept on the field (by its label) the person moved to */
 let rwRendering = false, rwTimer = 0;
-function rwSoon() {
-  clearTimeout(rwTimer);
-  rwTimer = setTimeout(() => {
-    rwTimer = 0;
-    const a = document.activeElement, lab = a && a.closest && a.closest('#rfWs') && a.getAttribute('aria-label');
-    rwRender();
-    const n = lab && [...document.querySelectorAll('#rfWs [aria-label]')].find(x => x.getAttribute('aria-label') === lab);
-    if (n) { n.focus(); if (n.select) n.select(); }
-  }, 0);
-}
 const rwField = (el, fn) => () => { if (rwRendering || !el.isConnected) return; fn(); };
 export function rwRender() {
   if (!RW) return;

@@ -11,7 +11,7 @@ export const PY_DIR = '../assets/vendor/pyodide/314.0.7/';
 // what comes down the first time (the loader, the interpreter, its standard library, the package list), and NumPy's wheel
 export const PY_BYTES = 17931 + 1250344 + 9598218 + 2545637 + 119077;
 const PY_FETCHED = 9598218 + 2545637 + 119077;      // the part of it fetched (the scripts are imported), followed as it comes
-export const NUMPY_WHEEL = 'numpy-2.4.6-cp314-cp314-pyemscripten_2026_0_wasm32.whl', NUMPY_BYTES = 2960568;
+export const NUMPY_BYTES = 2960568;
 
 /* the Python side, run once as Python starts: J, log(), and _jekray_run(code) → the run as JSON text */
 const PY_GLUE = String.raw`

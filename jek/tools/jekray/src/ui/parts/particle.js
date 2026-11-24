@@ -4,8 +4,6 @@ import { SPHERE_DENSITY } from '../../core/traps.js';
 import { ctx, getCss, selInk, sx, sy } from '../render.js';
 import { h } from '../dom.js';
 import { fid, helpLine, numInput, panel, param, selectField, setFid } from '../panel.js';
-import { changed } from '../actions.js';
-import { checkpoint } from '../tabs.js';
 import { readoutTabs } from '../panels.js';
 import { PARTICLE_SHAPES, particleMats } from '../scatter.js';
 

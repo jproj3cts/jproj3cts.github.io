@@ -512,9 +512,7 @@ function lockin(el, Sig, Ref) {
    the signals share (the start of the generators' cycles), with a band of +-1 sigma for
    the noise up to its 100 MHz bandwidth. The analyser shows each tone as a peak at its rms
    level in dBV, over the noise in its resolution bandwidth. */
-const SCOPE_BW = 1e8;
 const CH = ['#db3550', '#0092b2'];   // Jek red, Jek blue
-const INST_BW = 1e8;
 const fmtSec = v => v >= 1 ? (+v.toPrecision(3)) + ' s' : v >= 1e-3 ? (+(v * 1e3).toPrecision(3)) + ' ms' : v >= 1e-6 ? (+(v * 1e6).toPrecision(3)) + ' µs' : (+(v * 1e9).toPrecision(3)) + ' ns';
 /* ---------- readouts ---------- */
 function elecFmtSig(v, unit) {

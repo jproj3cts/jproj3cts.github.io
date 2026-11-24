@@ -1771,7 +1771,7 @@ export const partsBw = () => !!(figure && figure.partsBw);
 const linkInk = c => partsBw() ? partTint(c, BW_LINE) : c;
 let tintReal = null, tintLine = '', tintFill = '', tintSelInk = null, tintOff = 0, tintRawFill = null, tintRawStroke = null, tintInk = false;
 const tintStack = [], tintFns = new Map();
-let tintFnsOf = null, tintProxyOf = null, tintProxy = null;
+let tintProxyOf = null, tintProxy = null;
 function tintedText(...a) {
   const t = tintReal, keep = t.fillStyle;
   if (tintOff || !tintLine) { t.fillStyle = tintRawFill; t.fillText(...a); }       // as the part wrote it (a light bench's dark words and all)

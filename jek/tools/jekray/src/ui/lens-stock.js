@@ -36,7 +36,6 @@ export async function stockAdd(files) {
   return { added, skipped, kept };
 }
 export function stockClear() { LIB = []; keep(); }
-export const stockLibrary = () => lib();
 
 const stFmt = (v, p) => fmtSig(v, p || 4);
 let RUN = null;

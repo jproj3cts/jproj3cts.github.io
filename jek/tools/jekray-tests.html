@@ -8353,6 +8353,25 @@ const TESTS = [
     },
   },  { group: 'The bar: menus and command search' },
   {
+    name: 'What’s new shows each version’s highlights and its latest changes, with the rest on the release notes page',
+    why: 'the page carries the newest version’s highlights and its latest 20 changes only (it carried all 282, 140 KB of every visit); Help › What’s new lists the highlights, then “The latest 20 of N changes” folded beneath, with a link to all N on the docs’ release notes page. A version with fewer than 20 shows them all and no link. 1 when all hold',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const doc = rigDoc();
+      doc.getElementById('btnNews').click();
+      try {
+        const body = doc.getElementById('newsBody'), heads = [...body.querySelectorAll('h3')].map(x => x.textContent), det = body.querySelector('details.rt-news-all');
+        const sum = det ? det.querySelector('summary').textContent : '', m = /^The latest (\d+) of (\d+) changes in ([\d.]+)$/.exec(sum);
+        const link = det && det.querySelector('a[href="/jek/docs/jekray/release-notes/"]'), shown = det ? det.querySelectorAll('li').length : 0, tops = body.querySelector('ul') ? body.querySelector('ul').children.length : 0;
+        const links = body.querySelectorAll('a[href="/jek/docs/jekray/release-notes/"]').length;
+        const res = { heads: heads.slice(0, 3), sum, shown, tops, links };
+        const ok = /^Version \d/.test(heads[0] || '') && !!m && +m[1] === 20 && +m[2] > 20 && shown === 20 && !!link && new RegExp('All ' + m[2] + ' changes').test(link.textContent) && tops >= 3 && tops <= 12 && links === 1 && heads.length >= 3;
+        if (!ok) console.log('whats new', JSON.stringify(res));
+        return ok ? 1 : 0;
+      } finally { doc.getElementById('newsClose').click(); }
+    },
+  },
+  {
     name: 'The menu bar: File, Edit, View, Tools, Sweeps and Help, each opening its own menu; Edit’s items do what their keys do',
     why: 'six menu buttons in that order, each opening its menu and closing the others; with nothing selected, Edit’s Cut, Copy and Delete are greyed and Select all is not; with a lens selected, Duplicate makes a second lens, Copy then Paste a third, Delete removes the selection, and Undo puts it back (1 when all hold)',
     want: 1, tol: 0, unit: '',

@@ -231,6 +231,7 @@ import './io/cloud.js';
 import './io/film-coats.js';
 import './io/nudges.js';
 import './io/autosave.js';
+import './ui/news-data.js';
 import './ui/news.js';
 import './ui/python.js';
 import './ui/script-calls.js';

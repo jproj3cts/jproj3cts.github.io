@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { build, lint, PAGE, order, stripModule, mainModule, workerModule, devPage, MAIN, WORKER_MAIN, DEV_PAGE } from '../../build.mjs';
+import { build, lint, PAGE, order, stripModule, mainModule, workerModule, devPage, MAIN, WORKER_MAIN, DEV_PAGE, NEWS_DATA, newsModule, newsAgrees } from '../../build.mjs';
 
 test('every module imports what it uses from where it is declared', () => {
   const { errors } = lint();
@@ -13,6 +13,9 @@ test('the built page is the one committed', () => {
 test('the dev page and its entry modules are current', () => {
   assert.equal(fs.readFileSync(MAIN, 'utf8'), mainModule());
   assert.equal(fs.readFileSync(WORKER_MAIN, 'utf8'), workerModule());
+  // (what the page carries of the release notes, written from news.mjs; its newest version the page's own)
+  assert.equal(fs.readFileSync(NEWS_DATA, 'utf8'), newsModule(), 'src/ui/news-data.js is out of date: run node build.mjs');
+  assert.ok(newsAgrees(), 'news.mjs and ui/news.js name the same version and date');
   assert.equal(fs.readFileSync(DEV_PAGE, 'utf8'), devPage());
 });
 test('the build drops import lines and export keywords and nothing else', () => {

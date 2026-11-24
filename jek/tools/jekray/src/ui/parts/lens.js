@@ -301,7 +301,7 @@ function lensPanel(el) {
     rIn[i] = R.inp;
     const rCell = h('div', { class: 'rt-facer' + (R.sw ? ' swept' : '') }, R.inp, R.toggle || null);
     const more = [];
-    if (s.hole > 0) more.push(h('p', { class: 'rt-hint' }, 'A hole ' + (+s.hole.toPrecision(4)) + ' mm in radius at its centre: no surface there. Set in the Optical designer (Design as an assembly…).'));
+    if (s.hole > 0) more.push(h('p', { class: 'rt-hint' }, 'A hole ' + (+s.hole.toPrecision(4)) + ' mm in radius at its centre: no surface there. Set in the Optics designer (Design as an assembly…).'));
     // where the surface reaches to (the lens's own unless given), and a Fresnel face's rings (a curved face only)
     const geo = h('div', { class: 'rt-rows' }, param('Clear radius (mm)', el, `surfaces.${i}.semi`, { blank: null, placeholder: (el.diameter / 2).toPrecision(4) }));
     if (!el.cyl && !el.zoned && (s.R !== null || s.fresnel)) geo.append(param('Fresnel rings (mm)', el, `surfaces.${i}.fresnel`, { blank: null, placeholder: 'solid' }));

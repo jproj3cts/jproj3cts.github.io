@@ -33,7 +33,7 @@ import { setPalette } from './rail.js';
 import { scheduleSave } from '../io/autosave.js';
 import { fwPump, midDrag } from '../page/workers.js';
 import { asmOf } from '../core/assembly.js';
-import { openLensDesign } from './lens-workspace.js';
+import { openDesign } from '../io/optic.js';
 
 /* ==========================================================================
    Hit testing and pointer interaction
@@ -411,7 +411,7 @@ export function wirePointer() {
     if (!F) {
       // an assembly: into its design workspace
       const r0 = canvas.getBoundingClientRect(), hit = hitTest(e.clientX - r0.left, e.clientY - r0.top), A = hit && asmOf(hit);
-      if (A && !e.ctrlKey && !e.metaKey) openLensDesign(A);
+      if (A && !e.ctrlKey && !e.metaKey) openDesign(A);
       return;
     }
     const rect = canvas.getBoundingClientRect(), px = e.clientX - rect.left, py = e.clientY - rect.top;

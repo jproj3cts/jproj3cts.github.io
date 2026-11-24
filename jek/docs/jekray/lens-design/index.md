@@ -1,17 +1,32 @@
 ---
 layout: docs
-title: Optical designer
+title: Optics designer
 permalink: /jek/docs/jekray/lens-design/
-description: Assemblies and the Optical designer in JEKray. Lenses, mirrors and stops on one axis are made one assembly and designed together in the Optical designer (conditions, element data, solves, pickups, merit, optimisation, analyses, tolerancing, drawings and a PDF report), then used on the bench as the parts they are.
+description: The Optics designer, JEKray's lens designer. Lenses, mirrors and stops on one axis are designed together (conditions, element data, solves, pickups, merit, optimisation, analyses, tolerancing, drawings and a PDF report); each design is a .optic file, used on any JEKray bench as the parts it is and kept up to date there.
 ---
 
 <p class="dx-lead">An assembly is a set of lenses, mirrors and stops on one axis that are designed together: a doublet, a triplet, an objective, a folded telescope. Its parts stay the bench's own parts, traced as they always are, so making one changes nothing the light does. What it adds is the view a lens designer works in: the parts read as one sequence of surfaces, with the conditions the design is for.</p>
 
-<p><strong>What needs an account.</strong> Anyone can open the Optical designer, build and edit a design, and look at it through every analysis. The design work needs a free account: the optimiser with its global search and glass substitution, tolerancing, the PDF report, lens drawings, and exporting the design as a lens file. So do saving a plot as PNG or CSV and the CAD export (.step, .stl), as every export does. Those buttons carry a <strong>Free account</strong> badge until you sign in. Keeping a design in My parts needs <a href="/jek/tools/jekray.html#pro">JEKrayPro</a>. See the <a href="/jek/tools/jekray-licence.html">JEKray Licence</a>, section 3.</p>
+<p><strong>What needs an account.</strong> Anyone can open the Optics designer, build and edit a design, and look at it through every analysis. The design work needs a free account: the optimiser with its global search and glass substitution, tolerancing, the PDF report, lens drawings, and exporting the design as a lens file. So do saving a plot as PNG or CSV and the CAD export (.step, .stl), as every export does. Those buttons carry a <strong>Free account</strong> badge until you sign in. Keeping a design in My parts needs <a href="/jek/tools/jekray.html#pro">JEKrayPro</a>. See the <a href="/jek/tools/jekray-licence.html">JEKray Licence</a>, section 3.</p>
+
+## The Optics designer and its files
+
+The Optics designer opens in a tab of its own, at [jekray.html?optic](/jek/tools/jekray.html?optic), or from **Optics designer** under JEKray in [JEKsuite](/jek/docs/jekray/jeksuite/). Each design is a file of its own, a **.optic**: **Save** in its bar downloads it, **File › Save to cloud** keeps it in JEKsuite beside your benches, and **File › Open a .optic file…** opens one. It keeps its work in your browser apart from JEKray's bench, so a design and a bench can both be open at once.
+
+A design is used on a bench as a copy of its parts, an assembly linked to the design:
+
+- **Use on a bench**, in the designer's bar, puts the design on the bench in JEKray's tab (opening one if none is open), with a source for each field and a screen at its image.
+- **Design…** on an assembly in JEKray (or a double-click on it) opens it in the Optics designer, linked to it. An assembly made on the bench becomes a design of its own the first time.
+- While both are open, each change in the designer reaches the bench at once, where it stands, as a step of Undo there.
+- A bench opened later whose design has moved on in the cloud offers the newer version. It never takes it by itself.
+- Unlocking a linked assembly's parts (the padlock in a part's panel) unlinks it: its parts are then the bench's own.
+- A .optic opened in JEKray with **File › Open** is put on the bench, linked, in the same way.
+
+The RF designer still opens on the bench itself; it gets files of its own (.rfd) next.
 
 ## Making an assembly
 
-**One part.** A lens, mirror or window on its own has **Design as an assembly…** in its panel, just under its name (and in its right-click menu). It is made an assembly of one and opened in the design workspace, where surfaces and singlets can be added to it.
+**One part.** A lens, mirror or window on its own has **Design as an assembly…** in its panel, just under its name (and in its right-click menu). It is made an assembly of one and opened in the Optics designer, where surfaces and singlets can be added to it.
 
 **Several parts.** Select the lenses, mirrors and stops (Shift- or Ctrl-click, or drag a box round them), then **Make an assembly** in their panel or the right-click menu. They must be:
 
@@ -24,7 +39,7 @@ A lens off the axis by less than its half-width is *decentred*, one turned from 
 
 An assembly is picked and moved as one, drawn with a dashed outline and its name. Its panel places it by its **X** and **Y** (its first vertex), **Angle** (the way its axis runs) and **Height z**: these move or turn every part together, leaving the design unchanged. Ctrl-click a part to edit it alone; a part moved off the axis turns the outline red. **Split into parts** gives back the separate lenses and stops where they are.
 
-**Starting from nothing.** **Tools › Optical designer, new…** puts a starting assembly on the bench (a 10 mm stop and a biconvex N-BK7 singlet of about 50 mm focal length, designed for the F, d and C lines) and opens it in the workspace. **Optical designer, of the selection** opens the selected lenses and stops as one design, making them an assembly if they are not one already. The same menu opens the [RF designer](/jek/docs/jekray/rf/designer/) and [JEKfilm](/jek/docs/jekray/jekfilm/), for coatings. On **My benches**, **Open a workspace** makes a new cloud bench straight in the designer chosen. In the workspace, **Keep as a part…** saves the whole design by name in **My parts** or a team's **Team parts**.
+**Starting from nothing.** **Tools › Optics designer, new…** in JEKray, **File › New design** in the Optics designer, or **New › Optical design** in JEKsuite starts a design (a 10 mm stop and a biconvex N-BK7 singlet of about 50 mm focal length, designed for the F, d and C lines) in the Optics designer. **Optics designer, of the selection** opens the selected lenses and stops as one design, making them an assembly if they are not one already. The same menu opens the [RF designer](/jek/docs/jekray/rf/designer/) and the [Coating designer](/jek/docs/jekray/jekfilm/). In the workspace, **Keep as a part…** saves the whole design by name in **My parts** or a team's **Team parts**.
 
 ## The prescription
 
@@ -83,9 +98,9 @@ in three dimensions, so skew rays are traced as exactly as meridional ones. A ra
 
 ## The design workspace
 
-**Design…** in an assembly's panel, or a double-click on it, opens it on a page of its own. The bar names the bench and the assembly (its name can be edited there); **Back to the bench** (or Esc) returns. Nothing is copied: every change is written to the parts on the bench as it is made, so the bench is always the design, and Undo and Redo work in both places. A design started from nothing has **Place on a bench** instead: it adds a source for each field (collimated, as wide as the entrance pupil) and a screen at the image, then returns.
+The Optics designer's bar has the design's name (edited there; it is the file's name too), **File**, Undo and Redo, **Keep as a part…**, **Report (PDF)**, **Save** and **Use on a bench**, which puts the design on JEKray's bench with a source for each field (collimated, as wide as the entrance pupil) and a screen at the image. A bench using the design follows every change made here, as above.
 
-**File › Import an element (.zmx)…** with **Open it in the Optical designer** ticked reads a lens file as an assembly and opens it here.
+In JEKray, **File › Import an element (.zmx)…** with **Open it in the Optics designer** ticked reads a lens file as an assembly on the bench and opens it here.
 
 ### Design conditions
 
@@ -93,7 +108,7 @@ The left column holds what the design is for: the object, the aperture, the fiel
 
 **The object** is at infinity (the fields are angles, in degrees) or **at a distance** before the first surface (the fields are heights on the object, in mm). Switching turns the fields from angles into heights at that distance, and back. For a finite object the aperture may be given as the **NA at the object**; the **working F-number** is always $$1/(2\,\mathrm{NA}')$$ in image space, from the paraxial marginal ray. The conditions show the paraxial magnification and image distance. Rays from a finite object start at their object point and are aimed through the stop as from infinity, their optical path counted from that point, so a perfect image has no wavefront error; the Seidel sums and the focus solve start from the object's points too.
 
-**Take conditions from the bench** reads the light arriving at the assembly in the bench's last trace: each source whose rays cross a plane just before the first surface, going forward and inside its clear radius, gives a field (the rays' mean angle, with the axis always included) and its wavelengths, and the widest beam there becomes the entrance pupil. When every source's rays come from a point at much the same distance, the object is put there: each point's height a field, the widest cone the NA. A design lit on the bench by the other kind of object says so in its panel.
+**Take conditions from the bench** (in the Optics designer, when the design was opened from a bench: the light as it was then) reads the light arriving at the assembly in the bench's last trace: each source whose rays cross a plane just before the first surface, going forward and inside its clear radius, gives a field (the rays' mean angle, with the axis always included) and its wavelengths, and the widest beam there becomes the entrance pupil. When every source's rays come from a point at much the same distance, the object is put there: each point's height a field, the widest cone the NA. A design lit on the bench by the other kind of object says so in its panel.
 
 **Checked against.** A thick lens with an object 150 mm before it: image distance and magnification from its principal planes and Newton's equation, to 10⁻⁹ mm. An ellipsoidal mirror imaging one focus on the other, and a sphere imaging its centre on itself: no spot, no wavefront error. A doublet lit by a point source 3 mm off the axis: the conditions taken from it, and each of the bench's rays meeting the sensor where the lens engine's does, to 10⁻¹² mm.
 

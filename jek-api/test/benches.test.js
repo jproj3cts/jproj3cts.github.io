@@ -447,6 +447,16 @@ describe('the tools', () => {
     expect((await json(await call(`/v1/benches/${c.id}`, { token: s.token }))).body.tool).toBe('jekcad');
     expect((await json(await call(`/v1/benches/${r.id}`, { token: s.token }))).body.tool).toBe('jekray');
   });
+  it('migration 0021 marks a design saved as a JEKray bench (by an API from before the Optics designer) as the Optics designer’s, by its content', async () => {
+    const s = await pro('Mig3');
+    const c = await make(s, 'Doublet', { content: JSON.stringify({ format: 'jekoptic', version: 1, name: 'Doublet', uid: 'o12345678', elements: [] }) });
+    const r = await make(s, 'A bench');
+    await env.DB.prepare("UPDATE benches SET tool = 'jekray' WHERE id = ?").bind(c.id).run();
+    const sql = (await import('../migrations/0021_bench_tool_jekoptic.sql?raw')).default;
+    for (const st of sql.split(';').map((x) => x.replace(/--.*$/gm, '').trim()).filter(Boolean)) await env.DB.prepare(st).run();
+    expect((await json(await call(`/v1/benches/${c.id}`, { token: s.token }))).body.tool).toBe('jekoptic');
+    expect((await json(await call(`/v1/benches/${r.id}`, { token: s.token }))).body.tool).toBe('jekray');
+  });
   const ion = (name) => JSON.stringify({ format: 'jekion', version: 1, name, electrodes: [], ions: [] });
   const film = (name) => JSON.stringify({ format: 'jekfilm', version: 1, name, spec: { target: 'ar' }, layers: [{ n: 1.38, d: 99.6 }] });
   it('a bench is JEKray’s or JEKion’s by its content, the list says which and filters by it', async () => {
@@ -507,5 +517,23 @@ describe('the tools', () => {
     expect((await json(await put(s, c.id, 1, cad('Mount 2'), { checkpoint: true }))).status).toBe(200);
     const f = (await json(await send(`/v1/benches/${c.id}/fork`, 'POST', s.token, {}))).body;
     expect(f.tool).toBe('jekcad');
+  });
+  const optic = (name) => JSON.stringify({ format: 'jekoptic', version: 1, name, uid: 'o12345678abc', elements: [], assemblies: [] });
+  it('a design (.optic) is the Optics designer’s: listed by it, kept by forks, and no bench saves over it, nor it over a bench', async () => {
+    const s = await pro('Olga');
+    const r = await make(s, 'Optics');
+    const d = await make(s, 'Doublet', { content: optic('Doublet') });
+    expect(d.tool).toBe('jekoptic');
+    const designs = (await json(await call(`/v1/workspaces/${s.workspaceId}/benches?tool=jekoptic`, { token: s.token }))).body.benches;
+    expect(designs.map((b) => b.id)).toEqual([d.id]);
+    const over = await json(await put(s, d.id, 1, bench('Doublet')));
+    expect(over.status).toBe(400);
+    expect(over.body.error.message).toMatch(/Optics designer design: a \.jekray cannot/);
+    const back = await json(await put(s, r.id, 1, optic('Optics')));
+    expect(back.status).toBe(400);
+    expect(back.body.error.message).toMatch(/a \.optic cannot/);
+    expect((await json(await put(s, d.id, 1, optic('Doublet 2'), { checkpoint: true }))).status).toBe(200);
+    const f = (await json(await send(`/v1/benches/${d.id}/fork`, 'POST', s.token, {}))).body;
+    expect(f.tool).toBe('jekoptic');
   });
 });

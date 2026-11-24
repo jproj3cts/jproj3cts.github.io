@@ -80,4 +80,4 @@ The face keeps a copy of the stack, so the bench traces, shares and opens offlin
 
 A .jekfilm file is JSON: the coating's name, what it is for (`spec`), and its `layers`, each an index `n` and a thickness `d` in nanometres, from the outside in.
 
-**On a lens to be made.** In the [Optical designer](/jek/docs/jekray/lens-design/#make-the-part), a face's Coating list takes a JEKfilm coating too, and **Make the part** under the lens's drawing writes its coating specification beside the part's drawing and specification, in one zip for the maker.
+**On a lens to be made.** In the [Optics designer](/jek/docs/jekray/lens-design/#make-the-part), a face's Coating list takes a JEKfilm coating too, and **Make the part** under the lens's drawing writes its coating specification beside the part's drawing and specification, in one zip for the maker.

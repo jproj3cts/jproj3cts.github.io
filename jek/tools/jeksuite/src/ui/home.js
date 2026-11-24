@@ -95,7 +95,7 @@ export const copyPlaces = (notWs) => (account ? account.workspaces : []).filter(
 /* A bench's app, where the API's mark is behind what it holds: an API from before an app was made marks that app's
    benches JEKray's. Each bench marked JEKray's is looked at once (its content says its format), what was found is
    kept by its id for the next visit, and the list is drawn again if any turned out to be another app's. */
-const TOOL_KEY = 'jeksuite-tools', TOOL_OF_FORMAT = { jekcad: 'jekcad', jekfilm: 'jekfilm', jekion: 'jekion' };
+const TOOL_KEY = 'jeksuite-tools', TOOL_OF_FORMAT = { jekcad: 'jekcad', jekfilm: 'jekfilm', jekion: 'jekion', jekoptic: 'jekoptic' };
 /* (what was found is kept by the bench's id: 'jekcad' and the like for good, since a bench never changes its app;
    'jekray' with the version it was seen at, as v<n>, so a bench the look failed on, or one saved over since, is
    looked at again. The store is read each time: JEKcad writes to it too, for each part studio it saves or opens.) */
@@ -840,7 +840,7 @@ export function newMenuItems() {
 /* What New starts: a bench in an app, or straight into one of JEKray's designers */
 export const NEW_KINDS = [
   { app: 'jekray', into: null, label: 'JEKray bench', icon: 'bench' },
-  { app: 'jekray', into: 'lens', label: 'Optical design', icon: 'lens', sub: true },
+  { app: 'jekoptic', into: null, label: 'Optical design', icon: 'lens', sub: true },
   { app: 'jekray', into: 'rf', label: 'RF design', icon: 'rf', sub: true },
   { app: 'jekfilm', into: null, label: 'Coating', icon: 'coat', sub: true },
   { app: 'jekion', into: null, label: 'JEKion bench', icon: 'ion' },
@@ -850,6 +850,8 @@ export const NEW_KINDS = [
 export function newContent(app, name) {
   if (app === 'jekion') return { format: 'jekion', version: 1, name, electrodes: [], ions: [], detectors: [] };
   if (app === 'jekcad') return { format: 'jekcad', version: 1, name, units: 'mm', variables: [], features: [], rollback: null, parts: {} };
+  // a design: a uid of its own (what the benches using it are linked by), its parts made in the Optics designer
+  if (app === 'jekoptic') return { format: 'jekoptic', version: 1, name, uid: 'o' + Array.from(crypto.getRandomValues(new Uint8Array(10)), b => b.toString(36).padStart(2, '0')).join('').slice(0, 18), elements: [], fibres: [] };
   if (app === 'jekfilm') return { format: 'jekfilm', version: 1, name, spec: { target: 'ar', sub: { glass: 'N-BK7' }, lo: 450, hi: 650, design: 550 }, layers: [{ n: 1.38, d: 99.638 }] };
   return { format: 'jekray', version: 1, name, elements: [], fibres: [] };
 }

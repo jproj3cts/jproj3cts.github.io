@@ -2,7 +2,6 @@
    Constants
    ========================================================================== */
 
-export const STORE_KEY = 'jek-raytracer-session-v1';
 export let cloud = null, cloudOpening = false;       // the cloud bench this one is linked to (see Cloud benches)
 export function setCloudOpening(v) { return (cloudOpening = v); }
 export function setCloud(v) { return (cloud = v); }
@@ -20,6 +19,14 @@ export const EMBED = IN_PAGE && !TEST_MODE && /(^|[?&])embed\b/.test(QUERY);
 // ?embed=locked: the parts stay where they are; the reader pans, zooms, turns the 3D view and plays the sweeps
 export const LOCKED = EMBED && /(^|[?&])embed=locked\b/.test(QUERY);
 export const FORMAT = 'jekray';
+/* ?optic: the page is the Optics designer, JEKray's lens designer as a program of its own. Its document is a .optic,
+   a design: the parts of one assembly and its record, written as a bench is but with format 'jekoptic' (and a uid
+   that links the benches using it back to it). It keeps its work apart from JEKray's bench in this browser: each
+   store's key (appStoreKey) has '-optic' after it. */
+export const OPTIC = IN_PAGE && !IN_WORKER && /(^|[?&])optic\b/.test(typeof location === 'undefined' ? '' : location.search);
+export const OPTIC_FORMAT = 'jekoptic';
+export const appStoreKey = k => OPTIC ? k + '-optic' : k;
+export const STORE_KEY = appStoreKey('jek-raytracer-session-v1');
 export const VERSION = 1;
 export const TRACE_BUDGET = 4e6;  // ray–element interactions per redraw, keeps the page responsive
 export const FAR = 2e4;          // mm: how far an escaping ray is drawn

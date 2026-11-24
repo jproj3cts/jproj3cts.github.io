@@ -1120,6 +1120,9 @@
   }
   .rt-toast.show { opacity: 1; }
   .rt-toast.bad { color: var(--jek-red); font-weight: 600; }
+  /* a note with an offer in it (an update to take up): its button can be pressed */
+  .rt-toast.show.act { pointer-events: auto; }
+  .rt-toast .rt-toastact { margin-left: 0.3rem; font-weight: 600; }
 
   /* The tool fills the whole window, edge to edge, with no site bar above it: the JEKray logo
      at the left of the toolbar leads back to its product page, and nothing separates the
@@ -1524,6 +1527,12 @@
   /* ---------- The lens design workspace ---------- */
   .rt-lens { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; background: var(--jek-well); color: var(--jek-ink); font-family: var(--jek-sans); text-align: left; outline: none; }
   .rt-lens[hidden] { display: none !important; }
+  /* the Optics designer (?optic, io/optic.js): the page's bar moved into the workspace's head, out of .rt-wrap, whose
+     rule hides [hidden] there; its name in place of JEKray's mark */
+  .rt-ophead [hidden] { display: none !important; }
+  .rt-ophead .rt-space { margin-right: 0.2rem; }
+  .rt-ophead a.rt-opmark, .rt-ophead a.rt-opmark:hover { color: var(--jek-ink); text-decoration: none; }
+  .rt-ophead .rt-more { position: relative; }
   .rt-lens .mono, .rt-lnum, .rt-lglass { font-family: var(--jek-mono); }
   .rt-lhead { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; padding: 0.6rem 1rem; background: var(--jek-panel); border-bottom: 1px solid var(--jek-line); flex: none; }
   .rt-lcrumb { display: flex; align-items: center; gap: 0.5rem; min-width: 0; font-size: 0.95rem; }

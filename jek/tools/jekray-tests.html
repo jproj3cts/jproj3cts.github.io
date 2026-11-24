@@ -8288,7 +8288,7 @@ const TESTS = [
     },
   },  { group: 'Surfaces: holes, stacks and mirror coatings' },
   {
-    name: 'A solid telescope of two stacked faces focuses behind its centre where the Optical designer says; a Mangin mirror folds',
+    name: 'A solid telescope of two stacked faces focuses behind its centre where the Optics designer says; a Mangin mirror folds',
     why: 'a block of N-BK7 40 mm thick: a flat front with a hole of 16.5 and a flat mirror-coated spot stacked in it, a back R −200 mirror coated (aluminium) with a hole of 6.5 and a flat stacked in it: rays entering round the spot come to a focus about 12.8 mm behind the block; the assembly’s prescription has four rows, each surface met once, in the order the light meets them, with the holes as obscurations; the designer’s path and the bench’s rays agree; a Mangin mirror (its back mirror coated) brings the light back and folds the axis (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
@@ -10535,7 +10535,7 @@ const TESTS = [
       return F.Gdbi - C.Gdbi;
     },
   },
-  { group: 'The Optical designer' },
+  { group: 'The Optics designer' },
   {
     name: 'Lenses and a stop made an assembly change nothing on the bench, read as one prescription, and split back the same',
     why: 'a Cooke triplet (three lenses and an iris on one axis, a published prescription of 50 mm focal length) and a sensor: made an assembly, the sensor sees exactly what it saw before; the assembly reads as 7 surfaces with the stop the 5th and a focal length of 50 mm; split, the sensor still sees the same and the record is gone; a source can’t join one (1 when all hold)',
@@ -11512,7 +11512,123 @@ const TESTS = [
       } finally { J.closeLensDesign(); }
     },
   },
-  { group: 'The Optical designer and the workspaces' },
+  { group: 'The Optics designer and its files' },
+  {
+    name: 'A design (.optic) made from an assembly, and put on a bench linked to it, its parts locked',
+    why: 'a lens made an assembly: its design file says format jekoptic, carries the uid the assembly is now linked by, its one part and its record; on an empty bench it goes down as an assembly linked to that uid, locked, the lens as it was (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const D = rigDoc();
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80 }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }] }] });
+      try {
+        J.select('Lens'); D.getElementById('btnLensOfSel').click(); J.closeLensDesign();
+        const asm = J.serialize().assemblies[0].name, F = J.designFile(asm), link = J.designLink(asm);
+        const fileOk = F.format === 'jekoptic' && /^o[a-z0-9]{8,}$/.test(F.uid) && link && link.uid === F.uid && F.elements.length === 1 && F.assemblies.length === 1 && F.elements[0].group === F.assemblies[0].id;
+        J.load({ format: 'jekray', version: 1, elements: [] });
+        const name = J.placeDesign(F, { uid: F.uid }), P = J.serialize(), A = P.assemblies[0], L = P.elements.find(e => e.type === 'lens');
+        const placed = name === asm && A.src && A.src.uid === F.uid && A.lock === true && L.group === A.id && L.surfaces[0].R === 80 && L.surfaces[1].R === -80;
+        if (!(fileOk && placed)) console.log('optic file', { F, link, P });
+        return fileOk && placed ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
+    name: 'A bench follows its design: a change sent by the Optics designer lands in place, and Undo takes it back',
+    why: 'a design on the bench, moved to (40, 30) and turned 90°; the designer sends the design with its first radius 60: the bench’s lens takes it where the assembly stands, one step of Undo puts 80 back; a design with another uid changes nothing (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80 }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }] }] });
+      try {
+        J.select('Lens'); rigDoc().getElementById('btnLensOfSel').click(); J.closeLensDesign();
+        const F = J.designFile(J.serialize().assemblies[0].name);
+        J.load({ format: 'jekray', version: 1, elements: [] });
+        J.placeDesign(F, { uid: F.uid });
+        const lens = () => J.serialize().elements.find(e => e.type === 'lens');
+        J.set(lens().name, { x: 40, y: 30, angle: 90 });
+        const at = lens(), G = JSON.parse(JSON.stringify(F));
+        G.elements[0].surfaces[0].R = 60;
+        J.followDesign({ kind: 'design', uid: 'oSomethingElse1', content: G });
+        const other = lens().surfaces[0].R === 80;
+        J.followDesign({ kind: 'design', uid: F.uid, content: G });
+        const now = lens(), took = now.surfaces[0].R === 60 && Math.abs(now.x - at.x) < 1e-6 && Math.abs(now.y - at.y) < 1e-6 && Math.abs(now.angle - at.angle) < 1e-6 && J.serialize().assemblies[0].src.uid === F.uid;
+        J.undo();
+        const back = lens().surfaces[0].R === 80;
+        if (!(other && took && back)) console.log('optic follow', { other, at, now, back: lens() });
+        return other && took && back ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
+    name: 'A .optic opened on a bench is put on it linked, with light for it; unlocking its parts unlinks it',
+    why: 'File › Open with a design: the bench keeps what it had and gains the design, linked, a source per field and a screen at its image; the padlock in a part’s panel, opened, drops the link and says so (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const D = rigDoc();
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80 }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }] }] });
+      try {
+        J.select('Lens'); D.getElementById('btnLensOfSel').click(); J.closeLensDesign();
+        const F = J.designFile(J.serialize().assemblies[0].name);
+        J.load({ format: 'jekray', version: 1, elements: [{ type: 'mirror', name: 'Mirror', x: -100, y: 0, angle: 45, length: 25 }] });
+        J.openFileData(F, 'Doublet.optic');
+        const P = J.serialize(), A = (P.assemblies || [])[0];
+        const opened = !!A && A.src && A.src.uid === F.uid && P.elements.some(e => e.name === 'Mirror') && P.elements.filter(e => e.type === 'source').length >= 1 && P.elements.some(e => e.type === 'screen');
+        J.select(P.elements.find(e => e.type === 'lens').name); await new Promise(r => setTimeout(r, 50));
+        const pad = D.querySelector('#panel .rt-padlock'); if (pad) pad.click();
+        const unlinked = !!pad && !J.serialize().assemblies[0].src && /no longer follows/.test(D.getElementById('toast').textContent);
+        if (!(opened && unlinked)) console.log('optic open', { P, pad: !!pad, toast: D.getElementById('toast').textContent });
+        return opened && unlinked ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
+    name: 'Design… on an assembly opens the Optics designer in its own tab, handing the design over linked',
+    why: 'with the designer in its own tab (as on the site, not on a test page): the part’s Open the assembly design opens jekray.html?optic#take in the tab named jekoptic, the hand-over holding the design and the link the assembly now has, and the bench’s own workspace stays shut (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const D = rigDoc(), W = rigWin(), wasOpen = W.open, opened = [];
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80 }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }] }] });
+      try {
+        J.select('Lens'); D.getElementById('btnLensOfSel').click(); J.closeLensDesign();
+        J.opticTabs(true);
+        W.open = (url, name) => { opened.push([url, name]); return { focus() {} }; };
+        J.select('Lens'); await new Promise(r => setTimeout(r, 50));
+        const btn = [...D.querySelectorAll('#panel button')].find(b => b.textContent === 'Open the assembly design…');
+        if (btn) btn.click();
+        let hand = null; try { hand = JSON.parse(W.localStorage.getItem('jek-optic-handoff')); W.localStorage.removeItem('jek-optic-handoff'); } catch (err) { /* none */ }
+        const link = J.designLink(J.serialize().assemblies[0].name);
+        const ok = !!btn && opened.length === 1 && /jekray(-dev)?\.html\?optic#take$/.test(opened[0][0]) && opened[0][1] === 'jekoptic' && !J.lensDesignOpen()
+          && hand && link && hand.src.uid === link.uid && hand.content.uid === link.uid && hand.content.format === 'jekoptic' && hand.content.elements.length === 1;
+        if (!ok) console.log('optic tab', { btn: !!btn, opened, hand, link });
+        return ok ? 1 : 0;
+      } finally { W.open = wasOpen; J.opticTabs(false); J.closeLensDesign(); }
+    },
+  },
+  {
+    name: 'The page as the Optics designer (?optic): a new design, the bar in its head, a .optic file',
+    why: 'jekray.html?optic in a frame of its own: its title, the design open with no bench to go back to, Save, File and Use on a bench in its head, the bench’s exports out of File, New design and Open a .optic file there, and the file it keeps a design (format jekoptic with a uid) (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async () => {
+      const dev = /[?&]dev=1/.test(location.search), wait = ms => new Promise(r => setTimeout(r, ms));
+      const f = document.createElement('iframe');
+      f.style.cssText = 'position:absolute;left:-5000px;top:0;width:1400px;height:800px;border:0';
+      f.src = '/jek/tools/' + (dev ? 'jekray-dev.html' : 'jekray.html') + '?test&optic';
+      document.body.append(f);
+      try {
+        const W = f.contentWindow;
+        for (let i = 0; i < 300 && !(W.JEKray && W.JEKray.serialize && W.document.getElementById('lensUse')); i++) await wait(100);
+        const D = W.document, head = D.querySelector('#lensWs .rt-lhead'), P = W.JEKray.serialize(), shown = id => { const e = D.getElementById(id); return !!e && !e.hidden; };
+        const r = {
+          title: D.title, open: W.JEKray.lensDesignOpen(), inHead: ['btnSave', 'btnFile', 'lensUse'].every(id => head && head.contains(D.getElementById(id))), leave: !D.getElementById('lensLeave'),
+          words: D.getElementById('btnNew').textContent === 'New design' && /^Open a \.optic file/.test(D.getElementById('btnOpen').textContent),
+          hidden: !shown('btnExportData') && !shown('btnImportStl') && !shown('btnPacks'), file: P.format === 'jekoptic' && /^o[a-z0-9]{8,}$/.test(P.uid) && (P.assemblies || []).length === 1,
+        };
+        const ok = r.title === 'Optics designer | JEKray' && r.open && r.inHead && r.leave && r.words && r.hidden && r.file;
+        if (!ok) console.log('optic page', r);
+        return ok ? 1 : 0;
+      } finally { f.remove(); }
+    },
+  },
+  { group: 'The Optics designer and the workspaces' },
   {
     name: 'A lens’s readout lists focal lengths at the wavelengths whose light reaches it, not every source on the bench',
     why: 'two lasers, 633 nm into a lens and 532 nm past it: the lens’s panel gives its EFL at 633 nm only; a second lens nothing reaches gives both, and says no light reaches it (1 when both hold)',
@@ -11541,7 +11657,7 @@ const TESTS = [
       const lens = () => J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80 }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }]}] });
       try {
         const items = [...D.querySelectorAll('#toolsMenu [data-ws]')].map(b => b.textContent);
-        const five = items.length === 5 && items[0] === 'Optical designer, new…' && items[4] === 'Coating design in JEKfilm…' && !!D.getElementById('btnNewLens') && !!D.getElementById('btnNewRf');
+        const five = items.length === 5 && items[0] === 'Optics designer, new…' && items[4] === 'Coating design in JEKfilm…' && !!D.getElementById('btnNewLens') && !!D.getElementById('btnNewRf');
         lens(); J.select('Lens');
         D.getElementById('btnLensOfSel').click();
         const lensOpen = ws('lensWs') && (J.serialize().assemblies || []).length === 1;
@@ -11718,7 +11834,7 @@ const TESTS = [
       } finally { J.closeLensDesign(); }
     },
   },
-  { group: 'The Optical designer' },
+  { group: 'The Optics designer' },
   {
     name: 'Image simulation: the test chart formed over the whole field and in a patch, and the user\u2019s own picture',
     why: 'the published Cooke triplet\u2019s Analyses \u203a Image simulation: over the whole field the chart is formed with each colour at the design\u2019s nearest wavelength; a patch at 20\u00b0 is moved in to lie within the field; a picture of the user\u2019s own, all one red, comes out that red in the middle over the whole field, and dimmer in the corners (relative illumination) (1 when all hold)',

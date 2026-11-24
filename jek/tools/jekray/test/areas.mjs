@@ -61,10 +61,10 @@ export const AREAS = {
     browser: ['The 3D view', 'STL objects', 'The field in 3D', 'Mates and groups in 3D'],   // The 3D view is two groups of that name
   },
   'lens-design': {
-    what: 'the Optical designer: assemblies, the sequential engine, analyses, optimiser, tolerancing, drawings, report',
-    src: ['src/engines/lens-', 'src/core/assembly.js', 'src/ui/lens-', 'src/ui/assembly.js', 'src/ui/pro.js', 'src/core/part-make.js', '../jekfilm/src/core/', '../jekfilm/src/io/film-pages.js'],
+    what: 'the Optics designer: its page and .optic files, the benches using them, assemblies, the sequential engine, analyses, optimiser, tolerancing, drawings, report',
+    src: ['src/engines/lens-', 'src/core/assembly.js', 'src/io/optic.js', 'src/ui/lens-', 'src/ui/assembly.js', 'src/ui/pro.js', 'src/core/part-make.js', '../jekfilm/src/core/', '../jekfilm/src/io/film-pages.js'],
     node: ['lens-', 'optimise-stress.test.mjs', 'assembly.test.mjs', 'cad-export.test.mjs', 'zmx-cb.test.mjs', 'pro-gate.test.mjs'],
-    browser: ['Surfaces: holes, stacks and mirror coatings', 'Import, files and tools', 'The Optical designer', 'The Optical designer and the workspaces'],
+    browser: ['Surfaces: holes, stacks and mirror coatings', 'Import, files and tools', 'The Optics designer', 'The Optics designer and its files', 'The Optics designer and the workspaces'],
   },
   rf: {
     what: 'RF: horns, antennas, metal and dielectric parts, graded and zoned lenses, the RF designer',

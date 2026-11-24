@@ -25,7 +25,7 @@ import { coloursRows, fibreLinkPanel, groupPanel, rfHornPanel } from './panels.j
 import { assumedBox } from './plots.js';
 import { renderOverview, setBenchTab } from './panel-cavity.js';
 import { cavitiesOf } from '../engines/cavity.js';
-import { changed, duplicate, removeEl, suppressEls } from './actions.js';
+import { changed, duplicate, removeEl, suppressEls, toast } from './actions.js';
 import { checkpoint, selectEl, switchTab } from './tabs.js';
 import { modPanel } from '../io/mods.js';
 import { h } from './dom.js';
@@ -676,7 +676,7 @@ function renderPanelBody(el) {
     const lk = h('button', { class: 'rt-pin rt-padlock' + (locked ? ' on' : ''), type: 'button', 'data-keep': '', 'aria-pressed': locked ? 'true' : 'false',
       'aria-label': locked ? 'Unlock ' + des.name + '’s parts' : 'Lock ' + des.name + '’s parts',
       title: locked ? 'Locked: these parts are as ' + des.name + '’s lens design has them. Click to unlock their fields here (the design workspace can always change them).' : 'Unlocked: these parts’ fields can be changed here. Click to lock them again.',
-      onclick: () => { checkpoint(); des.lock = !locked; changed(false); renderPanel(); } });
+      onclick: () => { checkpoint(); des.lock = !locked; if (locked && des.src) { delete des.src; toast(des.name + ' is unlocked, and no longer follows its design in the Optics designer: its parts are this bench’s own now'); } changed(false); renderPanel(); } });
     lk.innerHTML = locked ? PADLOCK_SVG : UNPADLOCK_SVG;
     title.append(lk);
   }

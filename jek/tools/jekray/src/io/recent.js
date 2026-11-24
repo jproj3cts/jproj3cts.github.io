@@ -1,4 +1,4 @@
-import { EMBED } from '../core/constants.js';
+import { EMBED, appStoreKey } from '../core/constants.js';
 import { h } from '../ui/dom.js';
 import { toast } from '../ui/actions.js';
 import { openDemo } from '../ui/tours.js';
@@ -10,7 +10,7 @@ import { keepHere } from '../ui/pro.js';
    The last few things opened, newest first: a .jekray file (its text kept here, as a page cannot open a file
    on the disk again by itself; a large one is let go first when the browser's store is full), an example (by
    its name) and a cloud bench (by its id, fetched afresh). Kept in this browser. */
-const OPENED_KEY = 'jekray-recent', OPENED_MAX = 8;
+const OPENED_KEY = appStoreKey('jekray-recent'), OPENED_MAX = 8;
 export function readRecent() {
   try { const v = JSON.parse(localStorage.getItem(OPENED_KEY)); return Array.isArray(v) ? v : []; } catch (err) { return []; }
 }

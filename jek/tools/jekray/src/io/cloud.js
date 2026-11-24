@@ -1,4 +1,5 @@
-import { EMBED, TEST_MODE, cloud, cloudOpening, setCloud, setCloudOpening } from '../core/constants.js';
+import { EMBED, OPTIC, TEST_MODE, cloud, cloudOpening, appStoreKey, setCloud, setCloudOpening } from '../core/constants.js';
+import { opticPage } from './optic.js';
 import { hooks } from '../core/hooks.js';
 import { V, project } from '../state/project.js';
 import { serialize } from '../state/elements.js';
@@ -30,7 +31,7 @@ import { noteRecent } from './recent.js';
    and the person chooses what to keep. Offline, the bench stays in this browser's autosave
    and goes up when the connection returns: the link and whether it has unsaved changes
    are kept with the autosave, so a reload picks up where it left off. */
-const CLOUD_KEY = 'jek-cloud-link', CLOUD_EVERY = 30000, CLOUD_RETRY = 60000;
+const CLOUD_KEY = appStoreKey('jek-cloud-link'), CLOUD_EVERY = 30000, CLOUD_RETRY = 60000;
 export let cloudTimer = null, cloudBusy = false, cloudAgain = false, cloudNote = '';
 function cloudKeep() {
   if (TEST_MODE || EMBED) return;
@@ -320,6 +321,12 @@ async function cloudOpen(id, version) {
   if (meta.tool === 'jekfilm' || fmt === 'jekfilm') { openInJekfilm(meta, version); toast('“' + meta.name + '” is a JEKfilm coating: opened in JEKfilm'); return; }
   // a part studio, by its mark or its content (one saved by an API from before JEKcad is marked JEKray's)
   if (meta.tool === 'jekcad' || fmt === 'jekcad') { openInJekcad(meta, version); toast('“' + meta.name + '” is a JEKcad part studio: opened in JEKcad'); return; }
+  // a design opens in the Optics designer, a bench in JEKray (each page is the other's when it is the wrong one)
+  if ((meta.tool === 'jekoptic' || fmt === 'jekoptic') !== OPTIC) {
+    window.open(opticPage() + (OPTIC ? '' : '?optic') + '#cloud=' + meta.id + (version ? '@' + version : ''), OPTIC ? 'jekray' : 'jekoptic');
+    toast('“' + meta.name + '” is ' + (OPTIC ? 'a JEKray bench: opened in JEKray' : 'a design: opened in the Optics designer'));
+    return;
+  }
   setCloudOpening(true);
   try { openProjectData(JSON.parse(b.content), '“' + (meta.name || 'bench') + '”' + (version ? ', version ' + version : '') + ' from the cloud'); }
   finally { setCloudOpening(false); }

@@ -194,7 +194,7 @@
 - title: RF and millimetre waves
   url: /jek/docs/jekray/rf/
   cat: rf
-- title: Optical designer
+- title: Optics designer
   url: /jek/docs/jekray/lens-design/
   group: Designers
 - title: RF designer

@@ -5,15 +5,15 @@ import { h } from '../../../jekray/src/ui/dom.js';
    ========================================================================== */
 
 /* the apps, as the hub lists and opens them: their page, their tab's name, what they are. JEKray's designers are
-   listed under it, indented (parent): the Optics designer and RF designer open in JEKray's tab, in their designer
-   (into), and until they have files of their own (.optic, .rfd) their designs are JEKray benches; the Coating
-   designer is JEKfilm's page, its files the cloud's 'jekfilm'. short is the name on a bench's tag and a chip. */
+   listed under it, indented (parent): the Optics designer is JEKray's page as a program of its own (?optic), its
+   designs .optic files (the cloud's 'jekoptic'); the RF designer opens in JEKray's tab, in its designer (into), and
+   until it has files of its own (.rfd) its designs are JEKray benches; the Coating designer is JEKfilm's page, its
+   files the cloud's 'jekfilm'. short is the name on a bench's tag and a chip. */
 export const APPS = [
   { id: 'jekray', name: 'JEKray', url: '/jek/tools/jekray.html', tab: 'jekray', icon: 'bench', about: '/jek/products/design-software/jekray/',
     line: 'Optics, fibre, electronics and RF on one bench: rays, Gaussian beams and the diffracted field, in 2D and 3D.' },
-  { id: 'jekoptic', name: 'Optics designer', short: 'Optics', parent: 'jekray', into: 'lens', url: '/jek/tools/jekray.html', tab: 'jekray', icon: 'lens', about: '/jek/docs/jekray/lens-design/', thing: 'optical design',
-    line: 'Lenses, mirrors and stops on one axis designed together, surface by surface: conditions, analyses, the optimiser, tolerancing, drawings and a report.',
-    held: 'Optical designs are saved as JEKray benches for now, so they are listed under JEKray. They get files of their own (.optic) next.' },
+  { id: 'jekoptic', name: 'Optics designer', short: 'Optics', parent: 'jekray', url: '/jek/tools/jekray.html?optic', tab: 'jekoptic', icon: 'lens', about: '/jek/docs/jekray/lens-design/', thing: 'optical design',
+    line: 'Lenses, mirrors and stops on one axis designed together, surface by surface: conditions, analyses, the optimiser, tolerancing, drawings and a report. Each design is a .optic, used on any bench.' },
   { id: 'jekrfd', name: 'RF designer', short: 'RF', parent: 'jekray', into: 'rf', url: '/jek/tools/jekray.html', tab: 'jekray', icon: 'rf', about: '/jek/docs/jekray/rf/designer/', thing: 'RF design',
     line: 'A feed horn’s beam through RF lenses and mirrors, designed as a whole: conditions, analyses, the optimiser, tolerancing and a lens that can be made.',
     held: 'RF designs are saved as JEKray benches for now, so they are listed under JEKray. They get files of their own (.rfd) next.' },

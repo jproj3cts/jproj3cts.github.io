@@ -15,6 +15,8 @@ export function fakeData() {
         { id: 'b2', name: 'Quadrupole trap', tool: 'jekion', folder_id: null, workspace_id: WS, updated_at: T0 - 7200e3, size_bytes: 9100, version: 3 },
         { id: 'b3', name: 'Michelson, 1064 nm', tool: 'jekray', folder_id: 'f1', workspace_id: WS, updated_at: T0 - 86400e3, size_bytes: 12000, version: 2 },
         { id: 'b5', name: 'BBAR 450–650', tool: 'jekfilm', folder_id: 'f2', workspace_id: WS, updated_at: T0 - 5400e3, size_bytes: 600, version: 4 },
+        // a design, from the Optics designer (a .optic)
+        { id: 'b9', name: 'Achromat, 50 mm', tool: 'jekoptic', folder_id: 'f1', workspace_id: WS, updated_at: T0 - 9000e3, size_bytes: 3400, version: 2 },
         // a part studio an API from before JEKcad marked JEKray's: its content says what it is
         { id: 'b8', name: 'Alignment cap', tool: 'jekray', folder_id: 'f2', workspace_id: WS, updated_at: T0 - 6500e3, size_bytes: 5600, version: 1, content: JSON.stringify({ format: 'jekcad', version: 1, name: 'Alignment cap', features: [] }) },
         { id: 'b6', name: 'Lens mount', tool: 'jekcad', folder_id: 'f1', workspace_id: WS, updated_at: T0 - 6400e3, size_bytes: 5200, version: 2 },

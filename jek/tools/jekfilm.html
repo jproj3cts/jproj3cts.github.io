@@ -1134,6 +1134,9 @@
   }
   .rt-toast.show { opacity: 1; }
   .rt-toast.bad { color: var(--jek-red); font-weight: 600; }
+  /* a note with an offer in it (an update to take up): its button can be pressed */
+  .rt-toast.show.act { pointer-events: auto; }
+  .rt-toast .rt-toastact { margin-left: 0.3rem; font-weight: 600; }
 
   /* The tool fills the whole window, edge to edge, with no site bar above it: the JEKray logo
      at the left of the toolbar leads back to its product page, and nothing separates the
@@ -1538,6 +1541,12 @@
   /* ---------- The lens design workspace ---------- */
   .rt-lens { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; background: var(--jek-well); color: var(--jek-ink); font-family: var(--jek-sans); text-align: left; outline: none; }
   .rt-lens[hidden] { display: none !important; }
+  /* the Optics designer (?optic, io/optic.js): the page's bar moved into the workspace's head, out of .rt-wrap, whose
+     rule hides [hidden] there; its name in place of JEKray's mark */
+  .rt-ophead [hidden] { display: none !important; }
+  .rt-ophead .rt-space { margin-right: 0.2rem; }
+  .rt-ophead a.rt-opmark, .rt-ophead a.rt-opmark:hover { color: var(--jek-ink); text-decoration: none; }
+  .rt-ophead .rt-more { position: relative; }
   .rt-lens .mono, .rt-lnum, .rt-lglass { font-family: var(--jek-mono); }
   .rt-lhead { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; padding: 0.6rem 1rem; background: var(--jek-panel); border-bottom: 1px solid var(--jek-line); flex: none; }
   .rt-lcrumb { display: flex; align-items: center; gap: 0.5rem; min-width: 0; font-size: 0.95rem; }
@@ -2266,7 +2275,6 @@ html, body { margin: 0; background: var(--jek-well); }
    Constants
    ========================================================================== */
 
-const STORE_KEY = 'jek-raytracer-session-v1';
 let cloud = null, cloudOpening = false;       // the cloud bench this one is linked to (see Cloud benches)
 function setCloudOpening(v) { return (cloudOpening = v); }
 function setCloud(v) { return (cloud = v); }
@@ -2284,6 +2292,14 @@ const EMBED = IN_PAGE && !TEST_MODE && /(^|[?&])embed\b/.test(QUERY);
 // ?embed=locked: the parts stay where they are; the reader pans, zooms, turns the 3D view and plays the sweeps
 const LOCKED = EMBED && /(^|[?&])embed=locked\b/.test(QUERY);
 const FORMAT = 'jekray';
+/* ?optic: the page is the Optics designer, JEKray's lens designer as a program of its own. Its document is a .optic,
+   a design: the parts of one assembly and its record, written as a bench is but with format 'jekoptic' (and a uid
+   that links the benches using it back to it). It keeps its work apart from JEKray's bench in this browser: each
+   store's key (appStoreKey) has '-optic' after it. */
+const OPTIC = IN_PAGE && !IN_WORKER && /(^|[?&])optic\b/.test(typeof location === 'undefined' ? '' : location.search);
+const OPTIC_FORMAT = 'jekoptic';
+const appStoreKey = k => OPTIC ? k + '-optic' : k;
+const STORE_KEY = appStoreKey('jek-raytracer-session-v1');
 const VERSION = 1;
 const TRACE_BUDGET = 4e6;  // ray–element interactions per redraw, keeps the page responsive
 const FAR = 2e4;          // mm: how far an escaping ray is drawn

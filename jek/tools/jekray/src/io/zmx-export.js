@@ -13,9 +13,9 @@ import { parseZmx, readZmxFile, zmxToElement } from './zmx-import.js';
 import { MINE, clipIcon, mineChanged } from '../ui/myparts.js';
 import { api, showSubscribe } from './account.js';
 import { personalWs } from './cloud.js';
-import { openLensDesign } from '../ui/lens-workspace.js';
 import { designOne } from '../ui/assembly.js';
 import { accountGate, designPro } from '../ui/pro.js';
+import { openDesign } from './optic.js';
 
 /* ==========================================================================
    .zmx lens file export
@@ -363,7 +363,7 @@ export async function importZmx(files) {
       changed(true);
       if (dlg.open) dlg.close();
       const w = [...Z.warnings];
-      if (asDesign) openLensDesign(A.asm);
+      if (asDesign) openDesign(A.asm);
       toast('Imported ' + A.asm.name + ' as an assembly of ' + A.els.length + ' parts' + (w.length ? '. Note: ' + w.join('; ') + '.' : ''), w.length > 0);
       return;
     }

@@ -231,6 +231,8 @@ async function mergeDialog(o) {
 export async function fillHome() {
   const box = document.getElementById('homeList'), rail = document.getElementById('homeRail');
   const crumbs = document.getElementById('homeCrumbs'), tools = document.getElementById('homeTools'), note = document.getElementById('homeNote');
+  // (the list's tools are in the bar by the path, but under an app's head on its page: put back here, moved below)
+  { const hbar = document.querySelector('.rt-hbar'); if (hbar && tools.parentNode !== hbar) hbar.append(tools); }
   if (!account) { signedOutView(); return; }
   const places = account.workspaces.filter(w => w.kind !== 'institution');
   if (!cloudPlace.ws || !places.some(w => w.id === cloudPlace.ws)) cloudPlace.ws = (personalWs() || places[0] || {}).id;
@@ -802,12 +804,15 @@ export async function fillHome() {
         h('dt', null, 'Changed'), h('dd', null, whenAgo(b.updated_at) + (b.updated_by && b.updated_by.name ? ' by ' + b.updated_by.name : '')),
         h('dt', null, 'Size'), h('dd', null, kb(b.size_bytes)),
         ver ? h('dt', null, 'Version') : null, ver ? h('dd', null, String(ver)) : null),
-      h('div', { class: 'rt-actions' },
+      h('div', { class: 'rt-actions rt-hprevacts' },
         h('button', { type: 'button', class: 'rt-btn primary', id: 'appPreviewOpen', onclick: () => homeOpenBench(b.id, null, b) }, 'Open in ' + inApp(appPage.id)),
         h('button', { type: 'button', class: 'rt-btn', onclick: () => { showApp(null); Object.assign(P, { view: 'history', history: { id: b.id, name: b.name } }); fillHome(); } }, homeIcon('history'), ' History'),
         pmore));
   };
-  box.replaceChildren(appHead(appPage), h('div', { class: 'rt-hlaunch' }, h('div', { class: 'rt-hexplore' }, ...out.filter(Boolean)), prev));
+  // (the picked one beside the app's head and its list, from the top: the grid's areas in style.css)
+  // the list's tools (sort, view, New folder) over the list they act on, under the app's head
+  const listTools = h('div', { class: 'rt-hlisttools' }, document.getElementById('homeTools'));
+  box.replaceChildren(h('div', { class: 'rt-hlaunch' }, appHead(appPage), h('div', { class: 'rt-hexplore' }, listTools, ...out.filter(Boolean)), prev));
   fillPreview(); paintPicked(); decorate();
 }
 /* an app's files, as a page or a note says them: JEKray benches, coatings, optical designs */
@@ -816,15 +821,16 @@ const inApp = id => (appOf(id).parent ? 'the ' : '') + appOf(id).name;
 const filesOf = id => (appOf(id).parent ? '' : appOf(id).name + ' ') + thingOf(id) + 's';
 /* an app's head on its launch page: what it does, and the ways to start in it */
 function appHead(a) {
+  // one strip: the name (the app it is under before it) and what it does, the ways in at its right
   return h('div', { class: 'rt-happhead ' + a.id },
-    a.parent ? h('p', { class: 'rt-hparent' }, appOf(a.parent).name) : null,
-    h('h2', null, a.name),
-    h('p', null, a.line),
-    a.held ? h('p', { class: 'rt-subsmall', id: 'appHeld' }, a.held) : null,
+    h('div', { class: 'rt-happtext' },
+      h('div', { class: 'rt-happtitle' }, a.parent ? h('span', { class: 'rt-hparent' }, appOf(a.parent).name) : null, h('h2', null, a.name)),
+      h('p', null, a.line),
+      a.held ? h('p', { class: 'rt-subsmall', id: 'appHeld' }, a.held) : null),
     h('div', { class: 'rt-actions' },
       h('button', { type: 'button', class: 'rt-btn primary', id: 'appOpen', onclick: () => { track('cloud', 'app.' + a.id); openApp(a.id); } }, 'Open ' + a.name),
       h('button', { type: 'button', class: 'rt-btn', id: 'appNew', onclick: () => startNew(a.id) }, 'New ' + thingOf(a.id)),
-      a.about ? h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + inApp(a.id)) : null));
+      a.about ? h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-btn quiet rt-happabout', title: 'About ' + inApp(a.id) + ', in a new tab' }, 'About') : null));
 }
 
 /* ---------- the apps ----------

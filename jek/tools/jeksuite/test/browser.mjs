@@ -67,7 +67,7 @@ export async function check(pw, base, shots) {
       const n1 = await p.evaluate(() => window.__opened.length);
       await p.hover('.rt-hcard[data-bench=b1] .rt-hopen'); await p.waitForTimeout(150);
       const ray = await p.evaluate(() => ({ benches: [...document.querySelectorAll('.rt-hcard[data-bench]')].map(c => c.dataset.bench), sel: !!document.querySelector('.rt-hcard[data-bench=b1].sel'), opened: window.__opened.length,
-        counts: [...document.querySelectorAll('.rt-hcard.folder .rt-hcount')].map(x => x.textContent), starts: [...document.querySelectorAll('.rt-happhead .rt-btn')].map(x => x.textContent) }));
+        counts: [...document.querySelectorAll('.rt-hcard.folder .rt-hcount')].map(x => x.textContent), starts: [...document.querySelectorAll('.rt-happhead button.rt-btn')].map(x => x.textContent) }));
       ok('JEKray’s launch page: its benches alone, the one under the pointer shown (not opened), its folders count its benches (Absorption the one in its folder Old runs), New bench (its designers are in the rail, under it)', ray.benches.join() === 'b1' && ray.sel && ray.opened === n1 && ray.counts.join() === '1 bench,1 bench'
         && ray.starts.join('|') === 'Open JEKray|New bench', JSON.stringify(ray));
       if (shots) await p.screenshot({ path: shots + '/jeksuite-launch-dark.png' });
@@ -220,7 +220,7 @@ export async function check(pw, base, shots) {
       await p.goto(base + '/jek/tools/jeksuite.html#app=jekfilm');
       await p.waitForSelector('.rt-happhead.jekfilm', { timeout: 10000 }).catch(() => {}); await p.waitForTimeout(300);
       const d = await p.evaluate(() => ({ benches: [...document.querySelectorAll('.rt-hcard[data-bench]')].map(c => c.dataset.bench), counts: [...document.querySelectorAll('.rt-hcard.folder:not([hidden]) .rt-hcount')].map(x => x.textContent), put: [...document.querySelectorAll('.rt-hcard.folder[hidden]')].map(c => c.dataset.folder),
-        starts: [...document.querySelectorAll('.rt-happhead .rt-btn')].map(x => x.textContent), about: !!document.querySelector('.rt-happhead a') }));
+        starts: [...document.querySelectorAll('.rt-happhead button.rt-btn')].map(x => x.textContent), about: !!document.querySelector('.rt-happhead a') }));
       ok('#app=jekfilm: the Coating designer’s launch page, its coatings counted in their folders, a folder with none of them not shown, New coating, About', !d.benches.length && d.counts.join() === '1 coating' && d.put.join() === 'f1' && d.starts.join('|') === 'Open Coating designer|New coating' && d.about, JSON.stringify(d));
       await p.evaluate(() => [...document.querySelectorAll('.rt-hcard.folder .rt-hopen')].find(x => /Absorption/.test(x.textContent)).click());
       await p.waitForSelector('.rt-hcard[data-bench=b5]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(200);
@@ -238,7 +238,7 @@ export async function check(pw, base, shots) {
       await route(p, { signedIn: true });
       await p.goto(base + '/jek/tools/jeksuite.html#app=jekcad');
       await p.waitForSelector('.rt-happhead.jekcad', { timeout: 10000 }).catch(() => {}); await p.waitForTimeout(300);
-      const d = await p.evaluate(() => ({ counts: [...document.querySelectorAll('.rt-hcard.folder .rt-hcount')].map(x => x.textContent), starts: [...document.querySelectorAll('.rt-happhead .rt-btn')].map(x => x.textContent), where: document.getElementById('homeWhere').textContent }));
+      const d = await p.evaluate(() => ({ counts: [...document.querySelectorAll('.rt-hcard.folder .rt-hcount')].map(x => x.textContent), starts: [...document.querySelectorAll('.rt-happhead button.rt-btn')].map(x => x.textContent), where: document.getElementById('homeWhere').textContent }));
       ok('#app=jekcad: JEKcad’s launch page, its part studios counted in their folders (one the API marked JEKray’s among them, known by its content), New part studio', d.where === 'JEKcad' && d.counts.join() === '1 part studio,1 part studio' && d.starts.join('|') === 'Open JEKcad|New part studio', JSON.stringify(d));
       await p.evaluate(() => [...document.querySelectorAll('.rt-hcard.folder .rt-hopen')].find(x => /Levisense/.test(x.textContent)).click());
       await p.waitForSelector('.rt-hcard[data-bench=b6]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(200);

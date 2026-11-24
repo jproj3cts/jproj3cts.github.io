@@ -33,13 +33,20 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hsignin p { margin: 0 0 0.9rem; line-height: 1.55; color: var(--jek-ink-soft); }
 
 /* an app's launch page: what the app does and the ways to start in it, then its benches beside the one picked */
-.rt-happhead { margin: 0 0 1.2rem; padding: 1rem 1.2rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-left: 3px solid var(--jek-cyan); border-radius: 3px; }
+.rt-happhead { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.2rem; margin: 0 0 1rem; padding: 0.65rem 0.9rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-left: 3px solid var(--jek-cyan); border-radius: 3px; }
 .rt-happhead[class] { border-left-color: var(--app); }
-.rt-happhead h2 { margin: 0 0 0.35rem; font-size: 1.25rem; }
-.rt-happhead p { margin: 0 0 0.85rem; max-width: 62ch; line-height: 1.5; color: var(--jek-ink-soft); }
-.rt-happhead .rt-actions { justify-content: flex-start; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.5rem; margin: 0; }
-.rt-happhead .rt-link { margin-left: 0.4rem; font-size: 0.875rem; }
-.rt-hlaunch { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 1.2rem; align-items: start; }
+.rt-happhead .rt-happtext { flex: 1 1 22rem; min-width: 0; }
+.rt-happhead .rt-happtitle { display: flex; align-items: baseline; gap: 0.4rem; }
+.rt-happhead h2 { margin: 0; font-size: 1.1rem; }
+.rt-happhead .rt-hparent { font-size: 0.85rem; color: var(--jek-ink-soft); }
+.rt-happhead .rt-hparent::after { content: ' \203A'; }
+.rt-happhead p { margin: 0.15rem 0 0; line-height: 1.4; font-size: 0.875rem; color: var(--jek-ink-soft); }
+.rt-happhead .rt-actions { flex: none; justify-content: flex-end; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.5rem; margin: 0; }
+.rt-happhead .rt-link { margin-left: 0.2rem; font-size: 0.875rem; }
+.rt-hlaunch { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto 1fr; grid-template-areas: "head prev" "list prev"; column-gap: 1.2rem; align-items: start; }
+.rt-hlaunch > .rt-happhead { grid-area: head; }
+.rt-hlaunch > .rt-hexplore { grid-area: list; }
+.rt-hlaunch > .rt-hprev { grid-area: prev; }
 .rt-hexplore > h3:first-child { margin-top: 0; }
 .rt-hprev { position: sticky; top: 0.5rem; display: flex; flex-direction: column; gap: 0.65rem; padding: 0.8rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 3px; }
 .rt-hprev .thumb { display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; box-sizing: border-box; padding: 0 1rem; border-radius: 2px; background: var(--jek-well); color: var(--jek-ink-soft); font-size: 0.8rem; text-align: center; }
@@ -75,7 +82,6 @@ html, body { margin: 0; background: var(--jek-well); }
 /* JEKray's designers under it, in the rail and New's menu; on a designer's page, JEKray above its name */
 .rt-hrail .rt-happbtn.rt-hsub { padding-left: 1.55rem; font-size: 0.92em; }
 .rt-hmenu button.rt-hsub { padding-left: 1.9rem; }
-.rt-happhead .rt-hparent { margin: 0 0 0.1rem; font-size: 0.78rem; color: var(--jek-ink-soft); }
 .space-home .rt-htool, .space-home .rt-hcard .rt-hinfo .rt-htool { display: inline-block; margin-right: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--app, var(--jek-cyan)); color: var(--app-on, #fff); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; white-space: nowrap; }
 .rt-hprev .rt-htool { margin-right: 0; }
 :root[data-rt-theme="dark"] .rt-htool.jekfilm { box-shadow: 0 0 0 1px var(--jek-line-2); }
@@ -84,8 +90,8 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hcount { margin-left: auto; padding-left: 0.6rem; font-size: 0.75rem; font-weight: 400; color: var(--jek-ink-soft); white-space: nowrap; }
 .rt-hsigninline { margin-top: 0; }
 @media (max-width: 900px) {
-  .rt-hlaunch { grid-template-columns: minmax(0, 1fr); }
-  .rt-hprev { position: static; order: -1; }
+  .rt-hlaunch { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "head" "prev" "list"; row-gap: 1rem; }
+  .rt-hprev { position: static; }
 }
 
 @media (max-width: 760px) {
@@ -188,3 +194,24 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hcard[hidden], .rt-hgrid[hidden], .rt-htable[hidden], .rt-hlist h3[hidden], .rt-hlist p[hidden] { display: none; }
 .rt-hhead .rt-htheme { flex: none; display: inline-grid; place-items: center; width: 2.1rem; height: 2.1rem; padding: 0; }
 .rt-hhead .rt-htheme .ic { width: 17px; height: 17px; }
+
+/* ---------- one size for every control ----------
+   The bar (search, New, the theme, the account), the toolbar over the list (the sort, the view, New folder), an app's
+   head and the preview: each control 34px high, text buttons padded alike, icon buttons square, the account round. */
+.space-home { --ctl: 34px; }
+.space-home .rt-hhead #homeSearch, .space-home .rt-hhead .rt-btn, .space-home #homeTools > *, .space-home .rt-happhead .rt-btn, .space-home .rt-hprev .rt-actions .rt-btn {
+  box-sizing: border-box; height: var(--ctl); min-height: var(--ctl); padding-top: 0; padding-bottom: 0; line-height: 1; }
+.space-home .rt-hhead .rt-btn, .space-home #homeTools .rt-btn, .space-home .rt-happhead .rt-btn, .space-home .rt-hprev .rt-actions .rt-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; padding-left: 0.8rem; padding-right: 0.8rem; font-size: 0.875rem; }
+.space-home #homeTools select { padding: 0 0.6rem; font-size: 0.875rem; }
+.space-home #homeTheme, .space-home #homeTools .rt-btn.rt-icon, .space-home #homeTools .rt-btn:not([id]), .space-home .rt-hprevmore { width: var(--ctl); padding: 0; }
+.space-home .rt-hhead #btnAcct { width: var(--ctl); height: var(--ctl); }
+.space-home .rt-hhead, .space-home #homeTools { align-items: center; }
+.space-home #homeTools { gap: 0.5rem; }
+.space-home .rt-happhead a.rt-happabout { text-decoration: none; }
+/* the preview's actions: Open across the panel, then History and More */
+.space-home .rt-hprevacts { display: grid; grid-template-columns: 1fr var(--ctl); gap: 0.5rem; }
+.space-home .rt-hprevacts #appPreviewOpen { grid-column: 1 / -1; }
+/* on an app's page the list's tools sit over its list, to its right */
+.space-home .rt-hlisttools { display: flex; justify-content: flex-end; margin: 0 0 0.8rem; }
+.space-home .rt-hlisttools #homeTools { display: flex; }

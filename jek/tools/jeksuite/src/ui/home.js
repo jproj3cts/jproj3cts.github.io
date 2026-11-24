@@ -1,6 +1,7 @@
 import { KIND_WORD, diffProject, merge3, resolve, showValue } from '../../../jekray/src/io/merge.js';
 import { track } from '../../../jekray/src/io/usage.js';
-import { APPS, appOf, shortOf, thingOf, closeMenu, helpLine, iconNode, menuIcons, menuOpenFor, openApp, openMenu, setSpaceTheme, spaceTheme, toast } from './dom.js';
+import { EXPERIMENTAL, expRead, expWrite } from '../../../jekray/src/core/exp-list.js';
+import { APPS, appOf, appsShown, shortOf, thingOf, closeMenu, helpLine, iconNode, menuIcons, menuOpenFor, openApp, openMenu, setSpaceTheme, spaceTheme, toast } from './dom.js';
 import { h } from '../../../jekray/src/ui/dom.js';
 import { SORTS, countOf, folderCounts, folderFits, folderKids, runOf, sortBenches } from '../core/files.js';
 import { API_BASE, account, accountMenuRows, api, avatarNode, fillAccount, setAccount, showSubscribe } from '../../../jekray/src/io/account.js';
@@ -369,7 +370,7 @@ export async function fillHome() {
   const used = data.usage || (P.lastUsage && P.lastUsage.ws === ws ? P.lastUsage : null);
   if (data.usage) P.lastUsage = Object.assign({ ws }, data.usage);
   rail.replaceChildren(...[
-    h('h2', null, 'Apps'), ...APPS.map(a => railBtn(a.name, a.icon, P.app === a.id, () => { track('cloud', 'app.' + a.id); showApp(a.id); }, 'rt-happbtn ' + a.id + (a.parent ? ' rt-hsub' : ''))),
+    h('h2', null, 'Apps'), ...appsShown(true).map(a => railBtn(a.name, a.icon, P.app === a.id, () => { track('cloud', 'app.' + a.id); showApp(a.id); }, 'rt-happbtn ' + a.id + (a.parent ? ' rt-hsub' : ''))),
     h('h2', null, 'Benches'),
     ...places.flatMap(w => w.id === ws
       ? [dropOn(railBtn(placeName(w), w.kind === 'personal' ? 'home' : 'users', !P.app && here('folder', null), leave(go('folder', null))), { folder: null }), ...treeNodes(null, 1)]
@@ -830,12 +831,13 @@ function appHead(a) {
    Opened from New (its Open group) and the rail, each in its own tab; signed out, under the sign-in panel. */
 export function appLinks() {
   return h('div', { class: 'rt-happlinks', 'aria-label': 'Apps' }, h('span', null, 'The apps open without an account:'),
-    ...APPS.map(a => h('button', { type: 'button', class: 'rt-btn', title: a.line, onclick: () => { track('cloud', 'app.' + a.id); openApp(a.id); } }, 'Open ' + a.name)),
-    ...APPS.filter(a => a.about).map(a => h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + a.name)));
+    ...appsShown(!!account).map(a => h('button', { type: 'button', class: 'rt-btn', title: a.line, onclick: () => { track('cloud', 'app.' + a.id); openApp(a.id); } }, 'Open ' + a.name)),
+    ...appsShown(!!account).filter(a => a.about).map(a => h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + a.name)));
 }
 /* New's menu: what can be started, a bench in each app first (opening an app is on its page, from the rail) */
 export function newMenuItems() {
-  return NEW_KINDS.map(k => [k.label, k.icon, () => startNew(k.app, k.into), k.sub ? 'rt-hsub' : null]);
+  const shown = new Set(appsShown(!!account).map(a => a.id));
+  return NEW_KINDS.filter(k => shown.has(k.app)).map(k => [k.label, k.icon, () => startNew(k.app, k.into), k.sub ? 'rt-hsub' : null]);
 }
 /* What New starts: a bench in an app, or straight into one of JEKray's designers */
 export const NEW_KINDS = [
@@ -905,7 +907,7 @@ export function signedOutView() {
   document.getElementById('homeNote').hidden = true;
   document.getElementById('homeWhere').textContent = 'Your apps and benches';
   const P = cloudPlace, appPage = P.app ? appOf(P.app) : null;
-  rail.replaceChildren(h('h2', null, 'Apps'), ...APPS.map(a => h('button', { type: 'button', onclick: () => showApp(a.id), title: a.name + ': what it does, and its benches', class: 'rt-happbtn ' + a.id + (a.parent ? ' rt-hsub' : ''), 'aria-current': String(P.app === a.id) }, homeIcon(a.icon), h('span', null, a.name))));
+  rail.replaceChildren(h('h2', null, 'Apps'), ...appsShown(false).map(a => h('button', { type: 'button', onclick: () => showApp(a.id), title: a.name + ': what it does, and its benches', class: 'rt-happbtn ' + a.id + (a.parent ? ' rt-hsub' : ''), 'aria-current': String(P.app === a.id) }, homeIcon(a.icon), h('span', null, a.name))));
   homeKeys = null; picked.clear(); pickedF.clear();
   box.classList.remove('rows', 'tbl', 'picking');
   if (appPage) {
@@ -1011,5 +1013,39 @@ export function spaceAccountExtra(signedIn) {
   const cur = spaceTheme(), theme = h('div', { class: 'rt-hthemes', role: 'group', 'aria-label': 'Theme' }, h('span', null, 'Theme'),
     ...[['dark', 'Dark'], ['light', 'Light'], ['system', 'System']].map(([v, t]) => h('button', { type: 'button', class: 'rt-btn', 'aria-pressed': String(cur === v), onclick: () => { setSpaceTheme(v); closeMenu(); } }, t)));
   const plans = h('button', { type: 'button', role: 'menuitem', 'data-icon': 'star', onclick: () => { closeMenu(); showSubscribe(); } }, 'JEKrayPro: plans and prices\u2026');
-  return signedIn ? [theme] : [plans, theme];
+  const expItem = h('button', { type: 'button', role: 'menuitem', 'data-icon': 'flask', id: 'homeExp', onclick: () => { closeMenu(); showExperimental(); } }, 'Experimental features\u2026', expRead().on ? h('span', { class: 'rt-dot exp' }) : null);
+  return signedIn ? [expItem, theme] : [plans, expItem, theme];
+}
+
+/* ---------- Experimental features, for every app ----------
+   The one place they are switched on and off (core/exp-list.js keeps them in this browser, and each app follows the
+   store as it changes): the apps not yet validated (JEKion), shown here and on the site only while ticked, then
+   JEKray's features. For a signed-in account (a free one is enough), as they always were. */
+export function showExperimental() {
+  let dlg = document.getElementById('homeExpDialog');
+  if (dlg) dlg.remove();
+  const S = expRead(), signedIn = !!account;
+  const save = () => { expWrite(S.on, S.picks); track('experimental', S.on ? 'on' : 'off'); fillHome(); };
+  const master = h('input', { type: 'checkbox', id: 'homeExpOn' });
+  master.checked = S.on; master.disabled = !signedIn;
+  const row = f => {
+    const t = h('input', { type: 'checkbox', 'data-exp': f.key });
+    t.checked = S.picks[f.key] !== false;
+    t.addEventListener('change', () => { S.picks[f.key] = t.checked; save(); });
+    return h('li', null, h('label', { class: 'rt-exppick' }, t, h('span', null, h('b', null, f.name), ': ', f.what)));
+  };
+  const apps = EXPERIMENTAL.filter(f => f.app), feats = EXPERIMENTAL.filter(f => !f.app);
+  const list = h('div', { class: 'rt-explist' + (S.on ? '' : ' off') },
+    apps.length ? h('h3', null, 'Apps') : null, apps.length ? h('ul', null, ...apps.map(row)) : null,
+    feats.length ? h('h3', null, 'In JEKray') : null, feats.length ? h('ul', null, ...feats.map(row)) : null);
+  master.addEventListener('change', () => { S.on = master.checked; list.classList.toggle('off', !S.on); save(); toast(S.on ? 'Experimental features on, in every app' : 'Experimental features off'); });
+  dlg = h('dialog', { class: 'rt-dialog rt-expdialog', id: 'homeExpDialog', 'aria-labelledby': 'homeExpTitle' },
+    h('h2', { id: 'homeExpTitle' }, 'Experimental features'),
+    h('p', null, 'Apps and features still being built and checked. They may change, or give wrong answers: nothing made with them is validated yet. Tick the ones you want; the switch turns them all on or off together, in every app, in this browser.'),
+    signedIn ? null : h('p', { class: 'rt-exppro' }, h('b', null, 'For signed-in accounts. '), 'Sign in, top right: a free account is enough.'),
+    h('label', { class: 'rt-expmaster' + (signedIn ? '' : ' rt-off') }, master, 'Turn on experimental features'),
+    list,
+    h('div', { class: 'rt-actions' }, h('button', { type: 'button', class: 'rt-btn primary', onclick: () => dlg.close() }, 'Done')));
+  document.body.append(dlg);
+  dlg.showModal();
 }

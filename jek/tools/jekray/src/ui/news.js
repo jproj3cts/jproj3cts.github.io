@@ -7,8 +7,7 @@ import { h } from './dom.js';
 import { saveFile, toast, typingIn } from './actions.js';
 import { shareBase, shareHash } from '../io/share.js';
 import { openProjectData } from '../io/open.js';
-import { EXPERIMENTAL, exp, expOn, expPicked, expWhy, setExperimental } from './experimental.js';
-import { hooks } from '../core/hooks.js';
+import { exp, expOn, expWhy } from './experimental.js';
 import { readSnaps } from '../io/autosave.js';
 import { openDemo, startTour } from './tours.js';
 import { API_BASE } from '../io/account.js';
@@ -204,33 +203,11 @@ export function wireNews() {
   }
 
   {
-    const btn = document.getElementById('btnExp'), menu = document.getElementById('expMenu');
-    const account = () => !(hooks.proWhy && /^Sign in/.test(hooks.proWhy() || ''));
-    const fill = () => {
-      const cb = h('input', { type: 'checkbox' });
-      cb.checked = expOn;
-      const n = () => EXPERIMENTAL.filter(f => expPicked(f.key)).length;
-      cb.addEventListener('change', () => { setExperimental(cb.checked); fill(); menu.querySelector('input').focus(); toast(expOn ? 'Experimental features on: ' + n() + ' of ' + EXPERIMENTAL.length + ' ticked' : 'Experimental features off'); });
-      // each feature its own tick, kept whether the master switch is on or off; it acts only while it is on
-      const row = f => {
-        const t = h('input', { type: 'checkbox', 'data-exp': f.key });
-        t.checked = expPicked(f.key);
-        t.addEventListener('change', () => { setExperimental(null, { [f.key]: t.checked }); if (expOn) toast(f.name + (t.checked ? ' on' : ' off')); });
-        return h('li', null, h('label', { class: 'rt-exppick' }, t, h('span', null, h('b', null, f.name), ': ', f.what)));
-      };
-      // for any signed-in account: signed out, the switch is shown but held off, with the way to sign in
-      const why = expWhy();
-      cb.disabled = !!why;
-      menu.replaceChildren(h('label', { class: why ? 'rt-off' : null, title: why || null }, cb, 'Turn on experimental features'),
-        why ? h('p', { class: 'rt-exppro' }, h('b', null, 'For signed-in accounts. '), 'Sign in, top right: a free account is enough, and JEKrayPro has them too. ', h('button', { type: 'button', class: 'rt-link', onclick: () => { show(false); if (hooks.proFix) hooks.proFix('', 'exp'); } }, 'Sign in…')) : null,
-        h('p', null, 'Features still being built and checked, before they reach beta. They may change, or give wrong answers: nothing made with them is validated yet. Tick the ones you want; the switch above turns them all on or off together. The settings are kept in this browser.'),
-        EXPERIMENTAL.length ? h('ul', { class: expOn ? null : 'off' }, ...EXPERIMENTAL.map(row))
-          : h('p', { style: 'margin:0' }, 'There are none at the moment.'));
-    };
-    const show = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) { fill(); menu.querySelector('input').focus(); } };
-    btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
-    document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target) && e.target !== btn) show(false); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
+    // the switch and the ticks are set in one place for every app, JEKsuite's account menu: this opens it there
+    document.getElementById('btnExp').addEventListener('click', () => {
+      const w = window.open('/jek/tools/jeksuite.html#experimental', 'jeksuite');
+      if (w) w.focus();
+    });
     document.getElementById('expDot').hidden = !(expOn && !expWhy());
   }
 

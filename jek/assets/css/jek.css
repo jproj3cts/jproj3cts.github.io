@@ -2231,3 +2231,7 @@ main.main-content:not(.rt-app) { --jek-ink-soft: #2b2825; }
 
 /* on a phone the page top is one column: the words, then the picture under them (the even split above is for wider screens) */
 @media (max-width: 860px) { .jek-hero .jek-wrap { grid-template-columns: 1fr; } }
+
+/* the apps not yet validated (JEKion, JEKrf): on the site only for someone who has switched them on in JEKsuite's
+   Experimental features (the site nav's script puts exp-<key> on the page) */
+html:not(.exp-jekion) [data-exp="jekion"], html:not(.exp-jekrf) [data-exp="jekrf"] { display: none !important; }

@@ -9,7 +9,7 @@ description: How JEKray models photonic integrated circuits with compact scatter
 <p class="dx-lead">A photonic chip is drawn as a schematic: grating couplers, directional couplers, MMIs, rings, phase shifters and photodiodes, joined port to port by waveguides. Each part is a compact model, a small scattering matrix that depends on the wavelength, and the chip is solved directly at each wavelength.</p>
 
 <div class="dx-note" markdown="1">
-Photonic chips are an experimental feature: sign in to use it (a free account is enough). Switch them on under **Help › Experimental features…**.
+Photonic chips are an experimental feature: sign in to use it (a free account is enough). Switch them on under **Experimental features…** in [JEKsuite](/jek/tools/jeksuite.html)’s account menu (or **Help › Experimental features (in JEKsuite)…** in JEKray, which opens it).
 </div>
 
 ## Waveguides

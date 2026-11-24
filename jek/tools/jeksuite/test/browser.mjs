@@ -14,14 +14,14 @@ export async function check(pw, base, shots) {
       await p.goto(base + '/jek/tools/jeksuite.html');
       await p.waitForSelector('#homeSignIn', { timeout: 10000 }).catch(() => {});
       const s = await p.evaluate(() => ({ signIn: !!document.getElementById('homeSignIn'), apps: [...document.querySelectorAll('.rt-happlinks button')].map(a => a.textContent), cards: document.querySelectorAll('.rt-happ').length, appsBtn: !!document.getElementById('homeApps'), btn: document.getElementById('btnAcct').textContent }));
-      ok('Signed out: a sign-in panel, and the apps under it as buttons (no cards, no Apps button)', s.signIn && s.apps.join() === 'Open JEKray,Open Optics designer,Open RF designer,Open Coating designer,Open JEKion,Open JEKcad' && !s.cards && !s.appsBtn && s.btn === 'Sign in', JSON.stringify(s));
+      ok('Signed out: a sign-in panel, and the apps under it as buttons (no cards, no Apps button), JEKion not among them (experimental, for accounts)', s.signIn && s.apps.join() === 'Open JEKray,Open Optics designer,Open RF designer,Open Coating designer,Open JEKcad' && !s.cards && !s.appsBtn && s.btn === 'Sign in', JSON.stringify(s));
       await p.click('#homeSignIn');
       const menu = await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].map(x => x.textContent));
       ok('Signed out: Sign in offers Google, Microsoft and email', ['Continue with Google', 'Continue with Microsoft (university or work)', 'Continue with email'].every(t => menu.includes(t)), menu.join(' | '));
       await p.keyboard.press('Escape');
-      await p.evaluate(() => [...document.querySelectorAll('.rt-happlinks button')].find(x => x.textContent === 'Open JEKion').click());
+      await p.evaluate(() => [...document.querySelectorAll('.rt-happlinks button')].find(x => x.textContent === 'Open JEKcad').click());
       const op = await p.evaluate(() => window.__opened.slice(-1)[0]);
-      ok('Signed out: an app opens in its own tab', op && op[0] === '/jek/tools/jekion.html' && op[1] === 'jekion', JSON.stringify(op));
+      ok('Signed out: an app opens in its own tab', op && op[0] === '/jek/tools/jekcad.html' && op[1] === 'jekcad', JSON.stringify(op));
       await p.click('#homeNew');
       await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'JEKray bench').click());
       const nw = await p.evaluate(() => window.__opened.slice(-1)[0]);
@@ -161,6 +161,32 @@ export async function check(pw, base, shots) {
       await p.waitForSelector('.rt-happhead.jekion', { timeout: 10000 }).catch(() => {}); await p.waitForTimeout(200);
       const d = await p.evaluate(() => ({ benches: [...document.querySelectorAll('.rt-hcard[data-bench]')].map(c => c.dataset.bench), where: document.getElementById('homeWhere').textContent }));
       ok('#app=jekion opens JEKion’s launch page', d.benches.join() === 'b2' && d.where === 'JEKion' && !errs.length, JSON.stringify(d) + errs.join(' | '));
+      await p.close();
+    }
+    // experimental features: off, JEKion is out of the rail and New; JEKsuite's dialog turns it on, for every app
+    {
+      const p = await b.newPage({ viewport: { width: 1300, height: 860 } }), errs = []; p.on('pageerror', e => errs.push(e.message));
+      await route(p, { signedIn: true, exp: false });
+      await p.goto(base + '/jek/tools/jeksuite.html');
+      await p.waitForSelector('.rt-hcard[data-bench]', { timeout: 10000 }).catch(() => {}); await p.waitForTimeout(300);
+      const rail = () => p.evaluate(() => [...document.querySelectorAll('#homeRail .rt-happbtn')].map(x => x.textContent));
+      const off = await rail();
+      await p.click('#homeNew');
+      const kinds = await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].map(x => x.textContent));
+      await p.keyboard.press('Escape');
+      await p.click('#btnAcct');
+      await p.evaluate(() => document.getElementById('homeExp').click());
+      await p.waitForSelector('#homeExpDialog[open]', { timeout: 5000 }).catch(() => {});
+      const dlg = await p.evaluate(() => ({ apps: [...document.querySelectorAll('#homeExpDialog [data-exp]')].map(x => x.dataset.exp), on: document.getElementById('homeExpOn').checked }));
+      await p.click('#homeExpOn'); await p.waitForTimeout(300);
+      const stored = await p.evaluate(() => localStorage.getItem('jek-raytracer-experimental'));
+      await p.evaluate(() => document.getElementById('homeExpDialog').close()); await p.waitForTimeout(300);
+      const on = await rail();
+      ok('Experimental features off: JEKion is not in the rail or New', !off.includes('JEKion') && !kinds.includes('JEKion bench') && off.includes('JEKcad'), JSON.stringify([off, kinds]));
+      ok('The account menu’s Experimental features: JEKion among them, the switch kept for every app, JEKion then in the rail', dlg.apps[0] === 'jekion' && dlg.apps.includes('pic') && !dlg.on && stored === '1' && on.includes('JEKion') && !errs.length, JSON.stringify([dlg, stored, on, errs]));
+      await p.goto(base + '/jek/tools/jeksuite.html#experimental');
+      await p.waitForSelector('#homeExpDialog[open]', { timeout: 5000 }).catch(() => {});
+      ok('#experimental (JEKray’s Help item) opens the dialog', !!(await p.$('#homeExpDialog[open]')), '');
       await p.close();
     }
     // JEKray's designers: under it in the rail, indented; the Optics designer's page lists its designs (.optic), and

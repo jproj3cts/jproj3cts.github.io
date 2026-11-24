@@ -5,6 +5,13 @@
   ?q= to /jek/search-results.html, which does the searching.
 {% endcomment -%}
 <div class="top-container">
+    <script>
+    /* the apps not yet validated (JEKion) are on the site only for someone who has switched them on in JEKsuite's
+       Experimental features (the store every app shares, jek/tools/jekray/src/core/exp-list.js): marked data-exp,
+       hidden by jek.css unless the page carries exp-<key> */
+    (function () { try { if (localStorage.getItem('jek-raytracer-experimental') !== '1') return; var p = JSON.parse(localStorage.getItem('jek-raytracer-experimental-picks') || '{}') || {};
+      ['jekion', 'jekrf'].forEach(function (k) { if (p[k] !== false) document.documentElement.classList.add('exp-' + k); }); } catch (e) { /* off */ } })();
+    </script>
     <div class="bar bar1"></div>
     <div class="bar bar2"></div>
     <div class="bar bar3"></div>
@@ -19,7 +26,7 @@
           <a href="/jek/calculators/">Calculators</a>
           <a href="/jek/tools/jeksuite.html">JEKsuite</a>
           <a href="/jek/tools/jekray.html">JEKray</a>
-          <a href="/jek/tools/jekion.html">JEKion</a>
+          <a href="/jek/tools/jekion.html" data-exp="jekion">JEKion</a>
           <a href="/jek/tools/jekfilm.html">JEKfilm</a>
           <a href="/jek/tools/jekcad.html">JEKcad</a>
         </span>

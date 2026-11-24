@@ -1,5 +1,6 @@
 [
   "core/constants.js",
+  "core/exp-list.js",
   "core/hooks.js",
   "core/maths.js",
   "core/numeric.js",

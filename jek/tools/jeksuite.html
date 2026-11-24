@@ -10,7 +10,7 @@
 <script>if (location.hostname === 'www.jeksys.net') location.replace('https://jeksys.net' + location.pathname + location.search + location.hash);</script>
 <script>try { var t = localStorage.getItem('jekray-theme'); if (t === 'light' || (t === 'system' && !matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.dataset.rtTheme = 'light'; } catch (e) {}</script>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261121">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261124">
 <style>
   /* Ray tracer: page-specific styles. Site tokens come from jek.css. */
   :root {
@@ -812,15 +812,17 @@
   .rt-meta { font-size: 0.8125rem; color: var(--jek-ink-soft); }
   /* experimental features: a menu under the version line, and a badge for what they add */
   .rt-expwrap { position: relative; display: inline-block; }
-  .rt-expmenu { width: 22rem; padding: 0.7rem 0.8rem; font-size: 0.8125rem; color: var(--jek-ink-soft); cursor: default; }
-  .rt-expmenu label { display: flex; align-items: center; gap: 0.45rem; font-weight: 600; color: var(--jek-ink); cursor: pointer; }
-  .rt-expmenu p { margin: 0.5rem 0 0.4rem; line-height: 1.45; }
-  .rt-expmenu ul { margin: 0; padding: 0; list-style: none; }
-  .rt-expmenu ul.off { opacity: 0.6; }
-  .rt-expmenu li { margin-bottom: 0.35rem; }
-  .rt-expmenu label.rt-exppick { align-items: flex-start; font-weight: 400; color: var(--jek-ink-soft); }
-  .rt-expmenu label.rt-exppick input { margin-top: 0.2rem; flex: none; }
-  .rt-expmenu li b { color: var(--jek-ink); }
+  /* the experimental features, set in JEKsuite's dialog for every app */
+  .rt-expdialog { max-width: 34rem; font-size: 0.875rem; color: var(--jek-ink-soft); }
+  .rt-expdialog label.rt-expmaster { display: flex; align-items: center; gap: 0.45rem; margin: 0.6rem 0; font-weight: 600; color: var(--jek-ink); cursor: pointer; }
+  .rt-expdialog p { margin: 0.5rem 0 0.4rem; line-height: 1.45; }
+  .rt-expdialog h3 { margin: 0.8rem 0 0.35rem; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-expdialog ul { margin: 0; padding: 0; list-style: none; }
+  .rt-expdialog .rt-explist.off { opacity: 0.6; }
+  .rt-expdialog li { margin-bottom: 0.45rem; }
+  .rt-expdialog label.rt-exppick { display: flex; align-items: flex-start; gap: 0.45rem; color: var(--jek-ink-soft); cursor: pointer; }
+  .rt-expdialog label.rt-exppick input { margin-top: 0.2rem; flex: none; }
+  .rt-expdialog li b { color: var(--jek-ink); }
   .rt-exp { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; border: 1px dashed currentColor; color: var(--jek-ink-soft); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
   .rt-dot.exp { background: var(--jek-ink-soft); }
   .rt-link { padding: 0; font: inherit; color: var(--jek-cyan-dark); background: none; border: 0; cursor: pointer; }
@@ -2320,6 +2322,37 @@ function mkCanvas(w, h) {
   return c;
 }
 /* ==========================================================================
+   The experimental features, as every app reads them
+   New features start here, off until someone switches them on, then move to beta (a Beta badge on their examples),
+   then into the tool proper. Apps not yet validated are here too (app: true): JEKsuite shows them, and the site its
+   links to them, only to someone who has switched them on. The switch and each feature's tick are kept in this
+   browser (one store for every app on the site) and set in one place, JEKsuite's account menu; each app follows
+   them, as they change, from the store (ui/experimental.js in JEKray, the storage event).
+   ========================================================================== */
+const EXPERIMENTAL = [
+  { key: 'jekion', app: true, name: 'JEKion', what: 'charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live. Not yet fully validated, so treat its numbers as a guide. Shown in JEKsuite and on the site while this is ticked.' },
+  // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
+  { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
+  { key: 'mods', name: 'Modules (parts with code)', what: 'part packs that carry code, run in a sandbox: new plates, polarisation plates, fibre components, electronics blocks and readouts written by anyone, installed from a file or a link (File \u203a Part packs and modules\u2026) after a prompt saying what each adds. Their code cannot reach your account, your files or the internet.' },
+  { key: 'raylook', name: 'How the rays look', what: 'a window of settings for how rays are drawn in 2D, for figures and recordings: fading trails as the light changes, a glow round each ray, and the rays\u2019 width (the button under Light in the Bench panel, and View \u203a How the rays look\u2026). Kept with the bench; a bench that has them set is drawn with them whether this is on or not.' },
+  { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
+];
+const EXP_KEY = 'jek-raytracer-experimental', EXP_PICKS = 'jek-raytracer-experimental-picks';
+/* the switch and the ticks as this browser keeps them: { on, picks } (a private window, or a test page: off) */
+function expRead() {
+  try {
+    if (TEST_MODE) return { on: false, picks: {} };
+    const v = JSON.parse(localStorage.getItem(EXP_PICKS) || '{}');
+    return { on: localStorage.getItem(EXP_KEY) === '1', picks: v && typeof v === 'object' ? v : {} };
+  } catch (err) { return { on: false, picks: {} }; }
+}
+function expWrite(on, picks) {
+  if (TEST_MODE) return;
+  try { localStorage.setItem(EXP_KEY, on ? '1' : '0'); localStorage.setItem(EXP_PICKS, JSON.stringify(picks || {})); } catch (err) { /* not kept: fine */ }
+}
+/* a feature is on when the switch is and its own tick is (ticked unless unticked) */
+const expHas = (S, key) => !!S && S.on && (S.picks || {})[key] !== false && EXPERIMENTAL.some(f => f.key === key);
+/* ==========================================================================
    Hooks: what the engines tell the page, and what they ask of it. The page installs its own at
    boot (ui/boot.js); without a page (the field worker, the Node tests) these do nothing, so
    core/, state/ and engines/ never reach for the DOM themselves. The build checks that they
@@ -2813,11 +2846,13 @@ const APPS = [
     held: 'RF designs are saved as JEKray benches for now, so they are listed under JEKray. They get files of their own (.rfd) next.' },
   { id: 'jekfilm', name: 'Coating designer', short: 'Coating', parent: 'jekray', url: '/jek/tools/jekfilm.html', tab: 'jekfilm', icon: 'coat', about: '/jek/products/design-software/jekfilm/', thing: 'coating',
     line: 'Thin-film coatings designed over a band and a range of angles: anti-reflection, high reflectors, beam splitters and dichroic edges.' },
-  { id: 'jekion', name: 'JEKion', url: '/jek/tools/jekion.html', tab: 'jekion', icon: 'ion', about: '/jek/products/design-software/jekion/',
+  { id: 'jekion', name: 'JEKion', exp: 'jekion', url: '/jek/tools/jekion.html', tab: 'jekion', icon: 'ion', about: '/jek/products/design-software/jekion/',
     line: 'Charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live.' },
   { id: 'jekcad', name: 'JEKcad', url: '/jek/tools/jekcad.html', tab: 'jekcad', icon: 'cube', about: '/jek/products/design-software/jekcad/', thing: 'part studio',
     line: 'Parametric CAD: sketches with constraints and dimensions, a feature list you can roll back, and solids made on OpenCascade, with STEP in and out.' },
 ];
+/* the apps shown: an experimental one (exp) only to someone signed in who has switched it on (core/exp-list.js) */
+const appsShown = signedIn => APPS.filter(a => !a.exp || (signedIn && expHas(expRead(), a.exp)));
 /* what an app's files are called: a coating, a part studio, a JEKray or JEKion bench */
 const thingOf = id => appOf(id).thing || 'bench';
 /* the name on a bench's tag and a chip: a designer's short one */
@@ -2867,7 +2902,7 @@ const SPACE_ICONS = {
   card: 'M1.5 3.5H14.5V12.5H1.5Z M1.5 6.5H14.5 M4 10H7', sync: 'M13 6A5.2 5.2 0 0 0 3.4 4.6 M3 2V5H6 M3 10A5.2 5.2 0 0 0 12.6 11.4 M13 14V11H10',
   home: 'M2 7.5L8 2.5L14 7.5 M3.5 6.5V13.5H12.5V6.5 M6.5 13.5V9.5H9.5V13.5', check: 'M3 8.5L6.5 12L13 4.5',
   theme: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M8 1.5V14.5 M8 4H12.5 M8 7H14 M8 10H13.5', cloud: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5Z',
-  lens: 'M8 1.5Q11 8 8 14.5Q5 8 8 1.5Z M1 8H15', rf: 'M3 13L8 3L13 13 M5 9H11', coat: 'M2 4H14 M2 8H14 M2 12H14', ion: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M5 8H11 M8 5V11',
+  flask: 'M6 1.5H10 M6.5 1.5V6L2.5 13.5H13.5L9.5 6V1.5 M4.3 10H11.7', lens: 'M8 1.5Q11 8 8 14.5Q5 8 8 1.5Z M1 8H15', rf: 'M3 13L8 3L13 13 M5 9H11', coat: 'M2 4H14 M2 8H14 M2 12H14', ion: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M5 8H11 M8 5V11',
 };
 function iconNode(name) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -4161,7 +4196,7 @@ async function fillHome() {
   const used = data.usage || (P.lastUsage && P.lastUsage.ws === ws ? P.lastUsage : null);
   if (data.usage) P.lastUsage = Object.assign({ ws }, data.usage);
   rail.replaceChildren(...[
-    h('h2', null, 'Apps'), ...APPS.map(a => railBtn(a.name, a.icon, P.app === a.id, () => { track('cloud', 'app.' + a.id); showApp(a.id); }, 'rt-happbtn ' + a.id + (a.parent ? ' rt-hsub' : ''))),
+    h('h2', null, 'Apps'), ...appsShown(true).map(a => railBtn(a.name, a.icon, P.app === a.id, () => { track('cloud', 'app.' + a.id); showApp(a.id); }, 'rt-happbtn ' + a.id + (a.parent ? ' rt-hsub' : ''))),
     h('h2', null, 'Benches'),
     ...places.flatMap(w => w.id === ws
       ? [dropOn(railBtn(placeName(w), w.kind === 'personal' ? 'home' : 'users', !P.app && here('folder', null), leave(go('folder', null))), { folder: null }), ...treeNodes(null, 1)]
@@ -4622,12 +4657,13 @@ function appHead(a) {
    Opened from New (its Open group) and the rail, each in its own tab; signed out, under the sign-in panel. */
 function appLinks() {
   return h('div', { class: 'rt-happlinks', 'aria-label': 'Apps' }, h('span', null, 'The apps open without an account:'),
-    ...APPS.map(a => h('button', { type: 'button', class: 'rt-btn', title: a.line, onclick: () => { track('cloud', 'app.' + a.id); openApp(a.id); } }, 'Open ' + a.name)),
-    ...APPS.filter(a => a.about).map(a => h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + a.name)));
+    ...appsShown(!!account).map(a => h('button', { type: 'button', class: 'rt-btn', title: a.line, onclick: () => { track('cloud', 'app.' + a.id); openApp(a.id); } }, 'Open ' + a.name)),
+    ...appsShown(!!account).filter(a => a.about).map(a => h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + a.name)));
 }
 /* New's menu: what can be started, a bench in each app first (opening an app is on its page, from the rail) */
 function newMenuItems() {
-  return NEW_KINDS.map(k => [k.label, k.icon, () => startNew(k.app, k.into), k.sub ? 'rt-hsub' : null]);
+  const shown = new Set(appsShown(!!account).map(a => a.id));
+  return NEW_KINDS.filter(k => shown.has(k.app)).map(k => [k.label, k.icon, () => startNew(k.app, k.into), k.sub ? 'rt-hsub' : null]);
 }
 /* What New starts: a bench in an app, or straight into one of JEKray's designers */
 const NEW_KINDS = [
@@ -4697,7 +4733,7 @@ function signedOutView() {
   document.getElementById('homeNote').hidden = true;
   document.getElementById('homeWhere').textContent = 'Your apps and benches';
   const P = cloudPlace, appPage = P.app ? appOf(P.app) : null;
-  rail.replaceChildren(h('h2', null, 'Apps'), ...APPS.map(a => h('button', { type: 'button', onclick: () => showApp(a.id), title: a.name + ': what it does, and its benches', class: 'rt-happbtn ' + a.id + (a.parent ? ' rt-hsub' : ''), 'aria-current': String(P.app === a.id) }, homeIcon(a.icon), h('span', null, a.name))));
+  rail.replaceChildren(h('h2', null, 'Apps'), ...appsShown(false).map(a => h('button', { type: 'button', onclick: () => showApp(a.id), title: a.name + ': what it does, and its benches', class: 'rt-happbtn ' + a.id + (a.parent ? ' rt-hsub' : ''), 'aria-current': String(P.app === a.id) }, homeIcon(a.icon), h('span', null, a.name))));
   homeKeys = null; picked.clear(); pickedF.clear();
   box.classList.remove('rows', 'tbl', 'picking');
   if (appPage) {
@@ -4803,7 +4839,41 @@ function spaceAccountExtra(signedIn) {
   const cur = spaceTheme(), theme = h('div', { class: 'rt-hthemes', role: 'group', 'aria-label': 'Theme' }, h('span', null, 'Theme'),
     ...[['dark', 'Dark'], ['light', 'Light'], ['system', 'System']].map(([v, t]) => h('button', { type: 'button', class: 'rt-btn', 'aria-pressed': String(cur === v), onclick: () => { setSpaceTheme(v); closeMenu(); } }, t)));
   const plans = h('button', { type: 'button', role: 'menuitem', 'data-icon': 'star', onclick: () => { closeMenu(); showSubscribe(); } }, 'JEKrayPro: plans and prices\u2026');
-  return signedIn ? [theme] : [plans, theme];
+  const expItem = h('button', { type: 'button', role: 'menuitem', 'data-icon': 'flask', id: 'homeExp', onclick: () => { closeMenu(); showExperimental(); } }, 'Experimental features\u2026', expRead().on ? h('span', { class: 'rt-dot exp' }) : null);
+  return signedIn ? [expItem, theme] : [plans, expItem, theme];
+}
+
+/* ---------- Experimental features, for every app ----------
+   The one place they are switched on and off (core/exp-list.js keeps them in this browser, and each app follows the
+   store as it changes): the apps not yet validated (JEKion), shown here and on the site only while ticked, then
+   JEKray's features. For a signed-in account (a free one is enough), as they always were. */
+function showExperimental() {
+  let dlg = document.getElementById('homeExpDialog');
+  if (dlg) dlg.remove();
+  const S = expRead(), signedIn = !!account;
+  const save = () => { expWrite(S.on, S.picks); track('experimental', S.on ? 'on' : 'off'); fillHome(); };
+  const master = h('input', { type: 'checkbox', id: 'homeExpOn' });
+  master.checked = S.on; master.disabled = !signedIn;
+  const row = f => {
+    const t = h('input', { type: 'checkbox', 'data-exp': f.key });
+    t.checked = S.picks[f.key] !== false;
+    t.addEventListener('change', () => { S.picks[f.key] = t.checked; save(); });
+    return h('li', null, h('label', { class: 'rt-exppick' }, t, h('span', null, h('b', null, f.name), ': ', f.what)));
+  };
+  const apps = EXPERIMENTAL.filter(f => f.app), feats = EXPERIMENTAL.filter(f => !f.app);
+  const list = h('div', { class: 'rt-explist' + (S.on ? '' : ' off') },
+    apps.length ? h('h3', null, 'Apps') : null, apps.length ? h('ul', null, ...apps.map(row)) : null,
+    feats.length ? h('h3', null, 'In JEKray') : null, feats.length ? h('ul', null, ...feats.map(row)) : null);
+  master.addEventListener('change', () => { S.on = master.checked; list.classList.toggle('off', !S.on); save(); toast(S.on ? 'Experimental features on, in every app' : 'Experimental features off'); });
+  dlg = h('dialog', { class: 'rt-dialog rt-expdialog', id: 'homeExpDialog', 'aria-labelledby': 'homeExpTitle' },
+    h('h2', { id: 'homeExpTitle' }, 'Experimental features'),
+    h('p', null, 'Apps and features still being built and checked. They may change, or give wrong answers: nothing made with them is validated yet. Tick the ones you want; the switch turns them all on or off together, in every app, in this browser.'),
+    signedIn ? null : h('p', { class: 'rt-exppro' }, h('b', null, 'For signed-in accounts. '), 'Sign in, top right: a free account is enough.'),
+    h('label', { class: 'rt-expmaster' + (signedIn ? '' : ' rt-off') }, master, 'Turn on experimental features'),
+    list,
+    h('div', { class: 'rt-actions' }, h('button', { type: 'button', class: 'rt-btn primary', onclick: () => dlg.close() }, 'Done')));
+  document.body.append(dlg);
+  dlg.showModal();
 }
 /* ==========================================================================
    JEKsuite's start: the theme (JEKray's, so the hub and the apps look alike), the account and the home wired, the
@@ -4812,7 +4882,7 @@ function spaceAccountExtra(signedIn) {
    ========================================================================== */
 themeApply();
 if (typeof matchMedia === 'function') matchMedia('(prefers-color-scheme: dark)').addEventListener('change', themeApply);
-window.addEventListener('storage', e => { if (e.key === 'jekray-theme') themeApply(); });
+window.addEventListener('storage', e => { if (e.key === 'jekray-theme') themeApply(); if (e.key === EXP_KEY || e.key === EXP_PICKS) fillHome(); });
 if (!window.name) window.name = 'jeksuite';
 // the benches, once the account is known (signed in, or signed out for sure)
 // the shared account's hooks: the hub's name and toasts, its pop-up account menu (made as it opens) with the theme in it
@@ -4829,6 +4899,9 @@ wireUsage();
 usageStart('space');
 accountShown();
 if (accountLoaded) accountLoaded.then(() => fillHome());
+// #experimental (JEKray's Help › Experimental features): the dialog, once the account is known
+if (location.hash === '#experimental') { window.history.replaceState(null, '', location.pathname); Promise.resolve(accountLoaded).then(() => showExperimental()); }
+window.addEventListener('hashchange', () => { if (location.hash === '#experimental') { window.history.replaceState(null, '', location.pathname); showExperimental(); } });
 })();
 </script>
 </body>

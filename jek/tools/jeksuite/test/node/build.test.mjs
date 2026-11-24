@@ -13,14 +13,14 @@ test('jeksuite.html, its dev page and main.js are current (node build.mjs)', () 
   assert.equal(fs.readFileSync(DEV_PAGE, 'utf8'), devPage());
   assert.equal(fs.readFileSync(MAIN, 'utf8'), mainModule());
 });
-test('it shares only JEKray modules that reach no bench (constants, hooks, the source tag, elements, merging, usage counts, the account)', () => {
+test('it shares only JEKray modules that reach no bench (constants, the experimental features’ list, hooks, the source tag, elements, merging, usage counts, the account)', () => {
   const shared = order().filter(f => f.startsWith('../')).map(f => f.replace(/^(\.\.\/)+jekray\/src\//, ''));
-  assert.deepEqual(shared.sort(), ['core/constants.js', 'core/hooks.js', 'core/src-tag.js', 'io/account.js', 'io/merge.js', 'io/usage.js', 'ui/dom.js']);
+  assert.deepEqual(shared.sort(), ['core/constants.js', 'core/exp-list.js', 'core/hooks.js', 'core/src-tag.js', 'io/account.js', 'io/merge.js', 'io/usage.js', 'ui/dom.js']);
 });
 test('a bench opens in its own app, in that app’s named tab', async () => {
   const dom = fs.readFileSync(new URL('../../src/ui/dom.js', import.meta.url), 'utf8');
   assert.match(dom, /id: 'jekray', name: 'JEKray', url: '\/jek\/tools\/jekray\.html', tab: 'jekray'/);
-  assert.match(dom, /id: 'jekion', name: 'JEKion', url: '\/jek\/tools\/jekion\.html', tab: 'jekion'/);
+  assert.match(dom, /id: 'jekion', name: 'JEKion', exp: 'jekion', url: '\/jek\/tools\/jekion\.html', tab: 'jekion'/);
   const home = fs.readFileSync(new URL('../../src/ui/home.js', import.meta.url), 'utf8');
   assert.match(home, /openApp\(tool \|\| 'jekray', 'cloud=' \+ id/);
 });

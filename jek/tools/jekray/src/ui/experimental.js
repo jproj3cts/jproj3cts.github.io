@@ -1,4 +1,5 @@
 import { TEST_MODE } from '../core/constants.js';
+import { EXPERIMENTAL, expRead, expWrite } from '../core/exp-list.js';
 import { PALETTE_GROUPS, PALETTE_PARTS, pickerRows } from '../parts/registry.js';
 import { V, project, selectOne } from '../state/project.js';
 import { makeElement, normElement, selected } from '../state/elements.js';
@@ -27,17 +28,12 @@ import { track } from '../io/usage.js';
    EXAMPLES line, and anything else (a panel section, a readout, a model) tests exp() where it
    would appear. A bench that uses one still opens and traces with the switch off: only what
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
-export const EXPERIMENTAL = [
-  // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
-  { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
-  { key: 'mods', name: 'Modules (parts with code)', what: 'part packs that carry code, run in a sandbox: new plates, polarisation plates, fibre components, electronics blocks and readouts written by anyone, installed from a file or a link (File \u203a Part packs and modules\u2026) after a prompt saying what each adds. Their code cannot reach your account, your files or the internet.' },
-  { key: 'raylook', name: 'How the rays look', what: 'a window of settings for how rays are drawn in 2D, for figures and recordings: fading trails as the light changes, a glow round each ray, and the rays\u2019 width (the button under Light in the Bench panel, and View \u203a How the rays look\u2026). Kept with the bench; a bench that has them set is drawn with them whether this is on or not.' },
-  { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
-];
-const EXP_KEY = 'jek-raytracer-experimental', EXP_PICKS = 'jek-raytracer-experimental-picks';
-// the master switch, and each feature's own tick (ticked unless unticked): a feature is on when both are
-export let expOn = (() => { try { return !TEST_MODE && localStorage.getItem(EXP_KEY) === '1'; } catch (err) { return false; } })();          // (a private window: off)
-export let expPicks = (() => { try { const v = !TEST_MODE && JSON.parse(localStorage.getItem(EXP_PICKS) || '{}'); return v && typeof v === 'object' ? v : {}; } catch (err) { return {}; } })();   // (none kept: all ticked)
+/* (the list, and the store every app shares: core/exp-list.js) */
+
+// the master switch, and each feature's own tick (ticked unless unticked): a feature is on when both are; as this
+// browser keeps them, followed as they change (JEKsuite sets them: followExperimental)
+export let expOn = expRead().on;
+export let expPicks = expRead().picks;
 export const expPicked = key => expPicks[key] !== false;
 // experimental features need an account (free or JEKrayPro): the gate says why they are not available (not signed in), or ''
 // when they are; set by the cloud module once accounts are up (the tests, and a build without accounts, are not gated)
@@ -51,7 +47,16 @@ export function setExperimental(on, picks) {
   if (on !== undefined && on !== null && !!on !== expOn) track('experimental', on ? 'on' : 'off');
   if (on !== undefined && on !== null) expOn = !!on;
   if (picks) for (const f of EXPERIMENTAL) if (f.key in picks) expPicks[f.key] = !!picks[f.key];
-  if (!TEST_MODE) try { localStorage.setItem(EXP_KEY, expOn ? '1' : '0'); localStorage.setItem(EXP_PICKS, JSON.stringify(expPicks)); } catch (err) { /* not kept: fine */ }
+  expWrite(expOn, expPicks);
+  expShown();
+}
+/* the switch or a tick changed in another tab (JEKsuite's, where they are set): this page follows */
+export function followExperimental() {
+  const S = expRead();
+  expOn = S.on; expPicks = S.picks;
+  expShown();
+}
+function expShown() {
   const dot = document.getElementById('expDot');
   if (dot) dot.hidden = !(expOn && !expWhy());
   modsSync(); expMenuShown();

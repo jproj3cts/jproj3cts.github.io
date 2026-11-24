@@ -77,7 +77,8 @@ import { lensSystem, pupilRings, spotOf, traceRay } from '../engines/lens-engine
 import { ghostPrescription } from '../engines/lens-ghost.js';
 import { meritReport, optProblem } from '../engines/lens-opt.js';
 import { makeAssembly, newLensDesign, splitAssembly } from './assembly.js';
-import { EXPERIMENTAL, PALETTES, exp, expOn, palettesOn, setExperimental, stlElement } from './experimental.js';
+import { PALETTES, exp, expOn, followExperimental, palettesOn, setExperimental, stlElement } from './experimental.js';
+import { EXPERIMENTAL, EXP_KEY, EXP_PICKS } from '../core/exp-list.js';
 import { stepElements, wireStep } from '../io/step.js';
 import { stepImportBytes } from '../io/step-reader.js';
 import { wireCommands } from './commands.js';
@@ -151,6 +152,8 @@ wireRender(); wireScatter(); wirePointer(); wireActions(); wireShare(); wireOpen
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
 opticPageSetup();
+// the experimental features follow the switch set in JEKsuite (another tab), as it changes
+if (!TEST_MODE) window.addEventListener('storage', e => { if (e.key === EXP_KEY || e.key === EXP_PICKS) followExperimental(); });
 
 /* Start-up: restore the last session in this browser, or show a demo bench */
 (function init() {

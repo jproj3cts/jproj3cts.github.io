@@ -41,7 +41,7 @@
   } catch (e) { /* not counted */ }
 })();</script>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261121">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261124">
 <style>
   /* Ray tracer: page-specific styles. Site tokens come from jek.css. */
   :root {
@@ -843,15 +843,17 @@
   .rt-meta { font-size: 0.8125rem; color: var(--jek-ink-soft); }
   /* experimental features: a menu under the version line, and a badge for what they add */
   .rt-expwrap { position: relative; display: inline-block; }
-  .rt-expmenu { width: 22rem; padding: 0.7rem 0.8rem; font-size: 0.8125rem; color: var(--jek-ink-soft); cursor: default; }
-  .rt-expmenu label { display: flex; align-items: center; gap: 0.45rem; font-weight: 600; color: var(--jek-ink); cursor: pointer; }
-  .rt-expmenu p { margin: 0.5rem 0 0.4rem; line-height: 1.45; }
-  .rt-expmenu ul { margin: 0; padding: 0; list-style: none; }
-  .rt-expmenu ul.off { opacity: 0.6; }
-  .rt-expmenu li { margin-bottom: 0.35rem; }
-  .rt-expmenu label.rt-exppick { align-items: flex-start; font-weight: 400; color: var(--jek-ink-soft); }
-  .rt-expmenu label.rt-exppick input { margin-top: 0.2rem; flex: none; }
-  .rt-expmenu li b { color: var(--jek-ink); }
+  /* the experimental features, set in JEKsuite's dialog for every app */
+  .rt-expdialog { max-width: 34rem; font-size: 0.875rem; color: var(--jek-ink-soft); }
+  .rt-expdialog label.rt-expmaster { display: flex; align-items: center; gap: 0.45rem; margin: 0.6rem 0; font-weight: 600; color: var(--jek-ink); cursor: pointer; }
+  .rt-expdialog p { margin: 0.5rem 0 0.4rem; line-height: 1.45; }
+  .rt-expdialog h3 { margin: 0.8rem 0 0.35rem; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-expdialog ul { margin: 0; padding: 0; list-style: none; }
+  .rt-expdialog .rt-explist.off { opacity: 0.6; }
+  .rt-expdialog li { margin-bottom: 0.45rem; }
+  .rt-expdialog label.rt-exppick { display: flex; align-items: flex-start; gap: 0.45rem; color: var(--jek-ink-soft); cursor: pointer; }
+  .rt-expdialog label.rt-exppick input { margin-top: 0.2rem; flex: none; }
+  .rt-expdialog li b { color: var(--jek-ink); }
   .rt-exp { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; border: 1px dashed currentColor; color: var(--jek-ink-soft); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
   .rt-dot.exp { background: var(--jek-ink-soft); }
   .rt-link { padding: 0; font: inherit; color: var(--jek-cyan-dark); background: none; border: 0; cursor: pointer; }
@@ -2188,7 +2190,7 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <div class="sep"></div>
             <button type="button" role="menuitem" id="btnCite" data-icon="quote">Cite JEKray</button>
             <button type="button" role="menuitem" id="btnBug" data-icon="bug">Report a bug</button>
-            <button type="button" role="menuitem" id="btnExp" data-icon="flask" data-need="account" data-what="use the experimental features" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features…<span class="rt-dot exp" id="expDot" hidden></span></button>
+            <button type="button" role="menuitem" id="btnExp" data-icon="flask" data-need="account" data-what="use the experimental features" title="Switched on and off for every app in JEKsuite’s account menu (in its own tab)">Experimental features (in JEKsuite)…<span class="rt-dot exp" id="expDot" hidden></span></button>
             <div class="sep"></div>
             <a role="menuitem" href="/jek/products/design-software/jekray/" data-icon="info">About JEKray</a>
             <a role="menuitem" href="jekray-licence.html" data-icon="pdf">Licence</a>
@@ -2196,7 +2198,6 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
             <div class="sep"></div>
             <span class="rt-menunote">JEKray <span id="appVersion"></span> &middot; &copy; 2025&ndash;2026 JEK Systems</span>
           </div>
-          <div class="rt-menu rt-expmenu" id="expMenu" hidden></div>
         </div>
         </div>
         <div class="rt-group rt-tight rt-quick">
@@ -2621,6 +2622,37 @@ function mkCanvas(w, h) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   return c;
 }
+/* ==========================================================================
+   The experimental features, as every app reads them
+   New features start here, off until someone switches them on, then move to beta (a Beta badge on their examples),
+   then into the tool proper. Apps not yet validated are here too (app: true): JEKsuite shows them, and the site its
+   links to them, only to someone who has switched them on. The switch and each feature's tick are kept in this
+   browser (one store for every app on the site) and set in one place, JEKsuite's account menu; each app follows
+   them, as they change, from the store (ui/experimental.js in JEKray, the storage event).
+   ========================================================================== */
+const EXPERIMENTAL = [
+  { key: 'jekion', app: true, name: 'JEKion', what: 'charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live. Not yet fully validated, so treat its numbers as a guide. Shown in JEKsuite and on the site while this is ticked.' },
+  // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
+  { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
+  { key: 'mods', name: 'Modules (parts with code)', what: 'part packs that carry code, run in a sandbox: new plates, polarisation plates, fibre components, electronics blocks and readouts written by anyone, installed from a file or a link (File \u203a Part packs and modules\u2026) after a prompt saying what each adds. Their code cannot reach your account, your files or the internet.' },
+  { key: 'raylook', name: 'How the rays look', what: 'a window of settings for how rays are drawn in 2D, for figures and recordings: fading trails as the light changes, a glow round each ray, and the rays\u2019 width (the button under Light in the Bench panel, and View \u203a How the rays look\u2026). Kept with the bench; a bench that has them set is drawn with them whether this is on or not.' },
+  { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
+];
+const EXP_KEY = 'jek-raytracer-experimental', EXP_PICKS = 'jek-raytracer-experimental-picks';
+/* the switch and the ticks as this browser keeps them: { on, picks } (a private window, or a test page: off) */
+function expRead() {
+  try {
+    if (TEST_MODE) return { on: false, picks: {} };
+    const v = JSON.parse(localStorage.getItem(EXP_PICKS) || '{}');
+    return { on: localStorage.getItem(EXP_KEY) === '1', picks: v && typeof v === 'object' ? v : {} };
+  } catch (err) { return { on: false, picks: {} }; }
+}
+function expWrite(on, picks) {
+  if (TEST_MODE) return;
+  try { localStorage.setItem(EXP_KEY, on ? '1' : '0'); localStorage.setItem(EXP_PICKS, JSON.stringify(picks || {})); } catch (err) { /* not kept: fine */ }
+}
+/* a feature is on when the switch is and its own tick is (ticked unless unticked) */
+const expHas = (S, key) => !!S && S.on && (S.picks || {})[key] !== false && EXPERIMENTAL.some(f => f.key === key);
 /* ==========================================================================
    Hooks: what the engines tell the page, and what they ask of it. The page installs its own at
    boot (ui/boot.js); without a page (the field worker, the Node tests) these do nothing, so
@@ -58630,17 +58662,12 @@ const partWords = (p, palName) => (p.short + ' ' + p.long + ' ' + (palName || ''
    EXAMPLES line, and anything else (a panel section, a readout, a model) tests exp() where it
    would appear. A bench that uses one still opens and traces with the switch off: only what
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
-const EXPERIMENTAL = [
-  // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
-  { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
-  { key: 'mods', name: 'Modules (parts with code)', what: 'part packs that carry code, run in a sandbox: new plates, polarisation plates, fibre components, electronics blocks and readouts written by anyone, installed from a file or a link (File \u203a Part packs and modules\u2026) after a prompt saying what each adds. Their code cannot reach your account, your files or the internet.' },
-  { key: 'raylook', name: 'How the rays look', what: 'a window of settings for how rays are drawn in 2D, for figures and recordings: fading trails as the light changes, a glow round each ray, and the rays\u2019 width (the button under Light in the Bench panel, and View \u203a How the rays look\u2026). Kept with the bench; a bench that has them set is drawn with them whether this is on or not.' },
-  { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
-];
-const EXP_KEY = 'jek-raytracer-experimental', EXP_PICKS = 'jek-raytracer-experimental-picks';
-// the master switch, and each feature's own tick (ticked unless unticked): a feature is on when both are
-let expOn = (() => { try { return !TEST_MODE && localStorage.getItem(EXP_KEY) === '1'; } catch (err) { return false; } })();          // (a private window: off)
-let expPicks = (() => { try { const v = !TEST_MODE && JSON.parse(localStorage.getItem(EXP_PICKS) || '{}'); return v && typeof v === 'object' ? v : {}; } catch (err) { return {}; } })();   // (none kept: all ticked)
+/* (the list, and the store every app shares: core/exp-list.js) */
+
+// the master switch, and each feature's own tick (ticked unless unticked): a feature is on when both are; as this
+// browser keeps them, followed as they change (JEKsuite sets them: followExperimental)
+let expOn = expRead().on;
+let expPicks = expRead().picks;
 const expPicked = key => expPicks[key] !== false;
 // experimental features need an account (free or JEKrayPro): the gate says why they are not available (not signed in), or ''
 // when they are; set by the cloud module once accounts are up (the tests, and a build without accounts, are not gated)
@@ -58654,7 +58681,16 @@ function setExperimental(on, picks) {
   if (on !== undefined && on !== null && !!on !== expOn) track('experimental', on ? 'on' : 'off');
   if (on !== undefined && on !== null) expOn = !!on;
   if (picks) for (const f of EXPERIMENTAL) if (f.key in picks) expPicks[f.key] = !!picks[f.key];
-  if (!TEST_MODE) try { localStorage.setItem(EXP_KEY, expOn ? '1' : '0'); localStorage.setItem(EXP_PICKS, JSON.stringify(expPicks)); } catch (err) { /* not kept: fine */ }
+  expWrite(expOn, expPicks);
+  expShown();
+}
+/* the switch or a tick changed in another tab (JEKsuite's, where they are set): this page follows */
+function followExperimental() {
+  const S = expRead();
+  expOn = S.on; expPicks = S.picks;
+  expShown();
+}
+function expShown() {
   const dot = document.getElementById('expDot');
   if (dot) dot.hidden = !(expOn && !expWhy());
   modsSync(); expMenuShown();
@@ -59407,7 +59443,7 @@ function normPack(raw, sizeHint) {
     if (raw.version < 2) throw new Error('it has code in it, which a version 1 pack cannot: a module is a version 2 pack');
     if (typeof raw.code !== 'string' || !raw.code.trim()) throw new Error('its "code" is not a script');
     if (raw.code.length > MOD_CODE_MAX) throw new Error('its code is larger than ' + (MOD_CODE_MAX >> 10) + ' KB');
-    if (!exp('mods')) throw new Error('it is a module (it has code), and modules are an experimental feature: turn them on under Help \u203a Experimental features first');
+    if (!exp('mods')) throw new Error('it is a module (it has code), and modules are an experimental feature: turn them on in JEKsuite\u2019s account menu, Experimental features, first');
   }
   if ((sizeHint || JSON.stringify(raw).length) > PACK_MAX) throw new Error('it is larger than ' + (PACK_MAX >> 20) + ' MB');
   const id = packText(raw.id, 64).toLowerCase();
@@ -62524,33 +62560,11 @@ function wireNews() {
   }
 
   {
-    const btn = document.getElementById('btnExp'), menu = document.getElementById('expMenu');
-    const account = () => !(hooks.proWhy && /^Sign in/.test(hooks.proWhy() || ''));
-    const fill = () => {
-      const cb = h('input', { type: 'checkbox' });
-      cb.checked = expOn;
-      const n = () => EXPERIMENTAL.filter(f => expPicked(f.key)).length;
-      cb.addEventListener('change', () => { setExperimental(cb.checked); fill(); menu.querySelector('input').focus(); toast(expOn ? 'Experimental features on: ' + n() + ' of ' + EXPERIMENTAL.length + ' ticked' : 'Experimental features off'); });
-      // each feature its own tick, kept whether the master switch is on or off; it acts only while it is on
-      const row = f => {
-        const t = h('input', { type: 'checkbox', 'data-exp': f.key });
-        t.checked = expPicked(f.key);
-        t.addEventListener('change', () => { setExperimental(null, { [f.key]: t.checked }); if (expOn) toast(f.name + (t.checked ? ' on' : ' off')); });
-        return h('li', null, h('label', { class: 'rt-exppick' }, t, h('span', null, h('b', null, f.name), ': ', f.what)));
-      };
-      // for any signed-in account: signed out, the switch is shown but held off, with the way to sign in
-      const why = expWhy();
-      cb.disabled = !!why;
-      menu.replaceChildren(h('label', { class: why ? 'rt-off' : null, title: why || null }, cb, 'Turn on experimental features'),
-        why ? h('p', { class: 'rt-exppro' }, h('b', null, 'For signed-in accounts. '), 'Sign in, top right: a free account is enough, and JEKrayPro has them too. ', h('button', { type: 'button', class: 'rt-link', onclick: () => { show(false); if (hooks.proFix) hooks.proFix('', 'exp'); } }, 'Sign in…')) : null,
-        h('p', null, 'Features still being built and checked, before they reach beta. They may change, or give wrong answers: nothing made with them is validated yet. Tick the ones you want; the switch above turns them all on or off together. The settings are kept in this browser.'),
-        EXPERIMENTAL.length ? h('ul', { class: expOn ? null : 'off' }, ...EXPERIMENTAL.map(row))
-          : h('p', { style: 'margin:0' }, 'There are none at the moment.'));
-    };
-    const show = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) { fill(); menu.querySelector('input').focus(); } };
-    btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
-    document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target) && e.target !== btn) show(false); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
+    // the switch and the ticks are set in one place for every app, JEKsuite's account menu: this opens it there
+    document.getElementById('btnExp').addEventListener('click', () => {
+      const w = window.open('/jek/tools/jeksuite.html#experimental', 'jeksuite');
+      if (w) w.focus();
+    });
     document.getElementById('expDot').hidden = !(expOn && !expWhy());
   }
 
@@ -64834,7 +64848,7 @@ async function modsOffer() {
   for (const m of project.mods || []) m.hash = await modHash(m.code);
   const want = (project.mods || []).filter(m => { const pk = PACKS.list.find(p => p.id === m.id); return (!pk || pk.hash !== m.hash) && !MODS.offered.has(m.id + '|' + m.hash); });
   if (!want.length) return;
-  if (!exp('mods')) { toast('This bench uses modules (' + want.map(m => m.name).join(', ') + '), an experimental feature: turn modules on under Help › Experimental features to run them'); return; }
+  if (!exp('mods')) { toast('This bench uses modules (' + want.map(m => m.name).join(', ') + '), an experimental feature: turn modules on in JEKsuite’s account menu, Experimental features, to run them'); return; }
   // each as its maker signed it, if the bench carries that, checked as any pack is (an unsigned one is refused, saying why)
   for (const m of want) {
     MODS.offered.add(m.id + '|' + m.hash);
@@ -65790,6 +65804,8 @@ wireRender(); wireScatter(); wirePointer(); wireActions(); wireShare(); wireOpen
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
 opticPageSetup();
+// the experimental features follow the switch set in JEKsuite (another tab), as it changes
+if (!TEST_MODE) window.addEventListener('storage', e => { if (e.key === EXP_KEY || e.key === EXP_PICKS) followExperimental(); });
 
 /* Start-up: restore the last session in this browser, or show a demo bench */
 (function init() {

@@ -2,7 +2,8 @@ import { installHooks } from '../../../jekray/src/core/hooks.js';
 import { usageStart, wireUsage } from '../../../jekray/src/io/usage.js';
 import { closeMenu, themeApply, toast } from './dom.js';
 import { account, accountKnown, accountLoaded, accountShown, authOutcome, wireAccount } from '../../../jekray/src/io/account.js';
-import { fillHome, openAccountMenu, spaceAccountExtra, wireHome } from './home.js';
+import { fillHome, openAccountMenu, showExperimental, spaceAccountExtra, wireHome } from './home.js';
+import { EXP_KEY, EXP_PICKS } from '../../../jekray/src/core/exp-list.js';
 
 /* ==========================================================================
    JEKsuite's start: the theme (JEKray's, so the hub and the apps look alike), the account and the home wired, the
@@ -11,7 +12,7 @@ import { fillHome, openAccountMenu, spaceAccountExtra, wireHome } from './home.j
    ========================================================================== */
 themeApply();
 if (typeof matchMedia === 'function') matchMedia('(prefers-color-scheme: dark)').addEventListener('change', themeApply);
-window.addEventListener('storage', e => { if (e.key === 'jekray-theme') themeApply(); });
+window.addEventListener('storage', e => { if (e.key === 'jekray-theme') themeApply(); if (e.key === EXP_KEY || e.key === EXP_PICKS) fillHome(); });
 if (!window.name) window.name = 'jeksuite';
 // the benches, once the account is known (signed in, or signed out for sure)
 // the shared account's hooks: the hub's name and toasts, its pop-up account menu (made as it opens) with the theme in it
@@ -28,3 +29,6 @@ wireUsage();
 usageStart('space');
 accountShown();
 if (accountLoaded) accountLoaded.then(() => fillHome());
+// #experimental (JEKray's Help › Experimental features): the dialog, once the account is known
+if (location.hash === '#experimental') { window.history.replaceState(null, '', location.pathname); Promise.resolve(accountLoaded).then(() => showExperimental()); }
+window.addEventListener('hashchange', () => { if (location.hash === '#experimental') { window.history.replaceState(null, '', location.pathname); showExperimental(); } });

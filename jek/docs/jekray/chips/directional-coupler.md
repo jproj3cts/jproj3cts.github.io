@@ -8,7 +8,7 @@ element: { palette: Photonic, type: pic, kind: dc }
 ---
 
 <div class="dx-note" markdown="1">
-Photonic chips are an experimental feature: sign in to use it (a free account is enough). Switch them on under **Help › Experimental features…**.
+Photonic chips are an experimental feature: sign in to use it (a free account is enough). Switch them on under **Experimental features…** in [JEKsuite](/jek/tools/jeksuite.html)’s account menu (or **Help › Experimental features (in JEKsuite)…** in JEKray, which opens it).
 </div>
 
 <p class="dx-lead">A directional coupler is two waveguides run close enough together that light crosses from one to the other. It is the chip's beam splitter, and the coupler of a ring.</p>

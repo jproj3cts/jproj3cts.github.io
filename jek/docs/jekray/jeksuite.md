@@ -47,3 +47,9 @@ Each app's page has its own address, `jeksuite.html#app=jekray`, `#app=jekion` o
 ## Your account, plan and teams
 
 The button at the top right signs you in (Google, Microsoft, or an email address with a link, a code or a password) and holds the account menu: your plan, **Your account** (your name, picture and password), **Billing and invoices**, switching between monthly and yearly billing, each of your **teams** (members, invitations, roles, the team's plan and billing, and the web domain it signs part packs with) and **Create a team**, a university's licence for those who look after it, linking another way to sign in, signing out, deleting the account, and the theme. One account signs you in to every app. **Get Pro** shows JEKrayPro's plans and prices.
+
+## Experimental features
+
+Apps and features still being built and checked are switched on in one place for every app: **Experimental features…** in JEKsuite's account menu (JEKray's **Help › Experimental features (in JEKsuite)…** opens it). They need a signed-in account; a free one is enough. The switch turns them all on or off together, and each has its own tick. The setting is kept in this browser and every open app follows it as it changes.
+
+The apps not yet validated, JEKion for now, are among them: JEKsuite lists them, and the site links to them, only while they are switched on. Their benches stay in your folders either way.

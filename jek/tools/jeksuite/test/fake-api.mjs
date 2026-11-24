@@ -28,6 +28,8 @@ export function fakeData() {
 }
 export async function route(page, opts = {}) {
   const D = fakeData(), calls = [], binned = [];
+  // the experimental features switched on (JEKion shown to a signed-in account), unless asked not to (exp: false)
+  if (opts.exp !== false) await page.addInitScript(() => { try { if (localStorage.getItem('jek-raytracer-experimental') === null) localStorage.setItem('jek-raytracer-experimental', '1'); } catch (err) { /* none */ } });
   const corsOf = req => ({ 'Access-Control-Allow-Origin': req.headers().origin || '*', 'Access-Control-Allow-Credentials': 'true', 'Access-Control-Allow-Headers': 'Content-Type, If-Match', 'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE' });
   await page.route('http://localhost:8787/**', async r => {
     const req = r.request(), u = new URL(req.url()), m = req.method(), p = u.pathname, cors = corsOf(req);

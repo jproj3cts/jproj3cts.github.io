@@ -57,7 +57,9 @@
       document.title = 'Search: ' + q + ' | JEK Systems';
       status.textContent = 'Searching for “' + q + '”…';
       const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-      const found = await Promise.all(PAGES.map(async (url) => {
+      // JEKion's pages only for someone who has it switched on (the site nav's script marks the page exp-jekion)
+      const shown = PAGES.filter((url) => !/\/jekion\//.test(url) || document.documentElement.classList.contains('exp-jekion'));
+      const found = await Promise.all(shown.map(async (url) => {
         try {
           const res = await fetch(url);
           if (!res.ok) return null;

@@ -8645,7 +8645,7 @@ const TESTS = [
   },
   {
     name: 'Parts are found by what they do, not only by their names: in Add part and in Ctrl+K',
-    why: 'Add part’s search “focus” lists the parts named for it first (Focusing mirror) and then the lenses (Lens among them); “measure power” finds the photodetector; Ctrl+K “frequency doubling” offers the nonlinear crystal (1 when all hold)',
+    why: 'Add part’s search “focus” lists the lenses (Lens among them; the RF focusing mirror is JEKrf’s now); “measure power” finds the photodetector; Ctrl+K “frequency doubling” offers the nonlinear crystal (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const W = rigWin(), D = rigDoc();
@@ -8653,7 +8653,7 @@ const TESTS = [
       const search = D.querySelector('.rt-picker input[type="search"], #pickerDialog input');
       const tiles = q => { search.value = q; search.dispatchEvent(new W.Event('input')); return [...D.querySelectorAll('.rt-pbody .rt-pgrid > *')].map(t => t.textContent.trim()); };
       const focus = tiles('focus'), power = tiles('measure power');
-      const byName = /^Focusing mirror/.test(focus[0] || '') && focus.some(t => /^Lens/.test(t)), meas = power.some(t => /^Photodetector/.test(t));
+      const byName = focus.some(t => /^Lens/.test(t)) && !focus.some(t => /^Focusing mirror/.test(t)), meas = power.some(t => /^Photodetector/.test(t));
       search.value = ''; D.body.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       const pk = D.querySelector('dialog[open]'); if (pk) pk.close();
       D.body.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
@@ -8763,11 +8763,11 @@ const TESTS = [
   },
   {
     name: 'The bar holds every palette\u2019s groups, and its switcher changes the mode (in 2D: in 3D there is no switcher)',
-    why: 'the bar across the bench: + Add, the mode (Parts) and the groups of every palette at once (free space, fibre, circuits, RF), a line between palettes; the switcher lists Parts and Draw (in 2D), each with a line of what it is; Draw shows its tools in the bar, Parts brings the groups back; a fibre group\u2019s parts open from the bar with no change of mode (1 when all hold)',
+    why: 'the bar across the bench: + Add, the mode (Parts) and the groups of every palette at once (free space, fibre, circuits: RF is JEKrf’s), a line between palettes; the switcher lists Parts and Draw (in 2D), each with a line of what it is; Draw shows its tools in the bar, Parts brings the groups back; a fibre group\u2019s parts open from the bar with no change of mode (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const D = rigDoc(), sw = () => D.getElementById('palSwitch');
-      const pals = ['free', 'fibre', 'elec', 'rf'].every(p => D.querySelectorAll('#rail .rt-rgroup.' + p).length > 0) && D.querySelectorAll('#rail .rt-rsep').length >= 3;
+      const pals = ['free', 'fibre', 'elec'].every(p => D.querySelectorAll('#rail .rt-rgroup.' + p).length > 0) && !D.querySelectorAll('#rail .rt-rgroup.rf').length && D.querySelectorAll('#rail .rt-rsep').length >= 2;
       const start = sw() && /Parts/.test(sw().textContent) && pals;
       sw().click();
       const menu = D.querySelector('.rt-palmenu'), items = [...menu.querySelectorAll('button')];
@@ -9428,8 +9428,8 @@ const TESTS = [
     },
   },
   {
-    name: 'RF is on for everyone, and an RF lens is a part of its own',
-    why: 'the RF tab of parts shows with the experimental switch off and on; an RF lens is labelled as one, its material menu is the RF dielectrics and a constant index only, at the bench’s frequency (150 GHz here), and an optical lens’s menu has none of them (1 when all hold)',
+    name: 'RF is JEKrf’s, and an RF lens is a part of its own',
+    why: 'JEKray’s parts leave out the RF tab with the experimental switch off and on (it is JEKrf’s, ?rf); a bench with RF parts still opens here; an RF lens is labelled as one, its material menu is the RF dielectrics and a constant index only, at the bench’s frequency (150 GHz here), and an optical lens’s menu has none of them (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       try {
@@ -9443,7 +9443,7 @@ const TESTS = [
         const rfm = J.materialOptions(J.byName('L1')), opt = J.materialOptions(J.byName('L2'));
         const rfOk = rfm.length === 15 && rfm.some(o => o[1] === 'PTFE (Teflon), n = 1.44 at 150 GHz') && rfm.some(o => o[1] === 'PLA, n = 1.643 at 150 GHz (typical)') && !rfm.some(o => o[0] === 'N-BK7');
         const optOk = !opt.some(o => o[0] === 'HDPE' || o[0] === 'PTFE') && opt.some(o => o[0] === 'N-BK7');
-        return off && on && unticked && label && rfOk && optOk ? 1 : 0;
+        return !off && !on && unticked && label && rfOk && optOk ? 1 : 0;
       } finally { J.experimental(false); }
     },
   },
@@ -11689,6 +11689,34 @@ const TESTS = [
         if (!ok) console.log('optic page', r);
         return ok ? 1 : 0;
       } finally { f.remove(); }
+    },
+  },
+  {
+    name: 'JEKrf (?rf) and its RF designer (?rfd): their own pages, palettes and files',
+    why: 'jekray.html?rf in a frame: titled JEKrf, its parts the RF and circuits palettes alone, its file a .jekrf (format jekrf), the optical designers out of Tools; jekray.html?rfd: the RF designer open on a new design with no bench to go back to, Use on a bench and Save in its head, its file a design (format jekrfd with a uid) (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async () => {
+      const dev = /[?&]dev=1/.test(location.search), wait = ms => new Promise(r => setTimeout(r, ms));
+      const frame = async q => {
+        const f = document.createElement('iframe');
+        f.style.cssText = 'position:absolute;left:-5000px;top:0;width:1400px;height:800px;border:0';
+        f.src = '/jek/tools/' + (dev ? 'jekray-dev.html' : 'jekray.html') + '?test&' + q;
+        document.body.append(f);
+        for (let i = 0; i < 300 && !(f.contentWindow.JEKray && f.contentWindow.JEKray.serialize); i++) await wait(100);
+        await wait(300);
+        return f;
+      };
+      const fr = await frame('rf'), fd = await frame('rfd');
+      try {
+        const R = fr.contentWindow, Dr = R.document, P = R.JEKray.serialize(), hidden = id => { const e = Dr.getElementById(id); return !e || e.hidden; };
+        const rf = { title: Dr.title, pals: R.JEKray.palettesOn().join(), fmt: P.format, wm: Dr.querySelector('.rt-title .jek-wm').textContent, lens: hidden('btnNewLens') && hidden('btnLensOfSel') && !hidden('btnNewRf') };
+        const W = fd.contentWindow, D = W.document, Q = W.JEKray.serialize(), head = D.querySelector('#rfWs .rt-lhead');
+        const rfd = { title: D.title, open: !!head && !D.getElementById('rfWs').hidden, inHead: ['btnSave', 'btnFile', 'rfUse'].every(id => head && head.contains(D.getElementById(id))), leave: !D.getElementById('rfLeave'), fmt: Q.format, uid: /^o[a-z0-9]{8,}$/.test(Q.uid || ''), asm: (Q.assemblies || []).length === 1 && Q.assemblies[0].kind === 'rf' };
+        const ok = rf.title === 'JEKrf' && rf.pals === 'rf,elec' && rf.fmt === 'jekrf' && rf.wm === 'JEKrf' && rf.lens
+          && rfd.title === 'RF designer | JEKrf' && rfd.open && rfd.inHead && rfd.leave && rfd.fmt === 'jekrfd' && rfd.uid && rfd.asm;
+        if (!ok) console.log('jekrf pages', { rf, rfd });
+        return ok ? 1 : 0;
+      } finally { fr.remove(); fd.remove(); }
     },
   },
   { group: 'The Optics designer and the workspaces' },

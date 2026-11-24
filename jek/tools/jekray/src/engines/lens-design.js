@@ -257,7 +257,7 @@ export function cfgCond(c, cfg) {
   if (!cfg || !(cfg.obj > 0) || !(c.object && c.object.kind === 'finite')) return c;
   return Object.assign({}, c, { object: { kind: 'finite', d: cfg.obj } });
 }
-const mcClone = P => Object.assign({}, P, { surfaces: P.surfaces.map(s => Object.assign({}, s)), gaps: P.gaps.slice(), materials: P.materials.map(m => Object.assign({}, m)) });
+export const mcClone = P => Object.assign({}, P, { surfaces: P.surfaces.map(s => Object.assign({}, s)), gaps: P.gaps.slice(), materials: P.materials.map(m => Object.assign({}, m)) });
 /* configuration ci's values put into P (a prescription of the shared values) */
 export function cfgApply(P, M, ci) {
   const cfg = M.configs[ci];

@@ -28362,25 +28362,10 @@ function elecPanelFor(el) {
 /* a feedthrough's pair: its name, its partner, and a partner made on another tab */
 function thruSection(el) {
   panel.append(h('div', { class: 'rt-rows' }, textField('Pair name', () => el.pair, v => { el.pair = v.trim().slice(0, 60) || el.pair; }, { wide: true })));
-  const st = h('p', { class: 'note', style: 'margin-top:0.5rem' }), acts = h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' });
-  panel.append(st, acts);
-  let sig = null;
-  bindSync(st, () => {
-    const P = partner(el);
-    st.textContent = P ? 'Joined to ' + P.name + ' on ' + benchName(P.bench) + ': the two are one connector. A signal wired into either is there on both, unchanged.'
-      : 'No partner yet: it hands on what is wired into it on this tab. For another tab, give an electrical feedthrough there the same pair name, or make one below.';
-    const s2 = (P ? P.id : '') + '|' + project.benches.map(b => b.id + b.name).join();
-    if (s2 === sig) return;
-    sig = s2; acts.replaceChildren();
-    if (P) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => selectEl(P) }, 'Go to ' + P.name + ' on ' + benchName(P.bench)));
-    else {
-      const mk = bId => { if (!bId) { addBench(); bId = project.tab; } checkpoint(); const b = project.benches.find(b2 => b2.id === bId);
-        const c = normElement({ type: 'elec', kind: 'thru', name: nextName('Electrical feedthrough'), x: snapVal(b.view.cx), y: snapVal(b.view.cy), angle: 0, pair: el.pair, bench: bId });
-        project.elements.push(c); selectEl(c); changed(true); };
-      for (const b of project.benches) if (b.id !== el.bench) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => mk(b.id) }, 'Make its partner on ' + b.name));
-      acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => mk(null) }, 'Make its partner on a new tab'));
-    }
-  });
+  partnerSection(el, () => partner(el),
+    P => P ? 'Joined to ' + P.name + ' on ' + benchName(P.bench) + ': the two are one connector. A signal wired into either is there on both, unchanged.'
+      : 'No partner yet: it hands on what is wired into it on this tab. For another tab, give an electrical feedthrough there the same pair name, or make one below.',
+    () => ({ type: 'elec', kind: 'thru', name: nextName('Electrical feedthrough'), angle: 0 }));
 }
 /* a wire, selected */
 function elecWirePanel(F) {
@@ -30511,26 +30496,12 @@ function linkPanel(el) {
   panel.append(h('div', { class: 'rt-rows' },
     textField('Pair name', () => el.pair, v => { el.pair = v.trim().slice(0, 60) || el.pair; }, { wide: true }),
     param('Length (mm)', el, 'length')));
-  const st = h('p', { class: 'note', style: 'margin-top:0.5rem' });
-  const acts = h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' });
-  panel.append(st, acts);
-  let sig = null;
-  bindSync(st, () => {
-    const P = linkPartner(el), L = linkPairs().get(el.pair) || [];
-    st.textContent = P ? 'Linked to ' + P.name + ' on ' + benchName(P.bench) + '. The two are one plane seen from two benches: light reaching either leaves the other at the same place along it, going the same way across it, beam and field unchanged.'
+  partnerSection(el, () => linkPartner(el), P => {
+    const L = linkPairs().get(el.pair) || [];
+    return P ? 'Linked to ' + P.name + ' on ' + benchName(P.bench) + '. The two are one plane seen from two benches: light reaching either leaves the other at the same place along it, going the same way across it, beam and field unchanged.'
       : L.indexOf(el) > 1 ? 'More than two link planes are named \u201c' + el.pair + '\u201d; only the first two are linked, so light stops here.'
       : 'No partner yet, so light stops here. Give a link plane on another tab the same pair name, or make one below.';
-    const s2 = (P ? P.id : '') + '|' + project.benches.map(b => b.id + b.name).join();
-    if (s2 === sig) return;
-    sig = s2;
-    acts.replaceChildren();
-    if (P) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => selectEl(P) }, 'Go to ' + P.name + ' on ' + benchName(P.bench)));
-    else {
-      for (const b of project.benches) if (b.id !== el.bench)
-        acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => makeLinkPartner(el, b.id) }, 'Make its partner on ' + b.name));
-      acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => makeLinkPartner(el, null) }, 'Make its partner on a new tab'));
-    }
-  });
+  }, () => linkPartnerFields(el));
 }
 
 const LINK_UI = {
@@ -30675,24 +30646,9 @@ function fcompPanel(el) {
   if (el.kind !== 'laser' && el.kind !== 'pd' && el.kind !== 'split') panel.append(rows);
   if (el.kind === 'eom') rows.append(selectField('Modulates', [['phase', 'Phase (sidebands J\u2099(\u03b2))'], ['amplitude', 'Amplitude (Mach\u2013Zehnder)']], () => el.emode, v => { el.emode = v; }, { wide: true }));
   if (el.kind === 'thru') {
-    const st = h('p', { class: 'note', style: 'margin-top:0.5rem' }), acts = h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' });
-    panel.append(st, acts);
-    let sig = null;
-    bindSync(st, () => {
-      const P = thruPartner(el);
-      st.textContent = P ? 'Joined to ' + P.name + ' on ' + benchName(P.bench) + ': a fibre goes in here and comes out there, and back.' : 'No partner yet: give a feedthrough on another tab the same pair name, or make one below.';
-      const s2 = (P ? P.id : '') + '|' + project.benches.map(b => b.id + b.name).join();
-      if (s2 === sig) return;
-      sig = s2; acts.replaceChildren();
-      if (P) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => selectEl(P) }, 'Go to ' + P.name + ' on ' + benchName(P.bench)));
-      else {
-        const make = bId => { if (!bId) { addBench(); bId = project.tab; } checkpoint(); const b = project.benches.find(b2 => b2.id === bId);
-          const c = normElement({ type: 'fcomp', kind: 'thru', name: nextName('Feedthrough'), x: snapVal(b.view.cx), y: snapVal(b.view.cy), angle: el.angle + 180, pair: el.pair, bench: bId });
-          project.elements.push(c); selectEl(c); changed(true); };
-        for (const b of project.benches) if (b.id !== el.bench) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => make(b.id) }, 'Make its partner on ' + b.name));
-        acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => make(null) }, 'Make its partner on a new tab'));
-      }
-    });
+    partnerSection(el, () => thruPartner(el),
+      P => P ? 'Joined to ' + P.name + ' on ' + benchName(P.bench) + ': a fibre goes in here and comes out there, and back.' : 'No partner yet: give a feedthrough on another tab the same pair name, or make one below.',
+      () => ({ type: 'fcomp', kind: 'thru', name: nextName('Feedthrough'), angle: el.angle + 180 }));
   }
   panel.append(readoutBox('fcomp'));
   if (el.kind === 'pd') signalSection(el);
@@ -33519,16 +33475,40 @@ function groupPanel(list) {
     selectField('Move to tab', [['', 'Choose a tab\u2026'], ...project.benches.map(b => [b.id, b.name])], () => '', v => { if (v) moveToTab(list, v); }, { wide: true })));
   panel.append(helpLine('Drag any of them to move them all; right-click for more.', ['Drag any of them to move them all; the arrow keys nudge them. Shift- or Ctrl-click an element to add it or take it out; drag across empty bench (or empty space in 3D) to pick a boxful (Shift to add to these). Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste, between tabs and projects too; right-click for the rest. Locked elements stay where they are.'], 'note', 'margin-top:0.6rem'));
 }
-/* a partner for a link plane: same pair, same orientation, in the middle of that tab's view */
-function makeLinkPartner(el, benchId) {
+/* A part that is one of a pair across tabs (a link plane, a fibre feedthrough, an electrical one), in its panel: what it is
+   joined to with a button to go there, or, with no partner yet, a button for each other tab to make one there.
+   partnerOf() its partner or null, textOf(P) what the note says, fields() what the partner made is (its type, name and
+   whatever it takes from this one) */
+function partnerSection(el, partnerOf, textOf, fields) {
+  const st = h('p', { class: 'note', style: 'margin-top:0.5rem' }), acts = h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' });
+  panel.append(st, acts);
+  let sig = null;
+  bindSync(st, () => {
+    const P = partnerOf();
+    st.textContent = textOf(P);
+    const s2 = (P ? P.id : '') + '|' + project.benches.map(b => b.id + b.name).join();
+    if (s2 === sig) return;
+    sig = s2; acts.replaceChildren();
+    if (P) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => selectEl(P) }, 'Go to ' + P.name + ' on ' + benchName(P.bench)));
+    else {
+      for (const b of project.benches) if (b.id !== el.bench) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => makePartner(el, b.id, fields()) }, 'Make its partner on ' + b.name));
+      acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => makePartner(el, null, fields()) }, 'Make its partner on a new tab'));
+    }
+  });
+}
+/* the partner made: the same pair, in the middle of that tab's view (a new tab, with none given) */
+function makePartner(el, benchId, fields) {
   if (!benchId) { addBench(); benchId = project.tab; }
   checkpoint();
   const b = project.benches.find(b2 => b2.id === benchId);
-  const c = normElement({ type: 'link', name: nextName('Link plane'), x: snapVal(b.view.cx), y: snapVal(b.view.cy), angle: el.angle, length: el.length, pair: el.pair, bench: benchId });
+  const c = normElement(Object.assign({ x: snapVal(b.view.cx), y: snapVal(b.view.cy), pair: el.pair, bench: benchId }, fields));
   project.elements.push(c);
   selectEl(c);
   changed(true);
 }
+/* a partner for a link plane: same pair, same orientation */
+const linkPartnerFields = el => ({ type: 'link', name: nextName('Link plane'), angle: el.angle, length: el.length });
+function makeLinkPartner(el, benchId) { makePartner(el, benchId, linkPartnerFields(el)); }
 function drawNlcTuning(cv, el, hits) {
   const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 150;
   cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';
@@ -35412,9 +35392,8 @@ function pstext(g, t, x, y, o) {
   g.fillStyle = o.ink || PS_INK; g.textAlign = o.align || 'left'; g.textBaseline = 'alphabetic';
   g.fillText(String(t), x, y);
 }
-const pswrap = (t, n) => { const out = []; let line = ''; for (const w of String(t).split(' ')) { if ((line + ' ' + w).trim().length > n) { out.push(line); line = w; } else line = (line + ' ' + w).trim(); } if (line) out.push(line); return out; };
 const pshead = (pg, t) => { pg.y += 8; pstext(pg.g, t, PS_M, pg.y, { size: 11, bold: true }); pg.y += 16; };
-const pspara = (pg, t) => { for (const ln of pswrap(t, 118)) { pstext(pg.g, ln, PS_M, pg.y, { size: 8.5 }); pg.y += 12; } };
+const pspara = (pg, t) => { for (const ln of rpWrap(t, 118)) { pstext(pg.g, ln, PS_M, pg.y, { size: 8.5 }); pg.y += 12; } };
 function pstable(pg, cols, rows) {
   const g = pg.g; let x = PS_M; const xs = cols.map(c => { const a = x; x += c.w; return a; });
   const cell = (c, i, t, head) => pstext(g, t, c.align === 'right' ? xs[i] + c.w - 4 : xs[i], pg.y, { size: head ? 7.5 : 8.5, ink: head ? PS_SOFT : PS_INK, bold: head, mono: !head && c.mono, align: c.align === 'right' ? 'right' : 'left' });
@@ -36936,7 +36915,6 @@ function rwDataCard(asm, P) {
   return card;
 }
 /* ---------- Merit: what Optimise works toward ---------- */
-const rwShare = v => h('div', { class: 'rt-lshare' }, h('div', { class: 'bar' }, h('span', { style: 'width:' + Math.min(100, 100 * v).toFixed(1) + '%' })), h('span', { class: 'mono' }, (100 * v).toFixed(v < 0.001 ? 2 : 1) + '%'));
 function rwMeritCard(asm, P) {
   const { o } = rwOptSpec(asm, P), R = asm.rf, coll = R.goal.kind === 'collimate';
   const card = h('section', { class: 'rt-lcard rt-rfmerit', role: 'tabpanel', 'aria-label': 'Merit' }, h('h3', null, 'Merit'));
@@ -36959,11 +36937,11 @@ function rwMeritCard(asm, P) {
       h('td', null, rwNum(q.target, v => edit(oo => { oo.ops[i].target = v; }), 'Target of ' + label)),
       h('td', null, rwNum(q.weight, v => edit(oo => { oo.ops[i].weight = Math.max(0, v); }), 'Weight of ' + label)),
       h('td', { class: 'mono', title: q.at.map(a => (MC && a.c !== undefined ? MC.configs[a.c].name + ', ' : '') + rwFmt(a.ghz, 4) + ' GHz: ' + rwFmt(a.value, 5)).join('\n') }, q.at.length > 1 ? rwFmt(Math.min(...q.at.map(a => a.value)), 4) + ' to ' + rwFmt(Math.max(...q.at.map(a => a.value)), 4) : rwFmt(q.at[0] ? q.at[0].value : NaN, 5)),
-      h('td', null, rwShare(q.share)),
+      h('td', null, shareBar(q.share)),
       h('td', null, Rp.own ? h('button', { class: 'rt-lx', type: 'button', 'aria-label': 'Remove ' + label, onclick: () => edit(oo => { oo.ops.splice(i, 1); }) }, '×') : h('span', { class: 'rt-lsub', title: 'The merit when no term is given' }, 'default'))));
   });
-  if (Rp.flatShare > 0) tb.append(h('tr', null, h('td', null, 'Flat across the band'), h('td', { colspan: '4' }), h('td'), h('td', null, rwShare(Rp.flatShare)), h('td')));
-  tb.append(h('tr', null, h('td', null, 'Boundaries'), h('td', { colspan: '4', class: 'rt-lsub' }, 'each lens’s edge and centre, the air between parts, the feed’s distance'), h('td'), h('td', null, rwShare(Rp.boundShare)), h('td')));
+  if (Rp.flatShare > 0) tb.append(h('tr', null, h('td', null, 'Flat across the band'), h('td', { colspan: '4' }), h('td'), h('td', null, shareBar(Rp.flatShare)), h('td')));
+  tb.append(h('tr', null, h('td', null, 'Boundaries'), h('td', { colspan: '4', class: 'rt-lsub' }, 'each lens’s edge and centre, the air between parts, the feed’s distance'), h('td'), h('td', null, shareBar(Rp.boundShare)), h('td')));
   tbl.append(tb); card.append(h('div', { class: 'rt-ltwrap' }, tbl));
   // a term to add, with the figure's value now as its target where that makes sense
   const opts = Object.fromEntries(Object.entries(RF_MERIT_OPS).filter(([, d]) => d.coll === undefined || d.coll === coll).map(([k, d]) => [k, d.label]));
@@ -38357,7 +38335,7 @@ const OP_LABEL = { EFL: 'Focal length (mm)', FNO: 'Working F-number', TTL: 'Tota
   SI: 'Spherical, SI (mm)', SII: 'Coma, SII (mm)', SIII: 'Astigmatism, SIII (mm)', SIV: 'Petzval, SIV (mm)', SV: 'Distortion, SV (mm)', CL: 'Axial colour, CL (mm)', CT: 'Lateral colour, CT (mm)',
   BFL: 'Back focal length (mm)', IMD: 'Image distance, paraxial (mm)', MAG: 'Magnification, paraxial', NA: 'NA in image space', XPD: 'Exit pupil before the image (mm)',
   IMH: 'Chief ray’s height on the image (mm)', CRA: 'Chief ray’s angle at the image (°)', RAYY: 'A ray’s height on the image (mm)',
-  MTFT: 'MTF, tangential', MTFS: 'MTF, sagittal', MTFA: 'MTF, mean of the two', THRU: 'Light reaching the image (share of the pupil)' };
+  MTFT: 'MTF, tangential', MTFS: 'MTF, sagittal', MTFA: 'MTF, mean of the two', THRU: 'Light reaching the image (shareBar of the pupil)' };
 const CRIT = [['spot', 'RMS spot about the centroid'], ['chief', 'RMS spot about the chief ray'], ['wfe', 'RMS wavefront error']];
 function meritEdit(fn) {
   optStop('Stopped: the merit function was changed.');
@@ -38368,7 +38346,7 @@ function meritEdit(fn) {
   changed(false);
   renderWs();
 }
-const share = v => h('div', { class: 'rt-lshare' }, h('div', { class: 'bar' }, h('span', { style: 'width:' + Math.min(100, 100 * v).toFixed(1) + '%' })), h('span', { class: 'mono' }, (100 * v).toFixed(v < 0.001 ? 2 : 1) + '%'));
+const shareBar = v => h('div', { class: 'rt-lshare' }, h('div', { class: 'bar' }, h('span', { style: 'width:' + Math.min(100, 100 * v).toFixed(1) + '%' })), h('span', { class: 'mono' }, (100 * v).toFixed(v < 0.001 ? 2 : 1) + '%'));
 function meritCard(asm, P) {
   const D = designOf(asm), M = D.merit, R = meritReport(optProblem(asm, P)), wf = M.crit === 'wfe';
   const card = h('div', { class: 'rt-lcard', role: 'tabpanel' });
@@ -38386,7 +38364,7 @@ function meritCard(asm, P) {
   const cfgs = R.configs, nf = asm.cond.fields.length;
   R.fields.forEach((f, i) => tb.append(h('tr', null, h('td', null, (cfgs ? cfgs[f.cfg] + ': ' : '') + (wf ? 'Wavefront' : 'Spot') + ', field ' + wsFmt(f.deg, 4) + (asm.cond.object ? ' mm' : '°')), h('td', { class: 'mono ro' }, '0'),
     h('td', { class: 'mono ro', title: 'The field’s weight, set in the design conditions' }, wsFmt(asm.cond.fields[i % nf].w, 4)),
-    h('td', { class: 'mono' }, wf ? wsFmt(f.rms, 4) + ' waves' : wsFmt(1000 * f.rms, 4) + ' µm'), h('td', null, share(f.share)), h('td'))));
+    h('td', { class: 'mono' }, wf ? wsFmt(f.rms, 4) + ' waves' : wsFmt(1000 * f.rms, 4) + ' µm'), h('td', null, shareBar(f.share)), h('td'))));
   // a term at a field: which one; a ray: where in the pupil
   const fin = !!asm.cond.object, opWhere = (o, i) => {
     const out = [];
@@ -38401,9 +38379,9 @@ function meritCard(asm, P) {
       ...(cfgs ? [sel('Configuration of ' + OP_LABEL[o.op], [[-1, 'in every configuration']].concat(cfgs.map((n, c) => [c, 'in ' + n])), o.c === undefined ? -1 : o.c, v => meritEdit(m => { if (+v < 0) delete m.ops[i].c; else m.ops[i].c = +v; }))] : []))),
     h('td', null, wsNumInput(o.target, v => meritEdit(m => { m.ops[i].target = v; }), { label: 'Target of ' + OP_LABEL[o.op] })),
     h('td', null, wsNumInput(o.weight, v => meritEdit(m => { m.ops[i].weight = v; }), { label: 'Weight of ' + OP_LABEL[o.op] })),
-    h('td', { class: 'mono', title: cfgs ? o.at.map(r => cfgs[r.cfg] + ': ' + wsFmt(r.value, 6)).join('\n') : '' }, cfgs ? o.at.map(r => wsFmt(r.value, 6)).join(' · ') : wsFmt(o.value, 6)), h('td', null, share(o.share)),
+    h('td', { class: 'mono', title: cfgs ? o.at.map(r => cfgs[r.cfg] + ': ' + wsFmt(r.value, 6)).join('\n') : '' }, cfgs ? o.at.map(r => wsFmt(r.value, 6)).join(' · ') : wsFmt(o.value, 6)), h('td', null, shareBar(o.share)),
     h('td', null, h('button', { class: 'rt-lx', type: 'button', 'aria-label': 'Remove ' + OP_LABEL[o.op], onclick: () => meritEdit(m => { m.ops.splice(i, 1); }) }, '×')))));
-  tb.append(h('tr', null, h('td', null, 'Boundaries'), h('td', { class: 'ro', colspan: '2' }, R.bounds.broken.length ? R.bounds.broken.length + ' broken' : 'all kept'), h('td'), h('td', null, share(R.bounds.share)), h('td')));
+  tb.append(h('tr', null, h('td', null, 'Boundaries'), h('td', { class: 'ro', colspan: '2' }, R.bounds.broken.length ? R.bounds.broken.length + ' broken' : 'all kept'), h('td'), h('td', null, shareBar(R.bounds.share)), h('td')));
   tbl.append(tb);
   card.append(h('div', { class: 'rt-ltwrap' }, tbl));
   const add = sel('Term to add', MERIT_OPS.map(k => [k, OP_LABEL[k]]), 'EFL', () => {});
@@ -46690,7 +46668,6 @@ const PMAP_FAN = [2e-3, 5e-3];         // rad: the fan's angles
 const PUP_MAPS = new Map();      // particle id -> { key, ... }
 const pmD3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const pmAd3 = (a, b, s = 1) => [a[0] + s * b[0], a[1] + s * b[1], a[2] + s * b[2]];
-const pmUn3 = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
 
 /* the particle's two-mirror cavity, if it is in one its light comes back to: { c, near, far, dir, ex, ey } or null */
 function pmapCavity(el) {
@@ -46787,7 +46764,7 @@ function pmapLaunch() {
    cavity (it goes away from the particle: a mirror let it through) or has made all its reflections; else its state is
    kept. Returns true to stop the ray. */
 function pmapStep(VM, vK, bounce, px, py, zh, dx, dy, uz, opl, sr, si, pr, pi, par) {
-  const d = pmUn3([dx, dy, uz || 0]), toC = [VM.C[0] - px, VM.C[1] - py, VM.C[2] - zh];
+  const d = unit3([dx, dy, uz || 0]), toC = [VM.C[0] - px, VM.C[1] - py, VM.C[2] - zh];
   // (leaving: going away from the particle along the axis, once past the mirror it met)
   if (pmD3(d, toC) < 0 && Math.abs(pmD3(toC, VM.axis)) > 1e-6) return true;
   const o = (vK * VM.R + bounce - 1) * 12;
@@ -46888,7 +46865,6 @@ const PUP_TOL = 1e-8, PUP_RESTART = 40, PUP_ITERS = 200;
 
 const add3 = (a, b, s = 1) => [a[0] + s * b[0], a[1] + s * b[1], a[2] + s * b[2]];
 const dotp = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const unitp = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
 
 /* The plan for a particle at world point Cw in a degenerate (or near-degenerate) two-mirror cavity, from the tracer's
    one-pass map of it (engines/scatter-pupil-map.js): null when it is not in one, { c, why } when this solve does not take it */
@@ -47103,7 +47079,7 @@ function pupMapAt(P, G, d, q, jac) {
     };
     if (map.pattern === 2 && (acc[60] !== 0 || acc[61] !== 0 || acc[62] !== 0)) out.J.mid = {
       A: two(x => acc[63 + x], x => acc[66 + x]), C: two(x => acc[69 + x], x => acc[72 + x]),
-      B: two(x => ga[57 + x], x => gb[57 + x]), D: two(x => ga[60 + x], x => gb[60 + x]), d: unitp([acc[60], acc[61], acc[62]]),
+      B: two(x => ga[57 + x], x => gb[57 + x]), D: two(x => ga[60 + x], x => gb[60 + x]), d: unit3([acc[60], acc[61], acc[62]]),
     };
   }
   return out;
@@ -47396,10 +47372,9 @@ function scatterPrep(el) {
   return job ? { keep: job.keep, srcs: job.srcs, key: job.key + '|scat' + JSON.stringify(scatFields(el)) } : null;
 }
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-const unit = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
 /* a frame with ez along a unit vector: [ex, ey, ez], ex in the bench plane where it can be */
 function frameOn(ez) {
-  const ex = Math.hypot(ez[0], ez[1]) > 1e-9 ? unit(cross([0, 0, 1], ez)) : [1, 0, 0];
+  const ex = Math.hypot(ez[0], ez[1]) > 1e-9 ? unit3(cross([0, 0, 1], ez)) : [1, 0, 0];
   return [ex, cross(ez, ex), ez];
 }
 // world to a frame and back, for 3-vectors packed n to an array of `step` numbers each
@@ -52793,7 +52768,6 @@ const rfSetX = (P, asm, key, v) => {
   const cfg = M.configs[+c];
   if (k === 'feed') cfg.rf.feed.d = v; else cfg.v[k] = v;
 };
-const rfCloneP = P => Object.assign({}, P, { surfaces: P.surfaces.map(s => Object.assign({}, s)), gaps: P.gaps.slice(), materials: P.materials.map(m => Object.assign({}, m)) });
 
 /* ---------- Configurations ----------
    The system in several states (a second band, a switched feed, another goal): each configuration has its own conditions
@@ -52806,7 +52780,7 @@ function rfCfgAsm(asm, ci) { const M = rfMcOf(asm); return !M || ci === M.active
 /* the prescription with configuration ci's own values (the active one's is P itself) */
 function rfCfgP(asm, P, ci) {
   const M = rfMcOf(asm); if (!M || ci === M.active) return P;
-  const Q = rfCloneP(P), cfg = M.configs[ci];
+  const Q = mcClone(P), cfg = M.configs[ci];
   for (const k of M.keys) if (k in cfg.v) rfSet(Q, asm, k, cfg.v[k]);
   return Q;
 }
@@ -52962,7 +52936,7 @@ function rfOptProblem(asm, P, spec) {
   const sps = surfaceParts(P), MC = rfMcOf(asm);
   // a value the configurations each have their own of (the feed's distance always, with its conditions) is a variable in each: key@ci
   const keys = []; spec.keys.forEach(k => { if (MC && (k === 'feed' || MC.keys.includes(k))) MC.configs.forEach((_, ci) => keys.push(k + '@' + ci)); else keys.push(k); });
-  const clone = () => ({ P: rfCloneP(P), asm: Object.assign({}, asm, { rf: JSON.parse(JSON.stringify(asm.rf)), ...(asm.rfMc ? { rfMc: JSON.parse(JSON.stringify(asm.rfMc)) } : {}) }) });
+  const clone = () => ({ P: mcClone(P), asm: Object.assign({}, asm, { rf: JSON.parse(JSON.stringify(asm.rf)), ...(asm.rfMc ? { rfMc: JSON.parse(JSON.stringify(asm.rfMc)) } : {}) }) });
   const R = normRfCond(asm.rf), fs = [0, 0.25, 0.5, 0.75, 1].map(u => R.lo + (R.hi - R.lo) * u);
   const x0 = keys.map(k => rfGetX(P, asm, k));
   const at = x => { const c = clone(); keys.forEach((k, j) => rfSetX(c.P, c.asm, k, x[j])); return c; };
@@ -53313,7 +53287,7 @@ function rfThermal(asm, P, temps, cteH) {
   P.materials.forEach(m => { if (isGlass(m) && !(RF_MAT[m.glass] && isFinite(RF_MAT[m.glass].cte))) missing.add(m.glass); });
   const sps = surfaceParts(P);
   const at = T => {
-    const dT = T - RF_T0, grow = a => 1 + a * dT, Q = rfCloneP(P), A = Object.assign({}, asm, { rf: JSON.parse(JSON.stringify(R)) });
+    const dT = T - RF_T0, grow = a => 1 + a * dT, Q = mcClone(P), A = Object.assign({}, asm, { rf: JSON.parse(JSON.stringify(R)) });
     Q.surfaces = Q.surfaces.map((s, i) => {
       const after = P.materials[i], before = i ? P.materials[i - 1] : null;
       let a = isGlass(after) ? cteOf(after) : isGlass(before) ? cteOf(before) : cteH;
@@ -59146,7 +59120,6 @@ function partContent(list) {
   return txt.length <= PART_MAX ? txt : null;
 }
 /* where a part can be kept: My parts, or a team's parts (a team with a plan, in which the person can edit) */
-const partPlaces = () => (account ? account.workspaces : []).filter(w => w.kind === 'personal' || (w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner')));
 const placeLabel = w => (w.kind === 'personal' ? 'My parts' : w.name + ' › Team parts');
 /* keep a selection (or a whole assembly, with its design) as a part: named, and in My parts or a team's parts.
    With one place to choose from it asks the name alone; with a team to choose, a small dialog asks both.
@@ -59154,7 +59127,7 @@ const placeLabel = w => (w.kind === 'personal' ? 'My parts' : w.name + ' › Tea
 async function saveToMine(list, opts) {
   if (!list.length) return;
   if (!mineOn()) { hooks.proFix('keep parts in My parts'); return; }
-  const places = partPlaces(), mine = account.workspaces.find(w => w.id === personalWs().id);
+  const places = newPlaces(), mine = account.workspaces.find(w => w.id === personalWs().id);
   if (!(mine && mine.active) && places.length < 2) { showSubscribe(); toast('My parts comes with JEKrayPro'); return; }
   const one = list.length === 1, asm = asmOfSelection(list);
   const suggested = asm ? asm.name : one ? list[0].name : list.length + ' parts: ' + list.slice(0, 3).map(e => e.name).join(', ') + (list.length > 3 ? '…' : '');
@@ -65629,6 +65602,10 @@ if (!TEST_MODE) setInterval(updateActivity, 150);
     fibrePd(name) { return pdNetMw(this.byName(name)); },
     portPower(name, p) { return portPower(this.byName(name), p); },
     fibreNet() { const n = lastTrace.net; return n ? { keys: n.keys.map(k => k.gk), truncated: n.truncated, tips: [...n.tips.keys()].map(id => getEl(id).name), virtual: [...VSRC.values()].map(v => ({ id: v.id, power: v.power, lag: v.vLag, key: v.vKey })) } : null; },
+    // (tests) the tabs' names, the part selected, and a paired part's partner (a link plane's, a feedthrough's)
+    tabs() { return project.benches.map(b => b.name); },
+    selectedName() { const e = selected(); return e ? e.name : null; },
+    pairOf(name) { const a = this.byName(name); return project.elements.find(e => e !== a && e.type === a.type && e.kind === a.kind && e.pair === a.pair) || null; },
     showTab(name) { const b = project.benches.find(b2 => b2.name === name || b2.id === name); if (b) switchTab(b.id); return project.tab; },
     addTab() { addBench(); return project.tab; },
     // the field worker's state, and a screen's figures as the panels last got them

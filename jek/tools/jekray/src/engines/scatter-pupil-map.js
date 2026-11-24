@@ -1,3 +1,4 @@
+import { unit3 } from '../core/numeric.js';
 import { project } from '../state/project.js';
 import { getEl } from '../state/elements.js';
 import { lastTrace, polFrame, zOf } from './trace.js';
@@ -23,7 +24,6 @@ const PMAP_FAN = [2e-3, 5e-3];         // rad: the fan's angles
 export const PUP_MAPS = new Map();      // particle id -> { key, ... }
 const pmD3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const pmAd3 = (a, b, s = 1) => [a[0] + s * b[0], a[1] + s * b[1], a[2] + s * b[2]];
-const pmUn3 = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
 
 /* the particle's two-mirror cavity, if it is in one its light comes back to: { c, near, far, dir, ex, ey } or null */
 function pmapCavity(el) {
@@ -120,7 +120,7 @@ export function pmapLaunch() {
    cavity (it goes away from the particle: a mirror let it through) or has made all its reflections; else its state is
    kept. Returns true to stop the ray. */
 export function pmapStep(VM, vK, bounce, px, py, zh, dx, dy, uz, opl, sr, si, pr, pi, par) {
-  const d = pmUn3([dx, dy, uz || 0]), toC = [VM.C[0] - px, VM.C[1] - py, VM.C[2] - zh];
+  const d = unit3([dx, dy, uz || 0]), toC = [VM.C[0] - px, VM.C[1] - py, VM.C[2] - zh];
   // (leaving: going away from the particle along the axis, once past the mirror it met)
   if (pmD3(d, toC) < 0 && Math.abs(pmD3(toC, VM.axis)) > 1e-6) return true;
   const o = (vK * VM.R + bounce - 1) * 12;

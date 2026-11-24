@@ -21,7 +21,7 @@ import { matchLayer } from './panels.js';
 import { greyInk, setSelection } from './render.js';
 import { changed, toast } from './actions.js';
 import { checkpoint, redo, undo } from './tabs.js';
-import { openLensDesign } from './lens-workspace.js';
+import { openLensDesign, shareBar } from './lens-workspace.js';
 import { fmtWs } from '../core/format.js';
 import { hooks } from '../core/hooks.js';
 import { saveRfReport } from './rf-report.js';
@@ -937,7 +937,6 @@ function rwDataCard(asm, P) {
   return card;
 }
 /* ---------- Merit: what Optimise works toward ---------- */
-const rwShare = v => h('div', { class: 'rt-lshare' }, h('div', { class: 'bar' }, h('span', { style: 'width:' + Math.min(100, 100 * v).toFixed(1) + '%' })), h('span', { class: 'mono' }, (100 * v).toFixed(v < 0.001 ? 2 : 1) + '%'));
 function rwMeritCard(asm, P) {
   const { o } = rwOptSpec(asm, P), R = asm.rf, coll = R.goal.kind === 'collimate';
   const card = h('section', { class: 'rt-lcard rt-rfmerit', role: 'tabpanel', 'aria-label': 'Merit' }, h('h3', null, 'Merit'));
@@ -960,11 +959,11 @@ function rwMeritCard(asm, P) {
       h('td', null, rwNum(q.target, v => edit(oo => { oo.ops[i].target = v; }), 'Target of ' + label)),
       h('td', null, rwNum(q.weight, v => edit(oo => { oo.ops[i].weight = Math.max(0, v); }), 'Weight of ' + label)),
       h('td', { class: 'mono', title: q.at.map(a => (MC && a.c !== undefined ? MC.configs[a.c].name + ', ' : '') + rwFmt(a.ghz, 4) + ' GHz: ' + rwFmt(a.value, 5)).join('\n') }, q.at.length > 1 ? rwFmt(Math.min(...q.at.map(a => a.value)), 4) + ' to ' + rwFmt(Math.max(...q.at.map(a => a.value)), 4) : rwFmt(q.at[0] ? q.at[0].value : NaN, 5)),
-      h('td', null, rwShare(q.share)),
+      h('td', null, shareBar(q.share)),
       h('td', null, Rp.own ? h('button', { class: 'rt-lx', type: 'button', 'aria-label': 'Remove ' + label, onclick: () => edit(oo => { oo.ops.splice(i, 1); }) }, '×') : h('span', { class: 'rt-lsub', title: 'The merit when no term is given' }, 'default'))));
   });
-  if (Rp.flatShare > 0) tb.append(h('tr', null, h('td', null, 'Flat across the band'), h('td', { colspan: '4' }), h('td'), h('td', null, rwShare(Rp.flatShare)), h('td')));
-  tb.append(h('tr', null, h('td', null, 'Boundaries'), h('td', { colspan: '4', class: 'rt-lsub' }, 'each lens’s edge and centre, the air between parts, the feed’s distance'), h('td'), h('td', null, rwShare(Rp.boundShare)), h('td')));
+  if (Rp.flatShare > 0) tb.append(h('tr', null, h('td', null, 'Flat across the band'), h('td', { colspan: '4' }), h('td'), h('td', null, shareBar(Rp.flatShare)), h('td')));
+  tb.append(h('tr', null, h('td', null, 'Boundaries'), h('td', { colspan: '4', class: 'rt-lsub' }, 'each lens’s edge and centre, the air between parts, the feed’s distance'), h('td'), h('td', null, shareBar(Rp.boundShare)), h('td')));
   tbl.append(tb); card.append(h('div', { class: 'rt-ltwrap' }, tbl));
   // a term to add, with the figure's value now as its target where that makes sense
   const opts = Object.fromEntries(Object.entries(RF_MERIT_OPS).filter(([, d]) => d.coll === undefined || d.coll === coll).map(([k, d]) => [k, d.label]));

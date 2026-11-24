@@ -210,7 +210,7 @@ async function cloudSave() {
    cloud), or a new, empty one (New bench on My benches' page; the bench being worked on is kept in
    Earlier versions first, and nothing is cleared unless the new one is made). A new bench can open
    straight into a workspace (then: 'lens', 'rf' or 'coat'), from My benches' Open a workspace. */
-const newPlaces = () => (account ? account.workspaces : []).filter(w => w.kind === 'personal' || (w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner')));
+export const newPlaces = () => (account ? account.workspaces : []).filter(w => w.kind === 'personal' || (w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner')));
 export function newCloudBench(ws, folder, saveThis, then) {
   if (!cloudOn()) return;
   const places = newPlaces();

@@ -18,7 +18,7 @@ import { PALETTE_NAMES, PART_DRAG } from './experimental.js';
 import { fillPicker, picker, pickerShown } from './picker.js';
 import { fillRail, flyShown } from './rail.js';
 import { account, api, showSubscribe } from '../io/account.js';
-import { cloudOn, openSpace, personalWs } from '../io/cloud.js';
+import { cloudOn, openSpace, personalWs, newPlaces } from '../io/cloud.js';
 import { openZmx } from './tours.js';
 
 /* ---------- My parts (JEKrayPro) ----------
@@ -81,7 +81,6 @@ export function partContent(list) {
   return txt.length <= PART_MAX ? txt : null;
 }
 /* where a part can be kept: My parts, or a team's parts (a team with a plan, in which the person can edit) */
-export const partPlaces = () => (account ? account.workspaces : []).filter(w => w.kind === 'personal' || (w.kind !== 'institution' && w.active && ['owner', 'admin', 'editor'].includes(w.role || 'owner')));
 const placeLabel = w => (w.kind === 'personal' ? 'My parts' : w.name + ' › Team parts');
 /* keep a selection (or a whole assembly, with its design) as a part: named, and in My parts or a team's parts.
    With one place to choose from it asks the name alone; with a team to choose, a small dialog asks both.
@@ -89,7 +88,7 @@ const placeLabel = w => (w.kind === 'personal' ? 'My parts' : w.name + ' › Tea
 export async function saveToMine(list, opts) {
   if (!list.length) return;
   if (!mineOn()) { hooks.proFix('keep parts in My parts'); return; }
-  const places = partPlaces(), mine = account.workspaces.find(w => w.id === personalWs().id);
+  const places = newPlaces(), mine = account.workspaces.find(w => w.id === personalWs().id);
   if (!(mine && mine.active) && places.length < 2) { showSubscribe(); toast('My parts comes with JEKrayPro'); return; }
   const one = list.length === 1, asm = asmOfSelection(list);
   const suggested = asm ? asm.name : one ? list[0].name : list.length + ' parts: ' + list.slice(0, 3).map(e => e.name).join(', ') + (list.length > 3 ? '…' : '');

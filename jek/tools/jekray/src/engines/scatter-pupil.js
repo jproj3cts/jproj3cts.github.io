@@ -1,3 +1,4 @@
+import { unit3 } from '../core/numeric.js';
 import { getEl } from '../state/elements.js';
 import { lastTrace } from './trace.js';
 import { cavModes, cavSolved, findCavities } from './cavity.js';
@@ -31,7 +32,6 @@ const PUP_TOL = 1e-8, PUP_RESTART = 40, PUP_ITERS = 200;
 
 const add3 = (a, b, s = 1) => [a[0] + s * b[0], a[1] + s * b[1], a[2] + s * b[2]];
 const dotp = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const unitp = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
 
 /* The plan for a particle at world point Cw in a degenerate (or near-degenerate) two-mirror cavity, from the tracer's
    one-pass map of it (engines/scatter-pupil-map.js): null when it is not in one, { c, why } when this solve does not take it */
@@ -246,7 +246,7 @@ export function pupMapAt(P, G, d, q, jac) {
     };
     if (map.pattern === 2 && (acc[60] !== 0 || acc[61] !== 0 || acc[62] !== 0)) out.J.mid = {
       A: two(x => acc[63 + x], x => acc[66 + x]), C: two(x => acc[69 + x], x => acc[72 + x]),
-      B: two(x => ga[57 + x], x => gb[57 + x]), D: two(x => ga[60 + x], x => gb[60 + x]), d: unitp([acc[60], acc[61], acc[62]]),
+      B: two(x => ga[57 + x], x => gb[57 + x]), D: two(x => ga[60 + x], x => gb[60 + x]), d: unit3([acc[60], acc[61], acc[62]]),
     };
   }
   return out;

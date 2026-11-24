@@ -6,7 +6,7 @@ import { RF_MC_MAX, mirrorSecApply, normCond, normRfCond } from '../core/assembl
 import { refIndex } from '../core/glass.js';
 import { getEl } from '../state/elements.js';
 import { lensSystem, lensToImage, paraC, traceRay } from './lens-engine.js';
-import { commitDesign, designPrescription, surfSag, surfaceParts } from './lens-design.js';
+import { commitDesign, designPrescription, surfSag, surfaceParts, mcClone } from './lens-design.js';
 import { grMatrix } from '../core/gradient.js';
 import { GRIN_LINE, grinLoss, grinSlab, normGrin } from '../core/grin.js';
 import { besselJ01 } from '../core/special.js';
@@ -573,7 +573,6 @@ const rfSetX = (P, asm, key, v) => {
   const cfg = M.configs[+c];
   if (k === 'feed') cfg.rf.feed.d = v; else cfg.v[k] = v;
 };
-const rfCloneP = P => Object.assign({}, P, { surfaces: P.surfaces.map(s => Object.assign({}, s)), gaps: P.gaps.slice(), materials: P.materials.map(m => Object.assign({}, m)) });
 
 /* ---------- Configurations ----------
    The system in several states (a second band, a switched feed, another goal): each configuration has its own conditions
@@ -586,7 +585,7 @@ export function rfCfgAsm(asm, ci) { const M = rfMcOf(asm); return !M || ci === M
 /* the prescription with configuration ci's own values (the active one's is P itself) */
 export function rfCfgP(asm, P, ci) {
   const M = rfMcOf(asm); if (!M || ci === M.active) return P;
-  const Q = rfCloneP(P), cfg = M.configs[ci];
+  const Q = mcClone(P), cfg = M.configs[ci];
   for (const k of M.keys) if (k in cfg.v) rfSet(Q, asm, k, cfg.v[k]);
   return Q;
 }
@@ -742,7 +741,7 @@ export function rfOptProblem(asm, P, spec) {
   const sps = surfaceParts(P), MC = rfMcOf(asm);
   // a value the configurations each have their own of (the feed's distance always, with its conditions) is a variable in each: key@ci
   const keys = []; spec.keys.forEach(k => { if (MC && (k === 'feed' || MC.keys.includes(k))) MC.configs.forEach((_, ci) => keys.push(k + '@' + ci)); else keys.push(k); });
-  const clone = () => ({ P: rfCloneP(P), asm: Object.assign({}, asm, { rf: JSON.parse(JSON.stringify(asm.rf)), ...(asm.rfMc ? { rfMc: JSON.parse(JSON.stringify(asm.rfMc)) } : {}) }) });
+  const clone = () => ({ P: mcClone(P), asm: Object.assign({}, asm, { rf: JSON.parse(JSON.stringify(asm.rf)), ...(asm.rfMc ? { rfMc: JSON.parse(JSON.stringify(asm.rfMc)) } : {}) }) });
   const R = normRfCond(asm.rf), fs = [0, 0.25, 0.5, 0.75, 1].map(u => R.lo + (R.hi - R.lo) * u);
   const x0 = keys.map(k => rfGetX(P, asm, k));
   const at = x => { const c = clone(); keys.forEach((k, j) => rfSetX(c.P, c.asm, k, x[j])); return c; };
@@ -1093,7 +1092,7 @@ export function rfThermal(asm, P, temps, cteH) {
   P.materials.forEach(m => { if (isGlass(m) && !(RF_MAT[m.glass] && isFinite(RF_MAT[m.glass].cte))) missing.add(m.glass); });
   const sps = surfaceParts(P);
   const at = T => {
-    const dT = T - RF_T0, grow = a => 1 + a * dT, Q = rfCloneP(P), A = Object.assign({}, asm, { rf: JSON.parse(JSON.stringify(R)) });
+    const dT = T - RF_T0, grow = a => 1 + a * dT, Q = mcClone(P), A = Object.assign({}, asm, { rf: JSON.parse(JSON.stringify(R)) });
     Q.surfaces = Q.surfaces.map((s, i) => {
       const after = P.materials[i], before = i ? P.materials[i - 1] : null;
       let a = isGlass(after) ? cteOf(after) : isGlass(before) ? cteOf(before) : cteH;

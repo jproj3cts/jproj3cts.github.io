@@ -1,3 +1,4 @@
+import { rpWrap } from './lens-report.js';
 import { getEl } from '../state/elements.js';
 import { VecCtx, pdfDoc } from '../io/pdf.js';
 import { dfZip } from '../core/datafiles.js';
@@ -31,9 +32,8 @@ function pstext(g, t, x, y, o) {
   g.fillStyle = o.ink || PS_INK; g.textAlign = o.align || 'left'; g.textBaseline = 'alphabetic';
   g.fillText(String(t), x, y);
 }
-const pswrap = (t, n) => { const out = []; let line = ''; for (const w of String(t).split(' ')) { if ((line + ' ' + w).trim().length > n) { out.push(line); line = w; } else line = (line + ' ' + w).trim(); } if (line) out.push(line); return out; };
 const pshead = (pg, t) => { pg.y += 8; pstext(pg.g, t, PS_M, pg.y, { size: 11, bold: true }); pg.y += 16; };
-const pspara = (pg, t) => { for (const ln of pswrap(t, 118)) { pstext(pg.g, ln, PS_M, pg.y, { size: 8.5 }); pg.y += 12; } };
+const pspara = (pg, t) => { for (const ln of rpWrap(t, 118)) { pstext(pg.g, ln, PS_M, pg.y, { size: 8.5 }); pg.y += 12; } };
 function pstable(pg, cols, rows) {
   const g = pg.g; let x = PS_M; const xs = cols.map(c => { const a = x; x += c.w; return a; });
   const cell = (c, i, t, head) => pstext(g, t, c.align === 'right' ? xs[i] + c.w - 4 : xs[i], pg.y, { size: head ? 7.5 : 8.5, ink: head ? PS_SOFT : PS_INK, bold: head, mono: !head && c.mono, align: c.align === 'right' ? 'right' : 'left' });

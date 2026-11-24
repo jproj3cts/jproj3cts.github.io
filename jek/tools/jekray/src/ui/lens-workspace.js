@@ -920,7 +920,7 @@ const OP_LABEL = { EFL: 'Focal length (mm)', FNO: 'Working F-number', TTL: 'Tota
   SI: 'Spherical, SI (mm)', SII: 'Coma, SII (mm)', SIII: 'Astigmatism, SIII (mm)', SIV: 'Petzval, SIV (mm)', SV: 'Distortion, SV (mm)', CL: 'Axial colour, CL (mm)', CT: 'Lateral colour, CT (mm)',
   BFL: 'Back focal length (mm)', IMD: 'Image distance, paraxial (mm)', MAG: 'Magnification, paraxial', NA: 'NA in image space', XPD: 'Exit pupil before the image (mm)',
   IMH: 'Chief ray’s height on the image (mm)', CRA: 'Chief ray’s angle at the image (°)', RAYY: 'A ray’s height on the image (mm)',
-  MTFT: 'MTF, tangential', MTFS: 'MTF, sagittal', MTFA: 'MTF, mean of the two', THRU: 'Light reaching the image (share of the pupil)' };
+  MTFT: 'MTF, tangential', MTFS: 'MTF, sagittal', MTFA: 'MTF, mean of the two', THRU: 'Light reaching the image (shareBar of the pupil)' };
 const CRIT = [['spot', 'RMS spot about the centroid'], ['chief', 'RMS spot about the chief ray'], ['wfe', 'RMS wavefront error']];
 function meritEdit(fn) {
   optStop('Stopped: the merit function was changed.');
@@ -931,7 +931,7 @@ function meritEdit(fn) {
   changed(false);
   renderWs();
 }
-const share = v => h('div', { class: 'rt-lshare' }, h('div', { class: 'bar' }, h('span', { style: 'width:' + Math.min(100, 100 * v).toFixed(1) + '%' })), h('span', { class: 'mono' }, (100 * v).toFixed(v < 0.001 ? 2 : 1) + '%'));
+export const shareBar = v => h('div', { class: 'rt-lshare' }, h('div', { class: 'bar' }, h('span', { style: 'width:' + Math.min(100, 100 * v).toFixed(1) + '%' })), h('span', { class: 'mono' }, (100 * v).toFixed(v < 0.001 ? 2 : 1) + '%'));
 function meritCard(asm, P) {
   const D = designOf(asm), M = D.merit, R = meritReport(optProblem(asm, P)), wf = M.crit === 'wfe';
   const card = h('div', { class: 'rt-lcard', role: 'tabpanel' });
@@ -949,7 +949,7 @@ function meritCard(asm, P) {
   const cfgs = R.configs, nf = asm.cond.fields.length;
   R.fields.forEach((f, i) => tb.append(h('tr', null, h('td', null, (cfgs ? cfgs[f.cfg] + ': ' : '') + (wf ? 'Wavefront' : 'Spot') + ', field ' + wsFmt(f.deg, 4) + (asm.cond.object ? ' mm' : '°')), h('td', { class: 'mono ro' }, '0'),
     h('td', { class: 'mono ro', title: 'The field’s weight, set in the design conditions' }, wsFmt(asm.cond.fields[i % nf].w, 4)),
-    h('td', { class: 'mono' }, wf ? wsFmt(f.rms, 4) + ' waves' : wsFmt(1000 * f.rms, 4) + ' µm'), h('td', null, share(f.share)), h('td'))));
+    h('td', { class: 'mono' }, wf ? wsFmt(f.rms, 4) + ' waves' : wsFmt(1000 * f.rms, 4) + ' µm'), h('td', null, shareBar(f.share)), h('td'))));
   // a term at a field: which one; a ray: where in the pupil
   const fin = !!asm.cond.object, opWhere = (o, i) => {
     const out = [];
@@ -964,9 +964,9 @@ function meritCard(asm, P) {
       ...(cfgs ? [sel('Configuration of ' + OP_LABEL[o.op], [[-1, 'in every configuration']].concat(cfgs.map((n, c) => [c, 'in ' + n])), o.c === undefined ? -1 : o.c, v => meritEdit(m => { if (+v < 0) delete m.ops[i].c; else m.ops[i].c = +v; }))] : []))),
     h('td', null, wsNumInput(o.target, v => meritEdit(m => { m.ops[i].target = v; }), { label: 'Target of ' + OP_LABEL[o.op] })),
     h('td', null, wsNumInput(o.weight, v => meritEdit(m => { m.ops[i].weight = v; }), { label: 'Weight of ' + OP_LABEL[o.op] })),
-    h('td', { class: 'mono', title: cfgs ? o.at.map(r => cfgs[r.cfg] + ': ' + wsFmt(r.value, 6)).join('\n') : '' }, cfgs ? o.at.map(r => wsFmt(r.value, 6)).join(' · ') : wsFmt(o.value, 6)), h('td', null, share(o.share)),
+    h('td', { class: 'mono', title: cfgs ? o.at.map(r => cfgs[r.cfg] + ': ' + wsFmt(r.value, 6)).join('\n') : '' }, cfgs ? o.at.map(r => wsFmt(r.value, 6)).join(' · ') : wsFmt(o.value, 6)), h('td', null, shareBar(o.share)),
     h('td', null, h('button', { class: 'rt-lx', type: 'button', 'aria-label': 'Remove ' + OP_LABEL[o.op], onclick: () => meritEdit(m => { m.ops.splice(i, 1); }) }, '×')))));
-  tb.append(h('tr', null, h('td', null, 'Boundaries'), h('td', { class: 'ro', colspan: '2' }, R.bounds.broken.length ? R.bounds.broken.length + ' broken' : 'all kept'), h('td'), h('td', null, share(R.bounds.share)), h('td')));
+  tb.append(h('tr', null, h('td', null, 'Boundaries'), h('td', { class: 'ro', colspan: '2' }, R.bounds.broken.length ? R.bounds.broken.length + ' broken' : 'all kept'), h('td'), h('td', null, shareBar(R.bounds.share)), h('td')));
   tbl.append(tb);
   card.append(h('div', { class: 'rt-ltwrap' }, tbl));
   const add = sel('Term to add', MERIT_OPS.map(k => [k, OP_LABEL[k]]), 'EFL', () => {});

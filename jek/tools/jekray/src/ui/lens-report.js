@@ -33,7 +33,7 @@ export function rpText(g, t, x, y, o) {
   g.fillStyle = o.ink || RP_INK; g.textAlign = o.align || 'left'; g.textBaseline = 'alphabetic';
   g.fillText(String(t), x, y);
 }
-const rpWrap = (t, n) => { const out = []; let line = ''; for (const w of String(t).split(' ')) { if ((line + ' ' + w).trim().length > n) { out.push(line); line = w; } else line = (line + ' ' + w).trim(); } if (line) out.push(line); return out; };
+export const rpWrap = (t, n) => { const out = []; let line = ''; for (const w of String(t).split(' ')) { if ((line + ' ' + w).trim().length > n) { out.push(line); line = w; } else line = (line + ' ' + w).trim(); } if (line) out.push(line); return out; };
 
 /* a page: its header and footer, and a cursor down it */
 export function rpPage(meta, title) {

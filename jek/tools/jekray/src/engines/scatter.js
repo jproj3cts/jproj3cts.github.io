@@ -1,3 +1,4 @@
+import { unit3 } from '../core/numeric.js';
 import { C_SI } from '../core/cells.js';
 import { BEAM_Z, IN_WORKER } from '../core/constants.js';
 import { EPS0, particleAz, particleIndex, particleOf } from '../core/traps.js';
@@ -33,7 +34,6 @@ import { PUP_FRESNEL, pupApplyChains, pupChains, pupGmres, pupGrid, pupLock, pup
    on cuts and over the sphere, and the far field's amplitude itself (far), from which the
    scattered light could be put back on the bench. */
 export const SCAT_MODELS = ['auto', 'rayleigh', 'mie', 'dda'];
-export const SCAT_DIRS = ['fwd', 'back', 'side', 'up', 'angle'];
 export const SCAT_NMAX = 12000;           // dipoles in a run, unless more across are asked for
 export const SCAT_NHARD = 24000;          // and never more than this
 const WAVE_BINS = 12;                    // a focus's waves on the bench: bins across its pupil each way (waveInt)
@@ -89,10 +89,9 @@ export function scatterPrep(el) {
   return job ? { keep: job.keep, srcs: job.srcs, key: job.key + '|scat' + JSON.stringify(scatFields(el)) } : null;
 }
 const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-const unit = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
 /* a frame with ez along a unit vector: [ex, ey, ez], ex in the bench plane where it can be */
 function frameOn(ez) {
-  const ex = Math.hypot(ez[0], ez[1]) > 1e-9 ? unit(cross([0, 0, 1], ez)) : [1, 0, 0];
+  const ex = Math.hypot(ez[0], ez[1]) > 1e-9 ? unit3(cross([0, 0, 1], ez)) : [1, 0, 0];
   return [ex, cross(ez, ex), ez];
 }
 // world to a frame and back, for 3-vectors packed n to an array of `step` numbers each

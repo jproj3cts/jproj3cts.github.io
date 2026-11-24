@@ -493,7 +493,6 @@ export function updateUndoButtons() {
   document.getElementById('btnRedo').disabled = !future.length;
 }
 
-let statusTimer = null;
 export function setStatus(t) {
   const el = document.getElementById('status');
   if (el) el.textContent = t;

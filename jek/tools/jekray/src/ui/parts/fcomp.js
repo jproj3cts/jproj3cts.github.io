@@ -3,19 +3,15 @@ import { fmtLen } from '../../core/format.js';
 import { DETECTOR_MATERIALS } from '../../core/rf.js';
 import { applyPulse } from '../../core/pulses.js';
 import { wavelengthColour } from '../../core/colour.js';
-import { V, nextName, project, typeLabel } from '../../state/project.js';
-import { normElement } from '../../state/elements.js';
+import { V, nextName, typeLabel } from '../../state/project.js';
 import { benchName } from '../../state/tabs.js';
 import { frame } from '../../core/mask.js';
 import { FSYM, bodyFill, ctx, drawPorts, getCss, pathLocal, roundRect, selInk, sx, sy } from '../render.js';
-import { snapVal } from '../pointer.js';
 import { FC, FC_W, fcH, thruPartner } from '../../engines/fibre.js';
 import { osaSection, signalSection } from '../instruments.js';
 import { helpLine, bindSync, coherenceFields, coherenceNote, panel, param, renderPanel, selectField, textField } from '../panel.js';
 import { h } from '../dom.js';
-import { pulseLine, pulseToggle, readoutBox } from '../panels.js';
-import { changed } from '../actions.js';
-import { addBench, checkpoint, selectEl } from '../tabs.js';
+import { pulseLine, pulseToggle, readoutBox, partnerSection } from '../panels.js';
 
 /* Fibre component on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/fcomp.js */
 
@@ -96,24 +92,9 @@ function fcompPanel(el) {
   if (el.kind !== 'laser' && el.kind !== 'pd' && el.kind !== 'split') panel.append(rows);
   if (el.kind === 'eom') rows.append(selectField('Modulates', [['phase', 'Phase (sidebands J\u2099(\u03b2))'], ['amplitude', 'Amplitude (Mach\u2013Zehnder)']], () => el.emode, v => { el.emode = v; }, { wide: true }));
   if (el.kind === 'thru') {
-    const st = h('p', { class: 'note', style: 'margin-top:0.5rem' }), acts = h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' });
-    panel.append(st, acts);
-    let sig = null;
-    bindSync(st, () => {
-      const P = thruPartner(el);
-      st.textContent = P ? 'Joined to ' + P.name + ' on ' + benchName(P.bench) + ': a fibre goes in here and comes out there, and back.' : 'No partner yet: give a feedthrough on another tab the same pair name, or make one below.';
-      const s2 = (P ? P.id : '') + '|' + project.benches.map(b => b.id + b.name).join();
-      if (s2 === sig) return;
-      sig = s2; acts.replaceChildren();
-      if (P) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => selectEl(P) }, 'Go to ' + P.name + ' on ' + benchName(P.bench)));
-      else {
-        const make = bId => { if (!bId) { addBench(); bId = project.tab; } checkpoint(); const b = project.benches.find(b2 => b2.id === bId);
-          const c = normElement({ type: 'fcomp', kind: 'thru', name: nextName('Feedthrough'), x: snapVal(b.view.cx), y: snapVal(b.view.cy), angle: el.angle + 180, pair: el.pair, bench: bId });
-          project.elements.push(c); selectEl(c); changed(true); };
-        for (const b of project.benches) if (b.id !== el.bench) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => make(b.id) }, 'Make its partner on ' + b.name));
-        acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => make(null) }, 'Make its partner on a new tab'));
-      }
-    });
+    partnerSection(el, () => thruPartner(el),
+      P => P ? 'Joined to ' + P.name + ' on ' + benchName(P.bench) + ': a fibre goes in here and comes out there, and back.' : 'No partner yet: give a feedthrough on another tab the same pair name, or make one below.',
+      () => ({ type: 'fcomp', kind: 'thru', name: nextName('Feedthrough'), angle: el.angle + 180 }));
   }
   panel.append(readoutBox('fcomp'));
   if (el.kind === 'pd') signalSection(el);

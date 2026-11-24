@@ -413,7 +413,6 @@ const strideNote = (n, k) => toast('This sweep\u2019s field is too large to keep
 export const sweepVol = { box: () => null, keep: () => {}, shown: () => null, has: () => true, boxKey: () => '', begin: () => {}, mark: () => {}, keyAt: () => null };
 export let sweepJob = null;                   // { list, i, n, cancel } while a sweep's field is rendering
 export let fieldRendered = null;              // { keys, period } of the sweeps last rendered, for stepping
-export function setFieldRendered(v) { return (fieldRendered = v); }
 export let playStep = null, stepSince = 0;    // the rendered step on show while they play, and since when
 export function setStepSince(v) { return (stepSince = v); }
 export function setPlayStep(v) { return (playStep = v); }

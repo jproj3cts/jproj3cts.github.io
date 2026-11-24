@@ -17,7 +17,6 @@
    Pure: nothing of the bench here.
    ========================================================================== */
 
-export const DDA_SHAPES = ['sphere', 'cylinder', 'capsule', 'spheroid'];
 /* a shape's volume (m^3): D its diameter, L its whole length along its axis (a sphere has only D) */
 export function ddaVolume(shape, D, L) {
   if (shape === 'cylinder') return Math.PI / 4 * D * D * L;

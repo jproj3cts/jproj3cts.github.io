@@ -4536,6 +4536,42 @@ const TESTS = [
 
   { group: 'Tabs and link planes' },
   {
+    name: 'A link plane, a fibre feedthrough and an electrical feedthrough each offer their partner made on another tab, and then the way to it',
+    why: 'the three parts that pair across tabs share one panel section. For each, alone on a bench of two tabs: its panel says it has no partner and offers “Make its partner on Rack” and “on a new tab”. Pressed, a part of the same type and pair name is on that tab (the link plane with this one’s angle and length, the fibre feedthrough turned half round), selected; back on the first, its panel says what it is joined to and offers “Go to” it, which selects the partner. 1 when all three do',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const doc = rigDoc(), res = {};
+      const btns = () => [...doc.querySelectorAll('#panel button.rt-btn.wide')], note = () => [...doc.querySelectorAll('#panel p.note')].map(x => x.textContent).join(' | ');
+      let ok = true;
+      for (const [what, part, same] of [
+        ['link', { type: 'link', id: 'A', name: 'Plane A', x: 10, y: 0, angle: 30, length: 17, pair: 'P 1' }, (a, b) => b.type === 'link' && b.angle === a.angle && b.length === a.length],
+        ['fibre', { type: 'fcomp', kind: 'thru', id: 'A', name: 'Through A', x: 10, y: 0, angle: 20, pair: 'P 1' }, (a, b) => b.type === 'fcomp' && b.kind === 'thru' && b.angle === a.angle + 180],
+        ['elec', { type: 'elec', kind: 'thru', id: 'A', name: 'Bulkhead A', x: 10, y: 0, angle: 0, pair: 'P 1' }, (a, b) => b.type === 'elec' && b.kind === 'thru']]) {
+        const r = res[what] = {};
+        for (const where of ['Rack', 'a new tab']) {
+          J.load({ format: 'jekray', version: 1, benches: [{ id: 'b1', name: 'Lab' }, { id: 'b2', name: 'Rack' }], tab: 'b1', elements: [Object.assign({ bench: 'b1' }, part)] });
+          J.select(part.name);
+          const offered = btns().map(b => b.textContent), alone = /No partner yet/.test(note());
+          const make = btns().find(b => b.textContent === 'Make its partner on ' + where);
+          if (!make) { r[where] = { offered, alone }; ok = false; continue; }
+          make.click();
+          const a = J.byName(part.name);
+          // the partner: the other part of the pair, on the tab asked for (a new one is a third tab)
+          const b = J.pairOf(part.name), tabs = J.tabs();
+          const made = !!b && b.pair === 'P 1' && same(a, b) && (where === 'Rack' ? b.bench === 'b2' : b.bench !== 'b1' && b.bench !== 'b2' && tabs.length === 3);
+          J.showTab('Lab'); J.select(part.name);
+          const go = btns().find(x => /^Go to /.test(x.textContent)), joined = /(Joined|Linked) to /.test(note()) && !btns().some(x => /^Make its partner/.test(x.textContent));
+          if (go) go.click();
+          const there = !!go && !!b && J.selectedName() === b.name;
+          r[where] = { offered: offered.length, alone, made, joined, there };
+          if (!(alone && offered.includes('Make its partner on Rack') && offered.includes('Make its partner on a new tab') && made && joined && there)) ok = false;
+        }
+      }
+      if (!ok) console.log('partner section', JSON.stringify(res));
+      return ok ? 1 : 0;
+    },
+  },
+  {
     name: 'A beam through a link plane focuses as if the benches were one',
     why: 'source on one tab, lens and screen on another at a different place: the focal spot\u2019s FWHM, against the same system on one bench',
     want: null, tol: 1e-6, rel: true, unit: ' mm',
@@ -8352,6 +8388,25 @@ const TESTS = [
       return 1;
     },
   },  { group: 'The bar: menus and command search' },
+  {
+    name: 'What’s new shows each version’s highlights and its latest changes, with the rest on the release notes page',
+    why: 'the page carries the newest version’s highlights and its latest 20 changes only (it carried all 282, 140 KB of every visit); Help › What’s new lists the highlights, then “The latest 20 of N changes” folded beneath, with a link to all N on the docs’ release notes page. A version with fewer than 20 shows them all and no link. 1 when all hold',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const doc = rigDoc();
+      doc.getElementById('btnNews').click();
+      try {
+        const body = doc.getElementById('newsBody'), heads = [...body.querySelectorAll('h3')].map(x => x.textContent), det = body.querySelector('details.rt-news-all');
+        const sum = det ? det.querySelector('summary').textContent : '', m = /^The latest (\d+) of (\d+) changes in ([\d.]+)$/.exec(sum);
+        const link = det && det.querySelector('a[href="/jek/docs/jekray/release-notes/"]'), shown = det ? det.querySelectorAll('li').length : 0, tops = body.querySelector('ul') ? body.querySelector('ul').children.length : 0;
+        const links = body.querySelectorAll('a[href="/jek/docs/jekray/release-notes/"]').length;
+        const res = { heads: heads.slice(0, 3), sum, shown, tops, links };
+        const ok = /^Version \d/.test(heads[0] || '') && !!m && +m[1] === 20 && +m[2] > 20 && shown === 20 && !!link && new RegExp('All ' + m[2] + ' changes').test(link.textContent) && tops >= 3 && tops <= 12 && links === 1 && heads.length >= 3;
+        if (!ok) console.log('whats new', JSON.stringify(res));
+        return ok ? 1 : 0;
+      } finally { doc.getElementById('newsClose').click(); }
+    },
+  },
   {
     name: 'The menu bar: File, Edit, View, Tools, Sweeps and Help, each opening its own menu; Edit’s items do what their keys do',
     why: 'six menu buttons in that order, each opening its menu and closing the others; with nothing selected, Edit’s Cut, Copy and Delete are greyed and Select all is not; with a lens selected, Duplicate makes a second lens, Copy then Paste a third, Delete removes the selection, and Undo puts it back (1 when all hold)',

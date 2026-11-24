@@ -21,7 +21,6 @@ import { randn, seededRng } from '../core/numeric.js';
 
 /* ---------- One-parameter search over a swept range ---------- */
 
-let lastOptNm = 587.6;
 /* ---------- What can be measured, and which way is "better" ----------
    One table feeds the optimiser and the tolerance study. */
 

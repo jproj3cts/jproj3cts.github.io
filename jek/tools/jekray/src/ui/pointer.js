@@ -80,7 +80,6 @@ export const RIGHT = { on: false, moved: false, menu: null, panned: 0 };
    beam's line, once within a few pixels of it; a faint line shows what it has lined up with. Shift (no snapping)
    turns them off. guides: what render draws, as lines on the bench (mm), while the drag lasts */
 export let guides = null;
-export function setGuides(v) { return (guides = v); }
 function alignDrag(el, nx, ny, skip, e) {
   guides = null;
   if (e && e.shiftKey) return [nx, ny];

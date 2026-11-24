@@ -345,6 +345,10 @@ opticPageSetup();
     fibrePd(name) { return pdNetMw(this.byName(name)); },
     portPower(name, p) { return portPower(this.byName(name), p); },
     fibreNet() { const n = lastTrace.net; return n ? { keys: n.keys.map(k => k.gk), truncated: n.truncated, tips: [...n.tips.keys()].map(id => getEl(id).name), virtual: [...VSRC.values()].map(v => ({ id: v.id, power: v.power, lag: v.vLag, key: v.vKey })) } : null; },
+    // (tests) the tabs' names, the part selected, and a paired part's partner (a link plane's, a feedthrough's)
+    tabs() { return project.benches.map(b => b.name); },
+    selectedName() { const e = selected(); return e ? e.name : null; },
+    pairOf(name) { const a = this.byName(name); return project.elements.find(e => e !== a && e.type === a.type && e.kind === a.kind && e.pair === a.pair) || null; },
     showTab(name) { const b = project.benches.find(b2 => b2.name === name || b2.id === name); if (b) switchTab(b.id); return project.tab; },
     addTab() { addBench(); return project.tab; },
     // the field worker's state, and a screen's figures as the panels last got them

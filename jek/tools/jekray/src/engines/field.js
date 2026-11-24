@@ -78,13 +78,8 @@ export function popPower(F) {
   return p * k;
 }
 
-/* A field: residual samples u on a grid of outer radius R, held against a plane or
-   against a sphere of radius z, at signed distance z past the pilot waist.
-   Pilot: complex q = z + i zR in a medium of index n; lam0 in mm. */
-function popField(N, R, re, im, q, n, lam0) {
-  const zR = q[1];
-  return { R, re, im, z: q[0], zR, n, lam0, sphere: Math.abs(q[0]) > zR };
-}
+/* A field F here: residual samples (re, im) on a grid of outer radius R, held against a plane or against a sphere of
+   radius z (sphere), at signed distance z past the pilot waist; the pilot q = z + i zR in a medium of index n; lam0 in mm. */
 export const popInside = (z, zR) => Math.abs(z) <= zR;
 const popK = F => 2 * Math.PI * F.n / F.lam0;
 const popLam = F => F.lam0 / F.n;
@@ -94,17 +89,6 @@ export const popW = (z, zR, lam) => Math.sqrt(lam * zR / Math.PI * (1 + (z / zR)
    beam sits the same fraction of the grid at the waist and in the far field. */
 export const popGuard = N => Math.sqrt(qdht(N).S / 2);
 
-/* The full field at the samples, reference phase put back */
-function popFull(F) {
-  const Q = qdht(F.re.length), r = popRadii(Q, F.R);
-  const re = new Float64Array(Q.N), im = new Float64Array(Q.N);
-  const a = F.sphere ? -popK(F) / (2 * F.z) : 0;
-  for (let i = 0; i < Q.N; i++) {
-    const ph = a * r[i] * r[i], c = Math.cos(ph), s = Math.sin(ph);
-    re[i] = F.re[i] * c - F.im[i] * s; im[i] = F.re[i] * s + F.im[i] * c;
-  }
-  return { re, im, r };
-}
 /* Take a full field back to residual form against the reference for (z, zR) */
 export function popResidual(re, im, r, z, zR, k) {
   const sphere = !popInside(z, zR);

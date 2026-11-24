@@ -232,6 +232,7 @@
   "io/optic.js",
   "io/nudges.js",
   "io/autosave.js",
+  "ui/news-data.js",
   "ui/news.js",
   "ui/python.js",
   "ui/script-calls.js",

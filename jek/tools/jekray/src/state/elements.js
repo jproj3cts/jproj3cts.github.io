@@ -35,12 +35,6 @@ export function normMirror(m) {
   if (m.R !== undefined || m.k !== undefined) { out.R = (m.R === null || m.R === undefined || m.R === '' || !isFinite(m.R) || +m.R === 0) ? null : +m.R; out.k = num(m.k, 0); }
   return zone === 'none' && out.R === undefined ? undefined : out;
 }
-/* the face's mirroring proper: its zone object, or null for a face that only has a shaped centre */
-export const mirrorZ = m => m && m.zone !== 'none' ? m : null;
-/* the centre's own shape: { r, c, k }, or null where it follows the face */
-export const mirrorShape = m => m && m.zone !== 'all' && m.R !== undefined ? { r: m.r, c: m.R ? 1 / m.R : 0, k: m.k || 0, R: m.R } : null;
-/* is radius r on the face inside its mirrored part? */
-export const mirrorAt = (m, r) => !!m && m.zone !== 'none' && (m.zone === 'all' || (m.zone === 'in' ? r <= m.r : r >= m.r));
 export function normSurface(s) {
   s = s || {};
   const R = (s.R === null || s.R === undefined || s.R === '' || !isFinite(s.R) || s.R === 0) ? null : +s.R;

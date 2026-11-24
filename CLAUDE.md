@@ -80,7 +80,7 @@ through `core/hooks.js`.
   sweeps `ui/sweeps.js` (what a sweep keeps for its steps, traces, field frames, 3D volumes and light, particles' answers, is one
   store, `engines/sweep-store.js`: one run, a key per step, `stepInvalidate`; `J.sweepAudit()` checks kept against fresh), optimiser `ui/optimise.js`, 3D `ui/view3d.js`, Optical designer `ui/lens-*.js`, RF designer
   `ui/rf-workspace.js`, RF matching-layer workspace `ui/coat-workspace.js` (optical faces go to JEKfilm: `designInFilm` in `io/film-coats.js`), instruments `ui/instruments.js`, tours `ui/tours.js`,
-  news/version `ui/news.js` (`APP_VERSION`, `NEWS`), experimental flags `ui/experimental.js`.
+  news/version `ui/news.js` (`APP_VERSION`; the notes themselves in `news.mjs`, see the checklist), experimental flags `ui/experimental.js`.
   Toolbar/menus/dialogs markup: `page.html`; wiring in each module's `wire…()`, called from `ui/boot.js`.
 - **Files and sharing**: `io/open.js`, `io/autosave.js`, `io/share.js`, `.zmx/.zar` `io/zmx-import.js` /
   `io/zmx-export.js`, packs `io/packs.js`, mods `io/mods.js` + `engines/mods.js`, cloud `io/cloud.js`, JEKfilm coatings on faces `io/film-coats.js` (the cloud
@@ -160,7 +160,9 @@ through `core/hooks.js`.
 5. Tests: Node tests in `test/node/` (tool physics goes in a `physics-*.test.mjs`), browser checks in a `{ group }` in
    `jekray-tests.html`, and claim new files in `test/areas.mjs`.
 6. A demo that should move: `UPDATE_SNAPSHOT=1 node --test test/node/demos.test.mjs`, then read the snapshot diff.
-7. User-visible feature: a `NEWS` entry in `ui/news.js` (bump `APP_VERSION` for a release).
+7. User-visible feature: an entry at the top of its version's list in `jek/tools/jekray/news.mjs`, then `node build.mjs` and
+   `node docs.mjs` (the page carries each version's highlights and latest 20, `src/ui/news-data.js`; all of them are the docs'
+   Release notes page, `jek/docs/jekray/release-notes.md`; both generated). Bump `APP_VERSION` in `ui/news.js` for a release.
 
 ## Running the tests (from `jek/tools/jekray`)
 - `node test/run.mjs` — what the working tree touches; `--areas fibre,io`; `--full` (everything, ~7 min, Node + the

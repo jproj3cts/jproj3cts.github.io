@@ -17,7 +17,6 @@ export const PIC_WG = {
 };
 /* ---------- complex numbers, [re, im] ---------- */
 const cm = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
-const cadd = (a, b) => [a[0] + b[0], a[1] + b[1]];
 const cexp = ph => [Math.cos(ph), Math.sin(ph)];
 const csc = (a, s) => [a[0] * s, a[1] * s];
 const Z = [0, 0];

@@ -1,10 +1,9 @@
 import { clamp } from '../core/constants.js';
 import { V, deg, nextName, project } from '../state/project.js';
-import { getEl, normElement } from '../state/elements.js';
+import { getEl } from '../state/elements.js';
 import { benchName } from '../state/tabs.js';
 import { frame } from '../core/mask.js';
 import { bodyFill, ctx, figure, getCss, keepOffLabel, portR, pathLocal, portFill, portsInUse, removeFibre, selInk, sx, sy, untinted, inkFill } from './render.js';
-import { snapVal } from './pointer.js';
 import { pkey, portName, portWorld, portsOf, portsOfOptic } from '../engines/fibre.js';
 import {
   CHOP_HUB, DARK, ELEC_KINDS, ELEC_YELLOW, INK, NODE_PORT, NODE_R, PITCH, boxH, circ, elecExtra,
@@ -14,10 +13,10 @@ import { INST } from './instruments.js';
 import { playing } from './sweeps.js';
 import { helpLine, bindSync, panel, param, selectField, textField } from './panel.js';
 import { h } from './dom.js';
-import { readoutBox } from './panels.js';
+import { readoutBox, partnerSection } from './panels.js';
 import { plotSaveRow } from './plots.js';
 import { changed } from './actions.js';
-import { addBench, checkpoint, selectEl } from './tabs.js';
+import { checkpoint } from './tabs.js';
 
 /* ==========================================================================
    Electronics on the page: the blocks' symbols, their panels and instruments (the scope, the
@@ -180,25 +179,10 @@ function elecPanelFor(el) {
 /* a feedthrough's pair: its name, its partner, and a partner made on another tab */
 function thruSection(el) {
   panel.append(h('div', { class: 'rt-rows' }, textField('Pair name', () => el.pair, v => { el.pair = v.trim().slice(0, 60) || el.pair; }, { wide: true })));
-  const st = h('p', { class: 'note', style: 'margin-top:0.5rem' }), acts = h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' });
-  panel.append(st, acts);
-  let sig = null;
-  bindSync(st, () => {
-    const P = partner(el);
-    st.textContent = P ? 'Joined to ' + P.name + ' on ' + benchName(P.bench) + ': the two are one connector. A signal wired into either is there on both, unchanged.'
-      : 'No partner yet: it hands on what is wired into it on this tab. For another tab, give an electrical feedthrough there the same pair name, or make one below.';
-    const s2 = (P ? P.id : '') + '|' + project.benches.map(b => b.id + b.name).join();
-    if (s2 === sig) return;
-    sig = s2; acts.replaceChildren();
-    if (P) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => selectEl(P) }, 'Go to ' + P.name + ' on ' + benchName(P.bench)));
-    else {
-      const mk = bId => { if (!bId) { addBench(); bId = project.tab; } checkpoint(); const b = project.benches.find(b2 => b2.id === bId);
-        const c = normElement({ type: 'elec', kind: 'thru', name: nextName('Electrical feedthrough'), x: snapVal(b.view.cx), y: snapVal(b.view.cy), angle: 0, pair: el.pair, bench: bId });
-        project.elements.push(c); selectEl(c); changed(true); };
-      for (const b of project.benches) if (b.id !== el.bench) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => mk(b.id) }, 'Make its partner on ' + b.name));
-      acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => mk(null) }, 'Make its partner on a new tab'));
-    }
-  });
+  partnerSection(el, () => partner(el),
+    P => P ? 'Joined to ' + P.name + ' on ' + benchName(P.bench) + ': the two are one connector. A signal wired into either is there on both, unchanged.'
+      : 'No partner yet: it hands on what is wired into it on this tab. For another tab, give an electrical feedthrough there the same pair name, or make one below.',
+    () => ({ type: 'elec', kind: 'thru', name: nextName('Electrical feedthrough'), angle: 0 }));
 }
 /* a wire, selected */
 function elecWirePanel(F) {

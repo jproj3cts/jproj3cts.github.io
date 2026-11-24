@@ -1,3 +1,4 @@
+import { benchName } from '../state/tabs.js';
 import { clamp } from '../core/constants.js';
 import { makeAssemblyRow } from './assembly.js';
 import { fmtDbm, fmtFs, fmtFs2, fmtFs3, fmtHz, fmtJ, fmtLen, fmtMw, fmtNum, fmtW, fmtWl } from '../core/format.js';
@@ -1111,16 +1112,40 @@ export function groupPanel(list) {
     selectField('Move to tab', [['', 'Choose a tab\u2026'], ...project.benches.map(b => [b.id, b.name])], () => '', v => { if (v) moveToTab(list, v); }, { wide: true })));
   panel.append(helpLine('Drag any of them to move them all; right-click for more.', ['Drag any of them to move them all; the arrow keys nudge them. Shift- or Ctrl-click an element to add it or take it out; drag across empty bench (or empty space in 3D) to pick a boxful (Shift to add to these). Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste, between tabs and projects too; right-click for the rest. Locked elements stay where they are.'], 'note', 'margin-top:0.6rem'));
 }
-/* a partner for a link plane: same pair, same orientation, in the middle of that tab's view */
-export function makeLinkPartner(el, benchId) {
+/* A part that is one of a pair across tabs (a link plane, a fibre feedthrough, an electrical one), in its panel: what it is
+   joined to with a button to go there, or, with no partner yet, a button for each other tab to make one there.
+   partnerOf() its partner or null, textOf(P) what the note says, fields() what the partner made is (its type, name and
+   whatever it takes from this one) */
+export function partnerSection(el, partnerOf, textOf, fields) {
+  const st = h('p', { class: 'note', style: 'margin-top:0.5rem' }), acts = h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' });
+  panel.append(st, acts);
+  let sig = null;
+  bindSync(st, () => {
+    const P = partnerOf();
+    st.textContent = textOf(P);
+    const s2 = (P ? P.id : '') + '|' + project.benches.map(b => b.id + b.name).join();
+    if (s2 === sig) return;
+    sig = s2; acts.replaceChildren();
+    if (P) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => selectEl(P) }, 'Go to ' + P.name + ' on ' + benchName(P.bench)));
+    else {
+      for (const b of project.benches) if (b.id !== el.bench) acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => makePartner(el, b.id, fields()) }, 'Make its partner on ' + b.name));
+      acts.append(h('button', { class: 'rt-btn wide', type: 'button', onclick: () => makePartner(el, null, fields()) }, 'Make its partner on a new tab'));
+    }
+  });
+}
+/* the partner made: the same pair, in the middle of that tab's view (a new tab, with none given) */
+export function makePartner(el, benchId, fields) {
   if (!benchId) { addBench(); benchId = project.tab; }
   checkpoint();
   const b = project.benches.find(b2 => b2.id === benchId);
-  const c = normElement({ type: 'link', name: nextName('Link plane'), x: snapVal(b.view.cx), y: snapVal(b.view.cy), angle: el.angle, length: el.length, pair: el.pair, bench: benchId });
+  const c = normElement(Object.assign({ x: snapVal(b.view.cx), y: snapVal(b.view.cy), pair: el.pair, bench: benchId }, fields));
   project.elements.push(c);
   selectEl(c);
   changed(true);
 }
+/* a partner for a link plane: same pair, same orientation */
+export const linkPartnerFields = el => ({ type: 'link', name: nextName('Link plane'), angle: el.angle, length: el.length });
+export function makeLinkPartner(el, benchId) { makePartner(el, benchId, linkPartnerFields(el)); }
 export function drawNlcTuning(cv, el, hits) {
   const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 280, hgt = 150;
   cv.width = Math.round(w * dpr); cv.height = Math.round(hgt * dpr); cv.style.height = hgt + 'px';

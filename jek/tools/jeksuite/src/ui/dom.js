@@ -4,23 +4,34 @@ import { h } from '../../../jekray/src/ui/dom.js';
    opens (each in a tab of its own, named, so a second bench opens in the same tab rather than a new one each time).
    ========================================================================== */
 
-/* the apps, as the hub lists and opens them: their page, their tab's name, what they are */
+/* the apps, as the hub lists and opens them: their page, their tab's name, what they are. JEKray's designers are
+   listed under it, indented (parent): the Optical designer and RF designer open in JEKray's tab, in their designer
+   (into), and until they have files of their own (.optic, .rfd) their designs are JEKray benches; the Coating
+   designer is JEKfilm's page, its files the cloud's 'jekfilm'. short is the name on a bench's tag and a chip. */
 export const APPS = [
   { id: 'jekray', name: 'JEKray', url: '/jek/tools/jekray.html', tab: 'jekray', icon: 'bench', about: '/jek/products/design-software/jekray/',
-    line: 'Optics, fibre, electronics and RF on one bench: rays, Gaussian beams and the diffracted field, in 2D and 3D; lens and RF design.' },
+    line: 'Optics, fibre, electronics and RF on one bench: rays, Gaussian beams and the diffracted field, in 2D and 3D.' },
+  { id: 'jekoptic', name: 'Optical designer', short: 'Optical', parent: 'jekray', into: 'lens', url: '/jek/tools/jekray.html', tab: 'jekray', icon: 'lens', about: '/jek/docs/jekray/lens-design/', thing: 'optical design',
+    line: 'Lenses, mirrors and stops on one axis designed together, surface by surface: conditions, analyses, the optimiser, tolerancing, drawings and a report.',
+    held: 'Optical designs are saved as JEKray benches for now, so they are listed under JEKray. They get files of their own (.optic) next.' },
+  { id: 'jekrfd', name: 'RF designer', short: 'RF', parent: 'jekray', into: 'rf', url: '/jek/tools/jekray.html', tab: 'jekray', icon: 'rf', about: '/jek/docs/jekray/rf/designer/', thing: 'RF design',
+    line: 'A feed horn’s beam through RF lenses and mirrors, designed as a whole: conditions, analyses, the optimiser, tolerancing and a lens that can be made.',
+    held: 'RF designs are saved as JEKray benches for now, so they are listed under JEKray. They get files of their own (.rfd) next.' },
+  { id: 'jekfilm', name: 'Coating designer', short: 'Coating', parent: 'jekray', url: '/jek/tools/jekfilm.html', tab: 'jekfilm', icon: 'coat', about: '/jek/products/design-software/jekfilm/', thing: 'coating',
+    line: 'Thin-film coatings designed over a band and a range of angles: anti-reflection, high reflectors, beam splitters and dichroic edges.' },
   { id: 'jekion', name: 'JEKion', url: '/jek/tools/jekion.html', tab: 'jekion', icon: 'ion', about: '/jek/products/design-software/jekion/',
     line: 'Charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live.' },
-  { id: 'jekfilm', name: 'JEKfilm', url: '/jek/tools/jekfilm.html', tab: 'jekfilm', icon: 'coat', about: '/jek/products/design-software/jekfilm/', thing: 'coating',
-    line: 'Thin-film coatings designed over a band and a range of angles: anti-reflection, high reflectors, beam splitters and dichroic edges.' },
   { id: 'jekcad', name: 'JEKcad', url: '/jek/tools/jekcad.html', tab: 'jekcad', icon: 'cube', about: '/jek/products/design-software/jekcad/', thing: 'part studio',
     line: 'Parametric CAD: sketches with constraints and dimensions, a feature list you can roll back, and solids made on OpenCascade, with STEP in and out.' },
 ];
-/* what an app's files are called: a JEKfilm coating, a JEKcad part studio, a JEKray or JEKion bench */
+/* what an app's files are called: a coating, a part studio, a JEKray or JEKion bench */
 export const thingOf = id => appOf(id).thing || 'bench';
+/* the name on a bench's tag and a chip: a designer's short one */
+export const shortOf = id => appOf(id).short || appOf(id).name;
 export const appOf = id => APPS.find(a => a.id === id) || APPS[0];
 /* an app opened at a hash (#cloud=<id>, #new…), in its own tab */
 export function openApp(id, hash) {
-  const a = appOf(id), w = window.open(a.url + (hash ? '#' + hash : ''), a.tab);
+  const a = appOf(id), w = window.open(a.url + (hash ? '#' + hash : a.into ? '#new=' + a.into : ''), a.tab);
   if (w) w.focus();
   return w;
 }

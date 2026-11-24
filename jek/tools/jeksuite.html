@@ -2035,7 +2035,6 @@ html, body { margin: 0; background: var(--jek-well); }
 /* an app's launch page: what the app does and the ways to start in it, then its benches beside the one picked */
 .rt-happhead { margin: 0 0 1.2rem; padding: 1rem 1.2rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-left: 3px solid var(--jek-cyan); border-radius: 3px; }
 .rt-happhead[class] { border-left-color: var(--app); }
-:root[data-rt-theme="dark"] .rt-happhead.jekfilm { box-shadow: -1px 0 0 var(--jek-line-2); }
 .rt-happhead h2 { margin: 0 0 0.35rem; font-size: 1.25rem; }
 .rt-happhead p { margin: 0 0 0.85rem; max-width: 62ch; line-height: 1.5; color: var(--jek-ink-soft); }
 .rt-happhead .rt-actions { justify-content: flex-start; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.5rem; margin: 0; }
@@ -2053,17 +2052,26 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hprev .rt-actions { justify-content: flex-start; flex-wrap: wrap; gap: 0.4rem; margin: 0.15rem 0 0; }
 .rt-hprev .rt-actions .rt-btn { display: inline-flex; align-items: center; gap: 0.3rem; }
 .rt-hprev .rt-hprevmore { margin-left: auto; }
-/* each app's colour, here in the suite only: JEKray yellow, JEKion light blue, JEKfilm black, JEKcad red. --app is
-   the colour itself (a tag's fill, an edge), --app-on what is written on it, --app-ink the colour as a line on the
-   page (an icon, a dot), which the theme sets so that it shows on light and on dark */
+/* each app's colour, here in the suite only: JEKray yellow, JEKion light blue, JEKcad red; JEKray's designers (the
+   Optical, RF and Coating designers, listed under it) shades of its yellow. --app is the colour itself (a tag's fill, an
+   edge), --app-on what is written on it, --app-ink the colour as a line on the page (an icon, a pressed chip's edge),
+   darker where amber or blue on white would be faint. */
 .space-home .jekray { --app: var(--jek-amber); --app-on: #1a1a1a; --app-ink: #c27a12; }
+.space-home .jekoptic { --app: #f6cf6e; --app-on: #1a1a1a; --app-ink: #a8740f; }
+.space-home .jekrfd { --app: #e3a33a; --app-on: #1a1a1a; --app-ink: #9a5f0a; }
+.space-home .jekfilm { --app: #c98a1c; --app-on: #fff; --app-ink: #7d5208; }
 .space-home .jekion { --app: var(--jek-sky); --app-on: #1a1a1a; --app-ink: #3d93aa; }
-.space-home .jekfilm { --app: #000; --app-on: #fff; --app-ink: #000; }
 .space-home .jekcad { --app: var(--jek-red); --app-on: #fff; --app-ink: var(--jek-red); }
 :root[data-rt-theme="dark"] .space-home .jekray { --app-ink: var(--jek-amber); }
+:root[data-rt-theme="dark"] .space-home .jekoptic { --app-ink: #f6cf6e; }
+:root[data-rt-theme="dark"] .space-home .jekrfd { --app-ink: #e8ad4c; }
+:root[data-rt-theme="dark"] .space-home .jekfilm { --app-ink: #d99a2b; }
 :root[data-rt-theme="dark"] .space-home .jekion { --app-ink: var(--jek-sky); }
-:root[data-rt-theme="dark"] .space-home .jekfilm { --app-ink: #f2f2f2; }
 :root[data-rt-theme="dark"] .space-home .jekcad { --app-ink: #ef5d75; }
+/* JEKray's designers under it, in the rail and New's menu; on a designer's page, JEKray above its name */
+.rt-hrail .rt-happbtn.rt-hsub { padding-left: 1.55rem; font-size: 0.92em; }
+.rt-hmenu button.rt-hsub { padding-left: 1.9rem; }
+.rt-happhead .rt-hparent { margin: 0 0 0.1rem; font-size: 0.78rem; color: var(--jek-ink-soft); }
 .space-home .rt-htool, .space-home .rt-hcard .rt-hinfo .rt-htool { display: inline-block; margin-right: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--app, var(--jek-cyan)); color: var(--app-on, #fff); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; white-space: nowrap; }
 .rt-hprev .rt-htool { margin-right: 0; }
 :root[data-rt-theme="dark"] .rt-htool.jekfilm { box-shadow: 0 0 0 1px var(--jek-line-2); }
@@ -2774,23 +2782,34 @@ function h(tag, attrs, ...kids) {
   for (const k of kids) if (k !== null && k !== undefined && k !== false) n.append(k);
   return n;
 }
-/* the apps, as the hub lists and opens them: their page, their tab's name, what they are */
+/* the apps, as the hub lists and opens them: their page, their tab's name, what they are. JEKray's designers are
+   listed under it, indented (parent): the Optical designer and RF designer open in JEKray's tab, in their designer
+   (into), and until they have files of their own (.optic, .rfd) their designs are JEKray benches; the Coating
+   designer is JEKfilm's page, its files the cloud's 'jekfilm'. short is the name on a bench's tag and a chip. */
 const APPS = [
   { id: 'jekray', name: 'JEKray', url: '/jek/tools/jekray.html', tab: 'jekray', icon: 'bench', about: '/jek/products/design-software/jekray/',
-    line: 'Optics, fibre, electronics and RF on one bench: rays, Gaussian beams and the diffracted field, in 2D and 3D; lens and RF design.' },
+    line: 'Optics, fibre, electronics and RF on one bench: rays, Gaussian beams and the diffracted field, in 2D and 3D.' },
+  { id: 'jekoptic', name: 'Optical designer', short: 'Optical', parent: 'jekray', into: 'lens', url: '/jek/tools/jekray.html', tab: 'jekray', icon: 'lens', about: '/jek/docs/jekray/lens-design/', thing: 'optical design',
+    line: 'Lenses, mirrors and stops on one axis designed together, surface by surface: conditions, analyses, the optimiser, tolerancing, drawings and a report.',
+    held: 'Optical designs are saved as JEKray benches for now, so they are listed under JEKray. They get files of their own (.optic) next.' },
+  { id: 'jekrfd', name: 'RF designer', short: 'RF', parent: 'jekray', into: 'rf', url: '/jek/tools/jekray.html', tab: 'jekray', icon: 'rf', about: '/jek/docs/jekray/rf/designer/', thing: 'RF design',
+    line: 'A feed horn’s beam through RF lenses and mirrors, designed as a whole: conditions, analyses, the optimiser, tolerancing and a lens that can be made.',
+    held: 'RF designs are saved as JEKray benches for now, so they are listed under JEKray. They get files of their own (.rfd) next.' },
+  { id: 'jekfilm', name: 'Coating designer', short: 'Coating', parent: 'jekray', url: '/jek/tools/jekfilm.html', tab: 'jekfilm', icon: 'coat', about: '/jek/products/design-software/jekfilm/', thing: 'coating',
+    line: 'Thin-film coatings designed over a band and a range of angles: anti-reflection, high reflectors, beam splitters and dichroic edges.' },
   { id: 'jekion', name: 'JEKion', url: '/jek/tools/jekion.html', tab: 'jekion', icon: 'ion', about: '/jek/products/design-software/jekion/',
     line: 'Charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live.' },
-  { id: 'jekfilm', name: 'JEKfilm', url: '/jek/tools/jekfilm.html', tab: 'jekfilm', icon: 'coat', about: '/jek/products/design-software/jekfilm/', thing: 'coating',
-    line: 'Thin-film coatings designed over a band and a range of angles: anti-reflection, high reflectors, beam splitters and dichroic edges.' },
   { id: 'jekcad', name: 'JEKcad', url: '/jek/tools/jekcad.html', tab: 'jekcad', icon: 'cube', about: '/jek/products/design-software/jekcad/', thing: 'part studio',
     line: 'Parametric CAD: sketches with constraints and dimensions, a feature list you can roll back, and solids made on OpenCascade, with STEP in and out.' },
 ];
-/* what an app's files are called: a JEKfilm coating, a JEKcad part studio, a JEKray or JEKion bench */
+/* what an app's files are called: a coating, a part studio, a JEKray or JEKion bench */
 const thingOf = id => appOf(id).thing || 'bench';
+/* the name on a bench's tag and a chip: a designer's short one */
+const shortOf = id => appOf(id).short || appOf(id).name;
 const appOf = id => APPS.find(a => a.id === id) || APPS[0];
 /* an app opened at a hash (#cloud=<id>, #new…), in its own tab */
 function openApp(id, hash) {
-  const a = appOf(id), w = window.open(a.url + (hash ? '#' + hash : ''), a.tab);
+  const a = appOf(id), w = window.open(a.url + (hash ? '#' + hash : a.into ? '#new=' + a.into : ''), a.tab);
   if (w) w.focus();
   return w;
 }
@@ -3734,14 +3753,18 @@ function folderFits(folders, id, into) {
   if (!into) return true;
   return !folderPath(folders, into).some(f => f.id === id);
 }
-/* the benches in an order: 'changed' and 'size' largest first, 'name', 'app' and 'folder' by the alphabet; flip
+/* the apps in the order the hub lists them (JEKray with its designers under it, then the others): 'app' sorts by it */
+const APP_ORDER = ['jekray', 'jekoptic', 'jekrfd', 'jekfilm', 'jekion', 'jekcad'];
+const appRank = b => { const i = APP_ORDER.indexOf(b.tool || 'jekray'); return i < 0 ? APP_ORDER.length : i; };
+/* the benches in an order: 'changed' and 'size' largest first, 'name' and 'folder' by the alphabet, 'app' as the hub
+   lists the apps; flip
    turns it round. where(b) is the bench's folder as text */
 const SORTS = { name: 'Name', app: 'App', folder: 'Folder', changed: 'Last changed', size: 'Size' };
 function sortBenches(benches, key, flip, where) {
   const name = (a, b) => a.name.localeCompare(b.name);
   const by = {
     name,
-    app: (a, b) => (a.tool || 'jekray').localeCompare(b.tool || 'jekray') || name(a, b),
+    app: (a, b) => appRank(a) - appRank(b) || name(a, b),
     folder: (a, b) => (where ? where(a).localeCompare(where(b)) : 0) || name(a, b),
     changed: (a, b) => b.updated_at - a.updated_at,
     size: (a, b) => b.size_bytes - a.size_bytes,
@@ -3819,7 +3842,7 @@ let homeSeq = 0, homeRO = null;
    The rail's apps open the app's page here (#app=<id>), not the app: what it does, its benches alone (the same folders,
    search and sorting as My benches), and the one picked shown large beside them, to open in the app. Anything else in
    the rail leaves it. */
-const appHash = () => { const m = location.hash.match(/^#app=(jekray|jekion|jekfilm|jekcad)$/); return m ? m[1] : null; };
+const appHash = () => { const m = location.hash.match(/^#app=(jekray|jekoptic|jekrfd|jekfilm|jekion|jekcad)$/); return m ? m[1] : null; };
 function showApp(id) {
   closeMenu();
   if (id) { Object.assign(cloudPlace, { app: id, view: 'folder', folder: null, q: '', history: null, sel: null }); const s = document.getElementById('homeSearch'); if (s) s.value = ''; if (appHash() !== id) location.hash = 'app=' + id; fillHome(); return; }
@@ -4089,7 +4112,7 @@ async function fillHome() {
     for (const c of box.querySelectorAll('.rt-hcard.folder[data-folder]')) {
       const k = shown.get(c.dataset.folder) || { n: 0, apps: {} }, cnt = c.querySelector('.rt-hcount'), dots = c.querySelector('.rt-hdots');
       if (cnt) cnt.textContent = countOf(k.n, thing);
-      if (dots) dots.replaceChildren(...(appPage ? [] : APPS.filter(a => k.apps[a.id]).map(a => h('i', { class: a.id, title: countOf(k.apps[a.id], a.name + ' ' + thingOf(a.id)) }))));
+      if (dots) dots.replaceChildren(...(appPage ? [] : APPS.filter(a => k.apps[a.id]).map(a => h('i', { class: a.id, title: countOf(k.apps[a.id], (a.parent ? '' : a.name + ' ') + thingOf(a.id)) }))));
       // on an app's page, a folder with none of the app's benches in it (or in the folders inside it) is not shown
       c.hidden = !!appPage && !k.n;
     }
@@ -4122,7 +4145,7 @@ async function fillHome() {
   const used = data.usage || (P.lastUsage && P.lastUsage.ws === ws ? P.lastUsage : null);
   if (data.usage) P.lastUsage = Object.assign({ ws }, data.usage);
   rail.replaceChildren(...[
-    h('h2', null, 'Apps'), ...APPS.map(a => railBtn(a.name, a.icon, P.app === a.id, () => { track('cloud', 'app.' + a.id); showApp(a.id); }, 'rt-happbtn ' + a.id)),
+    h('h2', null, 'Apps'), ...APPS.map(a => railBtn(a.name, a.icon, P.app === a.id, () => { track('cloud', 'app.' + a.id); showApp(a.id); }, 'rt-happbtn ' + a.id + (a.parent ? ' rt-hsub' : ''))),
     h('h2', null, 'Benches'),
     ...places.flatMap(w => w.id === ws
       ? [dropOn(railBtn(placeName(w), w.kind === 'personal' ? 'home' : 'users', !P.app && here('folder', null), leave(go('folder', null))), { folder: null }), ...treeNodes(null, 1)]
@@ -4192,7 +4215,7 @@ async function fillHome() {
       b.thumb ? h('img', { src: API_BASE + b.thumb, alt: '' }) : h('span', { class: 'thumb rt-nopic' }, 'Its picture is drawn the next time it is opened and saved'),
       h('p', null, 'Version ' + b.version + ' · changed ' + whenAgo(b.updated_at) + (b.updated_by && wsInfo && wsInfo.kind !== 'personal' ? ' by ' + b.updated_by.name : '') + ' · ' + kb(b.size_bytes) + (mine ? ' · open on the bench' : '')),
       h('div', { class: 'rt-actions' },
-        h('button', { type: 'button', class: 'rt-btn primary', onclick: () => homeOpenBench(b.id, null, b) }, 'Open in ' + appOf(b.tool).name),
+        h('button', { type: 'button', class: 'rt-btn primary', onclick: () => homeOpenBench(b.id, null, b) }, 'Open in ' + inApp(b.tool)),
         can ? h('button', { type: 'button', class: 'rt-btn', onclick: () => homeFork(b, null, () => {}) }, homeIcon('fork'), ' Fork') : null),
       helpLine('Versions are kept as you work: the last 50, then one a day for 90 days.', ['A version is kept on Save to cloud, every 10 minutes or so while you work, before a restore, and wherever a fork was made: the last 50, then one a day for 90 days, and every fork’s starting point for good.'], 'rt-subsmall'));
     // the events, newest first: a fork comes just after the version it was made from
@@ -4408,7 +4431,7 @@ async function fillHome() {
   const chip = (id, label, n) => h('button', { type: 'button', class: 'rt-hchip' + (id ? ' ' + id : ''), 'aria-pressed': String((homeView.only || null) === id), title: id ? 'Only the ' + label + ' ' + thingOf(id) + 's here' : 'Every app’s benches here',
     onclick: () => { homeView.only = homeView.only === id ? null : id; keepView(); fillHome(); } }, id ? h('i', { class: id }) : null, label, h('small', null, String(n)));
   const chips = !appPage && (Object.keys(appsHere).length > 1 || homeView.only) ? h('div', { class: 'rt-hchips', id: 'homeChips', role: 'group', 'aria-label': 'The benches of one app' },
-    chip(null, 'All', total), ...APPS.filter(a => appsHere[a.id] || homeView.only === a.id).map(a => chip(a.id, a.name, appsHere[a.id] || 0))) : null;
+    chip(null, 'All', total), ...APPS.filter(a => appsHere[a.id] || homeView.only === a.id).map(a => chip(a.id, shortOf(a.id), appsHere[a.id] || 0))) : null;
   if (!appPage && homeView.only) benches = benches.filter(b => (b.tool || 'jekray') === homeView.only);
   const team = wsInfo && wsInfo.kind !== 'personal';
   const menuOf = new Map();
@@ -4448,7 +4471,7 @@ async function fillHome() {
     const app = appOf(b.tool), drag = can && !bin;
     const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + b.name, title: 'More' }, '⋯');
     const moveTo = () => choose(more, 'Move “' + b.name + '” to', [...placesFor([]).filter(([v]) => v !== (b.folder_id || '')), ...wsChoices([])], moveChosen([b], []));
-    const name = h('b', { class: 'rt-hname', title: b.name }, tbl ? null : h('span', { class: 'rt-htool ' + app.id, title: 'A ' + app.name + ' ' + thingOf(b.tool) + ': it opens in ' + app.name }, app.name), b.name);
+    const name = h('b', { class: 'rt-hname', title: b.name }, tbl ? null : h('span', { class: 'rt-htool ' + app.id, title: oneOf(app.id) + ': it opens in ' + inApp(app.id) }, shortOf(app.id)), b.name);
     const rename = () => {
       if (!can || bin) return false;
       const old = [...name.childNodes];
@@ -4487,7 +4510,7 @@ async function fillHome() {
     const card = h('div', { class: 'rt-hcard' + (tbl ? ' rt-hrow' : '') + (P.flash === b.id ? ' flash' : ''), 'data-bench': b.id, draggable: drag ? 'true' : null, onpointerenter: show },
       tick, open,
       ...(tbl ? [h('div', { class: 'rt-hinfo' }, name, fork, who),
-        h('span', { class: 'rt-hc app' }, h('span', { class: 'rt-htool ' + app.id, title: 'A ' + app.name + ' ' + thingOf(b.tool) + ': it opens in ' + app.name }, app.name)),
+        h('span', { class: 'rt-hc app' }, h('span', { class: 'rt-htool ' + app.id, title: oneOf(app.id) + ': it opens in ' + inApp(app.id) }, shortOf(app.id))),
         showWhere ? h('span', { class: 'rt-hc where' }, whereLink || top) : null,
         h('span', { class: 'rt-hc when' }, when), h('span', { class: 'rt-hc size' }, kb(b.size_bytes))]
       : [h('div', { class: 'rt-hinfo' }, name,
@@ -4516,11 +4539,11 @@ async function fillHome() {
     if (benchCards.length) out.push(folderCards.length ? h('h3', null, 'Benches') : null, h('div', { class: 'rt-hgrid' }, ...benchCards));
   }
   // (an app's page with folders but no benches here: said once the folders with none of its benches are put away)
-  if (appPage && folderCards.length && !benchCards.length) out.push(h('p', { class: 'rt-hempty rt-hnone', hidden: true }, P.folder ? 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's in this folder.' : 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's here yet.'));
+  if (appPage && folderCards.length && !benchCards.length) out.push(h('p', { class: 'rt-hempty rt-hnone', hidden: true }, P.folder ? 'No ' + filesOf(appPage.id) + ' in this folder.' : 'No ' + filesOf(appPage.id) + ' here yet.'));
   if (!folderCards.length && !benchCards.length) out.push(h('p', { class: 'rt-hempty' }, bin ? 'The bin is empty. Deleted benches stay here for 30 days.'
-    : !appPage && homeView.only ? 'No ' + appOf(homeView.only).name + ' ' + thingOf(homeView.only) + 's here.'
+    : !appPage && homeView.only ? 'No ' + filesOf(homeView.only) + ' here.'
     : P.q ? 'No bench matches “' + P.q + '”.' : P.view === 'recent' ? 'Nothing yet.' : P.folder ? 'This folder is empty.'
-    : appPage ? 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's here yet.' : 'No benches yet. Start one with New, top right, or use Save to cloud in an app’s File menu.'));
+    : appPage ? 'No ' + filesOf(appPage.id) + ' here yet.' : 'No benches yet. Start one with New, top right, or use Save to cloud in an app’s File menu.'));
   homeKeys = {
     clear: () => { picked.clear(); pickedF.clear(); paintPicked(); },
     all: () => { if (!order.length && !foldersHere.length) return false; for (const id of order) picked.add(id); if (can) for (const f of foldersHere) pickedF.add(f.id); paintPicked(); return true; },
@@ -4537,8 +4560,8 @@ async function fillHome() {
     for (const c of box.querySelectorAll('.rt-hcard[data-bench]')) c.classList.toggle('sel', c.dataset.bench === P.sel);
     const b = benches.find(x => x.id === P.sel);
     if (!b) {
-      prev.replaceChildren(h('span', { class: 'thumb rt-nopic' }, 'No bench picked'), h('h3', null, 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's' + (P.folder || P.q ? ' here' : ' yet')),
-        h('p', null, P.folder || P.q ? 'Pick another folder, or start one.' : 'Start one, or save one from ' + appPage.name + ' with File › Save to cloud.'),
+      prev.replaceChildren(h('span', { class: 'thumb rt-nopic' }, 'No bench picked'), h('h3', null, 'No ' + filesOf(appPage.id) + (P.folder || P.q ? ' here' : ' yet')),
+        h('p', null, P.folder || P.q ? 'Pick another folder, or start one.' : 'Start one, or save one from ' + inApp(appPage.id) + ' with File › Save to cloud.'),
         h('div', { class: 'rt-actions' }, h('button', { type: 'button', class: 'rt-btn primary', onclick: () => startNew(appPage.id) }, 'New ' + thingOf(appPage.id))));
       return;
     }
@@ -4548,31 +4571,35 @@ async function fillHome() {
     const ver = b.version || b.head_version;
     prev.replaceChildren(
       b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: 'The bench “' + b.name + '”' }) : h('span', { class: 'thumb rt-nopic rt-happpic ' + appPage.id }, homeIcon(appPage.icon || 'bench'), h('small', null, 'No picture yet: it is drawn the next time the ' + thingOf(appPage.id) + ' is saved in ' + appPage.name)),
-      h('h3', null, h('span', { class: 'rt-htool ' + appPage.id }, appPage.name), b.name),
+      h('h3', null, h('span', { class: 'rt-htool ' + appPage.id }, shortOf(appPage.id)), b.name),
       h('dl', null,
         h('dt', null, 'In'), h('dd', null, folderName ? top + ' › ' + folderName : top),
         h('dt', null, 'Changed'), h('dd', null, whenAgo(b.updated_at) + (b.updated_by && b.updated_by.name ? ' by ' + b.updated_by.name : '')),
         h('dt', null, 'Size'), h('dd', null, kb(b.size_bytes)),
         ver ? h('dt', null, 'Version') : null, ver ? h('dd', null, String(ver)) : null),
       h('div', { class: 'rt-actions' },
-        h('button', { type: 'button', class: 'rt-btn primary', id: 'appPreviewOpen', onclick: () => homeOpenBench(b.id, null, b) }, 'Open in ' + appPage.name),
+        h('button', { type: 'button', class: 'rt-btn primary', id: 'appPreviewOpen', onclick: () => homeOpenBench(b.id, null, b) }, 'Open in ' + inApp(appPage.id)),
         h('button', { type: 'button', class: 'rt-btn', onclick: () => { showApp(null); Object.assign(P, { view: 'history', history: { id: b.id, name: b.name } }); fillHome(); } }, homeIcon('history'), ' History'),
         pmore));
   };
   box.replaceChildren(appHead(appPage), h('div', { class: 'rt-hlaunch' }, h('div', { class: 'rt-hexplore' }, ...out.filter(Boolean)), prev));
   fillPreview(); paintPicked(); decorate();
 }
+/* an app's files, as a page or a note says them: JEKray benches, coatings, optical designs */
+const oneOf = id => { const t = (appOf(id).parent ? '' : appOf(id).name + ' ') + thingOf(id); return (/^(?:[aeiou]|RF)/i.test(t) ? 'An ' : 'A ') + t; };
+const inApp = id => (appOf(id).parent ? 'the ' : '') + appOf(id).name;
+const filesOf = id => (appOf(id).parent ? '' : appOf(id).name + ' ') + thingOf(id) + 's';
 /* an app's head on its launch page: what it does, and the ways to start in it */
 function appHead(a) {
-  const starts = a.id === 'jekray' ? NEW_KINDS.filter(k => k.app === 'jekray' && k.into).map(k => h('button', { type: 'button', class: 'rt-btn', onclick: () => startNew('jekray', k.into) }, k.label.replace(' (JEKray)', ''))) : [];
   return h('div', { class: 'rt-happhead ' + a.id },
+    a.parent ? h('p', { class: 'rt-hparent' }, appOf(a.parent).name) : null,
     h('h2', null, a.name),
     h('p', null, a.line),
+    a.held ? h('p', { class: 'rt-subsmall', id: 'appHeld' }, a.held) : null,
     h('div', { class: 'rt-actions' },
       h('button', { type: 'button', class: 'rt-btn primary', id: 'appOpen', onclick: () => { track('cloud', 'app.' + a.id); openApp(a.id); } }, 'Open ' + a.name),
       h('button', { type: 'button', class: 'rt-btn', id: 'appNew', onclick: () => startNew(a.id) }, 'New ' + thingOf(a.id)),
-      ...starts,
-      a.about ? h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + a.name) : null));
+      a.about ? h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + inApp(a.id)) : null));
 }
 
 /* ---------- the apps ----------
@@ -4584,16 +4611,16 @@ function appLinks() {
 }
 /* New's menu: what can be started, a bench in each app first (opening an app is on its page, from the rail) */
 function newMenuItems() {
-  return NEW_KINDS.map(k => [k.label, k.icon, () => startNew(k.app, k.into)]);
+  return NEW_KINDS.map(k => [k.label, k.icon, () => startNew(k.app, k.into), k.sub ? 'rt-hsub' : null]);
 }
 /* What New starts: a bench in an app, or straight into one of JEKray's designers */
 const NEW_KINDS = [
   { app: 'jekray', into: null, label: 'JEKray bench', icon: 'bench' },
+  { app: 'jekray', into: 'lens', label: 'Optical design', icon: 'lens', sub: true },
+  { app: 'jekray', into: 'rf', label: 'RF design', icon: 'rf', sub: true },
+  { app: 'jekfilm', into: null, label: 'Coating', icon: 'coat', sub: true },
   { app: 'jekion', into: null, label: 'JEKion bench', icon: 'ion' },
-  { app: 'jekfilm', into: null, label: 'JEKfilm coating', icon: 'coat' },
   { app: 'jekcad', into: null, label: 'JEKcad part studio', icon: 'cube' },
-  { app: 'jekray', into: 'lens', label: 'Optical design (JEKray)', icon: 'lens' },
-  { app: 'jekray', into: 'rf', label: 'RF design (JEKray)', icon: 'rf' },
 ];
 /* what a new bench of each app holds: an empty one (JEKfilm's a single MgF2 layer on N-BK7, as the app starts one) */
 function newContent(app, name) {
@@ -4606,6 +4633,7 @@ function newContent(app, name) {
    in its app (#cloud=<id>, and :lens, :rf or :coat into a designer). Signed out, or with nowhere to save, it starts in
    the app itself, in that browser (#new, #new=lens…). */
 function startNew(app, into) {
+  if (appOf(app).into && appOf(app).id === app) { into = appOf(app).into; app = 'jekray'; }
   track('cloud', 'new.' + app + (into ? '.' + into : ''));
   const places = newPlaces().filter(w => w.active);
   if (!account || !places.length) { openApp(app, 'new' + (into ? '=' + into : '')); if (account) toast('Started in ' + appOf(app).name + ': saving it to the cloud needs JEKrayPro'); return; }
@@ -4651,7 +4679,7 @@ function signedOutView() {
   document.getElementById('homeNote').hidden = true;
   document.getElementById('homeWhere').textContent = 'Your apps and benches';
   const P = cloudPlace, appPage = P.app ? appOf(P.app) : null;
-  rail.replaceChildren(h('h2', null, 'Apps'), ...APPS.map(a => h('button', { type: 'button', onclick: () => showApp(a.id), title: a.name + ': what it does, and its benches', class: 'rt-happbtn ' + a.id, 'aria-current': String(P.app === a.id) }, homeIcon(a.icon), h('span', null, a.name))));
+  rail.replaceChildren(h('h2', null, 'Apps'), ...APPS.map(a => h('button', { type: 'button', onclick: () => showApp(a.id), title: a.name + ': what it does, and its benches', class: 'rt-happbtn ' + a.id + (a.parent ? ' rt-hsub' : ''), 'aria-current': String(P.app === a.id) }, homeIcon(a.icon), h('span', null, a.name))));
   homeKeys = null; picked.clear(); pickedF.clear();
   box.classList.remove('rows', 'tbl', 'picking');
   if (appPage) {

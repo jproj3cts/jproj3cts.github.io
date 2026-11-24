@@ -14,7 +14,7 @@ export async function check(pw, base, shots) {
       await p.goto(base + '/jek/tools/jeksuite.html');
       await p.waitForSelector('#homeSignIn', { timeout: 10000 }).catch(() => {});
       const s = await p.evaluate(() => ({ signIn: !!document.getElementById('homeSignIn'), apps: [...document.querySelectorAll('.rt-happlinks button')].map(a => a.textContent), cards: document.querySelectorAll('.rt-happ').length, appsBtn: !!document.getElementById('homeApps'), btn: document.getElementById('btnAcct').textContent }));
-      ok('Signed out: a sign-in panel, and the apps under it as buttons (no cards, no Apps button)', s.signIn && s.apps.join() === 'Open JEKray,Open JEKion,Open JEKfilm,Open JEKcad' && !s.cards && !s.appsBtn && s.btn === 'Sign in', JSON.stringify(s));
+      ok('Signed out: a sign-in panel, and the apps under it as buttons (no cards, no Apps button)', s.signIn && s.apps.join() === 'Open JEKray,Open Optical designer,Open RF designer,Open Coating designer,Open JEKion,Open JEKcad' && !s.cards && !s.appsBtn && s.btn === 'Sign in', JSON.stringify(s));
       await p.click('#homeSignIn');
       const menu = await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].map(x => x.textContent));
       ok('Signed out: Sign in offers Google, Microsoft and email', ['Continue with Google', 'Continue with Microsoft (university or work)', 'Continue with email'].every(t => menu.includes(t)), menu.join(' | '));
@@ -68,8 +68,8 @@ export async function check(pw, base, shots) {
       await p.hover('.rt-hcard[data-bench=b1] .rt-hopen'); await p.waitForTimeout(150);
       const ray = await p.evaluate(() => ({ benches: [...document.querySelectorAll('.rt-hcard[data-bench]')].map(c => c.dataset.bench), sel: !!document.querySelector('.rt-hcard[data-bench=b1].sel'), opened: window.__opened.length,
         counts: [...document.querySelectorAll('.rt-hcard.folder .rt-hcount')].map(x => x.textContent), starts: [...document.querySelectorAll('.rt-happhead .rt-btn')].map(x => x.textContent) }));
-      ok('JEKray’s launch page: its benches alone, the one under the pointer shown (not opened), its folders count its benches (Absorption the one in its folder Old runs), its designers to start', ray.benches.join() === 'b1' && ray.sel && ray.opened === n1 && ray.counts.join() === '1 bench,1 bench'
-        && ray.starts.join('|') === 'Open JEKray|New bench|Optical design|RF design', JSON.stringify(ray));
+      ok('JEKray’s launch page: its benches alone, the one under the pointer shown (not opened), its folders count its benches (Absorption the one in its folder Old runs), New bench (its designers are in the rail, under it)', ray.benches.join() === 'b1' && ray.sel && ray.opened === n1 && ray.counts.join() === '1 bench,1 bench'
+        && ray.starts.join('|') === 'Open JEKray|New bench', JSON.stringify(ray));
       if (shots) await p.screenshot({ path: shots + '/jeksuite-launch-dark.png' });
       await p.click('.rt-hcard[data-bench=b1] .rt-hopen'); await p.waitForTimeout(150);
       const dbl = await p.evaluate(() => window.__opened.slice(-1)[0]);
@@ -91,8 +91,9 @@ export async function check(pw, base, shots) {
       // New: only what can be started (opening an app is on its page), a bench in each app first, then JEKray's designers
       await p.click('#homeNew');
       const kinds = await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].map(x => x.textContent));
-      ok('New offers a bench in each app (a coating in JEKfilm, a part studio in JEKcad), then JEKray’s two designers, and no way to merely open an app', kinds.join('|') === 'JEKray bench|JEKion bench|JEKfilm coating|JEKcad part studio|Optical design (JEKray)|RF design (JEKray)', kinds.join('|'));
-      await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'Optical design (JEKray)').click());
+      const subs = await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button.rt-hsub')].map(x => x.textContent));
+      ok('New offers a bench in each app, JEKray’s designers (an optical design, an RF design, a coating) under it, and no way to merely open an app', kinds.join('|') === 'JEKray bench|Optical design|RF design|Coating|JEKion bench|JEKcad part studio' && subs.join('|') === 'Optical design|RF design|Coating', kinds.join('|') + ' / ' + subs.join('|'));
+      await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'Optical design').click());
       await p.click('#spaceNewMake'); await p.waitForTimeout(400);
       const op3 = await p.evaluate(() => window.__opened.slice(-1)[0]);
       ok('New › Optical design: a cloud bench made, opened in JEKray into the designer', op3 && op3[0] === '/jek/tools/jekray.html#cloud=bnew:lens' && calls.some(c => c === 'POST /v1/workspaces/w_me/benches'), JSON.stringify(op3));
@@ -102,13 +103,13 @@ export async function check(pw, base, shots) {
       const op4 = await p.evaluate(() => window.__opened.slice(-1)[0]);
       ok('New › JEKion bench: made in the cloud and opened in JEKion', op4 && op4[0] === '/jek/tools/jekion.html#cloud=bnew', JSON.stringify(op4));
       await p.click('#homeNew');
-      await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'JEKfilm coating').click());
+      await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'Coating').click());
       const film = await p.evaluate(() => ({ title: document.getElementById('spaceNewTitle').textContent, name: document.getElementById('spaceNewName').value }));
       const posted = p.waitForRequest(r => r.method() === 'POST' && /\/v1\/workspaces\/w_me\/benches$/.test(r.url()));
       await p.click('#spaceNewMake');
       const body = JSON.parse((await posted).postData()); await p.waitForTimeout(300);
       const op5 = await p.evaluate(() => window.__opened.slice(-1)[0]);
-      ok('New › JEKfilm coating: an untitled coating made in the cloud (a .jekfilm) and opened in JEKfilm’s tab', film.title === 'New JEKfilm coating' && film.name === 'Untitled coating' && JSON.parse(body.content).format === 'jekfilm'
+      ok('New › Coating: an untitled coating made in the cloud (a .jekfilm) and opened in the Coating designer’s tab', film.title === 'New Coating' && film.name === 'Untitled coating' && JSON.parse(body.content).format === 'jekfilm'
         && op5 && op5[0] === '/jek/tools/jekfilm.html#cloud=bnew' && op5[1] === 'jekfilm', JSON.stringify([film, op5]));
       await p.click('#homeNew');
       await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'JEKcad part studio').click());
@@ -162,6 +163,28 @@ export async function check(pw, base, shots) {
       ok('#app=jekion opens JEKion’s launch page', d.benches.join() === 'b2' && d.where === 'JEKion' && !errs.length, JSON.stringify(d) + errs.join(' | '));
       await p.close();
     }
+    // JEKray's designers: under it in the rail, indented; the Optical designer's page says where its designs are kept
+    // for now, and New there makes a JEKray bench opened in the designer
+    {
+      const p = await b.newPage({ viewport: { width: 1300, height: 860 } }), errs = []; p.on('pageerror', e => errs.push(e.message));
+      const calls = await route(p, { signedIn: true });
+      await p.goto(base + '/jek/tools/jeksuite.html#app=jekoptic');
+      await p.waitForSelector('.rt-happhead.jekoptic', { timeout: 10000 }).catch(() => {}); await p.waitForTimeout(300);
+      const d = await p.evaluate(() => ({ rail: [...document.querySelectorAll('#homeRail .rt-happbtn')].map(x => (x.classList.contains('rt-hsub') ? '  ' : '') + x.textContent),
+        head: document.querySelector('.rt-happhead h2').textContent, parent: (document.querySelector('.rt-happhead .rt-hparent') || {}).textContent, held: !!document.getElementById('appHeld'),
+        benches: document.querySelectorAll('.rt-hcard[data-bench]').length, where: document.getElementById('homeWhere').textContent }));
+      ok('The rail lists JEKray’s three designers under it, indented, then JEKion and JEKcad', d.rail.join('|') === 'JEKray|  Optical designer|  RF designer|  Coating designer|JEKion|JEKcad', d.rail.join('|'));
+      ok('#app=jekoptic: the Optical designer’s page, JEKray above its name, a note that its designs are JEKray benches for now', d.head === 'Optical designer' && d.parent === 'JEKray' && d.held && !d.benches && d.where === 'Optical designer', JSON.stringify(d));
+      await p.click('#appNew'); await p.click('#spaceNewMake'); await p.waitForTimeout(400);
+      const op = await p.evaluate(() => window.__opened.slice(-1)[0]);
+      ok('New optical design: a JEKray bench made in the cloud, opened in JEKray’s tab in the Optical designer', op && op[0] === '/jek/tools/jekray.html#cloud=bnew:lens' && op[1] === 'jekray' && calls.includes('POST /v1/workspaces/w_me/benches'), JSON.stringify(op));
+      await p.click('#appOpen'); await p.waitForTimeout(200);
+      const op2 = await p.evaluate(() => window.__opened.slice(-1)[0]);
+      ok('Open Optical designer: JEKray opened straight into a new design', op2 && op2[0] === '/jek/tools/jekray.html#new=lens' && op2[1] === 'jekray', JSON.stringify(op2));
+      if (shots) await p.screenshot({ path: shots + '/jeksuite-launch-jekoptic.png' });
+      ok('The Optical designer’s page: no page errors', !errs.length, errs.join(' | '));
+      await p.close();
+    }
     // JEKfilm's launch page: its coatings alone, in their folders, counted as coatings; one opens in JEKfilm
     {
       const p = await b.newPage({ viewport: { width: 1300, height: 860 } }), errs = []; p.on('pageerror', e => errs.push(e.message));
@@ -170,13 +193,13 @@ export async function check(pw, base, shots) {
       await p.waitForSelector('.rt-happhead.jekfilm', { timeout: 10000 }).catch(() => {}); await p.waitForTimeout(300);
       const d = await p.evaluate(() => ({ benches: [...document.querySelectorAll('.rt-hcard[data-bench]')].map(c => c.dataset.bench), counts: [...document.querySelectorAll('.rt-hcard.folder:not([hidden]) .rt-hcount')].map(x => x.textContent), put: [...document.querySelectorAll('.rt-hcard.folder[hidden]')].map(c => c.dataset.folder),
         starts: [...document.querySelectorAll('.rt-happhead .rt-btn')].map(x => x.textContent), about: !!document.querySelector('.rt-happhead a') }));
-      ok('#app=jekfilm: JEKfilm’s launch page, its coatings counted in their folders, a folder with none of them not shown, New coating, About JEKfilm', !d.benches.length && d.counts.join() === '1 coating' && d.put.join() === 'f1' && d.starts.join('|') === 'Open JEKfilm|New coating' && d.about, JSON.stringify(d));
+      ok('#app=jekfilm: the Coating designer’s launch page, its coatings counted in their folders, a folder with none of them not shown, New coating, About', !d.benches.length && d.counts.join() === '1 coating' && d.put.join() === 'f1' && d.starts.join('|') === 'Open Coating designer|New coating' && d.about, JSON.stringify(d));
       await p.evaluate(() => [...document.querySelectorAll('.rt-hcard.folder .rt-hopen')].find(x => /Absorption/.test(x.textContent)).click());
       await p.waitForSelector('.rt-hcard[data-bench=b5]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(200);
       const tag = await p.evaluate(() => { const t = document.querySelector('.rt-hcard[data-bench=b5] .rt-htool'); return t ? [t.textContent, t.className, t.title] : null; });
       await p.click('#appPreviewOpen'); await p.waitForTimeout(200);
       const op = await p.evaluate(() => window.__opened.slice(-1)[0]);
-      ok('A coating in its folder, marked JEKfilm, opens in JEKfilm’s tab', tag && tag[0] === 'JEKfilm' && /jekfilm/.test(tag[1]) && /JEKfilm coating/.test(tag[2]) && op && op[0] === '/jek/tools/jekfilm.html#cloud=b5' && op[1] === 'jekfilm', JSON.stringify([tag, op]));
+      ok('A coating in its folder, marked Coating, opens in the Coating designer’s tab', tag && tag[0] === 'Coating' && /jekfilm/.test(tag[1]) && /^A coating: it opens in the Coating designer/.test(tag[2]) && op && op[0] === '/jek/tools/jekfilm.html#cloud=b5' && op[1] === 'jekfilm', JSON.stringify([tag, op]));
       if (shots) await p.screenshot({ path: shots + '/jeksuite-launch-jekfilm.png' });
       ok('JEKfilm’s launch page: no page errors', !errs.length, errs.join(' | '));
       await p.close();
@@ -243,7 +266,7 @@ export async function check(pw, base, shots) {
       await p.evaluate(() => [...document.querySelectorAll('.rt-hth .rt-hsort')].find(x => x.textContent.startsWith('App')).click()); await p.waitForTimeout(300);
       const byApp = await p.evaluate(() => [...document.querySelectorAll('.rt-hcard[data-bench] .rt-htool')].map(t => t.textContent));
       ok('The list is a table: Name, App, Folder, Changed and Size, each heading sorting by its column and turning it round', heads.join() === 'Name,App,Folder,Changed ▾,Size' && az.join() === 'b8,b5,b7,b6,b3,b2,b1' && za.join() === az.slice().reverse().join()
-        && byApp.join() === 'JEKcad,JEKcad,JEKfilm,JEKion,JEKray,JEKray,JEKray', JSON.stringify([heads, az, za, byApp]));
+        && byApp.join() === 'JEKray,JEKray,JEKray,Coating,JEKion,JEKcad,JEKcad', JSON.stringify([heads, az, za, byApp]));
       // picked benches moved with the bar, then binned with Delete
       await p.click('.rt-hcard[data-bench=b1] .rt-hpick'); await p.click('.rt-hcard[data-bench=b2] .rt-hpick');
       await p.evaluate(() => [...document.querySelectorAll('#homePicked .rt-btn')].find(x => /Move to/.test(x.textContent)).click());
@@ -278,7 +301,7 @@ export async function check(pw, base, shots) {
       const kept = await p.evaluate(() => document.querySelector('.rt-hcard[data-bench=b5] .rt-hname').textContent);
       await p.focus('.rt-hcard[data-bench=b5] .rt-hopen'); await p.keyboard.press('F2'); await p.fill('.rt-hcard[data-bench=b5] .rt-hrename', 'BBAR visible'); await p.keyboard.press('Enter'); await p.waitForTimeout(400);
       const bname = await p.evaluate(() => document.querySelector('.rt-hcard[data-bench=b5] .rt-hname').textContent);
-      ok('Names are typed in place: a new folder, a folder and a bench renamed with F2 or the menu, Escape leaving the name alone', made && fname === 'Absorption cell' && kept === 'JEKfilmBBAR 450–650' && bname === 'JEKfilmBBAR visible' && sent(/^PATCH \/v1\/benches\/b5$/).length === 1, JSON.stringify([made, fname, kept, bname]));
+      ok('Names are typed in place: a new folder, a folder and a bench renamed with F2 or the menu, Escape leaving the name alone', made && fname === 'Absorption cell' && kept === 'CoatingBBAR 450–650' && bname === 'CoatingBBAR visible' && sent(/^PATCH \/v1\/benches\/b5$/).length === 1, JSON.stringify([made, fname, kept, bname]));
       // a folder moved from its menu; folders picked with benches; a bench binned and brought back with Undo
       await railGo('My benches'); await p.waitForSelector('.rt-hcard.folder[data-folder=f2]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(300);
       const newF = await p.evaluate(() => document.querySelector('.rt-hcard.folder[data-folder^=fnew]').dataset.folder);
@@ -315,14 +338,15 @@ export async function check(pw, base, shots) {
       await railGo('Absorption cell'); await p.waitForSelector('.rt-hcard[data-bench=b5]', { timeout: 5000 }).catch(() => {}); await p.waitForTimeout(300);
       ok('A bench goes to another workspace: dragged onto it in the rail, or chosen in Move to…', draggedOut && /^Moved “Alignment cap” to Levitation lab/.test(said) && ['b1', 'b4', 'b8'].every(id => inTeam.includes(id)), JSON.stringify([draggedOut, said, inTeam]));
       // the arrows go from card to card; a fork's name is asked for in the page; the chip pressed is kept; dark and light
-      await p.focus('.rt-hcard[data-bench=b5] .rt-hopen'); await p.keyboard.press('ArrowRight');
+      const first = (await benchesNow())[0];
+      await p.focus('.rt-hcard[data-bench=' + first + '] .rt-hopen'); await p.keyboard.press('ArrowRight');
       const right = await p.evaluate(() => (document.activeElement.closest('.rt-hcard') || {}).dataset.bench);
       await p.keyboard.press('ArrowUp');
       const up = await p.evaluate(() => (document.activeElement.closest('.rt-hcard') || {}).dataset.folder);
       await p.keyboard.press('End');
       const end = await p.evaluate(() => (document.activeElement.closest('.rt-hcard') || {}).dataset.bench);
       const here = await benchesNow();
-      ok('The arrow keys go from card to card, up to the folders, End to the last', right === here[here.indexOf('b5') + 1] && !!up && end === here[here.length - 1], JSON.stringify([here, right, up, end]));
+      ok('The arrow keys go from card to card, up to the folders, End to the last', here.length > 1 && right === here[1] && !!up && end === here[here.length - 1], JSON.stringify([here, right, up, end]));
       let asked = 0; p.on('dialog', d => { asked++; d.dismiss(); });
       await p.click('.rt-hcard[data-bench=b5] .rt-hmore');
       await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'Fork…').click());
@@ -339,7 +363,7 @@ export async function check(pw, base, shots) {
       const t1 = await p.evaluate(() => [document.documentElement.dataset.rtTheme, localStorage.getItem('jekray-theme')]);
       await p.click('#homeTheme');
       const t2 = await p.evaluate(() => document.documentElement.dataset.rtTheme);
-      ok('The chip pressed is kept for the next visit; the bar’s button turns the page light and dark', /^JEKfilm/.test(keptChip || '') && t0 === 'dark' && t1.join() === 'light,light' && t2 === 'dark', JSON.stringify([keptChip, t0, t1, t2]));
+      ok('The chip pressed is kept for the next visit; the bar’s button turns the page light and dark', /^Coating/.test(keptChip || '') && t0 === 'dark' && t1.join() === 'light,light' && t2 === 'dark', JSON.stringify([keptChip, t0, t1, t2]));
       if (shots) { await railGo('Recent'); await p.waitForTimeout(400); await p.screenshot({ path: shots + '/jeksuite-recent.png' }); await p.click('#homeTools .rt-btn'); await p.waitForTimeout(400); await p.screenshot({ path: shots + '/jeksuite-table.png' }); }
       ok('The file system: no page errors', !errs.length, errs.join(' | '));
       await p.close();

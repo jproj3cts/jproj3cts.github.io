@@ -28,7 +28,7 @@ function spage(meta, title, n) {
   stext(g, meta.name, FP_M, 74, { size: 10, ink: FP_SOFT });
   stext(g, meta.date, FP_W - FP_M, 56, { size: 8.5, ink: FP_SOFT, align: 'right' });
   g.strokeStyle = FP_INK; g.lineWidth = 0.8; g.beginPath(); g.moveTo(FP_M, 84); g.lineTo(FP_W - FP_M, 84); g.stroke();
-  stext(g, 'Designed in JEKfilm (jeksys.net). Theoretical performance from the thin-film model and the indices listed.', FP_M, FP_H - 30, { size: 7, ink: FP_SOFT });
+  stext(g, 'Designed in the JEKray Coating designer (jeksys.net). Theoretical performance from the thin-film model and the indices listed.', FP_M, FP_H - 30, { size: 7, ink: FP_SOFT });
   stext(g, 'Page ' + n + ' of 2', FP_W - FP_M, FP_H - 30, { size: 7, ink: FP_SOFT, align: 'right' });
   return { g, y: 108 };
 }

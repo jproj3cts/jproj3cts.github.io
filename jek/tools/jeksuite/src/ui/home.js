@@ -414,7 +414,8 @@ export async function fillHome() {
   // (the benches as a table: its headings sort it, so the list of orders is for the cards)
   const tbl = homeView.rows && !['history', 'parts', 'links'].includes(P.view);
   const showWhere = !!(P.q || P.view === 'recent' || P.view === 'bin');
-  const sortSel = listing && !tbl ? h('select', { 'aria-label': 'Sort by', onchange: e => { homeView.sort = e.target.value; homeView.flip = false; keepView(); fillHome(); } },
+  // (the same tools in either view: the table's headings sort too, and the menu follows them)
+  const sortSel = listing ? h('select', { 'aria-label': 'Sort by', onchange: e => { homeView.sort = e.target.value; homeView.flip = false; keepView(); fillHome(); } },
     ...Object.entries(SORTS).filter(([v]) => v !== 'folder' || showWhere).map(([v, t]) => { const o = h('option', { value: v }, t); o.selected = homeView.sort === v; return o; })) : null;
   const newFolder = () => {
     if (box.querySelector('.rt-hnewfolder')) { box.querySelector('.rt-hnewfolder input').focus(); return; }

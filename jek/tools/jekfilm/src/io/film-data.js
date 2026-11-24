@@ -32,7 +32,7 @@ export function filmDataSet(f) {
       col('n', '', L.map(x => (x.metal ? metalNK(x.metal, s.design)[0] : x.n))), col('k', '', L.map(x => (x.metal ? metalNK(x.metal, s.design)[1] : 0))),
       col('thickness', 'nm', L.map(x => x.d)), col('QWOT', '', L.map(x => (x.metal ? NaN : x.d / qwot(x.n, s.design))))] },
   ];
-  return { meta: { title: f.name, tool: 'JEKfilm', version: FILM_VERSION, created: new Date().toISOString(), format: 'jekfilm', target: s.target, substrate: subLabelOf(f.spec.sub), substrate_n: s.ns, design_nm: s.design, band_nm: [s.lo, s.hi], angles_deg: [s.theta0, s.theta], polarisation: s.pol }, items };
+  return { meta: { title: f.name, tool: 'JEKray Coating designer', version: FILM_VERSION, created: new Date().toISOString(), format: 'jekfilm', target: s.target, substrate: subLabelOf(f.spec.sub), substrate_n: s.ns, design_nm: s.design, band_nm: [s.lo, s.hi], angles_deg: [s.theta0, s.theta], polarisation: s.pol }, items };
 }
 export async function filmExportData(fmt) {
   if (!accountGate('export data')) return false;

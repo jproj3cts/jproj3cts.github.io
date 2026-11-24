@@ -631,10 +631,10 @@ function dataCard(asm, P) {
       // the JEKfilm coatings kept in the bench's cloud folder (◆), as a face's Coating list on the bench offers them, and one from a file
       const folder = hooks.filmFolder ? hooks.filmFolder() : [];
       const opts = [['bare', 'Bare glass'], ['ar', 'AR coated'], ['mirror:ideal', 'Mirror'], ['mirror:Al', 'Aluminium mirror'], ['mirror:Ag', 'Silver mirror'], ['mirror:Au', 'Gold mirror'], ['hr', 'Dielectric HR'],
-        ...folder.map(f => ['film:' + f.id, '◆ ' + f.name + ' (JEKfilm)']), ...(film && !folder.some(f => 'film:' + f.id === film) ? [[film, '◆ ' + (c.label || 'JEKfilm coating') + ' (JEKfilm)']] : []),
+        ...folder.map(f => ['film:' + f.id, '◆ ' + f.name + ' (Coating designer)']), ...(film && !folder.some(f => 'film:' + f.id === film) ? [[film, '◆ ' + (c.label || 'Coating') + ' (Coating designer)']] : []),
         ...(cur === 'other' ? [['other', c.mode === 'stack' ? (c.label ? '◆ ' + c.label : 'Thin-film stack') : c.mode === 'band' ? 'Coated ' + c.lo + '\u2013' + c.hi + ' nm' : 'Reflects ' + (c.R || 0) + '%']] : []),
-        ...(hooks.filmFileOn ? [['filmfile', 'A JEKfilm coating from a file…']] : [])];
-      const sel = h('select', { class: 'rt-lmir', 'aria-label': 'Coating of surface ' + (i + 1), title: 'The coating on this surface: a mirror coating reflects all it can and passes nothing; a JEKfilm coating (◆) is its designed stack, kept on the face with its specification' }, ...opts.map(([v, t]) => h('option', { value: v, selected: v === cur ? '' : null, disabled: v === 'other' && c.mode !== 'stack' ? '' : null }, t)));
+        ...(hooks.filmFileOn ? [['filmfile', 'A coating from a file (.coat)…']] : [])];
+      const sel = h('select', { class: 'rt-lmir', 'aria-label': 'Coating of surface ' + (i + 1), title: 'The coating on this surface: a mirror coating reflects all it can and passes nothing; a designed coating (◆, from the Coating designer) is its stack, kept on the face with its specification' }, ...opts.map(([v, t]) => h('option', { value: v, selected: v === cur ? '' : null, disabled: v === 'other' && c.mode !== 'stack' ? '' : null }, t)));
       sel.addEventListener('change', () => {
         const v = sel.value, el = getEl(s.from.id), holder = el && el.surfaces && el.surfaces[s.from.i];
         // a JEKfilm coating: put on the part's face itself (fetched, or read from the file), then the workspace drawn again

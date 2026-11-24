@@ -439,7 +439,7 @@ function thermView(body, A, asm, P, key, st, redraw) {
 /* ---------- Polarisation ---------- */
 const POL_CHOICES = [['none', 'Unpolarised'], ['x', 'x'], ['y', 'y'], ['d45', '45°'], ['rcp', 'Circular']];
 // the coatings that can be chosen here for a lens face; any other the face has is kept as it is
-const COAT_CHOICES = [['bare', 'Bare (Fresnel)'], ['ar', 'AR, 0.5%'], ['mgf2', 'MgF₂, λ/4'], ['vcoat', 'V-coat (MgF₂ on 1.70)'], ['design', 'Design a coating in JEKfilm…']];
+const COAT_CHOICES = [['bare', 'Bare (Fresnel)'], ['ar', 'AR, 0.5%'], ['mgf2', 'MgF₂, λ/4'], ['vcoat', 'V-coat (MgF₂ on 1.70)'], ['design', 'Design a coating…']];
 const coatChoice = c => {
   if (!c || c.mode === 'bare') return 'bare';
   if (c.mode === 'ar' && Math.abs((c.R || 0) - 0.5) < 1e-9) return 'ar';

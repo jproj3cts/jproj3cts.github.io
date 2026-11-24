@@ -405,7 +405,7 @@ describe('export', () => {
     expect(res.headers.get('Content-Disposition')).toMatch(/attachment; filename="jekray-export-\d{4}-\d\d-\d\d\.zip"/);
     const files = unzip(await res.arrayBuffer());
     expect(Object.keys(files).sort()).toEqual([
-      'My benches/BBAR.jekfilm', 'My benches/Lasers/In folder.jekray', 'My benches/Same (2).jekray', 'My benches/Same.jekray', 'My benches/Trap.jekion', 'account.json',
+      'My benches/BBAR.coat', 'My benches/Lasers/In folder.jekray', 'My benches/Same (2).jekray', 'My benches/Same.jekray', 'My benches/Trap.jekion', 'account.json',
     ]);
     expect(JSON.parse(files['account.json']).user.name).toBe('Exporter');
     expect(files['My benches/Same.jekray']).toBe(bench('Same'));
@@ -496,7 +496,7 @@ describe('the tools', () => {
     expect(films.map((b) => b.id)).toEqual([c.id]);
     const over = await json(await put(s, c.id, 1, bench('BBAR')));
     expect(over.status).toBe(400);
-    expect(over.body.error.message).toMatch(/JEKfilm coating/);
+    expect(over.body.error.message).toMatch(/This is a coating: a \.jekray cannot/);
     const back = await json(await put(s, r.id, 1, film('Optics')));
     expect(back.status).toBe(400);
     expect((await json(await put(s, c.id, 1, film('BBAR 2')))).status).toBe(200);

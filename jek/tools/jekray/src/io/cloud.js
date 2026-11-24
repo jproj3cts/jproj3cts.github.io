@@ -320,7 +320,7 @@ async function cloudOpen(id, version) {
   if (meta.tool === 'jekion') { openInJekion(meta, version); toast('“' + meta.name + '” is a JEKion bench: opened in JEKion'); return; }
   // a coating, by its mark or by its content (one saved by an API from before JEKfilm is marked JEKray's)
   const fmt = (() => { try { return JSON.parse(b.content).format; } catch (err) { return null; } })();
-  if (meta.tool === 'jekfilm' || fmt === 'jekfilm') { openInJekfilm(meta, version); toast('“' + meta.name + '” is a JEKfilm coating: opened in JEKfilm'); return; }
+  if (meta.tool === 'jekfilm' || fmt === 'jekfilm') { openInJekfilm(meta, version); toast('“' + meta.name + '” is a coating: opened in the Coating designer'); return; }
   // a part studio, by its mark or its content (one saved by an API from before JEKcad is marked JEKray's)
   if (meta.tool === 'jekcad' || fmt === 'jekcad') { openInJekcad(meta, version); toast('“' + meta.name + '” is a JEKcad part studio: opened in JEKcad'); return; }
   // a design opens in its designer, a JEKrf bench in JEKrf, a JEKray bench in JEKray: in that program's tab when it

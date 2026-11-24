@@ -557,15 +557,15 @@ export function coatingSelect(el, holder, label) {
 function coatingOptions(el, short, holder) {
   return [['bare', short ? 'Uncoated' : el.mmw ? 'Uncoated face (its own reflection)' : 'Uncoated (about 4% a face)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
     ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack'], ['mirror', 'Mirror coating'], ['hr', short ? 'Dielectric HR' : 'Dielectric HR (over a band)'], ...(el.mmw ? [['match', short ? 'Matching layer' : 'Matching layer (\u03bb/4 at the bench frequency)']] : []),
-    ['design', el.mmw ? 'Design a matching layer\u2026' : 'Design a coating in JEKfilm\u2026'], ...(hooks.keptCoatings ? hooks.keptCoatings().map(k => ['kept:' + k.id, '\u2605 ' + k.name]) : []),
+    ['design', el.mmw ? 'Design a matching layer\u2026' : 'Design a coating\u2026'], ...(hooks.keptCoatings ? hooks.keptCoatings().map(k => ['kept:' + k.id, '\u2605 ' + k.name]) : []),
     // JEKfilm's coatings: those in the bench's cloud folder, the one this face is linked to, and a .jekfilm file
-    ...filmOptions(holder), ...(hooks.filmFileOn ? [['filmfile', 'A JEKfilm coating from a file\u2026']] : [])];
+    ...filmOptions(holder), ...(hooks.filmFileOn ? [['filmfile', 'A coating from a file (.coat)\u2026']] : [])];
 }
 /* the ◆ entries: each JEKfilm coating in the cloud bench's folder, and the face's own linked one if it is elsewhere */
 function filmOptions(holder) {
   const list = hooks.filmFolder ? hooks.filmFolder() : [], src = holder && holder.coat && holder.coat.src;
-  const out = list.map(f => ['film:' + f.id, '\u25c6 ' + f.name + ' (JEKfilm)']);
-  if (src && !list.some(f => f.id === src.id)) out.push(['film:' + src.id, '\u25c6 ' + (holder.coat.label || 'JEKfilm coating') + ' (JEKfilm)']);
+  const out = list.map(f => ['film:' + f.id, '\u25c6 ' + f.name + ' (Coating designer)']);
+  if (src && !list.some(f => f.id === src.id)) out.push(['film:' + src.id, '\u25c6 ' + (holder.coat.label || 'Coating') + ' (Coating designer)']);
   return out;
 }
 const coatingValue = (el, holder) => (holder.coat.src ? 'film:' + holder.coat.src.id : holder.coat.label === 'Matching layer' && el.mmw ? 'match' : holder.coat.mode === 'band' && holder.coat.label === 'Dielectric HR' ? 'hr' : holder.coat.mode);
@@ -637,10 +637,10 @@ function filmNote(holder) {
   const c = holder.coat, f = (hooks.filmFolder ? hooks.filmFolder() : []).find(x => x.id === c.src.id);
   const newer = f && f.version > c.src.v;
   return h('div', { class: 'note rt-filmnote', style: 'margin-top:0.4rem' },
-    c.layers.length + (c.layers.length === 1 ? ' layer' : ' layers') + ' at ' + c.design + ' nm, from the JEKfilm coating “' + (c.label || 'coating') + '”, version ' + c.src.v + (newer ? ' (version ' + f.version + ' is saved)' : '') + '. ',
+    c.layers.length + (c.layers.length === 1 ? ' layer' : ' layers') + ' at ' + c.design + ' nm, from the coating “' + (c.label || 'coating') + '”, version ' + c.src.v + (newer ? ' (version ' + f.version + ' is saved)' : '') + '. ',
     newer ? h('button', { class: 'rt-link', type: 'button', onclick: () => { if (hooks.updateFilms) hooks.updateFilms([{ id: f.id, name: f.name, from: c.src.v, to: f.version, holders: [holder] }]); } }, 'Update this face') : null,
     newer ? ' ' : null,
-    h('button', { class: 'rt-link', type: 'button', onclick: () => { if (hooks.openFilm) hooks.openFilm(c.src.id); } }, 'Open in JEKfilm'));
+    h('button', { class: 'rt-link', type: 'button', onclick: () => { if (hooks.openFilm) hooks.openFilm(c.src.id); } }, 'Open in the Coating designer'));
 }
 function stackRows(el, holder) {
   const base = coatPath(el, holder);

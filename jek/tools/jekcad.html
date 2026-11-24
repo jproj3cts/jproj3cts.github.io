@@ -12652,7 +12652,7 @@ function wireCadAccount() {
    in this browser's autosave and goes up when the connection returns: the link is kept with the autosave.
    ========================================================================== */
 const CLOUD_KEY = 'jek-cad-cloud-link', CLOUD_EVERY = 30000, CLOUD_RETRY = 60000, LEASE_EVERY = 60000;
-const OTHER_APPS = { jekray: ['/jek/tools/jekray.html', 'JEKray'], jekion: ['/jek/tools/jekion.html', 'JEKion'], jekfilm: ['/jek/tools/jekfilm.html', 'JEKfilm'] };
+const OTHER_APPS = { jekray: ['/jek/tools/jekray.html', 'JEKray'], jekion: ['/jek/tools/jekion.html', 'JEKion'], jekfilm: ['/jek/tools/jekfilm.html', 'the Coating designer'] };
 let cloudTimer = null, cloudBusy = false, cloudAgain = false;
 const lease = { held: false, editing: null, timer: null };
 const jsonBody = body => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

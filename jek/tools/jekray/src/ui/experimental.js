@@ -1,13 +1,10 @@
 import { TEST_MODE } from '../core/constants.js';
-import { RF } from '../parts/rf.js';
-import { FREE_GROUPS, FREE_PARTS, pickerRows } from '../parts/registry.js';
+import { PALETTE_GROUPS, PALETTE_PARTS, pickerRows } from '../parts/registry.js';
 import { V, project, selectOne } from '../state/project.js';
 import { makeElement, normElement, selected } from '../state/elements.js';
 import { STL_UNITS, meshCache, meshEncode, meshHullCache, parseSTL } from '../core/stl.js';
 import { DPR, H, W, asOnBench, benchBg, canvas, ctx, draw, halfSize, requestRender, setCtx, setDPR, setH, setW, wx, wy } from './render.js';
 import { snapVal } from './pointer.js';
-import { PIC } from '../engines/pic.js';
-import { ELEC } from '../engines/elec.js';
 import { V3D } from './view3d.js';
 import { renderPanel } from './panel.js';
 import { h } from './dom.js';
@@ -26,7 +23,7 @@ import { track } from '../io/usage.js';
    New features start here, off until someone switches them on, then move to beta (a Beta
    badge on their examples), then into the tool proper. The switch is kept in this browser.
    To add one: list it in EXPERIMENTAL, and have its code ask exp('its key'): a part for the
-   Add row takes the key as a fourth entry in PALETTES, an example as a fourth entry in its
+   Add row takes the key as exp on its picker entry (parts/<type>.js), an example as a fourth entry in its
    EXAMPLES line, and anything else (a panel section, a readout, a model) tests exp() where it
    would appear. A bench that uses one still opens and traces with the switch off: only what
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
@@ -63,18 +60,14 @@ export function setExperimental(on, picks) {
 }
 /* The Add row: a palette of free-space optics or of fibre components, as buttons, as many
    as fit on the row; the rest in More. The palette switch is the button before them: orange for free space, red for fibre. */
+/* (each palette's rows are its parts' own picker entries, parts/registry.js PALETTE_PARTS; read when asked: the registry
+   loads after this on the dev page) */
 export const PALETTES = {
-  get free() { return pickerRows(FREE_PARTS); },                                           // from the parts (read when asked: the registry loads after this on the dev page)
-  fibre: [['laser', 'Laser', 'Fibre laser'], ['led', 'LED', 'Fibre-coupled LED'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['splitter', 'Splitter', 'Splitter (1\u00d7N)'], ['combiner', 'Combiner', 'Combiner (N\u00d71)'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['collimator', 'Collimator', 'Fibre collimator (to free space)'], ['pd', 'Photodetector', 'Fibre photodetector'], ['bpd', 'Balanced detector', 'Balanced photodetector'],
-    ['pbs', 'PBS', 'Polarisation beam splitter / combiner'], ['fmir', 'Mirror', 'Fibre mirror (partial reflector)'], ['osa', 'OSA', 'Optical spectrum analyser'],
-    ['circ', 'Circulator'], ['iso', 'Isolator'], ['wdm', 'WDM'], ['voa', 'Attenuator'], ['pc', 'Pol. controller', 'Polarisation controller'],
-    ['pol', 'Polariser', 'In-line polariser'], ['amp', 'Amplifier', 'Fibre amplifier (EDFA)'], ['fm', 'Faraday mirror'], ['fbg', 'Bragg grating', 'Fibre Bragg grating'], ['tbf', 'Tunable filter', 'Tunable band-pass filter'], ['switch', 'Switch', 'Optical switch (2\u00d72)'],
-    ['delay', 'Delay line', 'Variable delay line'], ['stretch', 'Stretcher', 'Fibre stretcher (piezo phase)'], ['star', 'Star coupler', 'Star coupler (M\u00d7N)'],
-    ['depol', 'Depolariser', 'Depolariser (Lyot)'], ['soa', 'SOA', 'Semiconductor optical amplifier'], ['term', 'Terminator'],
-    ['faom', 'AOM', 'Fibre AOM'], ['feom', 'EOM', 'Fibre EOM'], ['thru', 'Feedthrough', 'Feedthrough (to another tab)']],
-  get elec() { return ELEC.PALETTE; },                                                       // ELEC hook (read when asked: ELEC is made after this table)
-  get rf() { return pickerRows([RF]); },
-  get pic() { return PIC.PALETTE; },                                                         // PIC hook (likewise)
+  get free() { return pickerRows(PALETTE_PARTS.free); },
+  get fibre() { return pickerRows(PALETTE_PARTS.fibre); },
+  get elec() { return pickerRows(PALETTE_PARTS.elec); },
+  get rf() { return pickerRows(PALETTE_PARTS.rf); },
+  get pic() { return pickerRows(PALETTE_PARTS.pic); },
 };
 export let palette = (() => { try { const pv = localStorage.getItem('jek-raytracer-palette'); return pv === 'fibre' || pv === 'pic' || pv === 'elec' || pv === 'rf' || pv === 'draw' ? pv : 'free'; } catch (err) { return 'free'; } })();   // (a private window: free space)
 export function assignPalette(v) { return (palette = v); }
@@ -83,16 +76,13 @@ export function assignPalette(v) { return (palette = v); }
    edge, a button for each group, its parts in a flyout. Either way a part is clicked to add it at
    the middle of the view, or dragged onto the bench to put it there. */
 export const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', elec: 'Circuits', rf: 'RF', pic: 'Photonic', draw: 'Draw' };
+/* (and its groups the parts' own, PALETTE_GROUPS) */
 export const PART_GROUPS = {
-  get free() { return FREE_GROUPS; },
-  fibre: [['Sources', ['laser', 'led']], ['Splitting and routing', ['coupler', 'splitter', 'combiner', 'star', 'switch', 'circ', 'iso']],
-    ['Polarisation', ['pc', 'pol', 'pbs', 'depol']], ['Filters and spectra', ['wdm', 'fbg', 'tbf', 'voa', 'delay']],
-    ['Amplifiers and modulators', ['amp', 'soa', 'faom', 'feom', 'stretch']], ['Detection', ['pd', 'bpd', 'osa']],
-    ['Ends and links', ['fibre', 'collimator', 'fmir', 'fm', 'term', 'thru']]],
-  get rf() { return RF.groups; },
-  pic: [['Couplers', ['pic:gc', 'pic:dc', 'pic:mmi12', 'pic:mmi22']], ['Rings', ['pic:ring', 'pic:ringad']], ['Control and detection', ['pic:ps', 'pic:pd']]],
-  elec: [['Sources', ['elec:dc', 'elec:sig', 'elec:noise']], ['Amplifiers', ['elec:amp', 'elec:tia', 'elec:att']], ['Filters', ['elec:lpf', 'elec:hpf', 'elec:bpf']],
-    ['Signal handling', ['elec:mixer', 'elec:sum', 'elec:biastee', 'elec:comp', 'elec:node']], ['Instruments', ['elec:scope', 'elec:spec', 'elec:lockin', 'elec:daq']]],
+  get free() { return PALETTE_GROUPS.free; },
+  get fibre() { return PALETTE_GROUPS.fibre; },
+  get rf() { return PALETTE_GROUPS.rf; },
+  get pic() { return PALETTE_GROUPS.pic; },
+  get elec() { return PALETTE_GROUPS.elec; },
 };
 export const palettesOn = () => Object.keys(PALETTES).filter(p => (p !== 'pic' || exp('pic')) );
 export const partsOf = pal => PALETTES[pal].filter(it => !it[3] || exp(it[3])).map(([key, short, long]) => ({ key, short, long: long || short, pal }));

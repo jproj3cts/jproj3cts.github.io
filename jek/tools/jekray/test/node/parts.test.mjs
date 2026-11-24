@@ -8,7 +8,7 @@ import { workerShim } from '../../src/worker/shim.js';
 globalThis.self = globalThis;
 globalThis.location = { hostname: '', hash: '', search: '', href: '' };
 workerShim();
-const { PARTS, PART_ORDER, TYPE_LABEL, FREE_PARTS, FREE_GROUPS, PART_BY_KEY, pickerRows } = await import('../../src/parts/registry.js');
+const { PARTS, PART_ORDER, TYPE_LABEL, FREE_PARTS, FREE_GROUPS, PART_BY_KEY, PALETTE_PARTS, PALETTE_GROUPS, pickerRows } = await import('../../src/parts/registry.js');
 const { RF } = await import('../../src/parts/rf.js');
 const { PART_UI } = await import('../../src/ui/parts/registry.js');
 const { makeElement, normElement, loadProject, demoProject } = await import('../../src/state/elements.js');
@@ -33,10 +33,11 @@ test('every picker key makes an element, and making then normalising again chang
   }
   assert.equal(makeElement('no-such-part', 0, 0), undefined);
 });
-test('the keys map: lens presets are lenses, the fibre palette is fibre components, the chopper is electronics', () => {
+test('the keys map: lens presets are lenses, the fibre palette is fibre components, the chopper is a part of its own', () => {
   for (const k of ['lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon']) assert.equal(PART_BY_KEY[k], PARTS.lens);
   for (const k of ['laser', 'coupler', 'splitter', 'combiner', 'led', 'bpd', 'soa', 'pd', 'thru']) assert.equal(PART_BY_KEY[k], PARTS.fcomp);
-  assert.equal(makeElement('elec:chopper', 0, 0).type, 'chopper');
+  assert.equal(makeElement('chopper', 0, 0).type, 'chopper'); assert.equal(PART_BY_KEY.chopper, PARTS.chopper);
+  assert.equal(makeElement('elec:chopper', 0, 0).type, 'chopper');          // (the key it had: still made, for a Recent list kept from before)
   assert.equal(makeElement('splitter', 0, 0).kind, 'split'); assert.equal(makeElement('combiner', 0, 0).combine, true);
   assert.equal(makeElement('rf:horn', 0, 0).type, 'source'); assert.ok(makeElement('rf:horn', 0, 0).mmw);
 });
@@ -45,7 +46,22 @@ test('the palette and rail tables come from the parts and cover each other', () 
   assert.deepEqual([...picked].sort(), [...grouped].sort());
   assert.deepEqual(PART_GROUPS.free, FREE_GROUPS);
   assert.deepEqual(PALETTES.rf.map(r => r[0]).sort(), RF.groups.flatMap(([, ks]) => ks).sort());
-  for (const k of picked) assert.ok(k === 'elec:chopper' || PART_BY_KEY[k], k + ' has a part');
+  for (const k of picked) assert.ok(PART_BY_KEY[k], k + ' has a part');
+});
+test('every palette is built the same way: its rows the parts’ own picker entries, each row in one of its groups, each group’s keys rows', () => {
+  for (const pal of Object.keys(PALETTE_PARTS)) {
+    const rows = PALETTES[pal], keys = rows.map(r => r[0]), grouped = PALETTE_GROUPS[pal].flatMap(([, ks]) => ks);
+    assert.ok(rows.length > 0, pal + ' has parts');
+    assert.deepEqual(rows, pickerRows(PALETTE_PARTS[pal]), pal + ': the parts’ entries');
+    assert.deepEqual(PART_GROUPS[pal], PALETTE_GROUPS[pal]);
+    assert.equal(new Set(keys).size, keys.length, pal + ': no key twice');
+    assert.deepEqual([...keys].sort(), [...grouped].sort(), pal + ': every part in a group (none left to Other), every grouped key a part');
+    for (const k of keys) assert.ok(makeElement(k, 0, 0), pal + ' ' + k + ' makes a part');
+  }
+  // the counts as they stand, and the photonic parts an experimental feature
+  assert.deepEqual(Object.fromEntries(Object.keys(PALETTE_PARTS).map(p => [p, PALETTES[p].length])), { free: 35, fibre: 32, elec: 19, rf: 12, pic: 8 });
+  assert.ok(PALETTES.pic.every(r => r[3] === 'pic') && PALETTES.elec.every(r => !r[3]));
+  assert.ok(PALETTE_GROUPS.elec.some(([, ks]) => ks.includes('elec:thru')), 'the electrical feedthrough is in a group');
 });
 test('an unknown type normalises to nothing, a known one to its defaults', () => {
   assert.equal(normElement({ type: 'no-such-type' }), null);

@@ -11101,6 +11101,43 @@ const EOM = {
 /* Fibre components (engines/fibre.js has each kind, FC) */
 const FCOMP = {
   type: 'fcomp',
+  // the Fibre palette: its rows in the Add row's order (the fibre tip and collimator are parts/fibre.js's, listed here too), and its groups
+  picker: [{ key: 'laser', short: 'Laser', long: 'Fibre laser' },
+    { key: 'led', short: 'LED', long: 'Fibre-coupled LED' },
+    { key: 'coupler', short: 'Coupler', long: '2×2 coupler' },
+    { key: 'splitter', short: 'Splitter', long: 'Splitter (1×N)' },
+    { key: 'combiner', short: 'Combiner', long: 'Combiner (N×1)' },
+    { key: 'fibre', short: 'Fibre tip', long: 'Fibre tip (to free space)' },
+    { key: 'collimator', short: 'Collimator', long: 'Fibre collimator (to free space)' },
+    { key: 'pd', short: 'Photodetector', long: 'Fibre photodetector' },
+    { key: 'bpd', short: 'Balanced detector', long: 'Balanced photodetector' },
+    { key: 'pbs', short: 'PBS', long: 'Polarisation beam splitter / combiner' },
+    { key: 'fmir', short: 'Mirror', long: 'Fibre mirror (partial reflector)' },
+    { key: 'osa', short: 'OSA', long: 'Optical spectrum analyser' },
+    { key: 'circ', short: 'Circulator' },
+    { key: 'iso', short: 'Isolator' },
+    { key: 'wdm', short: 'WDM' },
+    { key: 'voa', short: 'Attenuator' },
+    { key: 'pc', short: 'Pol. controller', long: 'Polarisation controller' },
+    { key: 'pol', short: 'Polariser', long: 'In-line polariser' },
+    { key: 'amp', short: 'Amplifier', long: 'Fibre amplifier (EDFA)' },
+    { key: 'fm', short: 'Faraday mirror' },
+    { key: 'fbg', short: 'Bragg grating', long: 'Fibre Bragg grating' },
+    { key: 'tbf', short: 'Tunable filter', long: 'Tunable band-pass filter' },
+    { key: 'switch', short: 'Switch', long: 'Optical switch (2×2)' },
+    { key: 'delay', short: 'Delay line', long: 'Variable delay line' },
+    { key: 'stretch', short: 'Stretcher', long: 'Fibre stretcher (piezo phase)' },
+    { key: 'star', short: 'Star coupler', long: 'Star coupler (M×N)' },
+    { key: 'depol', short: 'Depolariser', long: 'Depolariser (Lyot)' },
+    { key: 'soa', short: 'SOA', long: 'Semiconductor optical amplifier' },
+    { key: 'term', short: 'Terminator' },
+    { key: 'faom', short: 'AOM', long: 'Fibre AOM' },
+    { key: 'feom', short: 'EOM', long: 'Fibre EOM' },
+    { key: 'thru', short: 'Feedthrough', long: 'Feedthrough (to another tab)' }],
+  groups: [['Sources', ['laser', 'led']], ['Splitting and routing', ['coupler', 'splitter', 'combiner', 'star', 'switch', 'circ', 'iso']],
+    ['Polarisation', ['pc', 'pol', 'pbs', 'depol']], ['Filters and spectra', ['wdm', 'fbg', 'tbf', 'voa', 'delay']],
+    ['Amplifiers and modulators', ['amp', 'soa', 'faom', 'feom', 'stretch']], ['Detection', ['pd', 'bpd', 'osa']],
+    ['Ends and links', ['fibre', 'collimator', 'fmir', 'fm', 'term', 'thru']]],
   keys: ['splitter', 'combiner', 'led', 'bpd', 'soa', 'pbs', 'fmir', 'switch', 'delay', 'stretch', 'tbf', 'osa', 'depol', 'star', 'fcomp', 'laser', 'coupler', 'wdm', 'circ', 'iso', 'voa', 'pc', 'pol', 'fm', 'fbg', 'term', 'pd', 'thru', 'amp', 'faom', 'feom'],
   make(x, y, kind) {
     switch (kind) {
@@ -11178,6 +11215,16 @@ const DRAW = {
 /* Photonic circuits (PIC, engines/pic.js, has the parts) */
 const PIC_PART = {
   type: 'pic',
+  // the Photonic palette (an experimental feature: exp), its rows and its groups
+  picker: [{ key: 'pic:gc', short: 'Grating coupler', exp: 'pic' },
+    { key: 'pic:dc', short: 'Directional coupler', exp: 'pic' },
+    { key: 'pic:mmi12', short: 'MMI 1×2', exp: 'pic' },
+    { key: 'pic:mmi22', short: 'MMI 2×2', exp: 'pic' },
+    { key: 'pic:ring', short: 'Ring', long: 'Ring resonator, all-pass', exp: 'pic' },
+    { key: 'pic:ringad', short: 'Add-drop ring', long: 'Ring resonator, add-drop', exp: 'pic' },
+    { key: 'pic:ps', short: 'Phase shifter', exp: 'pic' },
+    { key: 'pic:pd', short: 'Photodiode', long: 'On-chip photodiode', exp: 'pic' }],
+  groups: [['Couplers', ['pic:gc', 'pic:dc', 'pic:mmi12', 'pic:mmi22']], ['Rings', ['pic:ring', 'pic:ringad']], ['Control and detection', ['pic:ps', 'pic:pd']]],
   norm(e, base) {
     return PIC.norm(e, base);
   },
@@ -11185,6 +11232,28 @@ const PIC_PART = {
 /* Electronics (ELEC, engines/elec.js, has the parts) */
 const ELEC_PART = {
   type: 'elec',
+  // the Circuits palette: its rows and its groups
+  picker: [{ key: 'elec:node', short: 'Node', long: 'Node: a wire junction, to route and fan out wires' },
+    { key: 'elec:dc', short: 'DC source' },
+    { key: 'elec:sig', short: 'Signal generator' },
+    { key: 'elec:noise', short: 'Noise source' },
+    { key: 'elec:amp', short: 'Amplifier' },
+    { key: 'elec:tia', short: 'TIA', long: 'Transimpedance amplifier' },
+    { key: 'elec:lpf', short: 'Low-pass', long: 'Low-pass filter' },
+    { key: 'elec:hpf', short: 'High-pass', long: 'High-pass filter' },
+    { key: 'elec:bpf', short: 'Band-pass', long: 'Band-pass filter' },
+    { key: 'elec:att', short: 'Attenuator' },
+    { key: 'elec:mixer', short: 'Mixer' },
+    { key: 'elec:sum', short: 'Summing junction' },
+    { key: 'elec:biastee', short: 'Bias tee' },
+    { key: 'elec:comp', short: 'Comparator' },
+    { key: 'elec:scope', short: 'Oscilloscope' },
+    { key: 'elec:spec', short: 'Spectrum analyser' },
+    { key: 'elec:lockin', short: 'Lock-in', long: 'Lock-in amplifier' },
+    { key: 'elec:daq', short: 'DAQ', long: 'DAQ (analogue-to-digital converter)' },
+    { key: 'elec:thru', short: 'Feedthrough', long: 'Electrical feedthrough (to another tab)' }],
+  groups: [['Sources', ['elec:dc', 'elec:sig', 'elec:noise']], ['Amplifiers', ['elec:amp', 'elec:tia', 'elec:att']], ['Filters', ['elec:lpf', 'elec:hpf', 'elec:bpf']],
+    ['Signal handling', ['elec:mixer', 'elec:sum', 'elec:biastee', 'elec:comp', 'elec:node', 'elec:thru']], ['Instruments', ['elec:scope', 'elec:spec', 'elec:lockin', 'elec:daq']]],
   norm(e, base) {
     return ELEC.norm(e, base);
   },
@@ -11192,7 +11261,9 @@ const ELEC_PART = {
 /* Optical chopper: An optical chopper: a slotted wheel across the beam, open for the first part of each cycle; photodetectors behind it see the chopped light (the bench draws it open). */
 const CHOPPER = {
   type: 'chopper', label: 'Optical chopper',
-  picker: [{ key: 'elec:chopper', short: 'Chopper', long: 'Optical chopper' }],
+  picker: [{ key: 'chopper', short: 'Chopper', long: 'Optical chopper' }],
+  keys: ['chopper'],
+  make: (x, y) => ELEC.make('chopper', x, y),
   norm(e, base) {
     return ELEC.normChopper(e, base);
   },
@@ -11398,10 +11469,14 @@ const FREE_GROUPS = [['Sources and detectors', ['source', 'lamp', 'lamp2d', 'det
   ['Lenses', ['lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon']],
   ['Splitting and polarisation', ['cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator']],
   ['Shaping and filtering', ['stop', 'mask', 'filter', 'grating', 'prism']],
-  ['Active and atomic', ['gain', 'cell', 'nlc', 'particle', 'aom', 'eom', 'elec:chopper']],
+  ['Active and atomic', ['gain', 'cell', 'nlc', 'particle', 'aom', 'eom', 'chopper']],
   ['Tabs', ['link']]];
-/* the picker's rows, [key, short, long?], from the parts' entries */
-const pickerRows = parts => parts.flatMap(p => (p.picker || []).map(it => it.long ? [it.key, it.short, it.long] : [it.key, it.short]));
+/* Every palette the same way: its parts (each with its picker entries) and its groups, the parts' own. The free-space
+   one is many parts, the others one each (the fibre components, the circuit blocks, the RF family, the photonic parts). */
+const PALETTE_PARTS = { free: FREE_PARTS, fibre: [FCOMP], elec: [ELEC_PART], rf: [RF], pic: [PIC_PART] };
+const PALETTE_GROUPS = { free: FREE_GROUPS, fibre: FCOMP.groups, elec: ELEC_PART.groups, rf: RF.groups, pic: PIC_PART.groups };
+/* the picker's rows, [key, short, long?, experimental feature?], from the parts' entries */
+const pickerRows = parts => parts.flatMap(p => (p.picker || []).map(it => it.exp ? [it.key, it.short, it.long || it.short, it.exp] : it.long ? [it.key, it.short, it.long] : [it.key, it.short]));
 /* a picker key (lens, asphere, splitter, ...) to the part that makes it */
 const PART_BY_KEY = Object.fromEntries(Object.values(PARTS).flatMap(p => (p.keys || []).map(k => [k, p])));
 /* ==========================================================================
@@ -23374,15 +23449,11 @@ function ringLine(el) {
 /* samples across a span fine enough for the narrowest ring on the chip: four to a line width */
 const samplesFor = (c, span) => clamp(Math.ceil(span / (Math.min(...c.els.filter(e => e.kind === 'ring' || e.kind === 'ringad').map(e => ringLine(e).fw), Infinity) / 4)), 1201, 20001) | 1;
 /* the Add row's parts, each under the experimental key */
-const PIC_PALETTE = [['pic:gc', 'Grating coupler'], ['pic:dc', 'Directional coupler'], ['pic:mmi12', 'MMI 1×2'], ['pic:mmi22', 'MMI 2×2'],
-  ['pic:ring', 'Ring', 'Ring resonator, all-pass'], ['pic:ringad', 'Add-drop ring', 'Ring resonator, add-drop'], ['pic:ps', 'Phase shifter'], ['pic:pd', 'Photodiode', 'On-chip photodiode']]
-  .map(([k, l, t]) => [k, l, t || l, 'pic']);
 
 const PIC = {
   KINDS: PIC_KINDS,
   WG: PIC_WG,
   GREEN: PIC_GREEN,
-  PALETTE: PIC_PALETTE,
   norm: picNorm,
   normWg: picNormWg,
   make: picMake,
@@ -23457,11 +23528,6 @@ const ELEC_KINDS = {
   daq: { label: 'DAQ (ADC)', tag: 'DAQ', ins: ['in'], outs: ['out'],
     params: [['rate', 'Sample rate (S/s)', 1e4], ['bits', 'Bits', 16], ['range', 'Range, ± (V)', 10]] },
 };
-const ELEC_PALETTE = [['elec:node', 'Node', 'Node: a wire junction, to route and fan out wires'], ['elec:dc', 'DC source'], ['elec:sig', 'Signal generator'], ['elec:noise', 'Noise source'], ['elec:amp', 'Amplifier'], ['elec:tia', 'TIA', 'Transimpedance amplifier'],
-  ['elec:lpf', 'Low-pass', 'Low-pass filter'], ['elec:hpf', 'High-pass', 'High-pass filter'], ['elec:bpf', 'Band-pass', 'Band-pass filter'], ['elec:att', 'Attenuator'], ['elec:mixer', 'Mixer'],
-  ['elec:sum', 'Summing junction'], ['elec:biastee', 'Bias tee'], ['elec:comp', 'Comparator'], ['elec:scope', 'Oscilloscope'], ['elec:spec', 'Spectrum analyser'], ['elec:lockin', 'Lock-in', 'Lock-in amplifier'],
-  ['elec:daq', 'DAQ', 'DAQ (analogue-to-digital converter)'], ['elec:thru', 'Feedthrough', 'Electrical feedthrough (to another tab)']]
-  .map(([k, l, t]) => [k, l, t || l]);
 /* ---------- a part's box and ports ----------
    Inputs down the left, outputs down the right, at a fixed pitch; the box as tall as the
    side with more of them. Ports carry elec: 'in' or 'out'. */
@@ -24301,7 +24367,6 @@ function elecReadout(el) {
 const ELEC = {
   KINDS: ELEC_KINDS,
   YELLOW: ELEC_YELLOW,
-  PALETTE: ELEC_PALETTE,
   norm: elecNorm,
   make: elecMake,
   hit: elecHit,
@@ -58473,7 +58538,7 @@ const PART_USES = {
   collimator: 'fibre fiber collimate launch couple out to free space connect',
   detector: USE_DETECT,
   spectrometer: 'spectrum measure wavelength colour spectral analyse analyze',
-  'elec:chopper': 'chop modulate on off pulse lock in reference wheel',
+  chopper: 'chop modulate on off pulse lock in reference wheel',
   aom: 'modulate shift frequency deflect switch acousto optic diffract pulse',
   eom: 'modulate phase sidebands electro optic pockels pdh',
   link: USE_LINK + ' plane',
@@ -58561,7 +58626,7 @@ const partWords = (p, palName) => (p.short + ' ' + p.long + ' ' + (palName || ''
    New features start here, off until someone switches them on, then move to beta (a Beta
    badge on their examples), then into the tool proper. The switch is kept in this browser.
    To add one: list it in EXPERIMENTAL, and have its code ask exp('its key'): a part for the
-   Add row takes the key as a fourth entry in PALETTES, an example as a fourth entry in its
+   Add row takes the key as exp on its picker entry (parts/<type>.js), an example as a fourth entry in its
    EXAMPLES line, and anything else (a panel section, a readout, a model) tests exp() where it
    would appear. A bench that uses one still opens and traces with the switch off: only what
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
@@ -58598,18 +58663,14 @@ function setExperimental(on, picks) {
 }
 /* The Add row: a palette of free-space optics or of fibre components, as buttons, as many
    as fit on the row; the rest in More. The palette switch is the button before them: orange for free space, red for fibre. */
+/* (each palette's rows are its parts' own picker entries, parts/registry.js PALETTE_PARTS; read when asked: the registry
+   loads after this on the dev page) */
 const PALETTES = {
-  get free() { return pickerRows(FREE_PARTS); },                                           // from the parts (read when asked: the registry loads after this on the dev page)
-  fibre: [['laser', 'Laser', 'Fibre laser'], ['led', 'LED', 'Fibre-coupled LED'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['splitter', 'Splitter', 'Splitter (1\u00d7N)'], ['combiner', 'Combiner', 'Combiner (N\u00d71)'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['collimator', 'Collimator', 'Fibre collimator (to free space)'], ['pd', 'Photodetector', 'Fibre photodetector'], ['bpd', 'Balanced detector', 'Balanced photodetector'],
-    ['pbs', 'PBS', 'Polarisation beam splitter / combiner'], ['fmir', 'Mirror', 'Fibre mirror (partial reflector)'], ['osa', 'OSA', 'Optical spectrum analyser'],
-    ['circ', 'Circulator'], ['iso', 'Isolator'], ['wdm', 'WDM'], ['voa', 'Attenuator'], ['pc', 'Pol. controller', 'Polarisation controller'],
-    ['pol', 'Polariser', 'In-line polariser'], ['amp', 'Amplifier', 'Fibre amplifier (EDFA)'], ['fm', 'Faraday mirror'], ['fbg', 'Bragg grating', 'Fibre Bragg grating'], ['tbf', 'Tunable filter', 'Tunable band-pass filter'], ['switch', 'Switch', 'Optical switch (2\u00d72)'],
-    ['delay', 'Delay line', 'Variable delay line'], ['stretch', 'Stretcher', 'Fibre stretcher (piezo phase)'], ['star', 'Star coupler', 'Star coupler (M\u00d7N)'],
-    ['depol', 'Depolariser', 'Depolariser (Lyot)'], ['soa', 'SOA', 'Semiconductor optical amplifier'], ['term', 'Terminator'],
-    ['faom', 'AOM', 'Fibre AOM'], ['feom', 'EOM', 'Fibre EOM'], ['thru', 'Feedthrough', 'Feedthrough (to another tab)']],
-  get elec() { return ELEC.PALETTE; },                                                       // ELEC hook (read when asked: ELEC is made after this table)
-  get rf() { return pickerRows([RF]); },
-  get pic() { return PIC.PALETTE; },                                                         // PIC hook (likewise)
+  get free() { return pickerRows(PALETTE_PARTS.free); },
+  get fibre() { return pickerRows(PALETTE_PARTS.fibre); },
+  get elec() { return pickerRows(PALETTE_PARTS.elec); },
+  get rf() { return pickerRows(PALETTE_PARTS.rf); },
+  get pic() { return pickerRows(PALETTE_PARTS.pic); },
 };
 let palette = (() => { try { const pv = localStorage.getItem('jek-raytracer-palette'); return pv === 'fibre' || pv === 'pic' || pv === 'elec' || pv === 'rf' || pv === 'draw' ? pv : 'free'; } catch (err) { return 'free'; } })();   // (a private window: free space)
 function assignPalette(v) { return (palette = v); }
@@ -58618,16 +58679,13 @@ function assignPalette(v) { return (palette = v); }
    edge, a button for each group, its parts in a flyout. Either way a part is clicked to add it at
    the middle of the view, or dragged onto the bench to put it there. */
 const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', elec: 'Circuits', rf: 'RF', pic: 'Photonic', draw: 'Draw' };
+/* (and its groups the parts' own, PALETTE_GROUPS) */
 const PART_GROUPS = {
-  get free() { return FREE_GROUPS; },
-  fibre: [['Sources', ['laser', 'led']], ['Splitting and routing', ['coupler', 'splitter', 'combiner', 'star', 'switch', 'circ', 'iso']],
-    ['Polarisation', ['pc', 'pol', 'pbs', 'depol']], ['Filters and spectra', ['wdm', 'fbg', 'tbf', 'voa', 'delay']],
-    ['Amplifiers and modulators', ['amp', 'soa', 'faom', 'feom', 'stretch']], ['Detection', ['pd', 'bpd', 'osa']],
-    ['Ends and links', ['fibre', 'collimator', 'fmir', 'fm', 'term', 'thru']]],
-  get rf() { return RF.groups; },
-  pic: [['Couplers', ['pic:gc', 'pic:dc', 'pic:mmi12', 'pic:mmi22']], ['Rings', ['pic:ring', 'pic:ringad']], ['Control and detection', ['pic:ps', 'pic:pd']]],
-  elec: [['Sources', ['elec:dc', 'elec:sig', 'elec:noise']], ['Amplifiers', ['elec:amp', 'elec:tia', 'elec:att']], ['Filters', ['elec:lpf', 'elec:hpf', 'elec:bpf']],
-    ['Signal handling', ['elec:mixer', 'elec:sum', 'elec:biastee', 'elec:comp', 'elec:node']], ['Instruments', ['elec:scope', 'elec:spec', 'elec:lockin', 'elec:daq']]],
+  get free() { return PALETTE_GROUPS.free; },
+  get fibre() { return PALETTE_GROUPS.fibre; },
+  get rf() { return PALETTE_GROUPS.rf; },
+  get pic() { return PALETTE_GROUPS.pic; },
+  get elec() { return PALETTE_GROUPS.elec; },
 };
 const palettesOn = () => Object.keys(PALETTES).filter(p => (p !== 'pic' || exp('pic')) );
 const partsOf = pal => PALETTES[pal].filter(it => !it[3] || exp(it[3])).map(([key, short, long]) => ({ key, short, long: long || short, pal }));

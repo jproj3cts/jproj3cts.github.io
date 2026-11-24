@@ -65,7 +65,9 @@ The site should read as written by the people who build the things on it. Before
 Layers (lint-enforced): `core/ state/ parts/ engines/ worker/` never import `ui/ io/ page/`; engines reach the page only
 through `core/hooks.js`.
 - **Parts**: `parts/<type>.js` (fields: `norm` defaults/clamps, `guide` text, `make`, picker) + `ui/parts/<type>.js`
-  (`draw`, `hit`, `panel`). Registries: `parts/registry.js` (`FREE_GROUPS`, picker), `ui/parts/registry.js` (`PART_UI`).
+  (`draw`, `hit`, `panel`). Registries: `parts/registry.js` (`PARTS`; every palette's rows and groups are its parts' own
+  `picker` and `groups`, `PALETTE_PARTS` / `PALETTE_GROUPS`: free space many parts, fibre `fcomp`, circuits `elec`, RF `rf`,
+  photonic `pic`), `ui/parts/registry.js` (`PART_UI`).
 - **Physics**: ray/beam tracing `engines/trace.js` (by part type); diffracted field `field.js`, `field2d.js`,
   `diffraction.js`; cavities `cavity.js`; fibre networks `fibre.js`, `fibre-face.js` (the Bragg grating's coupled-mode model in `core/fbg.js`); electronics `elec.js`;
   photonic chips `pic.js`; RF `rf-design.js`, `rf-sweep.js`; lens design `lens-*.js`; one particle's scattering `scatter.js`

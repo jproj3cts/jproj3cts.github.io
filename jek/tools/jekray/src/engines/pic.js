@@ -491,15 +491,11 @@ export function ringLine(el) {
 /* samples across a span fine enough for the narrowest ring on the chip: four to a line width */
 export const samplesFor = (c, span) => clamp(Math.ceil(span / (Math.min(...c.els.filter(e => e.kind === 'ring' || e.kind === 'ringad').map(e => ringLine(e).fw), Infinity) / 4)), 1201, 20001) | 1;
 /* the Add row's parts, each under the experimental key */
-const PIC_PALETTE = [['pic:gc', 'Grating coupler'], ['pic:dc', 'Directional coupler'], ['pic:mmi12', 'MMI 1×2'], ['pic:mmi22', 'MMI 2×2'],
-  ['pic:ring', 'Ring', 'Ring resonator, all-pass'], ['pic:ringad', 'Add-drop ring', 'Ring resonator, add-drop'], ['pic:ps', 'Phase shifter'], ['pic:pd', 'Photodiode', 'On-chip photodiode']]
-  .map(([k, l, t]) => [k, l, t || l, 'pic']);
 
 export const PIC = {
   KINDS: PIC_KINDS,
   WG: PIC_WG,
   GREEN: PIC_GREEN,
-  PALETTE: PIC_PALETTE,
   norm: picNorm,
   normWg: picNormWg,
   make: picMake,

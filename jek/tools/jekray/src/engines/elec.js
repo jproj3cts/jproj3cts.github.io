@@ -60,11 +60,6 @@ export const ELEC_KINDS = {
   daq: { label: 'DAQ (ADC)', tag: 'DAQ', ins: ['in'], outs: ['out'],
     params: [['rate', 'Sample rate (S/s)', 1e4], ['bits', 'Bits', 16], ['range', 'Range, ± (V)', 10]] },
 };
-const ELEC_PALETTE = [['elec:node', 'Node', 'Node: a wire junction, to route and fan out wires'], ['elec:dc', 'DC source'], ['elec:sig', 'Signal generator'], ['elec:noise', 'Noise source'], ['elec:amp', 'Amplifier'], ['elec:tia', 'TIA', 'Transimpedance amplifier'],
-  ['elec:lpf', 'Low-pass', 'Low-pass filter'], ['elec:hpf', 'High-pass', 'High-pass filter'], ['elec:bpf', 'Band-pass', 'Band-pass filter'], ['elec:att', 'Attenuator'], ['elec:mixer', 'Mixer'],
-  ['elec:sum', 'Summing junction'], ['elec:biastee', 'Bias tee'], ['elec:comp', 'Comparator'], ['elec:scope', 'Oscilloscope'], ['elec:spec', 'Spectrum analyser'], ['elec:lockin', 'Lock-in', 'Lock-in amplifier'],
-  ['elec:daq', 'DAQ', 'DAQ (analogue-to-digital converter)'], ['elec:thru', 'Feedthrough', 'Electrical feedthrough (to another tab)']]
-  .map(([k, l, t]) => [k, l, t || l]);
 /* ---------- a part's box and ports ----------
    Inputs down the left, outputs down the right, at a fixed pitch; the box as tall as the
    side with more of them. Ports carry elec: 'in' or 'out'. */
@@ -904,7 +899,6 @@ function elecReadout(el) {
 export const ELEC = {
   KINDS: ELEC_KINDS,
   YELLOW: ELEC_YELLOW,
-  PALETTE: ELEC_PALETTE,
   norm: elecNorm,
   make: elecMake,
   hit: elecHit,

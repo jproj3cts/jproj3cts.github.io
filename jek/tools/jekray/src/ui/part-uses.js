@@ -41,7 +41,7 @@ export const PART_USES = {
   collimator: 'fibre fiber collimate launch couple out to free space connect',
   detector: USE_DETECT,
   spectrometer: 'spectrum measure wavelength colour spectral analyse analyze',
-  'elec:chopper': 'chop modulate on off pulse lock in reference wheel',
+  chopper: 'chop modulate on off pulse lock in reference wheel',
   aom: 'modulate shift frequency deflect switch acousto optic diffract pulse',
   eom: 'modulate phase sidebands electro optic pockels pdh',
   link: USE_LINK + ' plane',

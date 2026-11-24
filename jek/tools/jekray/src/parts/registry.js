@@ -1,3 +1,4 @@
+import { RF } from './rf.js';
 import { STL } from './stl.js';
 import { SOURCE } from './source.js';
 import { MIRROR } from './mirror.js';
@@ -51,9 +52,13 @@ export const FREE_GROUPS = [['Sources and detectors', ['source', 'lamp', 'lamp2d
   ['Lenses', ['lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon']],
   ['Splitting and polarisation', ['cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator']],
   ['Shaping and filtering', ['stop', 'mask', 'filter', 'grating', 'prism']],
-  ['Active and atomic', ['gain', 'cell', 'nlc', 'particle', 'aom', 'eom', 'elec:chopper']],
+  ['Active and atomic', ['gain', 'cell', 'nlc', 'particle', 'aom', 'eom', 'chopper']],
   ['Tabs', ['link']]];
-/* the picker's rows, [key, short, long?], from the parts' entries */
-export const pickerRows = parts => parts.flatMap(p => (p.picker || []).map(it => it.long ? [it.key, it.short, it.long] : [it.key, it.short]));
+/* Every palette the same way: its parts (each with its picker entries) and its groups, the parts' own. The free-space
+   one is many parts, the others one each (the fibre components, the circuit blocks, the RF family, the photonic parts). */
+export const PALETTE_PARTS = { free: FREE_PARTS, fibre: [FCOMP], elec: [ELEC_PART], rf: [RF], pic: [PIC_PART] };
+export const PALETTE_GROUPS = { free: FREE_GROUPS, fibre: FCOMP.groups, elec: ELEC_PART.groups, rf: RF.groups, pic: PIC_PART.groups };
+/* the picker's rows, [key, short, long?, experimental feature?], from the parts' entries */
+export const pickerRows = parts => parts.flatMap(p => (p.picker || []).map(it => it.exp ? [it.key, it.short, it.long || it.short, it.exp] : it.long ? [it.key, it.short, it.long] : [it.key, it.short]));
 /* a picker key (lens, asphere, splitter, ...) to the part that makes it */
 export const PART_BY_KEY = Object.fromEntries(Object.values(PARTS).flatMap(p => (p.keys || []).map(k => [k, p])));

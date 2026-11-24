@@ -3,8 +3,8 @@ import { hooks, installHooks } from '../../../jekray/src/core/hooks.js';
 import { needsShown } from '../../../jekray/src/ui/pro.js';
 import { usageDrawn, usageStart, wireUsage } from '../../../jekray/src/io/usage.js';
 import { accountLoaded } from '../../../jekray/src/io/account.js';
-import { AS, addInstance, addTab, checkClash, deleteTab, mateApply, mateEdit, mateOpen, matePick, poseInstance, renameTab, switchTab, triadPoints, wireAssembly } from './assembly.js';
-import { DR, addOverall, deleteDim, drwDxf, drwPdf, fitSheet, removeView, setDrwTool, wireDrawing } from './drawing.js';
+import { AS, addInstance, addSubAssembly, addTab, checkClash, deleteTab, mateApply, mateEdit, mateOpen, matePick, poseInstance, renameTab, switchTab, triadPoints, wireAssembly } from './assembly.js';
+import { DR, addOverall, addSheet, deleteDim, deleteSheet, drwDxf, drwPdf, editNote, fitSheet, removeView, setDrwTool, setSheet, setTol, wireDrawing } from './drawing.js';
 import { STD_PLANES, normDoc } from '../core/doc.js';
 import { app, cadIcons, cadTheme, changed, checkpoint, closeMenus, emit, fileText, on, redo, regenDone, regenNow, regenPending, setCadTheme, setFile, themeNow, toast, undo, wireMenus } from './app.js';
 import { V, cubePart, fit, flyStart, flyStop, flyTurn, turnStep, initView, pickAt, project, setMode, setSection, viewFrom, viewPng, wireCube, wireFly } from './view3d.js';
@@ -12,7 +12,7 @@ import { SK, addConstraint, cancelSketch, dimsShown, drawOverlay, finishSketch, 
 import { closeDialog, editFeature, fieldPick, okDialog, openFeature, showVariables, wireDialog } from './dialog.js';
 import { deleteFeature, deletePart, moveFeature, renderPanel, setRollback, toggleFeatureShown, wirePanel } from './panel.js';
 import { normalToSel, pickHere, selectPick, wirePointer } from './pointer.js';
-import { exportDxf, exportParts, exportPdf, importStep, newDocument, openDocData, openFile, restoreSaved, saveFile, wireFiles } from '../io/files.js';
+import { exportBom, exportDxf, exportParts, exportPdf, importStep, newDocument, openDocData, openFile, restoreSaved, saveFile, wireFiles } from '../io/files.js';
 import { wireCadAccount } from '../io/cad-account.js';
 import { cadOpenShare, cadOpenShort, cadReadShare, cadShare, cadShareHash, wireShare } from '../io/share.js';
 import { cloudPush, openCloudBench, openCloudList, wireCloud } from '../io/cloud.js';
@@ -127,7 +127,7 @@ window.JEKcad = {
   deleteFeature, moveFeature, setRollback, exportParts, importStep, saveFile, kernel: kernelAsk, cloudPush,
   pickAt, pickHere, overlayPick, selectPick, project, toScreen, fit, viewFrom, setMode, png: viewPng, sketchOn: () => !!app.sketch,
   share: cadShare, shareHash: cadShareHash, readShare: cadReadShare, openShare: cadOpenShare,
-  dr: DR, addOverall, deleteDim, drwPdf, drwDxf, fitSheet, removeView, setDrwTool, exportPdf, exportDxf,
-  as: AS, addTab, switchTab, renameTab, deleteTab, addInstance, poseInstance, mateOpen, matePick, mateApply, mateEdit, checkClash, triadPoints, keepCadPart, insertCadPart, cadMineContent,
+  dr: DR, addOverall, deleteDim, drwPdf, drwDxf, fitSheet, removeView, setDrwTool, exportPdf, exportDxf, addSheet, setSheet, deleteSheet, setTol, editNote, exportBom,
+  as: AS, addTab, switchTab, renameTab, deleteTab, addInstance, addSubAssembly, poseInstance, mateOpen, matePick, mateApply, mateEdit, checkClash, triadPoints, keepCadPart, insertCadPart, cadMineContent,
   flyStart, flyStop, flyTurn, cubePart, turnStep, deletePart, modelGeom, modelDimEdit, sketchRight, toggleFeatureShown, setDimsShown,
 };

@@ -35,6 +35,20 @@ The first part put in is fixed where its Part Studio has it. The others are set 
 
 A part in an assembly is the part in its Part Studio. Change the Part Studio and every assembly that uses the part shows the change.
 
+## Sub-assemblies
+
+An Assembly can go into another as one piece. In the Assembly, click **Insert**: the other Assemblies of the document are listed under Assemblies. Click one to put it in.
+
+A sub-assembly moves as one, by dragging, its handle or the numbers in the panel. Its parts stay where its own tab has them: change it there and every assembly it is in follows. A mate can join a face of any part inside it. The mate holds to that part, and follows it when it moves in the sub-assembly's own tab.
+
+An Assembly that holds another, at any depth, cannot go into it; Insert shows it greyed. Deleting an Assembly tab takes it out of every assembly it is in.
+
+## Bill of materials
+
+The panel lists the assembly's parts under **Bill of materials**: each part once, with how many there are, counted through the sub-assemblies, its material and its mass. The mass comes from the material set for the part in its Part Studio. **Export CSV** writes the list for a spreadsheet; it needs a free account, as every export does.
+
+A drawing of the assembly can show the list above its title block, with balloons on the parts (see Drawings).
+
 ## Parts from My parts
 
 A part made in another document can be kept in My parts and put in any assembly.
@@ -91,3 +105,4 @@ Select one or two parts, faces, edges or corners and the measure panel shows the
 - A corner gives a point with no direction of its own, so a mate to a corner lines the part up with the part's own Z.
 - There are no gear, rack or screw relations between mates, and no animation of a mate through its limits.
 - An exported STEP file holds the parts as separate solids in one file, not as a named assembly tree.
+- A sub-assembly moves as one: its own mates are not solved again inside the assembly it is in.

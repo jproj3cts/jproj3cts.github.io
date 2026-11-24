@@ -2,7 +2,8 @@ import { EMBED, TEST_MODE } from '../../../jekray/src/core/constants.js';
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { accountGate, keepHere } from '../../../jekray/src/ui/pro.js';
 import { drwDxf, drwPdf } from '../ui/drawing.js';
-import { asmItems } from '../ui/assembly.js';
+import { asmItems, bomOf } from '../ui/assembly.js';
+import { bomCsv } from '../core/drawing.js';
 import { editGate } from '../ui/app.js';
 import { track } from '../../../jekray/src/io/usage.js';
 import { CAD_FORMAT, CAD_STORE_KEY, appliedCount, newDoc, newFeature, partLook } from '../core/doc.js';
@@ -98,27 +99,38 @@ export async function exportParts(fmt, ids) {
     return true;
   } catch (err) { toast('Could not export: ' + err.message, true); return false; }
 }
-/* a drawing's sheet as a PDF (a free account's, as every export is) */
-export function exportPdf() {
+/* a drawing's sheets as a PDF, a page each (a free account's, as every export is) */
+export async function exportPdf() {
   if (!accountGate('export a PDF')) return false;
-  const out = drwPdf();
+  const out = await drwPdf();
   if (!out) { toast('Open a Drawing tab first: the + at the foot of the view adds one', true); return false; }
   downloadFile(safeName(out.name) + '.pdf', out.bytes, 'application/pdf');
   track('export', 'cad-pdf');
   toast('Exported ' + safeName(out.name) + '.pdf');
   return true;
 }
-/* a drawing's sheet as a DXF, for other CAD programs */
-export function exportDxf() {
+/* a drawing's sheets as a DXF, for other CAD programs (side by side) */
+export async function exportDxf() {
   if (!accountGate('export a DXF')) return false;
-  const out = drwDxf();
+  const out = await drwDxf();
   if (!out) { toast('Open a Drawing tab first: the + at the foot of the view adds one', true); return false; }
   downloadFile(safeName(out.name) + '.dxf', out.bytes, 'application/dxf');
   track('export', 'cad-dxf');
   toast('Exported ' + safeName(out.name) + '.dxf');
   return true;
 }
+/* an assembly's bill of materials as CSV, for a spreadsheet */
+export function exportBom() {
+  if (!accountGate('export a bill of materials')) return false;
+  const rows = app.asm ? bomOf(asmItems(null, true)) : null;
+  if (!rows || !rows.length) { toast('Open an Assembly with parts in it first', true); return false; }
+  downloadFile(safeName(app.asm.name) + ' BOM.csv', bomCsv(rows), 'text/csv');
+  track('export', 'cad-bom');
+  toast('Exported ' + safeName(app.asm.name) + ' BOM.csv');
+  return true;
+}
 export function wireFiles() {
+  hooks.cadExportBom = exportBom;
   hooks.cadExportPdf = exportPdf;
   hooks.cadExportDxf = exportDxf;
   hooks.cadSaveLater = scheduleSave;

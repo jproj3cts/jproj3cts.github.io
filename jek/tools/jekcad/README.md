@@ -85,6 +85,14 @@ page last regenerated as the one picks are about. Mates also take an offset and 
 nothing until it is passed, then holds the part at it), and connectors on edges and corners (`edgeConnector`,
 `vertexConnector`). The handle on a part is `triad` in `ui/assembly.js`, drawn on the overlay through `hooks.cadOverlay`.
 
+An instance is of a Part Studio's part (`studio`, `part`) or of another Assembly tab (`asm`): a sub-assembly, moved and
+mated as one. `asmLeaves` (core) gives every part an assembly shows through its sub-assemblies, by its path of
+instance ids (`outer/inner`), which is the id the view, picking, measuring, exports and drawings use; the instance at
+the top of the path is what moves (`topOf`, `selInst`). A connector on a part inside a sub-assembly is kept in the
+sub-assembly's frame with `leaf`, its path, and found again on that part (`connFrame`). `asmHolds` keeps an assembly
+out of one it holds; `normFile` takes such a loop out of a file. The bill of materials (`bomOf` in `ui/assembly.js`,
+`bomRows` and `bomCsv` in `core/drawing.js`) counts parts through the sub-assemblies by Part Studio and part.
+
 ## Drawings
 
 A Drawing is a third kind of tab (`normDrawing` in `core/drawing.js`): what it is of (a Part Studio, one of its
@@ -95,7 +103,20 @@ what a dimension holds to (`drawLocate`: a corner or a round edge by the kernel'
 (`dimGeom`), the whole sheet drawn through a pen (`drawSheet`), and the PDF written with no library (`pdfOfSheet`,
 Helvetica, lines as lines). `ui/drawing.js` draws the sheet on the overlay canvas (`hooks.cadSheet`), and has the
 dimension tool, dragging of views and dimensions, and the side panel. The PDF is an export behind `accountGate`
-(`exportPdf` in `io/files.js`). Docs `jek/docs/jekcad/drawings.md`; tests `test/node/drawing.test.mjs` and the browser suite.
+(`exportPdf` in `io/files.js`).
+
+A drawing has `sheets` (each its paper, scale, views, dimensions, `notes`, `balloons` and `bom`) and `at`, the one
+open. The open sheet's fields are read and written through the drawing itself (`sheetAccess`: accessors that are not
+kept, so a file holds only `sheets`), so the code that works on one sheet works on the drawing; `sheetOf(D, k)` is the
+drawing with another sheet open, for writing it. A dimension can carry `tol` (`sym`, `dev`, `lim`, `fit`) and text
+before and after it (`tolText`). The PDF has a page per sheet (`pdfOfSheets`), the DXF the sheets side by side
+(`dxfOfSheets`); `drwPages` in `ui/drawing.js` makes each sheet's views for them.
+
+The kernel's worker keeps a Part Studio that took more than 250 ms in IndexedDB (`jekcad-steps`, in
+`worker/main.js`): the last step's state from `snapshot()` (parts and tools as OpenCascade's BRep text with their faces'
+names; planes, sketches and threads as data) by its key, the hash of the variables and features up to it (`stepKeys`).
+Before a regeneration it reads back the furthest step it holds that the kernel does not (`restore`), and `regen` takes
+up from there. Only when the page's request says `keep` (`keepHere()` in `ui/pro.js`). Docs `jek/docs/jekcad/drawings.md`; tests `test/node/drawing.test.mjs` and the browser suite.
 
 Threads (`core/threads.js`: ISO metric sizes, tap drills, clearance holes) are cosmetic. A tapped Hole is drilled at the
 tap size and the kernel keeps a note of it (`S.threads`, by the hole's name and its radius, so patterns and mirrors of

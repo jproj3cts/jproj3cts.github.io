@@ -1075,6 +1075,88 @@ export async function check(pw, base, shots) {
       await q.close();
       ok('A mate is deleted from its row: chosen and Delete (Undo brings it back), its right-click menu, or Delete in its panel; the row’s bin shows on hover', binShown === '1' && byKey === 0 && undone === 1 && byMenu === 0 && byPanel.n === 0 && !byPanel.panel && !qe.length, JSON.stringify([binShown, byKey, undone, byMenu, byPanel, qe]));
     }
+    // a Part Studio that took a while is kept by the kernel's worker in this browser: opened again after a reload, its
+    // parts are read back, not made again, and are the same
+    {
+      const q = await b.newPage({ viewport: { width: 1200, height: 800 } });
+      const lens = readFileSync(new URL('./node/fixtures/lens-holder.jekcad', import.meta.url), 'utf8');
+      const open = async () => {
+        await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+        await q.waitForTimeout(300);
+        return q.evaluate(async t => { const J = window.JEKcad, t0 = performance.now(); J.load(JSON.parse(t)); const out = await J.regenDone(); return { ms: performance.now() - t0, parts: out ? out.parts.map(p => p.id + ' ' + p.volume.toFixed(5) + ' ' + p.faceNames.length).join(' | ') : null }; }, lens);
+      };
+      await q.goto(base + '/jek/tools/jekcad.html?test');
+      const first = await open();
+      await q.waitForFunction(() => new Promise(res => { const r = indexedDB.open('jekcad-steps'); r.onsuccess = () => { try { r.result.transaction('meta').objectStore('meta').count().onsuccess = e => { r.result.close(); res(e.target.result > 0); }; } catch (err) { res(false); } }; r.onerror = () => res(false); }), null, { timeout: 20000, polling: 500 }).catch(() => {});
+      await q.reload();
+      const again = await open();
+      await q.close();
+      ok('A Part Studio opened again after a reload is read back from this browser, not made again: the same parts, sooner', first.parts && again.parts === first.parts && again.ms < first.ms * 0.6, JSON.stringify([Math.round(first.ms), Math.round(again.ms), first.parts === again.parts]));
+    }
+    // sub-assemblies, the bill of materials, and a drawing's tolerance, balloon, note and second sheet
+    {
+      const q = await b.newPage({ viewport: { width: 1400, height: 880 } }), qe = [];
+      q.on('pageerror', e => qe.push(e.message));
+      await q.goto(base + '/jek/tools/jekcad.html?test');
+      await q.waitForFunction(() => window.JEKcad && window.JEKcad.view.ready && window.JEKcad.app.regenCount > 0, null, { timeout: 60000 }).catch(() => {});
+      const settle = async () => { await q.waitForTimeout(300); await q.waitForFunction(() => !window.JEKcad.app.busy, null, { timeout: 20000 }).catch(() => {}); await q.waitForTimeout(200); };
+      const d = newDoc(), s1 = rectSketch(d, 40, 20), s2 = rectSketch(d, 10, 10, null, [60, 0]);
+      d.features.push(s1, newFeature(d, 'extrude', { sketch: s1.id, regions: [[1, 1]], depth: '10', op: 'new' }), s2, newFeature(d, 'extrude', { sketch: s2.id, regions: [[61, 1]], depth: '15', op: 'new' }));
+      await q.evaluate(t => window.JEKcad.load(JSON.parse(t)), JSON.stringify(d)); await settle();
+      const studio = await q.evaluate(() => window.JEKcad.file().tabs[0].id), parts = await q.evaluate(() => window.JEKcad.app.result.parts.map(p => p.id));
+      const sub = await q.evaluate(() => window.JEKcad.addTab('assembly')); await settle();
+      await q.evaluate(([st, ps]) => { const J = window.JEKcad, A = J.app.asm; J.checkpoint(); A.name = 'Sub'; A.instances.push({ id: 'iplate', studio: st, part: ps[0], p: [0, 0, 0], q: [0, 0, 0, 1], fixed: true }, { id: 'iblock', studio: st, part: ps[1], p: [-55, 5, 10], q: [0, 0, 0, 1] }); J.changed(); }, [studio, parts]); await settle();
+      const main = await q.evaluate(() => window.JEKcad.addTab('assembly')); await settle();
+      await q.click('[data-asm="insert"]'); await q.waitForSelector('[data-subasm]', { timeout: 15000 }).catch(() => {});
+      await q.click('[data-subasm="' + sub + '"]'); await settle(); await q.click('#asmInsertClose');
+      const sid = await q.evaluate(() => window.JEKcad.app.asm.instances[0].id);
+      const bid = await q.evaluate(([st, ps]) => window.JEKcad.addInstance(st, ps[1]), [studio, parts]); await settle();
+      const shown = await q.evaluate(() => window.JEKcad.app.result.parts.map(p => p.id));
+      // the new block's bottom onto the top of the block inside the sub-assembly
+      await q.evaluate(() => window.JEKcad.mateOpen('fastened'));
+      const pickFace = (pid, up) => q.evaluate(([pid2, up2]) => { const J = window.JEKcad, p = J.app.result.parts.find(x => x.id === pid2); let best = -1, bz = up2 ? -1e9 : 1e9; for (let i = 0; i < p.faceGroups.length / 2; i++) { const s = p.faceGroups[2 * i], c = p.faceGroups[2 * i + 1]; let z = 0; for (let k = s; k < s + c; k++) z += p.pos[3 * p.idx[k] + 2]; z /= c; if (up2 ? z > bz : z < bz) { bz = z; best = i; } } J.matePick({ part: pid2, kind: 'face', index: best }); }, [pid, up]);
+      await pickFace(bid, false); await pickFace(sid + '/iblock', true); await q.evaluate(() => window.JEKcad.mateApply()); await settle();
+      const top = () => q.evaluate(([a, b2]) => { const P = window.JEKcad.app.result.parts; return [P.find(p => p.id === a).bbox[0][2], P.find(p => p.id === b2).bbox[1][2]].map(v => +v.toFixed(3)); }, [bid, sid + '/iblock']);
+      const mated = await top();
+      // the block moved in Sub: the main assembly follows, the mate holding the new block on it
+      await q.evaluate(s => window.JEKcad.switchTab(s), sub); await settle();
+      await q.evaluate(() => window.JEKcad.poseInstance('iblock', [-55, 5, 12], null)); await settle();
+      await q.evaluate(m => window.JEKcad.switchTab(m), main); await settle();
+      const followed = await top();
+      const bomRows = await q.evaluate(() => [...document.querySelectorAll('#bomTable tbody tr')].map(r => [...r.children].map(c => c.textContent).slice(0, 3).join(' ')));
+      // in Sub, Main may not go in (it holds Sub)
+      await q.evaluate(s => window.JEKcad.switchTab(s), sub); await settle();
+      await q.click('[data-asm="insert"]'); await q.waitForSelector('[data-subasm]', { timeout: 15000 }).catch(() => {});
+      const blocked = await q.evaluate(m => { const b2 = document.querySelector('[data-subasm="' + m + '"]'); return !!b2 && b2.disabled; }, main);
+      await q.click('#asmInsertClose');
+      ok('A sub-assembly: put in whole, its parts shown by their paths, a mate to a part inside it holds and follows it when it moves in its own tab; the bill of materials counts through it; an assembly cannot go into one it holds',
+        shown.join() === [sid + '/iplate', sid + '/iblock', bid].join() && mated[0] === mated[1] && mated[0] === 25 && followed[0] === followed[1] && followed[0] === 27 && bomRows.join('|') === '1 Part 1 1|2 Part 2 2' && blocked, JSON.stringify([shown, mated, followed, bomRows, blocked]));
+      // a drawing of the main assembly: a tolerance, a balloon and a note on the block, a second sheet, a PDF of both
+      await q.evaluate(m => window.JEKcad.switchTab(m), main); await settle();
+      await q.evaluate(() => window.JEKcad.addTab('drawing')); await settle();
+      await q.waitForFunction(() => window.JEKcad.dr.data && window.JEKcad.dr.drawn, null, { timeout: 30000 }).catch(() => {});
+      await q.evaluate(() => window.JEKcad.addOverall()); await settle();
+      await q.evaluate(() => window.JEKcad.setTol(window.JEKcad.app.drw.dims[0].id, { k: 'sym', p: '0.1' }, '2×', '')); await settle();
+      const snapAt = () => q.evaluate(() => { const J = window.JEKcad, L = J.dr.drawn.layout, v = L.views.find(x => x.dir === 'front'), s = J.dr.snaps.find(x => x.kind === 'vertex' && x.item.id.includes('/iblock')), w = s.w; const P = L.toSheet(v, [w[0] * v.F.x[0] + w[1] * v.F.x[1] + w[2] * v.F.x[2], w[0] * v.F.up[0] + w[1] * v.F.up[1] + w[2] * v.F.up[2]]); const r = document.getElementById('over').getBoundingClientRect(); return [r.x + J.dr.cam.x + P[0] * J.dr.cam.z, r.y + J.dr.cam.y + P[1] * J.dr.cam.z]; });
+      await q.click('[data-drw="balloon"]');
+      let p0 = await snapAt(); await q.mouse.move(p0[0], p0[1]); await q.mouse.click(p0[0], p0[1]); await settle();
+      await q.click('[data-drw="note"]');
+      q.once('dialog', dl => dl.accept('Anodise black\\nAll edges 0.5 x 45°'));
+      p0 = await snapAt(); await q.mouse.move(p0[0], p0[1]); await q.mouse.click(p0[0], p0[1]); await q.waitForTimeout(200); await q.mouse.click(p0[0] - 120, p0[1] - 60); await settle();
+      const marks = await q.evaluate(() => { const J = window.JEKcad, D = J.app.drw; return { bom: D.bom, no: Object.values(J.dr.balloonNo), notes: D.notes.map(n => [n.text.split('\n').length, !!n.a]), leader: J.dr.drawn.notes.map(n => !!n.tip), tol: J.dr.drawn.dims[0].g.label, table: J.dr.bom.length }; });
+      await q.evaluate(() => window.JEKcad.addSheet()); await settle();
+      await q.waitForFunction(() => window.JEKcad.dr.data && window.JEKcad.dr.drawn, null, { timeout: 30000 }).catch(() => {});
+      const second = await q.evaluate(() => { const D = window.JEKcad.app.drw; return [D.sheets.length, D.at, D.views.length, D.dims.length, D.notes.length]; });
+      await q.selectOption('#drw-at', '0'); await settle();
+      await q.waitForFunction(() => window.JEKcad.dr.data && window.JEKcad.dr.drawn, null, { timeout: 30000 }).catch(() => {});
+      const pdf = await q.evaluate(async () => { const o = await window.JEKcad.drwPdf(); const t = new TextDecoder('latin1').decode(o.bytes); return { pages: (t.match(/\/Type \/Page /g) || []).length, of2: /\(1 of 2 /.test(t) && /\(2 of 2 /.test(t), note: /\(Anodise black\) Tj/.test(t), item: /\(ITEM\) Tj/.test(t), tol: /\\2610\.1/.test(t) }; });
+      // the file keeps the sheets and the sub-assembly
+      const text = await q.evaluate(() => window.JEKcad.text()), f = JSON.parse(text), dt = f.tabs.find(t => t.kind === 'drawing');
+      await q.close();
+      ok('A drawing: a dimension’s tolerance, a balloon with its item and the bill of materials, a note on a leader; a second sheet of its own; the PDF a page each; all kept in the file',
+        marks.bom && marks.no.join() === '2' && marks.notes.join() === '2,true' && marks.leader.join() === 'true' && marks.tol === '2× 40 ±0.1' && marks.table === 2 && second.join() === '2,1,4,0,0' && pdf.pages === 2 && pdf.of2 && pdf.note && pdf.item && pdf.tol
+        && dt.sheets.length === 2 && !('views' in dt) && f.tabs.some(t => t.kind === 'assembly' && t.instances.some(I => I.asm)) && !qe.length, JSON.stringify([marks, second, pdf, qe]));
+    }
     // My parts: a part of a Part Studio kept there (with its Part Studio, marked cad), then an Assembly's Insert lists
     // it (and not a JEKray part kept beside it); inserting it brings its Part Studio in as a tab, once, and the part
     {

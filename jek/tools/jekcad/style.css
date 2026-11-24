@@ -46,6 +46,11 @@
   .cad-inslist { display: flex; flex-direction: column; gap: 0.25rem; max-height: 50vh; overflow: auto; margin: 0.4rem 0; }
   .cad-insrow { display: flex; align-items: center; gap: 0.5rem; justify-content: flex-start; text-align: left; }
   .cad-insicon { width: 32px; height: 32px; border-radius: 3px; flex: none; }
+  .cad-bom { width: 100%; border-collapse: collapse; font-size: 0.78rem; margin: 0.2rem 0; }
+  .cad-bom th, .cad-bom td { text-align: left; padding: 0.15rem 0.3rem; border-bottom: 1px solid var(--jek-line, rgba(127,127,127,0.25)); }
+  .cad-bom th { font-weight: 600; color: var(--jek-ink-soft); }
+  .cad-sheets select { flex: 1; min-width: 0; }
+  .cad-sheets .cad-eye { opacity: 1; }
   .cad-swatch { width: 0.9rem; height: 0.9rem; border-radius: 2px; border: 1px solid var(--jek-line); flex: none; }
   .cad-side { flex: none; width: 272px; overflow: auto; background: var(--rt-surface); border-right: 1px solid var(--jek-line); padding: 0.4rem 0.3rem; font-size: 0.82rem; }
   .cad-main.side-off .cad-side { display: none; }

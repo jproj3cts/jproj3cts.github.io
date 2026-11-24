@@ -1,12 +1,12 @@
 import { hooks } from '../../../jekray/src/core/hooks.js';
 import { h } from '../../../jekray/src/ui/dom.js';
-import { edgeConnector, placed, turned3 } from '../core/assembly.js';
-import { SHEETS, VIEW_DIRS, dimGeom, drawSheet, dxfOfSheet, framePoint, kernelViews, nextLetter, pdfOfSheet, scaleText } from '../core/drawing.js';
+import { asmLeaves, edgeConnector, placed, turned3 } from '../core/assembly.js';
+import { SHEETS, VIEW_DIRS, dimGeom, drawSheet, dxfOfSheets, framePoint, kernelViews, newSheet, nextLetter, pdfOfSheets, scaleText, sheetOf } from '../core/drawing.js';
 import { partLook } from '../core/doc.js';
 import { sketchId } from '../core/sketch.js';
 import { kernelAsk } from '../page/kernel.js';
 import { app, changed, checkpoint, editGate, emit, on, toast } from './app.js';
-import { studioMesh, studioParts } from './assembly.js';
+import { bomOf, studioMesh, studioParts } from './assembly.js';
 import { V } from './view3d.js';
 
 /* ==========================================================================
@@ -16,9 +16,12 @@ import { V } from './view3d.js';
    drawn on the view's overlay canvas, and written as a PDF or a DXF from the same drawing. A dimension holds to
    corners and round edges of the model by the kernel's references, so it follows the model when it changes.
    Tools: Dimension (two corners and a place; a circle for its diameter, an arc for its radius, a tapped hole for
-   its thread), Angle (two straight lines and a place), Section (a line across a view), Detail (a circle on a view).
+   its thread), Angle (two straight lines and a place), Section (a line across a view), Detail (a circle on a view),
+   Note (text, with a leader to a corner or a round edge if the first click is on one), Balloon (a part's item in
+   the bill of materials, on a leader to it). A drawing has sheets (core/drawing.js: the one open is read and
+   written through the drawing); a dimension can carry a tolerance. The PDF has a page for each sheet.
    ========================================================================== */
-export const DR = { tool: 'select', data: null, key: '', located: {}, snaps: [], threads: [], pick: null, pick2: null, lines: [], hover: null, sel: null, cam: null, drag: null, mouse: null, drawn: null, detailC: null };
+export const DR = { tool: 'select', data: null, key: '', located: {}, snaps: [], threads: [], pick: null, pick2: null, lines: [], hover: null, sel: null, cam: null, drag: null, mouse: null, drawn: null, detailC: null, bom: [], balloonNo: {}, noteTip: null };
 const drwTab = id => app.file.tabs.find(t => t.id === id);
 /* what the drawing is of, as the kernel is asked: each part with its place */
 async function drwItems(D) {
@@ -29,12 +32,13 @@ async function drwItems(D) {
     if (!parts) return null;
     return parts.filter((p, i) => !partLook(src, p.id, i).hidden && (!D.part || p.id === D.part)).map(p => ({ doc: src, part: p.id, id: p.id, p: [0, 0, 0], q: [0, 0, 0, 1] }));
   }
+  // (an assembly: every part it shows, through its sub-assemblies)
   const out = [];
-  for (const I of src.instances) {
-    if (I.hidden) continue;
-    const t = drwTab(I.studio);
+  for (const L of asmLeaves(src, drwTab)) {
+    if (L.hidden) continue;
+    const t = drwTab(L.studio);
     if (!t || !(await studioParts(t))) continue;
-    out.push({ doc: t, part: I.part, id: I.id, inst: I.id, p: I.p, q: I.q });
+    out.push({ doc: t, part: L.part, id: L.id, inst: L.id, p: L.p, q: L.q });
   }
   return out;
 }
@@ -81,20 +85,11 @@ export async function drwRegen() {
       }
       for (const t of M.threads || []) DR.threads.push(Object.assign({}, t, { from: placed(it, t.from), dir: turned3(it, t.dir) }));
     }
-    // what each dimension holds to
-    const reqs = [], slots = [];
-    for (const d of D.dims) for (const k of ['a', 'b', 'c', 'd']) {
-      if (!d[k]) continue;
-      const it = items.find(x => (d[k].inst ? x.inst === d[k].inst : x.part === d[k].ref.part));
-      if (!it) continue;
-      reqs.push({ doc: it.doc, part: it.part, p: it.p, q: it.q, ref: d[k].ref }); slots.push([d.id, k]);
-    }
-    const located = {};
-    if (reqs.length) { const got = await kernelAsk('drawLocate', { reqs }); got.forEach((g, i) => { const [id, k] = slots[i]; (located[id] || (located[id] = {}))[k] = g; }); }
+    // what each dimension, note and balloon holds to; the bill of materials, and each balloon's item in it
+    const m = await sheetMarks(D, items);
     if (app.drw !== D) return null;
-    // (a diameter on a tapped hole reads as its thread)
-    for (const d of D.dims) if (d.t === 'dia' && located[d.id] && located[d.id].a) { const lab = threadAt(located[d.id].a); if (lab) located[d.id].a = Object.assign({}, located[d.id].a, { label: lab }); }
-    DR.located = located;
+    Object.assign(DR, m);
+    if (DR.data) DR.data.bomRows = D.bom ? DR.bom : null;
     app.result = { features: [], parts: [], frames: {}, vars: {}, errors: [], drw: true };
     app.sel = [];
     app.error = null; app.regenCount++;
@@ -103,6 +98,25 @@ export async function drwRegen() {
     renderDrw();
     return app.result;
   } catch (err) { app.error = err.message; toast('The drawing could not be made: ' + err.message, true); return null; } finally { app.busy = false; emit('busy'); }
+}
+/* what a sheet's dimensions, notes and balloons hold to, found on the model; the bill of materials of the parts
+   shown, each balloon's item number in it */
+async function sheetMarks(D, items) {
+  const reqs = [], slots = [], marks = [...D.dims, ...(D.notes || []).filter(n => n.a), ...(D.balloons || [])];
+  const itemOf = r => items.find(x => (r.inst ? x.inst === r.inst : x.part === r.ref.part));
+  for (const d of marks) for (const k of ['a', 'b', 'c', 'd']) {
+    if (!d[k]) continue;
+    const it = itemOf(d[k]);
+    if (!it) continue;
+    reqs.push({ doc: it.doc, part: it.part, p: it.p, q: it.q, ref: d[k].ref }); slots.push([d.id, k]);
+  }
+  const located = {};
+  if (reqs.length) { const got = await kernelAsk('drawLocate', { reqs }); got.forEach((g, i) => { const [id, k] = slots[i]; (located[id] || (located[id] = {}))[k] = g; }); }
+  // (a diameter on a tapped hole reads as its thread)
+  for (const d of D.dims) if (d.t === 'dia' && located[d.id] && located[d.id].a) { const lab = threadAt(located[d.id].a); if (lab) located[d.id].a = Object.assign({}, located[d.id].a, { label: lab }); }
+  const bom = bomOf(items), balloonNo = {};
+  for (const b of D.balloons || []) { const it = itemOf(b.a), row = it && bom.find(r => r.key === it.doc.id + '|' + it.part); if (row) balloonNo[b.id] = row.item; }
+  return { located, bom, balloonNo };
 }
 /* ---------- the sheet on the screen ---------- */
 export function fitSheet() {
@@ -114,7 +128,7 @@ const drwScr = p => [DR.cam.x + p[0] * DR.cam.z, DR.cam.y + p[1] * DR.cam.z];
 const drwMm = (sx, sy) => [(sx - DR.cam.x) / DR.cam.z, (sy - DR.cam.y) / DR.cam.z];
 const drwToday = () => new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const drwSource = D => { const t = drwTab(D.of); return t ? t.name : ''; };
-const drwOpts = D => ({ located: DR.located, date: drwToday(), source: drwSource(D), picked: DR.sel });
+const drwOpts = D => ({ located: DR.located, date: drwToday(), source: drwSource(D), picked: DR.sel, bom: DR.bom, balloonNo: DR.balloonNo, sheetNo: [D.at + 1, D.sheets.length] });
 /* a view's own coordinates of a point on the sheet */
 const sheetToView = (v, q) => [v.c[0] + (q[0] - v.at[0]) / v.s, v.c[1] - (q[1] - v.at[1]) / v.s];
 export function drawDrw(c) {
@@ -137,6 +151,7 @@ export function drawDrw(c) {
   const L = DR.drawn.layout;
   const mark = (s, col) => { const v = L.views.find(x => x.id === s.view); if (!v) return; const p = drwScr(L.toSheet(v, framePoint(v.F, s.w))); c.beginPath(); if (s.kind === 'edge') c.arc(p[0], p[1], Math.max(3, s.r * v.s * z), 0, 2 * Math.PI); else c.rect(p[0] - 4, p[1] - 4, 8, 8); c.strokeStyle = col; c.lineWidth = 2; c.stroke(); };
   const seg = (l, col) => { c.beginPath(); c.moveTo(X(l[0]), Y(l[1])); c.lineTo(X(l[2]), Y(l[3])); c.strokeStyle = col; c.lineWidth = 3; c.stroke(); };
+  if (DR.tool === 'balloon' || DR.tool === 'note') { if (DR.hover) mark(DR.hover, blue); if (DR.noteTip) mark(DR.noteTip, hot); }
   if (DR.tool === 'dim') { if (DR.hover) mark(DR.hover, blue); if (DR.pick) mark(DR.pick, hot); if (DR.pick2) mark(DR.pick2, hot); }
   if (DR.tool === 'dim' && DR.pick && DR.pick2 && DR.mouse) {
     const d = drwPlacing(DR.mouse), g = d && dimGeom(L, d, { a: { pt: DR.pick.w }, b: { pt: DR.pick2.w } });
@@ -222,6 +237,8 @@ async function drwRefs(snaps) {
   const got = await kernelAsk('drawLocate', { reqs: snaps.map(s => ({ doc: s.item.doc, part: s.item.part, p: s.item.p, q: s.item.q, pick: { part: s.item.part, kind: s.kind, index: s.index } })) });
   return got.map((g, i) => (g && g.ref ? Object.assign({ ref: g.ref }, snaps[i].item.inst ? { inst: snaps[i].item.inst } : {}) : null));
 }
+/* a note or a balloon under the pointer */
+const drwMarkAt = (sx, sy) => { const q = drwMm(sx, sy), inn = h2 => q[0] >= h2[0] && q[0] <= h2[2] && q[1] >= h2[1] && q[1] <= h2[3], d = DR.drawn; if (!d) return null; const b = (d.balloons || []).find(x => inn(x.hit)); if (b) return { kind: 'balloon', id: b.id }; const n = (d.notes || []).find(x => inn(x.hit)); return n ? { kind: 'note', id: n.id } : null; };
 const drwDimAt = (sx, sy) => { const q = drwMm(sx, sy); return ((DR.drawn && DR.drawn.dims) || []).find(d => q[0] >= d.g.hit[0] && q[0] <= d.g.hit[2] && q[1] >= d.g.hit[1] && q[1] <= d.g.hit[3]) || null; };
 function drwViewAt(sx, sy, principalOnly) {
   const L = DR.drawn && DR.drawn.layout, q = drwMm(sx, sy);
@@ -232,9 +249,10 @@ export function drwDown(e, sx, sy) {
   const D = app.drw; if (!D || !DR.cam) return;
   if (e.button === 1 || e.button === 2) { DR.drag = { kind: 'pan', x: sx, y: sy }; return; }
   if (DR.tool !== 'select') return;                    // (the tools act on the click's release)
-  const d = drwDimAt(sx, sy), v = d ? null : drwViewAt(sx, sy);
-  DR.sel = d ? d.id : null;
-  if (d) DR.drag = { kind: 'dim', id: d.id, x: sx, y: sy, moved: false };
+  const mk = drwMarkAt(sx, sy), d = mk ? null : drwDimAt(sx, sy), v = d || mk ? null : drwViewAt(sx, sy);
+  DR.sel = mk ? mk.id : d ? d.id : null;
+  if (mk) DR.drag = { kind: mk.kind, id: mk.id, x: sx, y: sy, moved: false };
+  else if (d) DR.drag = { kind: 'dim', id: d.id, x: sx, y: sy, moved: false };
   else if (v) DR.drag = { kind: 'view', id: v.id, x: sx, y: sy, moved: false, at: v.at.slice() };
   emit('view'); renderDrw();
 }
@@ -243,9 +261,10 @@ export function drwMove(e, sx, sy) {
   DR.mouse = { sx, sy, shift: e.shiftKey };
   const g = DR.drag;
   if (g && g.kind === 'pan') { DR.cam.x += sx - g.x; DR.cam.y += sy - g.y; g.x = sx; g.y = sy; emit('view'); return; }
-  if (g && (g.kind === 'dim' || g.kind === 'view')) {
+  if (g && (g.kind === 'dim' || g.kind === 'view' || g.kind === 'note' || g.kind === 'balloon')) {
     const dx = (sx - g.x) / DR.cam.z, dy = (sy - g.y) / DR.cam.z;
     if (!g.moved) { if (Math.hypot(sx - g.x, sy - g.y) < 4) return; if (!editGate()) { DR.drag = null; return; } checkpoint(); g.moved = true; }
+    if (g.kind === 'note' || g.kind === 'balloon') { const o = (g.kind === 'note' ? D.notes : D.balloons).find(x => x.id === g.id); if (o) { if (g.kind === 'note') o.at = [o.at[0] + dx, o.at[1] + dy]; else o.off = [o.off[0] + dx, o.off[1] + dy]; } g.x = sx; g.y = sy; emit('view'); return; }
     if (g.kind === 'view') { const v = D.views.find(x => x.id === g.id); v.at = [g.at[0] + dx, g.at[1] + dy]; }
     else {
       const d = D.dims.find(x => x.id === g.id), geo = DR.drawn.dims.find(x => x.id === g.id);
@@ -257,7 +276,7 @@ export function drwMove(e, sx, sy) {
     }
     emit('view'); return;
   }
-  if (DR.tool === 'dim') { DR.hover = DR.pick && DR.pick2 ? null : drwSnap(sx, sy); emit('view'); }
+  if (DR.tool === 'dim' || DR.tool === 'balloon' || (DR.tool === 'note' && !DR.noteTip)) { DR.hover = DR.tool === 'dim' && DR.pick && DR.pick2 ? null : drwSnap(sx, sy); emit('view'); }
   else if (DR.tool === 'ang') { DR.hover = DR.lines.length < 2 ? drwLineAt(sx, sy) : null; emit('view'); }
   else if (DR.tool === 'section' || DR.tool === 'detail') emit('view');
 }
@@ -268,6 +287,34 @@ export async function drwUp(e, sx, sy) {
   if (g) return;
   if (e.button !== 0) return;
   const L = DR.drawn && DR.drawn.layout;
+  if (DR.tool === 'note') {
+    // a first click on a corner or a round edge: the leader's point, then a second where the text goes; elsewhere,
+    // the text there with no leader
+    const q = drwMm(sx, sy);
+    if (!DR.noteTip) {
+      const sn = drwSnap(sx, sy);
+      if (sn) { DR.noteTip = sn; toast('Now click where the note’s text goes'); emit('view'); return; }
+    }
+    if (!editGate()) { DR.noteTip = null; return; }
+    const text = prompt('The note (\\n starts a new line)', '');
+    const tip = DR.noteTip; DR.noteTip = null;
+    if (text === null || !text.trim()) { emit('view'); return; }
+    const refs = tip ? await drwRefs([tip]) : [null];
+    checkpoint();
+    D.notes.push(Object.assign({ id: sketchId('n'), text: text.replace(/\\n/g, '\n').slice(0, 400), at: q.map(v => +v.toFixed(3)) }, tip && refs[0] ? { view: tip.view, a: refs[0] } : {}));
+    changed(); return;
+  }
+  if (DR.tool === 'balloon') {
+    const sn = drwSnap(sx, sy);
+    if (!sn) { toast('Click a corner or a round edge of a part in a view: its balloon gives its item in the bill of materials'); return; }
+    if (!editGate()) return;
+    const refs = await drwRefs([sn]);
+    if (!refs[0]) { toast('That part could not be held to', true); return; }
+    checkpoint();
+    D.balloons.push({ id: sketchId('b'), view: sn.view, a: refs[0], off: [12, -12] });
+    if (!D.bom) { D.bom = true; toast('The bill of materials is shown on this sheet: untick it in the panel to take it off'); }
+    changed(); return;
+  }
   if (DR.tool === 'section') {
     const v = drwViewAt(sx, sy, true);
     if (!v) { toast('Click in the front, top or right view (or another square-on view) where the section cuts it: up the view, or across it with Shift'); return; }
@@ -335,14 +382,38 @@ export async function drwUp(e, sx, sy) {
 export function drwWheel(sx, sy, f) { if (!DR.cam) return; const z = Math.max(0.3, Math.min(40, DR.cam.z / f)), q = drwMm(sx, sy); DR.cam.z = z; DR.cam.x = sx - q[0] * z; DR.cam.y = sy - q[1] * z; emit('view'); }
 export function drwKey(k) {
   const D = app.drw; if (!D) return false;
-  if (k === 'escape') { if (DR.pick || DR.pick2 || DR.lines.length || DR.detailC) { DR.pick = DR.pick2 = DR.detailC = null; DR.lines = []; } else if (DR.tool !== 'select') setDrwTool('select'); else DR.sel = null; emit('view'); renderDrw(); return true; }
+  if (k === 'escape') { if (DR.pick || DR.pick2 || DR.lines.length || DR.detailC || DR.noteTip) { DR.pick = DR.pick2 = DR.detailC = DR.noteTip = null; DR.lines = []; } else if (DR.tool !== 'select') setDrwTool('select'); else DR.sel = null; emit('view'); renderDrw(); return true; }
   if ((k === 'delete' || k === 'backspace') && DR.sel) { deleteDim(DR.sel); return true; }
   if (k === 'd') { setDrwTool('dim'); return true; }
   if (k === 'f') { fitSheet(); emit('view'); return true; }
   return false;
 }
-export function setDrwTool(t) { DR.tool = t; DR.pick = DR.pick2 = DR.hover = DR.detailC = null; DR.lines = []; for (const b of document.querySelectorAll('#drwBar [data-drw]')) b.classList.toggle('on', b.dataset.drw === t); emit('view'); }
-export function deleteDim(id) { const D = app.drw; if (!D || !editGate()) return; checkpoint(); D.dims = D.dims.filter(d => d.id !== id); if (DR.sel === id) DR.sel = null; changed(); }
+export function setDrwTool(t) { DR.tool = t; DR.pick = DR.pick2 = DR.hover = DR.detailC = DR.noteTip = null; DR.lines = []; for (const b of document.querySelectorAll('#drwBar [data-drw]')) b.classList.toggle('on', b.dataset.drw === t); emit('view'); }
+/* a dimension, a note or a balloon taken off the sheet */
+export function deleteDim(id) { const D = app.drw; if (!D || !editGate()) return; checkpoint(); D.dims = D.dims.filter(d => d.id !== id); D.notes = D.notes.filter(d => d.id !== id); D.balloons = D.balloons.filter(d => d.id !== id); if (DR.sel === id) DR.sel = null; changed(); }
+/* a note's text changed (asked for); empty takes it away */
+export function editNote(id, text) {
+  const D = app.drw, n = D && D.notes.find(x => x.id === id);
+  if (!n || !editGate()) return false;
+  const t = text !== undefined ? text : prompt('The note (\\n starts a new line)', n.text.replace(/\n/g, '\\n'));
+  if (t === null) return false;
+  checkpoint();
+  if (!String(t).trim()) D.notes = D.notes.filter(x => x.id !== id); else n.text = String(t).replace(/\\n/g, '\n').slice(0, 400);
+  changed();
+  return true;
+}
+/* a dimension's tolerance and the text before and after it */
+export function setTol(id, tol, pre, suf) {
+  const D = app.drw, d = D && D.dims.find(x => x.id === id);
+  if (!d || !editGate()) return false;
+  checkpoint();
+  if (tol && tol.k) d.tol = tol.k === 'fit' ? { k: 'fit', fit: String(tol.fit || '').trim().slice(0, 12) } : { k: tol.k, p: Math.abs(+tol.p || 0), m: Math.abs(+(tol.k === 'sym' ? tol.p : tol.m) || 0) }; else delete d.tol;
+  if (d.tol && d.tol.k === 'fit' && !d.tol.fit) delete d.tol;
+  if (pre !== undefined) { if (String(pre).trim()) d.pre = String(pre).trim().slice(0, 24); else delete d.pre; }
+  if (suf !== undefined) { if (String(suf).trim()) d.suf = String(suf).trim().slice(0, 24); else delete d.suf; }
+  changed();
+  return true;
+}
 /* a view taken off the sheet: with its sections and details, and the dimensions on any of them */
 export function removeView(id) {
   const D = app.drw; if (!D) return;
@@ -373,13 +444,32 @@ export function renderDrw() {
   const L = DR.drawn && DR.drawn.layout;
   const vname = v => (v.dir === 'section' ? 'Section ' + v.label + '-' + v.label : v.dir === 'detail' ? 'Detail ' + v.label : VIEW_DIRS[v.dir].name);
   const derived = D.views.filter(v => v.dir === 'section' || v.dir === 'detail');
-  const rows = [h('h2', { class: 'cad-shead' }, 'This drawing'),
-    sel('drw-of', 'Of', sources, D.of, v => set(() => { D.of = v; D.part = null; D.dims = D.dims.filter(d => d.t === 'ext'); })),
-    src && src.kind === 'studio' ? sel('drw-part', 'Part', [['', 'All its parts'], ...parts], D.part || '', v => set(() => { D.part = v || null; D.dims = D.dims.filter(d => d.t === 'ext' || !v || d.a.ref.part === v); })) : null,
+  const sheetRow = h('div', { class: 'cad-frow cad-sheets' }, h('label', { for: 'drw-at' }, 'Sheet'),
+    h('select', { id: 'drw-at', onchange: e => setSheet(+e.target.value) }, ...D.sheets.map((sh, k) => h('option', Object.assign({ value: k }, k === D.at ? { selected: '' } : {}), (k + 1) + '. ' + sh.name))),
+    h('button', { type: 'button', class: 'cad-eye', id: 'drwSheetAdd', title: 'Add a sheet', 'aria-label': 'Add a sheet', 'data-icon': 'new', onclick: () => addSheet() }),
+    h('button', { type: 'button', class: 'cad-eye', id: 'drwSheetName', title: 'Rename this sheet', 'aria-label': 'Rename this sheet', 'data-icon': 'text', onclick: () => { const v = prompt('Name of this sheet', D.sheets[D.at].name); if (v && v.trim()) set(() => { D.sheets[D.at].name = v.trim().slice(0, 60); }, true); } }),
+    D.sheets.length > 1 ? h('button', { type: 'button', class: 'cad-eye', id: 'drwSheetDel', title: 'Delete this sheet', 'aria-label': 'Delete this sheet', 'data-icon': 'trash', onclick: () => deleteSheet() }) : null);
+  // the dimension chosen: its tolerance, and text before and after it
+  const dsel = D.dims.find(d => d.id === DR.sel), T = dsel && dsel.tol;
+  const tolBox = dsel ? (() => {
+    const kind = h('select', { id: 'drw-tolk', 'aria-label': 'Kind of tolerance' }, ...[['', 'None'], ['sym', '± one value'], ['dev', '+ and − values'], ['lim', 'Limits'], ['fit', 'Fit (as H7)']].map(([v, t]) => h('option', Object.assign({ value: v }, (T ? T.k : '') === v ? { selected: '' } : {}), t)));
+    const inp = (id, label, val) => h('div', { class: 'cad-frow' }, h('label', { for: id }, label), h('input', { type: 'text', id, value: val === undefined || val === null ? '' : String(val), spellcheck: 'false', maxlength: '24', onkeydown: e => e.stopPropagation() }));
+    const apply = () => { const g = id => document.getElementById(id).value; const k = g('drw-tolk'); setTol(dsel.id, k ? { k, p: g('drw-tolp'), m: g('drw-tolm'), fit: g('drw-tolf') } : null, g('drw-pre'), g('drw-suf')); };
+    return [h('h2', { class: 'cad-shead' }, 'The dimension chosen'), h('div', { class: 'cad-frow' }, h('label', { for: 'drw-tolk' }, 'Tolerance'), kind),
+      inp('drw-tolp', 'Plus (or ±)', T && T.k !== 'fit' ? T.p : ''), inp('drw-tolm', 'Minus', T && T.k !== 'fit' ? T.m : ''), inp('drw-tolf', 'Fit', T && T.k === 'fit' ? T.fit : ''),
+      inp('drw-pre', 'Before it', dsel.pre || ''), inp('drw-suf', 'After it', dsel.suf || ''),
+      h('div', { class: 'rt-actions' }, h('button', { type: 'button', class: 'rt-btn primary', id: 'drwTolApply', onclick: apply }, 'Apply'))];
+  })() : [];
+  const noteRows = D.notes.length ? h('ul', { class: 'cad-plist', id: 'drwNotes' }, ...D.notes.map(n => h('li', { class: 'cad-irow' + (DR.sel === n.id ? ' picked' : ''), 'data-note': n.id, title: 'Click to select; double-click to change; drag it on the sheet to move it', onclick: e => { if (e.target.closest('button')) return; DR.sel = n.id; emit('view'); renderDrw(); }, ondblclick: () => editNote(n.id) },
+    h('span', { class: 'nm' }, n.text.split('\n')[0].slice(0, 40) + (n.a ? ' ↙' : '')), h('button', { type: 'button', class: 'cad-eye', title: 'Delete this note', 'aria-label': 'Delete this note', 'data-icon': 'trash', onclick: () => deleteDim(n.id) })))) : h('p', { class: 'cad-empty' }, 'Note puts text on the sheet: click a corner or a round edge first for a leader to it.');
+  const rows = [sheetRow, h('h2', { class: 'cad-shead' }, 'This drawing'),
+    sel('drw-of', 'Of', sources, D.of, v => set(() => { D.of = v; D.part = null; for (const sh of D.sheets) { sh.dims = sh.dims.filter(d => d.t === 'ext'); sh.balloons = []; sh.notes = sh.notes.map(n => { const { view, a, ...rest } = n; void view; void a; return rest; }); } })),
+    src && src.kind === 'studio' ? sel('drw-part', 'Part', [['', 'All its parts'], ...parts], D.part || '', v => set(() => { D.part = v || null; for (const sh of D.sheets) { sh.dims = sh.dims.filter(d => d.t === 'ext' || !v || d.a.ref.part === v); sh.balloons = sh.balloons.filter(b => !v || b.a.ref.part === v); } })) : null,
     sel('drw-sheet', 'Sheet', Object.keys(SHEETS).map(k => [k, k + ' (' + SHEETS[k][0] + ' × ' + SHEETS[k][1] + ' mm)']), D.sheet, v => set(() => { D.sheet = v; for (const x of D.views) delete x.at; DR.cam = null; }, true)),
     sel('drw-scale', 'Scale', [[0, 'To fit' + (L && !D.scale ? ' (' + scaleText(L.s) + ')' : '')], ...[10, 5, 2, 1, 0.5, 0.2, 0.1, 0.05, 0.02].map(k => [k, scaleText(k)])], D.scale || 0, v => set(() => { D.scale = +v || 0; for (const x of D.views) delete x.at; }, true)),
     check('drw-hidden', 'Show hidden lines, dashed', D.hidden, v => { D.hidden = v; }),
     check('drw-marks', 'Centre marks on holes and round edges', D.marks, v => { D.marks = v; }),
+    check('drw-bom', 'Bill of materials on this sheet', D.bom, v => { D.bom = v; for (const x of D.views) delete x.at; }),
     h('h2', { class: 'cad-shead' }, 'Views'),
     h('div', { class: 'cad-drwviews' }, ...Object.keys(VIEW_DIRS).map(k => h('label', { class: 'cad-check' }, h('input', Object.assign({ type: 'checkbox', 'data-view': k, onchange: e => set(() => { if (e.target.checked) D.views.push({ id: sketchId('v'), dir: k }); else for (const v of D.views.filter(x => x.dir === k)) removeView(v.id); for (const x of D.views) if (VIEW_DIRS[x.dir]) delete x.at; }) }, D.views.some(v => v.dir === k) ? { checked: '' } : {})), ' ' + VIEW_DIRS[k].name))),
     derived.length ? h('ul', { class: 'cad-plist', id: 'drwDerived' }, ...derived.map(v => { const P = D.views.find(x => x.id === v.of); return h('li', { class: 'cad-irow', 'data-dview': v.id },
@@ -390,14 +480,59 @@ export function renderDrw() {
     h('h2', { class: 'cad-shead' }, 'Title block'), txt('title', 'Title'), txt('by', 'Drawn by'), txt('material', 'Material'), txt('number', 'Drawing no.'), txt('note', 'Note'),
     h('h2', { class: 'cad-shead' }, 'Dimensions (' + D.dims.length + ')'),
     D.dims.length ? h('ul', { class: 'cad-plist', id: 'drwDims' }, ...D.dims.map(d => { const g = DR.drawn && DR.drawn.dims.find(x => x.id === d.id), v = D.views.find(x => x.id === d.view); return h('li', { class: 'cad-irow' + (DR.sel === d.id ? ' picked' : '') + (g ? '' : ' hid'), 'data-dim': d.id, title: g ? 'Click to select; drag it on the sheet to move it' : 'What this held to is no longer on the model', onclick: e => { if (e.target.closest('button')) return; DR.sel = d.id; emit('view'); renderDrw(); } },
-      h('span', { class: 'nm' }, (g ? g.g.text + (d.t === 'ang' || /^M/.test(g.g.text) ? '' : ' mm') : 'lost') + ' · ' + (v ? vname(v) : '?') + DIM_KIND[d.t]), h('button', { type: 'button', class: 'cad-eye', title: 'Delete this dimension', 'aria-label': 'Delete this dimension', 'data-icon': 'trash', onclick: () => deleteDim(d.id) })); }))
-      : h('p', { class: 'cad-empty' }, 'None yet. Click Dimension, then two corners of a view and where it goes, or a circle or an arc. Overall sizes adds each view’s width and height.')];
+      h('span', { class: 'nm' }, (g ? (g.g.label || g.g.text) + (d.t === 'ang' || /^M/.test(g.g.text) || d.tol ? '' : ' mm') : 'lost') + ' · ' + (v ? vname(v) : '?') + DIM_KIND[d.t]), h('button', { type: 'button', class: 'cad-eye', title: 'Delete this dimension', 'aria-label': 'Delete this dimension', 'data-icon': 'trash', onclick: () => deleteDim(d.id) })); }))
+      : h('p', { class: 'cad-empty' }, 'None yet. Click Dimension, then two corners of a view and where it goes, or a circle or an arc. Overall sizes adds each view’s width and height.'),
+    ...tolBox,
+    h('h2', { class: 'cad-shead' }, 'Notes (' + D.notes.length + ')'), noteRows,
+    D.balloons.length ? h('p', { class: 'rt-subsmall' }, D.balloons.length + (D.balloons.length === 1 ? ' balloon' : ' balloons') + ' on this sheet: drag one to move it, select it and press Delete to take it off.') : null];
   box.replaceChildren(...rows.filter(Boolean));
   emit('icons', box);
 }
 /* the sheet as a PDF's or a DXF's bytes and its name (io/files.js makes the file, behind its gate) */
-export function drwPdf() { const D = app.drw; return D && DR.data ? { name: D.name, bytes: pdfOfSheet(D, DR.data, drwOpts(D)) } : null; }
-export function drwDxf() { const D = app.drw; return D && DR.data ? { name: D.name, bytes: dxfOfSheet(D, DR.data, drwOpts(D)) } : null; }
+/* every sheet as it is written: the one open as it is shown, each other one's views and marks made for it */
+async function drwPages() {
+  const D = app.drw;
+  if (!D || !DR.data) return null;
+  const items = await drwItems(D), pages = [];
+  if (!items) return null;
+  for (let k = 0; k < D.sheets.length; k++) {
+    const Dk = sheetOf(D, k);
+    if (k === D.at) { pages.push({ D: Dk, data: DR.data, opts: Object.assign(drwOpts(D), { picked: null }) }); continue; }
+    const got = await kernelAsk('drawing', { items, views: kernelViews(Dk) });
+    const data = { views: Object.fromEntries((got || []).map(g => [g.id, g])) }, m = await sheetMarks(Dk, items);
+    if (Dk.bom) data.bomRows = m.bom;
+    pages.push({ D: Dk, data, opts: { located: m.located, date: drwToday(), source: drwSource(D), bom: m.bom, balloonNo: m.balloonNo, sheetNo: [k + 1, D.sheets.length] } });
+  }
+  return app.drw === D ? pages : null;
+}
+export async function drwPdf() { const D = app.drw, pages = await drwPages(); return pages ? { name: D.name, bytes: pdfOfSheets(pages), sheets: pages.length } : null; }
+export async function drwDxf() { const D = app.drw, pages = await drwPages(); return pages ? { name: D.name, bytes: dxfOfSheets(pages), sheets: pages.length } : null; }
+/* ---------- sheets ---------- */
+export function setSheet(k) {
+  const D = app.drw;
+  if (!D || k === D.at || k < 0 || k >= D.sheets.length) return false;
+  D.at = k; DR.key = ''; DR.cam = null; DR.sel = null; DR.data = null; setDrwTool('select');
+  changed();
+  return true;
+}
+export function addSheet() {
+  const D = app.drw; if (!D || !editGate()) return null;
+  if (D.sheets.length >= 20) { toast('A drawing has 20 sheets at most'); return null; }
+  checkpoint();
+  D.sheets.push(newSheet(D, D.sheets.length));
+  D.at = D.sheets.length - 1; DR.key = ''; DR.cam = null; DR.sel = null; DR.data = null;
+  changed();
+  return D.at;
+}
+export function deleteSheet() {
+  const D = app.drw; if (!D || !editGate()) return false;
+  if (D.sheets.length < 2) { toast('A drawing keeps at least one sheet'); return false; }
+  if (!confirm('Delete “' + D.sheets[D.at].name + '” and everything on it? Undo brings it back.')) return false;
+  checkpoint();
+  D.sheets.splice(D.at, 1); D.at = Math.max(0, D.at - 1); DR.key = ''; DR.cam = null; DR.sel = null; DR.data = null;
+  changed();
+  return true;
+}
 export function wireDrawing() {
   hooks.cadDrwRegen = drwRegen;
   hooks.cadSheet = c => drawDrw(c);

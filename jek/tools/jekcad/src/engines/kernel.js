@@ -968,11 +968,11 @@ export function makeKernel(oc) {
       const v0 = props(b.shape, 'v').m;
       // the edges rounded together; null if the kernel cannot, or makes of them a solid that is not one (faces
       // missing, turned inside out: what a radius too big for an edge gives)
-      const build = list => {
+      const build = (list, sz = size) => {
         if (!list.length) return null;
         try {
           const mk = T(kind === 'fillet' ? new oc.BRepFilletAPI_MakeFillet(b.shape, oc.ChFi3d_FilletShape.ChFi3d_Rational) : new oc.BRepFilletAPI_MakeChamfer(b.shape));
-          for (const j of list) mk.Add(size, b.edges[j]);
+          for (const j of list) mk.Add(sz, b.edges[j]);
           mk.Build(prog());
           if (!mk.IsDone()) return null;
           const shape = mk.Shape();
@@ -988,13 +988,26 @@ export function makeKernel(oc) {
         kept = [];
         for (const j of ordered) { const tryIt = build(kept.concat([j])); if (tryIt) { kept = kept.concat([j]); got = tryIt; } }
       }
-      if (!got) throw new Error('the ' + kind + ' could not be made: the ' + (kind === 'fillet' ? 'radius' : 'distance') + ' may be too big for the edges chosen');
+      if (!got) throw new Error(edgeOpFit(kind, size, sz => !!build(ordered, sz)));
       used += kept.length; skipped += ordered.length - kept.length;
       const c = carried(got.mk, [b], got.shape, f.id, got.gen);
       replacePart(S, b, mkBody(b.id, got.shape, c.faces, c.names));
     }
     return Object.assign({ edges: used }, skipped ? { skipped } : {});
   }
+  /* why a fillet or chamfer could not be made, with the largest size that does fit the edges chosen: halved until
+     one fits (seven times at most), then narrowed between that and twice it, and given rounded down. A size that
+     fits nowhere is said too: the edges themselves are the trouble (a corner of no width, a face that is not one). */
+  function edgeOpFit(kind, size, fits) {
+    const what = kind === 'fillet' ? 'radius' : 'distance', nice = v => +v.toPrecision(2) > v ? +(Math.floor(v * 10 ** (1 - Math.floor(Math.log10(v)))) / 10 ** (1 - Math.floor(Math.log10(v)))).toPrecision(2) : +v.toPrecision(2);
+    let lo = 0;
+    for (let s2 = size / 2, k = 0; k < 7; k++, s2 /= 2) if (fits(s2)) { lo = s2; break; }
+    if (!lo) return 'the ' + kind + ' could not be made: these edges cannot be ' + (kind === 'fillet' ? 'rounded' : 'bevelled') + ' at ' + fmtMM(size) + ' or any size down to ' + fmtMM(size / 128) + '. Choose other edges, or fewer';
+    let hi = Math.min(size, lo * 2);
+    for (let k = 0; k < 5; k++) { const mid = (lo + hi) / 2; if (fits(mid)) lo = mid; else hi = mid; }
+    return 'the ' + kind + ' could not be made: a ' + what + ' of ' + fmtMM(size) + ' is too big for these edges. Up to about ' + fmtMM(nice(lo)) + ' fits all of them';
+  }
+  const fmtMM = v => +v.toPrecision(3) + ' mm';
   /* is this a solid a feature may leave: what the kernel's own check passes, with a volume, and not far from the
      volume it was made from (v0; a fillet or a chamfer takes a little off, or puts a little on) */
   function soundSolid(shape, v0) {
@@ -1063,7 +1076,50 @@ export function makeKernel(oc) {
   const caches = new Map();
   const hashText = (h, s) => { let a = h[0], b = h[1]; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = Math.imul(a ^ c, 16777619) >>> 0; b = Math.imul(b + c, 2246822519) >>> 0; } return [a, b]; };
   const EMPTY = () => ({ parts: [], frames: {}, tools: {}, sketches: {}, threads: {} });
-  let last = { S: EMPTY(), doc: null, vars: {} };
+  let last = { S: EMPTY(), doc: null, vars: {} }, lastTop = null;
+  /* each applied feature's key: the variables and every feature up to it (a step is the same step while they are) */
+  function keysOf(doc, vars, upto) {
+    const keys = [];
+    let h = hashText([2166136261, 1], JSON.stringify(vars));
+    for (let i = 0; i < upto; i++) { h = hashText(h, JSON.stringify(doc.features[i])); keys.push(h.join(':')); }
+    return keys;
+  }
+  /* the keys of a document's steps, as regen would make them, latest first (the worker looks for one it kept) */
+  function stepKeys(doc0, opts) {
+    opts = opts || {};
+    const doc = normDoc(JSON.parse(JSON.stringify(doc0))), { vars } = prepareDoc(doc);
+    const upto = Math.min(doc.features.length, opts.upto != null ? opts.upto : appliedCount(doc));
+    return keysOf(doc, vars, upto).filter((k, i) => !doc.features[i].suppressed).reverse();
+  }
+  /* ---------- a step's state written out and read back: what the worker keeps between visits ----------
+     The parts and tools as OpenCascade's own text (BRep), each with its faces' names in the order the text gives
+     them back; the planes, sketches and threads as they are. A step read back stands in the studio's cache as the
+     step it was, carrying the outcomes of the features before it, so regen takes up from there. */
+  const bodyOut = b => ({ id: b.id, brep: String(oc.BRepToolsWrapper.Write(b.shape)), names: b.names });
+  function bodyIn(o) {
+    const shape = oc.BRepToolsWrapper.Read(o.brep), faces = subShapes(shape, TA.TopAbs_FACE);
+    if (faces.length !== o.names.length) throw new Error('a kept part read back with other faces');
+    return mkBody(o.id, shape, faces, o.names);
+  }
+  const has = (cid, key) => !!(caches.get(cid || '') && caches.get(cid || '').get(key));
+  function snapshot() {
+    const t = lastTop;
+    if (!t) return null;
+    const tools = {}, sketches = {};
+    for (const [k, x] of Object.entries(t.S.tools)) tools[k] = { op: x.op, targets: x.targets, tool: bodyOut(x.tool) };
+    for (const [k, x] of Object.entries(t.S.sketches)) sketches[k] = { frame: x.frame, ents: x.ents, was: x.was, extra: x.extra };
+    return JSON.parse(JSON.stringify({ v: 1, key: t.key, reps: t.reps, ran: t.ran, S: { parts: t.S.parts.map(bodyOut), frames: t.S.frames, tools, sketches, threads: t.S.threads } }));
+  }
+  function restore(snap, cid) {
+    if (!snap || snap.v !== 1 || !snap.S) return false;
+    const tools = {};
+    for (const [k, x] of Object.entries(snap.S.tools || {})) tools[k] = { op: x.op, targets: x.targets, tool: bodyIn(x.tool) };
+    const S = { parts: snap.S.parts.map(bodyIn), frames: snap.S.frames || {}, tools, sketches: snap.S.sketches || {}, threads: snap.S.threads || {} };
+    const cache = caches.get(cid || '') || new Map();
+    cache.set(snap.key, { S, rep: snap.reps[snap.reps.length - 1], reps: snap.reps });
+    caches.set(cid || '', cache);
+    return true;
+  }
   function runFeature(S0, f, vars) {
     const S = nextState(S0);
     try {
@@ -1081,17 +1137,20 @@ export function makeKernel(oc) {
     const doc = normDoc(JSON.parse(JSON.stringify(doc0))), { vars, errors } = prepareDoc(doc);
     const upto = Math.min(doc.features.length, opts.upto != null ? opts.upto : appliedCount(doc));
     const cid = typeof doc0.id === 'string' ? doc0.id : '', cache = caches.get(cid) || new Map();
-    const fresh2 = new Map(), reports = [];
-    let S = EMPTY(), h = hashText([2166136261, 1], JSON.stringify(vars));
+    const fresh2 = new Map(), reports = [], keys = keysOf(doc, vars, upto);
+    let S = EMPTY(), top = null, ran = 0;
     for (let i = 0; i < upto; i++) {
-      const f = doc.features[i];
-      h = hashText(h, JSON.stringify(f));
-      const key = h.join(':');
+      const f = doc.features[i], key = keys[i];
       if (f.suppressed) { reports.push({ id: f.id, suppressed: true }); continue; }
       let hit = cache.get(key);
-      if (!hit) hit = runFeature(S, f, vars);
+      if (!hit) {
+        // a step further on read back from a visit before (restore): taken up there, with the outcomes before it
+        let j = upto - 1; while (j > i && !(cache.get(keys[j]) && cache.get(keys[j]).reps)) j--;
+        if (j > i) { hit = cache.get(keys[j]); fresh2.set(keys[j], hit); S = hit.S; reports.length = 0; reports.push(...hit.reps); top = { key: keys[j], i: j }; i = j; continue; }
+        const t0 = Date.now(); hit = runFeature(S, f, vars); ran += Date.now() - t0;
+      }
       fresh2.set(key, hit);
-      S = hit.S; reports.push(hit.rep);
+      S = hit.S; reports.push(hit.rep); top = { key, i };
     }
     for (let i = upto; i < doc.features.length; i++) reports.push({ id: doc.features[i].id, rolledBack: true });
     // what the old cache held and the new one does not: let go
@@ -1102,6 +1161,8 @@ export function makeKernel(oc) {
     // (the studios longest unused are let go, with their shapes)
     while (caches.size > 8) { const old = caches.keys().next().value, gone = caches.get(old); caches.delete(old); const held = new Set(); for (const c of caches.values()) for (const v of c.values()) for (const p of v.S.parts) held.add(p.shape); for (const v of gone.values()) for (const p of v.S.parts) if (!held.has(p.shape)) { try { p.shape.delete(); } catch (err) { /* shared */ } held.add(p.shape); } }
     last = { S, doc, vars };
+    // (the last step made, as a visit after this one would read it back: snapshot)
+    lastTop = top ? { S, key: top.key, reps: reports.slice(0, top.i + 1), ran } : null;
     let preview = null;
     if (opts.preview && opts.preview.feature) {
       const pf = JSON.parse(JSON.stringify(opts.preview.feature));
@@ -1496,5 +1557,5 @@ export function makeKernel(oc) {
     } finally { flush(); }
     return out;
   }
-  return { regen, refs, measure, exportStep, exportStl, project: projectEdges, section: sectionEdges, pierce: piercePoints, asmExport, asmMeasure, asmClash, drawingViews, drawLocate, state: () => last.S };
+  return { regen, stepKeys, has, snapshot, restore, lastRan: () => (lastTop ? lastTop.ran : 0), refs, measure, exportStep, exportStl, project: projectEdges, section: sectionEdges, pierce: piercePoints, asmExport, asmMeasure, asmClash, drawingViews, drawLocate, state: () => last.S };
 }

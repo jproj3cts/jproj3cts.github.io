@@ -7,6 +7,8 @@ import { kernel, rectSketch, pointsSketch, newDoc, newFeature } from './helpers.
 import { normFile, fileData } from '../../src/core/doc.js';
 import { VIEW_DIRS, newDrawing, normDrawing, layoutOf, viewBox, viewPoint, dimGeom, drawSheet, pdfOfSheet, scaleText, kernelViews, frameOf, hatchLines, dxfOfSheet, withDetails } from '../../src/core/drawing.js';
 
+/* a drawing as a plain object of one sheet (the form before sheets, which the core functions also take) */
+const flat = D => Object.assign({ id: D.id, kind: D.kind, name: D.name, of: D.of, part: D.part, title: D.title }, JSON.parse(JSON.stringify(D.sheets[D.at])));
 const near = (a, b, tol, what) => assert.ok(Math.abs(a - b) <= tol, (what || '') + ' ' + a + ' is not ' + b);
 /* a 40 × 20 plate, 10 thick, with a hole of radius 4 at (30, 10), as a Part Studio's tab */
 function plate(w = 40) {
@@ -42,7 +44,7 @@ test('the kernel’s views of a plate with a hole: each the size the plate is th
   near(at('right')[1], at('front')[1], 1e-9, 'right beside front'); assert.ok(at('right')[0] > at('front')[0]);
   for (const v of L.views) { const hw = v.w * L.s / 2, hh = v.h * L.s / 2; assert.ok(v.at[0] - hw > L.m && v.at[0] + hw < L.W - L.m && v.at[1] - hh > L.m && v.at[1] + hh < L.H - L.m, v.dir + ' is on the sheet'); }
   // a set scale is used as it is
-  near(layoutOf(Object.assign({}, D, { scale: 0.5 }), dataOf(D, got)).s, 0.5, 0);
+  near(layoutOf(Object.assign(flat(D), { scale: 0.5 }), dataOf(D, got)).s, 0.5, 0);
 });
 
 test('dimensions: the view’s whole size, a length between two corners and a hole’s diameter measure the model, and follow it when it changes', async () => {
@@ -54,7 +56,7 @@ test('dimensions: the view’s whole size, a length between two corners and a ho
   const base = { doc: st, part: part.id, p: [0, 0, 0], q: [0, 0, 0, 1] };
   const refs = K.drawLocate([Object.assign({ pick: { part: part.id, kind: 'vertex', index: vi(0, 0, 0) } }, base), Object.assign({ pick: { part: part.id, kind: 'vertex', index: vi(40, 0, 0) } }, base), Object.assign({ pick: { part: part.id, kind: 'edge', index: rim } }, base)]);
   assert.ok(refs.every(r => r && r.ref), 'refs for the picks');
-  const Dn = normDrawing(Object.assign({}, D, { dims: [{ id: 'w', view: fv.id, t: 'ext', axis: 'x' }, { id: 'h', view: fv.id, t: 'ext', axis: 'y', off: -10 },
+  const Dn = normDrawing(Object.assign(flat(D), { dims: [{ id: 'w', view: fv.id, t: 'ext', axis: 'x' }, { id: 'h', view: fv.id, t: 'ext', axis: 'y', off: -10 },
     { id: 'l', view: fv.id, t: 'lin', dir: 'h', off: 14, a: { ref: refs[0].ref }, b: { ref: refs[1].ref } }, { id: 'd', view: tv.id, t: 'dia', ang: 30, off: 8, a: { ref: refs[2].ref } }] }));
   assert.equal(Dn.dims.length, 4);
   const measure = stNow => {
@@ -78,12 +80,12 @@ test('dimensions: the view’s whole size, a length between two corners and a ho
   // the sheet drawn through a pen: lines for the border, the title block and the views; four dimensions' texts
   const texts = [], lines = { n: 0 };
   const pen = { line() { lines.n++; }, poly() { lines.n++; }, fill() {}, text(x, y, s) { texts.push(s); } };
-  const drawn = drawSheet(pen, Object.assign({}, Dn, { title: { title: 'Plate', by: 'JK', material: 'Aluminium 6061' } }), m.data, { located: m.located, date: '12 Nov 2026', source: 'Part Studio 1' });
+  const drawn = drawSheet(pen, Object.assign(flat(Dn), { title: { title: 'Plate', by: 'JK', material: 'Aluminium 6061' } }), m.data, { located: m.located, date: '12 Nov 2026', source: 'Part Studio 1' });
   assert.equal(drawn.dims.length, 4);
   for (const t of ['Plate', 'JK', 'Aluminium 6061', '12 Nov 2026', '55', 'Ø8', 'FRONT', 'TOP', 'RIGHT', 'ISOMETRIC']) assert.ok(texts.includes(t), 'the sheet says ' + t + ': ' + texts.join('|'));
   assert.ok(lines.n > 30);
   // the PDF: one page of A4 landscape in points, with the title and a dimension in it
-  const pdf = new TextDecoder('latin1').decode(pdfOfSheet(Object.assign({}, Dn, { title: { title: 'Plate (rev A)' } }), m.data, { located: m.located, date: '12 Nov 2026' }));
+  const pdf = new TextDecoder('latin1').decode(pdfOfSheet(Object.assign(flat(Dn), { title: { title: 'Plate (rev A)' } }), m.data, { located: m.located, date: '12 Nov 2026' }));
   assert.match(pdf, /^%PDF-1\.4/); assert.match(pdf, /%%EOF\n$/);
   assert.match(pdf, /\/MediaBox \[0 0 841\.89 595\.276\]/);
   assert.match(pdf, /\(Plate \\\(rev A\\\)\) Tj/); assert.match(pdf, /\(\\330(8)\) Tj/, 'the diameter sign in the PDF’s own encoding');
@@ -113,7 +115,7 @@ test('a section, a detail, centre marks and a thread on a drawing; radius and an
   assert.equal(part.threads.length, 1); assert.equal(part.threads[0].label, 'M6×1'); near(part.threads[0].r, 2.5, 1e-9, 'drilled at the tap size');
   const D0 = newDrawing('tA', 1), fv = D0.views.find(v => v.dir === 'front'), tv = D0.views.find(v => v.dir === 'top');
   // a section of the front view up through the plain hole (x = 30), and a detail of the top view round the tapped one
-  const D = normDrawing(Object.assign({}, D0, { views: D0.views.concat([{ id: 'sA', dir: 'section', of: fv.id, axis: 'v', pos: 30 }, { id: 'dB', dir: 'detail', of: tv.id, c: [10, 10], r: 6, k: 2 }]) }));
+  const D = normDrawing(Object.assign(flat(D0), { views: D0.views.concat([{ id: 'sA', dir: 'section', of: fv.id, axis: 'v', pos: 30 }, { id: 'dB', dir: 'detail', of: tv.id, c: [10, 10], r: 6, k: 2 }]) }));
   assert.deepEqual(D.views.slice(-2).map(v => v.label), ['A', 'B']);
   const F = frameOf(D, D.views.find(v => v.id === 'sA'));
   assert.deepEqual(F.n.map(v => Math.round(v) + 0), [-1, 0, 0], 'looking along +x, the eye on the −x side'); assert.deepEqual(F.cut.o, [30, 0, 0]);
@@ -144,7 +146,7 @@ test('a section, a detail, centre marks and a thread on a drawing; radius and an
   const ga = dimGeom(L, { id: 'a', view: fv.id, t: 'ang', off: 12 }, { a: { pt: [0, 0, 0] }, b: { pt: [40, 0, 0] }, c: { pt: [0, 0, 0] }, d: { pt: [20 * Math.cos(Math.PI / 6), 0, 20 * Math.sin(Math.PI / 6)] } });
   near(ga.value, 30, 1e-9); assert.equal(ga.text, '30°');
   // the sheet as a DXF: R12, millimetres, the layers and line types, its lines, the section's name and the thread
-  const Dd = Object.assign({}, D, { dims: [{ id: 'd', view: tv.id, t: 'dia', ang: 30, off: 8 }] });
+  const Dd = Object.assign(flat(D), { dims: [{ id: 'd', view: tv.id, t: 'dia', ang: 30, off: 8 }] });
   const dxf = new TextDecoder().decode(dxfOfSheet(Dd, data, { located: { d: { a: { c: [10, 10, 10], r: 2.5, label: 'M6×1' } } }, date: '16 Nov 2026' }));
   assert.match(dxf, /\$ACADVER\n1\nAC1009/); assert.match(dxf, /\$INSUNITS\n70\n4/);
   for (const name of ['VISIBLE', 'HIDDEN', 'CENTRE', 'DIMENSIONS', 'TEXT']) assert.match(dxf, new RegExp('\\nLAYER\\n2\\n' + name + '\\n'));
@@ -154,4 +156,43 @@ test('a section, a detail, centre marks and a thread on a drawing; radius and an
   assert.match(dxf, /0\nEOF\n$/);
   // and the PDF still writes
   assert.match(new TextDecoder('latin1').decode(pdfOfSheet(Dd, data, {})), /\(SECTION A-A\) Tj/);
+});
+
+/* sheets: a drawing from before them opens as its one sheet; the open sheet is read and written through the drawing,
+   and kept only in its sheets; a new sheet has its own views. Tolerances on a dimension's text; the bill of
+   materials from the parts shown; a PDF of two sheets has two pages; a DXF has them side by side */
+test('sheets, tolerances, notes, balloons and the bill of materials', async () => {
+  const { sheetOf, newSheet, tolText, bomRows, bomCsv, pdfOfSheets, dxfOfSheets } = await import('../../src/core/drawing.js');
+  const old = { id: 'd1', name: 'Old', of: 's1', sheet: 'A3', scale: 0.5, views: [{ id: 'v1', dir: 'front' }, { id: 'v2', dir: 'top' }], dims: [{ id: 'x', view: 'v1', t: 'ext', axis: 'x', tol: { k: 'sym', p: 0.1 }, pre: '2×' }], title: { title: 'Bracket' } };
+  const D = normDrawing(old);
+  assert.equal(D.sheets.length, 1); assert.equal(D.sheet, 'A3'); assert.equal(D.scale, 0.5); assert.equal(D.views.length, 2);
+  assert.deepEqual(D.dims[0].tol, { k: 'sym', p: 0.1, m: 0.1 }); assert.equal(D.dims[0].pre, '2×');
+  const kept = JSON.parse(JSON.stringify(D));
+  assert.ok(!('views' in kept) && kept.sheets[0].views.length === 2, 'the open sheet is kept in its sheets alone');
+  D.sheets.push(newSheet(D, 1)); D.at = 1;
+  assert.equal(D.views.length, 4); assert.equal(D.dims.length, 0); assert.equal(D.sheet, 'A3', 'a new sheet takes the open one’s paper');
+  assert.ok(!D.views.some(v => ['v1', 'v2'].includes(v.id)), 'its views have their own ids');
+  D.notes = [{ id: 'n', text: 'Anodise', at: [20, 20] }];
+  assert.equal(sheetOf(D, 0).notes.length, 0, 'the first sheet has none'); assert.equal(D.sheets[1].notes.length, 1);
+  const back = normDrawing(JSON.parse(JSON.stringify(D)));
+  assert.equal(back.at, 1); assert.equal(back.sheets.length, 2); assert.equal(back.notes[0].text, 'Anodise');
+  // tolerances
+  const g = { text: '40', value: 40 }, gd = { text: 'Ø6', value: 6 };
+  assert.equal(tolText({ tol: { k: 'sym', p: 0.1 } }, g), '40 ±0.1');
+  assert.equal(tolText({ tol: { k: 'dev', p: 0.2, m: 0.05 } }, g), '40 +0.2 -0.05');
+  assert.equal(tolText({ tol: { k: 'lim', p: 0.012, m: 0 } }, gd), 'Ø6.01/6');
+  assert.equal(tolText({ tol: { k: 'fit', fit: 'H7' }, pre: '4×' }, gd), '4× Ø6 H7');
+  assert.equal(tolText({ tol: { k: 'sym', p: 0.1 } }, { text: 'M6×1', value: 6 }), 'M6×1', 'a thread’s label takes none');
+  // the bill of materials: by Part Studio and part, numbered as they first come
+  const rows = bomRows([{ doc: 's', part: 'a' }, { doc: 's', part: 'b' }, { doc: 's', part: 'a' }, { doc: 't', part: 'a' }], x => ({ name: x.doc + x.part, material: 'Steel', mass: 2 }));
+  assert.deepEqual(rows.map(r => [r.item, r.name, r.qty]), [[1, 'sa', 2], [2, 'sb', 1], [3, 'ta', 1]]);
+  const csv = bomCsv([{ item: 1, name: 'Plate, 4 mm', qty: 2, material: 'Aluminium', mass: 12.5 }]);
+  assert.equal(csv, '﻿Item,Name,Quantity,Material,Mass each (g),Mass (g)\r\n1,"Plate, 4 mm",2,Aluminium,12.5,25\r\n');
+  // two sheets: a PDF of two pages, a DXF of both side by side (the second's lines past the first's width)
+  const data = { views: {} }, pages = [0, 1].map(k => ({ D: sheetOf(D, k), data, opts: { sheetNo: [k + 1, 2], bom: rows } }));
+  D.sheets[1].bom = true;
+  const pdf = new TextDecoder('latin1').decode(pdfOfSheets(pages));
+  assert.equal((pdf.match(/\/Type \/Page /g) || []).length, 2); assert.match(pdf, /\(2 of 2 /); assert.match(pdf, /\(Anodise\) Tj/); assert.match(pdf, /\(ITEM\) Tj/);
+  const dxf = new TextDecoder().decode(dxfOfSheets(pages)), xs = [...dxf.matchAll(/\n10\n([\d.]+)\n/g)].map(m => +m[1]);
+  assert.ok(Math.max(...xs) > 420 + 20, 'the second sheet is beside the first: ' + Math.max(...xs));
 });

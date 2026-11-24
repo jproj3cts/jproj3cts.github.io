@@ -605,3 +605,42 @@ test('a chamfer and a fillet on a part whose booleans merge faces badly', async 
     out = K.regen(doc);
   }
 });
+
+/* a fillet too big for its edge says how big one can be: on a 40 × 20 × 10 block, the upright corner edge takes a
+   radius up to the 20 mm side (a hair less), so 30 mm fails and names a size between 10 and 20 */
+test('a fillet too big for its edge says the largest that fits', async () => {
+  const K = await kernel(), doc = block();
+  const out = K.regen(doc);
+  doc.features.push(newFeature(doc, 'fillet', { edges: K.refs([edgeNear(out, [40, 20, 5])]), radius: '30' }));
+  const o = K.regen(doc), err = errorsOf(o).join(' ');
+  const m = err.match(/Up to about ([\d.]+) mm fits all of them/);
+  assert.ok(m && +m[1] >= 10 && +m[1] <= 20, err);
+  doc.features.at(-1).radius = m[1];
+  assert.ok(okAll(K.regen(doc)), 'the size it names fits');
+});
+
+/* a regeneration kept between visits: the last step written out (snapshot), read into a new kernel (restore), and
+   the document regenerated from there gives the same parts, faces and names without making the features again;
+   a feature changed after it is made on the state read back */
+test('a regeneration written out and read back into a new kernel', async () => {
+  const fs = await import('node:fs'), { normFile } = await import('../../src/core/doc.js'), { makeKernel } = await import('../../src/engines/kernel.js');
+  const K = await kernel(), doc = normFile(JSON.parse(fs.readFileSync(new URL('./fixtures/lens-holder.jekcad', import.meta.url)))).tabs[0];
+  doc.id = 'snaptest';
+  const t0 = Date.now(), out = K.regen(doc), slow = Date.now() - t0;
+  const snap = JSON.parse(JSON.stringify(K.snapshot()));
+  assert.equal(K.stepKeys(doc)[0], snap.key, 'its key is the last step’s');
+  const oc = await (await import(new URL('../../../../assets/vendor/replicad-opencascadejs/1.2.1/replicad_single.js', import.meta.url).href)).default({ print() {}, printErr() {} });
+  const K2 = makeKernel(oc);
+  assert.ok(!K2.has('snaptest', snap.key));
+  assert.ok(K2.restore(snap, 'snaptest'));
+  const t1 = Date.now(), back = K2.regen(doc), fast = Date.now() - t1;
+  const sum = o => o.parts.map(p => [p.id, p.volume.toFixed(6), p.faceNames.join(',')].join(' ')).join(' | ');
+  assert.equal(sum(back), sum(out));
+  assert.deepEqual(back.features.map(f => [f.id, f.ok]), out.features.map(f => [f.id, f.ok]));
+  assert.ok(fast < slow, 'read back in ' + fast + ' ms, made in ' + slow + ' ms');
+  // a feature added: made on the parts read back
+  doc.features.push(newFeature(doc, 'chamfer', { edges: K2.refs([edgeNear(back, [0, -5, -2])]), distance: '0.5' }));
+  const more = K2.regen(doc);
+  assert.ok(okAll(more), errorsOf(more).join('; '));
+  assert.ok(vol(more) < vol(back));
+});

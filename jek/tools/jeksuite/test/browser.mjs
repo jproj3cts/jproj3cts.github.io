@@ -14,7 +14,7 @@ export async function check(pw, base, shots) {
       await p.goto(base + '/jek/tools/jeksuite.html');
       await p.waitForSelector('#homeSignIn', { timeout: 10000 }).catch(() => {});
       const s = await p.evaluate(() => ({ signIn: !!document.getElementById('homeSignIn'), apps: [...document.querySelectorAll('.rt-happlinks button')].map(a => a.textContent), cards: document.querySelectorAll('.rt-happ').length, appsBtn: !!document.getElementById('homeApps'), btn: document.getElementById('btnAcct').textContent }));
-      ok('Signed out: a sign-in panel, and the apps under it as buttons (no cards, no Apps button)', s.signIn && s.apps.join() === 'Open JEKray,Open Optical designer,Open RF designer,Open Coating designer,Open JEKion,Open JEKcad' && !s.cards && !s.appsBtn && s.btn === 'Sign in', JSON.stringify(s));
+      ok('Signed out: a sign-in panel, and the apps under it as buttons (no cards, no Apps button)', s.signIn && s.apps.join() === 'Open JEKray,Open Optics designer,Open RF designer,Open Coating designer,Open JEKion,Open JEKcad' && !s.cards && !s.appsBtn && s.btn === 'Sign in', JSON.stringify(s));
       await p.click('#homeSignIn');
       const menu = await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].map(x => x.textContent));
       ok('Signed out: Sign in offers Google, Microsoft and email', ['Continue with Google', 'Continue with Microsoft (university or work)', 'Continue with email'].every(t => menu.includes(t)), menu.join(' | '));
@@ -163,7 +163,7 @@ export async function check(pw, base, shots) {
       ok('#app=jekion opens JEKion’s launch page', d.benches.join() === 'b2' && d.where === 'JEKion' && !errs.length, JSON.stringify(d) + errs.join(' | '));
       await p.close();
     }
-    // JEKray's designers: under it in the rail, indented; the Optical designer's page says where its designs are kept
+    // JEKray's designers: under it in the rail, indented; the Optics designer's page says where its designs are kept
     // for now, and New there makes a JEKray bench opened in the designer
     {
       const p = await b.newPage({ viewport: { width: 1300, height: 860 } }), errs = []; p.on('pageerror', e => errs.push(e.message));
@@ -173,16 +173,16 @@ export async function check(pw, base, shots) {
       const d = await p.evaluate(() => ({ rail: [...document.querySelectorAll('#homeRail .rt-happbtn')].map(x => (x.classList.contains('rt-hsub') ? '  ' : '') + x.textContent),
         head: document.querySelector('.rt-happhead h2').textContent, parent: (document.querySelector('.rt-happhead .rt-hparent') || {}).textContent, held: !!document.getElementById('appHeld'),
         benches: document.querySelectorAll('.rt-hcard[data-bench]').length, where: document.getElementById('homeWhere').textContent }));
-      ok('The rail lists JEKray’s three designers under it, indented, then JEKion and JEKcad', d.rail.join('|') === 'JEKray|  Optical designer|  RF designer|  Coating designer|JEKion|JEKcad', d.rail.join('|'));
-      ok('#app=jekoptic: the Optical designer’s page, JEKray above its name, a note that its designs are JEKray benches for now', d.head === 'Optical designer' && d.parent === 'JEKray' && d.held && !d.benches && d.where === 'Optical designer', JSON.stringify(d));
+      ok('The rail lists JEKray’s three designers under it, indented, then JEKion and JEKcad', d.rail.join('|') === 'JEKray|  Optics designer|  RF designer|  Coating designer|JEKion|JEKcad', d.rail.join('|'));
+      ok('#app=jekoptic: the Optics designer’s page, JEKray above its name, a note that its designs are JEKray benches for now', d.head === 'Optics designer' && d.parent === 'JEKray' && d.held && !d.benches && d.where === 'Optics designer', JSON.stringify(d));
       await p.click('#appNew'); await p.click('#spaceNewMake'); await p.waitForTimeout(400);
       const op = await p.evaluate(() => window.__opened.slice(-1)[0]);
-      ok('New optical design: a JEKray bench made in the cloud, opened in JEKray’s tab in the Optical designer', op && op[0] === '/jek/tools/jekray.html#cloud=bnew:lens' && op[1] === 'jekray' && calls.includes('POST /v1/workspaces/w_me/benches'), JSON.stringify(op));
+      ok('New optical design: a JEKray bench made in the cloud, opened in JEKray’s tab in the Optics designer', op && op[0] === '/jek/tools/jekray.html#cloud=bnew:lens' && op[1] === 'jekray' && calls.includes('POST /v1/workspaces/w_me/benches'), JSON.stringify(op));
       await p.click('#appOpen'); await p.waitForTimeout(200);
       const op2 = await p.evaluate(() => window.__opened.slice(-1)[0]);
-      ok('Open Optical designer: JEKray opened straight into a new design', op2 && op2[0] === '/jek/tools/jekray.html#new=lens' && op2[1] === 'jekray', JSON.stringify(op2));
+      ok('Open Optics designer: JEKray opened straight into a new design', op2 && op2[0] === '/jek/tools/jekray.html#new=lens' && op2[1] === 'jekray', JSON.stringify(op2));
       if (shots) await p.screenshot({ path: shots + '/jeksuite-launch-jekoptic.png' });
-      ok('The Optical designer’s page: no page errors', !errs.length, errs.join(' | '));
+      ok('The Optics designer’s page: no page errors', !errs.length, errs.join(' | '));
       await p.close();
     }
     // JEKfilm's launch page: its coatings alone, in their folders, counted as coatings; one opens in JEKfilm

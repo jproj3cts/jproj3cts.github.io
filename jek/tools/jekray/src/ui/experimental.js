@@ -1,4 +1,4 @@
-import { TEST_MODE } from '../core/constants.js';
+import { RFAPP, TEST_MODE, appStoreKey } from '../core/constants.js';
 import { EXPERIMENTAL, expRead, expWrite } from '../core/exp-list.js';
 import { PALETTE_GROUPS, PALETTE_PARTS, pickerRows } from '../parts/registry.js';
 import { V, project, selectOne } from '../state/project.js';
@@ -74,7 +74,7 @@ export const PALETTES = {
   get rf() { return pickerRows(PALETTE_PARTS.rf); },
   get pic() { return pickerRows(PALETTE_PARTS.pic); },
 };
-export let palette = (() => { try { const pv = localStorage.getItem('jek-raytracer-palette'); return pv === 'fibre' || pv === 'pic' || pv === 'elec' || pv === 'rf' || pv === 'draw' ? pv : 'free'; } catch (err) { return 'free'; } })();   // (a private window: free space)
+export let palette = (() => { try { const pv = localStorage.getItem(appStoreKey('jek-raytracer-palette')); if (RFAPP) return pv === 'draw' || pv === 'elec' ? pv : 'rf'; return pv === 'fibre' || pv === 'pic' || pv === 'elec' || pv === 'draw' ? pv : 'free'; } catch (err) { return 'free'; } })();   // (a private window: free space)
 export function assignPalette(v) { return (palette = v); }
 /* The parts, two ways in: a picker (+ Add part, or A or /) with a search, a tab for each palette and
    the parts in groups, each with its symbol as the bench draws it; and a rail down the bench's left
@@ -89,7 +89,9 @@ export const PART_GROUPS = {
   get pic() { return PALETTE_GROUPS.pic; },
   get elec() { return PALETTE_GROUPS.elec; },
 };
-export const palettesOn = () => Object.keys(PALETTES).filter(p => (p !== 'pic' || exp('pic')) );
+/* the palettes offered: JEKrf's RF parts and the circuits they feed; JEKray's the rest (the RF parts are JEKrf's: a
+   bench holding some still opens and traces in JEKray) */
+export const palettesOn = () => (RFAPP ? ['rf', 'elec'] : Object.keys(PALETTES).filter(p => p !== 'rf' && (p !== 'pic' || exp('pic'))));
 export const partsOf = pal => PALETTES[pal].filter(it => !it[3] || exp(it[3])).map(([key, short, long]) => ({ key, short, long: long || short, pal }));
 // a palette's parts in their groups; any not listed in a group under Other
 export function partGroups(pal) {

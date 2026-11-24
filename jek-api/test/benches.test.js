@@ -536,4 +536,30 @@ describe('the tools', () => {
     const f = (await json(await send(`/v1/benches/${d.id}/fork`, 'POST', s.token, {}))).body;
     expect(f.tool).toBe('jekoptic');
   });
+  it('migration 0022 marks JEKrf benches and RF designs saved as JEKray benches (by an API from before JEKrf) by their content', async () => {
+    const s = await pro('Mig4');
+    const b = await make(s, 'Horn test', { content: JSON.stringify({ format: 'jekrf', version: 1, name: 'Horn test', elements: [] }) });
+    const d = await make(s, 'Lens 24 GHz', { content: JSON.stringify({ format: 'jekrfd', version: 1, name: 'Lens 24 GHz', uid: 'o12345678', elements: [] }) });
+    const r = await make(s, 'A bench');
+    for (const id of [b.id, d.id]) await env.DB.prepare("UPDATE benches SET tool = 'jekray' WHERE id = ?").bind(id).run();
+    const sql = (await import('../migrations/0022_bench_tool_jekrf.sql?raw')).default;
+    for (const st of sql.split(';').map((x) => x.replace(/--.*$/gm, '').trim()).filter(Boolean)) await env.DB.prepare(st).run();
+    expect((await json(await call(`/v1/benches/${b.id}`, { token: s.token }))).body.tool).toBe('jekrf');
+    expect((await json(await call(`/v1/benches/${d.id}`, { token: s.token }))).body.tool).toBe('jekrfd');
+    expect((await json(await call(`/v1/benches/${r.id}`, { token: s.token }))).body.tool).toBe('jekray');
+  });
+  it('a JEKrf bench and an RF design are tools of their own: listed by them, and neither saves over the other or a JEKray bench', async () => {
+    const s = await pro('Rafe');
+    const r = await make(s, 'Optics');
+    const b = await make(s, 'Horns', { content: JSON.stringify({ format: 'jekrf', version: 1, name: 'Horns', elements: [] }) });
+    const d = await make(s, 'Lens', { content: JSON.stringify({ format: 'jekrfd', version: 1, name: 'Lens', uid: 'o12345678abc', elements: [] }) });
+    expect([b.tool, d.tool]).toEqual(['jekrf', 'jekrfd']);
+    const rfs = (await json(await call(`/v1/workspaces/${s.workspaceId}/benches?tool=jekrf`, { token: s.token }))).body.benches;
+    expect(rfs.map((x) => x.id)).toEqual([b.id]);
+    const over = await json(await put(s, d.id, 1, JSON.stringify({ format: 'jekrf', version: 1, name: 'Lens', elements: [] })));
+    expect(over.status).toBe(400);
+    expect(over.body.error.message).toMatch(/RF designer design: a \.jekrf cannot/);
+    expect((await json(await put(s, r.id, 1, JSON.stringify({ format: 'jekrf', version: 1, name: 'Optics', elements: [] })))).status).toBe(400);
+    expect((await json(await put(s, b.id, 1, JSON.stringify({ format: 'jekrf', version: 1, name: 'Horns 2', elements: [] })))).status).toBe(200);
+  });
 });

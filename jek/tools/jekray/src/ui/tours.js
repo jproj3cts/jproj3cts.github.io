@@ -1,8 +1,7 @@
-import { BEAM_Z, EMBED, IN_WORKER, LOCKED, OPTIC, TEST_MODE, clamp, cloud } from '../core/constants.js';
+import { BEAM_Z, EMBED, IN_WORKER, DESIGNER, LOCKED, TEST_MODE, clamp, cloud } from '../core/constants.js';
 import { makeAssembly } from './assembly.js';
-import { newRfDesign } from './rf-workspace.js';
 import { designInFilm } from '../io/film-coats.js';
-import { newOpticDesign, openDesign, opticShow } from '../io/optic.js';
+import { newOpticDesign, newRfdDesign, openDesign, opticShow } from '../io/designs.js';
 import { asmOfSelection } from '../core/assembly.js';
 import { V, normMat, project, selectOne, setFuture, setHistory, typeLabel } from '../state/project.js';
 import { getEl, selected } from '../state/elements.js';
@@ -238,7 +237,7 @@ function fillMetrics(targetSel, metricSel, famBox) {
 }
 
 /* a new bench, from JEKsuite's New (#new): what was on the bench kept in Earlier versions, unlinked from the cloud */
-export function startNewBench() { if (project.elements.length) keepSnapshot('Before New', true); if (cloud) cloudLink(null); newProject(); if (OPTIC) opticShow(); }
+export function startNewBench() { if (project.elements.length) keepSnapshot('Before New', true); if (cloud) cloudLink(null); newProject(); if (DESIGNER) opticShow(); }
 export function newProject() {
   pauseAll();
   checkpoint();
@@ -266,7 +265,7 @@ export function wireTours() {
 
   document.getElementById('btnImport').addEventListener('click', () => openZmx(false));
   document.getElementById('btnNewLens').addEventListener('click', () => newOpticDesign());
-  document.getElementById('btnNewRf').addEventListener('click', () => newRfDesign());
+  document.getElementById('btnNewRf').addEventListener('click', () => newRfdDesign());
   // the selection as a design: its assembly if it is one, else the parts made one (lenses and stops on one axis); an RF
   // system needs RF parts among them, and opens in the RF designer (openLensDesign routes an RF assembly there)
   const ofSelection = rf => {

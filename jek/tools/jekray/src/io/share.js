@@ -1,4 +1,4 @@
-import { EMBED, FORMAT, LOCKED, VERSION } from '../core/constants.js';
+import { EMBED, FORMAT, LOCKED, PAGE_QUERY, VERSION } from '../core/constants.js';
 import { history, project, selectOne, selectedId } from '../state/project.js';
 import { getEl, normElementBase, serialize } from '../state/elements.js';
 import { traceScene } from '../engines/trace.js';
@@ -140,7 +140,7 @@ export async function readShareHash(h) {
   } else if (kind !== 'j') throw new Error('that is not a JEKray link');
   try { return JSON.parse(new TextDecoder().decode(bytes)); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
 }
-export const shareBase = () => location.origin + location.pathname;
+export const shareBase = () => location.origin + location.pathname + PAGE_QUERY;      // (JEKrf's, a designer's: its own page)
 /* A link for a QR code, as small as it can be: the bench without its notes, its parts renumbered
    0, 1, 2... (not where a cavity's lock setting is keyed by them), deflated, and written in base
    32 capitals after /R/ on the site, all of it in the QR code's alphanumeric mode (5.5 bits a

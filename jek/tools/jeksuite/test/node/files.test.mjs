@@ -43,9 +43,9 @@ test('orders: newest and largest first, names by the alphabet, apps as the hub l
   assert.equal(ids('name', true), '1342');
   assert.equal(ids('app'), '3124');
   assert.equal(ids('folder', false, b => b.folder_id || ''), '1243');
-  // JEKray's designers come straight after it, before JEKion and JEKcad; an app the hub does not know, last
-  const mix = ['jekcad', 'jekion', 'jekfilm', 'jekrfd', 'jekoptic', 'jekray', 'newapp'].map((tool, i) => ({ id: String(i), name: 'x', tool, updated_at: i, size_bytes: i }));
-  assert.equal(sortBenches(mix, 'app').map(b => b.tool).join(), 'jekray,jekoptic,jekrfd,jekfilm,jekion,jekcad,newapp');
+  // each app's designers straight after it (JEKray's, then JEKrf with its RF designer), then JEKion and JEKcad; an app the hub does not know, last
+  const mix = ['jekcad', 'jekion', 'jekrfd', 'jekfilm', 'jekrf', 'jekoptic', 'jekray', 'newapp'].map((tool, i) => ({ id: String(i), name: 'x', tool, updated_at: i, size_bytes: i }));
+  assert.equal(sortBenches(mix, 'app').map(b => b.tool).join(), 'jekray,jekoptic,jekfilm,jekrf,jekrfd,jekion,jekcad,newapp');
   assert.equal(ids('nonsense'), '2314');
   assert.equal(benches[0].id, '1', 'the list given is left as it was');
 });

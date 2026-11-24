@@ -1,5 +1,5 @@
 import { NEWS } from './news-data.js';
-import { EMBED } from '../core/constants.js';
+import { EMBED, RFAPP } from '../core/constants.js';
 import { exerciseInvite } from './challenge.js';
 import { project } from '../state/project.js';
 import { phoneSheet } from './panel.js';
@@ -28,6 +28,8 @@ const BUG_TO = 'support@jeksys.net', BUG_MAILTO_MAX = 1900;
 
 /* The examples, by group: file name in demos/, title, and one line on what it shows. The
    gallery shows each with a picture from demos/thumbs/ (demos/thumbs/light/ in the Light theme). */
+/* the examples a program shows: JEKrf's RF ones alone, JEKray's the rest (J.examples() and #demo= reach every one) */
+export const examplesShown = () => EXAMPLES.filter(g => (g[0] === 'RF and millimetre waves') === RFAPP);
 export const EXAMPLES = [
   ['Interference and cavities', false, [
     ['michelson', 'Michelson interferometer', 'Move a mirror and watch the fringes at the output port walk.'],
@@ -271,7 +273,7 @@ export function wireNews() {
     const fill = () => {
       const q = search.value.trim().toLowerCase();
       grid.replaceChildren();
-      for (const [group, beta, list] of EXAMPLES) {
+      for (const [group, beta, list] of examplesShown()) {
         const hits = list.filter(([id, t, d, x]) => (!x || exp(x)) && (!q || (group + ' ' + t + ' ' + d).toLowerCase().includes(q)));
         if (!hits.length) continue;
         grid.append(h('h3', null, group, beta ? h('span', { class: 'rt-beta' }, 'Beta') : null),

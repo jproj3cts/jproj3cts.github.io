@@ -4,7 +4,7 @@ import { serialize } from '../state/elements.js';
 import { setStatus } from '../ui/actions.js';
 import { cloudChanged, cloudNote, cloudOn } from './cloud.js';
 import { keepHere, workChanged } from '../ui/pro.js';
-import { opticChanged } from './optic.js';
+import { opticChanged } from './designs.js';
 
 /* ==========================================================================
    Autosave in this browser, and the earlier versions kept alongside it.

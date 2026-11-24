@@ -9,6 +9,7 @@ import { TEST_MODE } from './constants.js';
    them, as they change, from the store (ui/experimental.js in JEKray, the storage event).
    ========================================================================== */
 export const EXPERIMENTAL = [
+  { key: 'jekrf', app: true, name: 'JEKrf', what: 'RF and millimetre-wave quasi-optics: feed horns, RF lenses and mirrors on a bench of their own (.jekrf), and the RF designer, whose designs (.rfd) the benches use. Not yet fully validated, so treat its numbers as a guide. Shown in JEKsuite and on the site while this is ticked.' },
   { key: 'jekion', app: true, name: 'JEKion', what: 'charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live. Not yet fully validated, so treat its numbers as a guide. Shown in JEKsuite and on the site while this is ticked.' },
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
   { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },

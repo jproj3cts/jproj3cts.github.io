@@ -1,4 +1,4 @@
-import { EMBED, LOCKED } from '../core/constants.js';
+import { EMBED, LOCKED, appStoreKey } from '../core/constants.js';
 import { project } from '../state/project.js';
 import { PACKS } from '../state/packs.js';
 import {
@@ -96,7 +96,7 @@ export function fillRail() {
     i ? h('span', { class: 'rt-rsep ' + pal, 'aria-hidden': 'true' }) : null,
     ...partGroups(pal).map(g => {
       const b = h('button', { type: 'button', class: 'rt-rgroup ' + pal, title: PALETTE_NAMES[pal] + ': ' + g.name, 'aria-label': PALETTE_NAMES[pal] + ': ' + g.name }, h('img', { alt: '', src: partIcon(g.parts[0].key), width: '26', height: '26' }));
-      b.addEventListener('click', e => { e.stopPropagation(); if (palette !== pal) { assignPalette(pal); lastParts = pal; try { localStorage.setItem('jek-raytracer-palette', pal); } catch (err) { /* fine */ } } flyShown(b, g); });
+      b.addEventListener('click', e => { e.stopPropagation(); if (palette !== pal) { assignPalette(pal); lastParts = pal; try { localStorage.setItem(appStoreKey('jek-raytracer-palette'), pal); } catch (err) { /* fine */ } } flyShown(b, g); });
       return b;
     })]).filter(Boolean);
   // (My parts are a tab of + Add's, not a button of the bar's)
@@ -114,7 +114,7 @@ export function setPalette(pal) {
   }
   assignPalette(pal);
   if (pal !== 'draw' && drawTool !== 'select') setDrawTool('select');
-  try { localStorage.setItem('jek-raytracer-palette', palette); } catch (err) { /* not kept: fine */ }
+  try { localStorage.setItem(appStoreKey('jek-raytracer-palette'), palette); } catch (err) { /* not kept: fine */ }
   fillRail();
 }
 /* the palettes offered change with the experimental switch */

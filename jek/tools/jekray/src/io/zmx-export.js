@@ -15,7 +15,7 @@ import { api, showSubscribe } from './account.js';
 import { personalWs } from './cloud.js';
 import { designOne } from '../ui/assembly.js';
 import { accountGate, designPro } from '../ui/pro.js';
-import { openDesign } from './optic.js';
+import { openDesign } from './designs.js';
 
 /* ==========================================================================
    .zmx lens file export

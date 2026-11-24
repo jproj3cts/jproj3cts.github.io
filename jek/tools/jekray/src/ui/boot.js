@@ -1,4 +1,4 @@
-import { EMBED, OPTIC, STORE_KEY, TEST_MODE } from '../core/constants.js';
+import { DESIGNER, EMBED, PAGE_MODE, PAGE_QUERY, STORE_KEY, TEST_MODE } from '../core/constants.js';
 import { installHooks } from '../core/hooks.js';
 import { glassInfo, refIndex } from '../core/glass.js';
 import { atomLines, gasDamping, sphereAlpha, trapAlpha, trapPhysics, waterViscosity } from '../core/traps.js';
@@ -91,7 +91,7 @@ import { packTrustLabel } from '../core/packsig.js';
 import { accountLoaded, accountsOn, proLink, wireAccount } from '../io/account.js';
 import { returnNudge, wireNudges } from '../io/nudges.js';
 import { openCloudBench, openSpace, wireCloud } from '../io/cloud.js';
-import { designContent, opticFollow, opticHash, opticOffers, opticPage, opticPageSetup, opticShow, placeDesign, setOpticTabs, wireOptic } from '../io/optic.js';
+import { designContent, modePage, opticFollow, opticHash, opticOffers, opticPageSetup, opticShow, placeDesign, setOpticTabs, wireOptic } from '../io/designs.js';
 import { wireCart } from '../io/order.js';
 import { APP_VERSION, EXAMPLES, hideWelcome, showWelcome, wireNews } from './news.js';
 import { scriptCalls } from './script-calls.js';
@@ -174,15 +174,15 @@ if (!TEST_MODE) window.addEventListener('storage', e => { if (e.key === EXP_KEY 
   // a share link opened with nothing kept here: an empty bench while the link's own is fetched, not the example first
   const blankFirst = !project && !!(shared || short);
   if (!project) demoProject();
-  // the Optics designer with nothing kept: no example bench under it, a new design (opticShow, below)
-  if (OPTIC && !restored && !blankFirst) { project.elements = []; project.suppressed = []; project.parked = []; project.fibres = []; project.assemblies = []; project.name = 'New design'; }
+  // a designer or JEKrf with nothing kept: no example bench, an empty one (a designer's new design: opticShow, below)
+  if (PAGE_MODE !== 'ray' && !restored && !blankFirst) { project.elements = []; project.suppressed = []; project.parked = []; project.fibres = []; project.assemblies = []; project.name = DESIGNER ? 'New design' : 'Untitled bench'; }
   if (blankFirst) { project.elements = []; project.suppressed = []; project.parked = []; project.name = 'Opening the shared bench\u2026'; }
   nameInput.value = project.name;
   renderBenchTabs();
   setStatus(restored ? 'Restored your last session' : '');
   if (EMBED) embedMode();
   if (shared || short) {
-    if (!EMBED) window.history.replaceState(null, '', location.pathname + (OPTIC ? '?optic' : ''));
+    if (!EMBED) window.history.replaceState(null, '', location.pathname + PAGE_QUERY);
     // (the link could not be opened: the example after all, rather than an empty bench)
     Promise.resolve(short ? openShortLink(short[1]) : openShareHash(shared[1])).then(() => { if (blankFirst && !allParts().length) { demoProject(); nameInput.value = project.name; renderBenchTabs(); changed(true); } });
   }
@@ -196,9 +196,9 @@ if (!TEST_MODE) window.addEventListener('storage', e => { if (e.key === EXP_KEY 
     goal('landing');
     setTimeout(() => openDemo('michelson').then(() => playAll()), 300);
   }
-  else if (!restored && !OPTIC && !TEST_MODE && !EMBED && !/[#?&](demo=|tour=|examples|pro\b|ex=|place-optic)/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
+  else if (!restored && PAGE_MODE === 'ray' && !TEST_MODE && !EMBED && !/[#?&](demo=|tour=|examples|pro\b|ex=|place-optic)/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
   // the Optics designer: its design open, the page its workspace; a bench: its designs in the cloud that moved on, offered
-  if (OPTIC) opticShow();
+  if (DESIGNER) opticShow();
   else if (restored && accountsOn()) Promise.resolve(accountLoaded).then(() => setTimeout(opticOffers, 2500));
   // restored on a later visit, signed out: what keeping it here alone means, once the account is known
   if (restored && accountsOn()) Promise.resolve(accountLoaded).then(() => setTimeout(() => returnNudge(again, arrived), 1500));
@@ -538,7 +538,7 @@ if (!TEST_MODE) window.addEventListener('storage', e => { if (e.key === EXP_KEY 
     lensParaxial(name, nm) { const el = this.byName(name), S = lensSystem(asmPrescription({ ref: el.id, rev: false }, [el]), nm); return { efl: S.par.efl, bfl: S.par.bfl }; },
     openLensDesign(name) { const a = assemblies().find(x => x.name === name); return !!a && openLensDesign(a); },
     closeLensDesign() { closeLensDesign(); closeRfDesign(); closeCoatDesign(); },
-    // the Optics designer's files (io/optic.js): a design made from an assembly, put on the bench, a change sent to it
+    // the Optics designer's files (io/designs.js): a design made from an assembly, put on the bench, a change sent to it
     opticTabs(on) { setOpticTabs(on); },
     designFile(name) { const a = assemblies().find(x => x.name === name); if (!a) return null; if (!a.src) a.src = { uid: opticUid() }; return designContent(a, a.src.uid); },
     placeDesign(data, src) { const a = placeDesign(data, src || null); changed(true); traceScene(); return a.name; },
@@ -722,7 +722,7 @@ if (!TEST_MODE) window.addEventListener('storage', e => { if (e.key === EXP_KEY 
   // address so a reload keeps the bench as edited rather than opening the example again
   const demo = !TEST_MODE && !ig && (location.hash + '&' + location.search).match(/[#?&]demo=([a-z0-9-]+)/);
   if (demo) {
-    if (!EMBED) window.history.replaceState(null, '', location.pathname + (OPTIC ? '?optic' : ''));
+    if (!EMBED) window.history.replaceState(null, '', location.pathname + PAGE_QUERY);
     openDemo(demo[1]);
   }
   // #examples opens the gallery, #tour=<name> starts a tour, #pro offers JEKrayPro (the product page links to all three);
@@ -731,12 +731,12 @@ if (!TEST_MODE) window.addEventListener('storage', e => { if (e.key === EXP_KEY 
   const helpLink = () => {
     const tr = location.hash.match(/^#tour=([a-z]+)/), pro = location.hash === '#pro', benches = location.hash === '#benches';
     const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?(?::(lens|rf|coat))?$/), nw = location.hash.match(/^#new(?:=(lens|rf|coat))?$/);
-    // a design handed over (#take in the designer, #place-optic on a bench: io/optic.js)
-    if (opticHash(openProjectData, openCloudBench)) { window.history.replaceState(null, '', location.pathname + (OPTIC ? '?optic' : '')); return true; }
-    // a new optical design is the Optics designer's (an older link to JEKray's own)
-    if (!OPTIC && nw && nw[1] === 'lens') { location.replace(opticPage() + '?optic#new'); return true; }
+    // a design handed over (#take in the designer, #place-optic on a bench: io/designs.js)
+    if (opticHash(openProjectData, openCloudBench)) { window.history.replaceState(null, '', location.pathname + PAGE_QUERY); return true; }
+    // a new optical design is the Optics designer's, a new RF design JEKrf's RF designer's (older links to the bench's own)
+    if (!DESIGNER && nw && (nw[1] === 'lens' || nw[1] === 'rf')) { location.replace(modePage(nw[1] === 'lens' ? 'optic' : 'rfd') + '#new'); return true; }
     if (location.hash !== '#examples' && !pro && !benches && !cl && !nw && !(tr && TOURS[tr[1]])) return false;
-    window.history.replaceState(null, '', location.pathname + (OPTIC ? '?optic' : ''));
+    window.history.replaceState(null, '', location.pathname + PAGE_QUERY);
     hideWelcome();
     const into = w => { if (w === 'lens') newLensDesign(); else if (w === 'rf') newRfDesign(); else if (w === 'coat') designInFilm(null); };
     setTimeout(async () => {
@@ -750,7 +750,7 @@ if (!TEST_MODE) window.addEventListener('storage', e => { if (e.key === EXP_KEY 
   };
   // this tab is the JEKray one: JEKion's My benches opens here rather than in a new tab each time (the Optics
   // designer's is its own, where a bench's Edit in the Optics designer opens)
-  if (!TEST_MODE && !EMBED && (!window.name || OPTIC)) window.name = OPTIC ? 'jekoptic' : 'jekray';
+  if (!TEST_MODE && !EMBED && (!window.name || PAGE_MODE !== 'ray')) window.name = { ray: 'jekray', optic: 'jekoptic', rf: 'jekrf', rfd: 'jekrfd' }[PAGE_MODE];
   if (!TEST_MODE && !EMBED) helpLink();
   // ?kiosk (or ?kiosk=all): recording, the page's notes and panels out of the way (J.kiosk does the same)
   if (/[?&]kiosk\b/.test(location.search)) kioskSet(true, { all: /[?&]kiosk=all\b/.test(location.search) });
@@ -759,7 +759,7 @@ if (!TEST_MODE) window.addEventListener('storage', e => { if (e.key === EXP_KEY 
     if (!EMBED && helpLink()) return;
     const sh = location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), ss = location.hash.match(/^#s=([A-Za-z2-7]{10})$/), dm = location.hash.match(/^#demo=([a-z0-9-]+)/);
     if (!sh && !ss && !dm) return;
-    if (!EMBED) window.history.replaceState(null, '', location.pathname + (OPTIC ? '?optic' : ''));
+    if (!EMBED) window.history.replaceState(null, '', location.pathname + PAGE_QUERY);
     hideWelcome();
     if (sh) openShareHash(sh[1]); else if (ss) openShortLink(ss[1]); else openDemo(dm[1], true);
   });

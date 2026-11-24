@@ -15,7 +15,7 @@ import { exportZmx } from '../io/zmx-export.js';
 import { condMismatch } from '../engines/lens-design.js';
 import { asmBenchLight, openLensDesign } from './lens-workspace.js';
 import { acctMark, proMark } from './pro.js';
-import { openDesign } from '../io/optic.js';
+import { openDesign } from '../io/designs.js';
 
 /* ---------- Assemblies on the bench ----------
    Made from lenses and stops picked on the bench, split back into them, or started afresh from the

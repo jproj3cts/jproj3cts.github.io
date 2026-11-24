@@ -14,7 +14,7 @@ export async function check(pw, base, shots) {
       await p.goto(base + '/jek/tools/jeksuite.html');
       await p.waitForSelector('#homeSignIn', { timeout: 10000 }).catch(() => {});
       const s = await p.evaluate(() => ({ signIn: !!document.getElementById('homeSignIn'), apps: [...document.querySelectorAll('.rt-happlinks button')].map(a => a.textContent), cards: document.querySelectorAll('.rt-happ').length, appsBtn: !!document.getElementById('homeApps'), btn: document.getElementById('btnAcct').textContent }));
-      ok('Signed out: a sign-in panel, and the apps under it as buttons (no cards, no Apps button), JEKion not among them (experimental, for accounts)', s.signIn && s.apps.join() === 'Open JEKray,Open Optics designer,Open RF designer,Open Coating designer,Open JEKcad' && !s.cards && !s.appsBtn && s.btn === 'Sign in', JSON.stringify(s));
+      ok('Signed out: a sign-in panel, and the apps under it as buttons (no cards, no Apps button), JEKrf and JEKion not among them (experimental, for accounts)', s.signIn && s.apps.join() === 'Open JEKray,Open Optics designer,Open Coating designer,Open JEKcad' && !s.cards && !s.appsBtn && s.btn === 'Sign in', JSON.stringify(s));
       await p.click('#homeSignIn');
       const menu = await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].map(x => x.textContent));
       ok('Signed out: Sign in offers Google, Microsoft and email', ['Continue with Google', 'Continue with Microsoft (university or work)', 'Continue with email'].every(t => menu.includes(t)), menu.join(' | '));
@@ -92,7 +92,7 @@ export async function check(pw, base, shots) {
       await p.click('#homeNew');
       const kinds = await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].map(x => x.textContent));
       const subs = await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button.rt-hsub')].map(x => x.textContent));
-      ok('New offers a bench in each app, JEKray’s designers (an optical design, an RF design, a coating) under it, and no way to merely open an app', kinds.join('|') === 'JEKray bench|Optical design|RF design|Coating|JEKion bench|JEKcad part studio' && subs.join('|') === 'Optical design|RF design|Coating', kinds.join('|') + ' / ' + subs.join('|'));
+      ok('New offers a bench in each app, each one’s designers under it (JEKray’s optical design and coating, JEKrf’s RF design), and no way to merely open an app', kinds.join('|') === 'JEKray bench|Optical design|Coating|JEKrf bench|RF design|JEKion bench|JEKcad part studio' && subs.join('|') === 'Optical design|Coating|RF design', kinds.join('|') + ' / ' + subs.join('|'));
       await p.evaluate(() => [...document.querySelectorAll('.rt-hmenu button')].find(x => x.textContent === 'Optical design').click());
       await p.click('#spaceNewMake'); await p.waitForTimeout(400);
       const op3 = await p.evaluate(() => window.__opened.slice(-1)[0]);
@@ -182,8 +182,8 @@ export async function check(pw, base, shots) {
       const stored = await p.evaluate(() => localStorage.getItem('jek-raytracer-experimental'));
       await p.evaluate(() => document.getElementById('homeExpDialog').close()); await p.waitForTimeout(300);
       const on = await rail();
-      ok('Experimental features off: JEKion is not in the rail or New', !off.includes('JEKion') && !kinds.includes('JEKion bench') && off.includes('JEKcad'), JSON.stringify([off, kinds]));
-      ok('The account menu’s Experimental features: JEKion among them, the switch kept for every app, JEKion then in the rail', dlg.apps[0] === 'jekion' && dlg.apps.includes('pic') && !dlg.on && stored === '1' && on.includes('JEKion') && !errs.length, JSON.stringify([dlg, stored, on, errs]));
+      ok('Experimental features off: JEKrf, its RF designer and JEKion are not in the rail or New', !off.includes('JEKion') && !off.includes('JEKrf') && !off.includes('RF designer') && !kinds.includes('JEKion bench') && !kinds.includes('RF design') && off.includes('JEKcad'), JSON.stringify([off, kinds]));
+      ok('The account menu’s Experimental features: the apps JEKrf and JEKion first, the switch kept for every app, both then in the rail', dlg.apps.slice(0, 2).join() === 'jekrf,jekion' && dlg.apps.includes('pic') && !dlg.on && stored === '1' && on.includes('JEKion') && on.includes('JEKrf') && !errs.length, JSON.stringify([dlg, stored, on, errs]));
       await p.goto(base + '/jek/tools/jeksuite.html#experimental');
       await p.waitForSelector('#homeExpDialog[open]', { timeout: 5000 }).catch(() => {});
       ok('#experimental (JEKray’s Help item) opens the dialog', !!(await p.$('#homeExpDialog[open]')), '');
@@ -199,7 +199,7 @@ export async function check(pw, base, shots) {
       const d = await p.evaluate(() => ({ rail: [...document.querySelectorAll('#homeRail .rt-happbtn')].map(x => (x.classList.contains('rt-hsub') ? '  ' : '') + x.textContent),
         head: document.querySelector('.rt-happhead h2').textContent, parent: (document.querySelector('.rt-happhead .rt-hparent') || {}).textContent, held: !!document.getElementById('appHeld'),
         benches: document.querySelectorAll('.rt-hcard[data-bench]').length, counts: [...document.querySelectorAll('.rt-hcard.folder:not([hidden]) .rt-hcount')].map(x => x.textContent), where: document.getElementById('homeWhere').textContent }));
-      ok('The rail lists JEKray’s three designers under it, indented, then JEKion and JEKcad', d.rail.join('|') === 'JEKray|  Optics designer|  RF designer|  Coating designer|JEKion|JEKcad', d.rail.join('|'));
+      ok('The rail lists each app’s designers under it, indented: JEKray’s Optics and Coating designers, JEKrf’s RF designer; then JEKion and JEKcad', d.rail.join('|') === 'JEKray|  Optics designer|  Coating designer|JEKrf|  RF designer|JEKion|JEKcad', d.rail.join('|'));
       ok('#app=jekoptic: the Optics designer’s page, JEKray above its name, its designs alone, counted in their folder', d.head === 'Optics designer' && d.parent === 'JEKray' && !d.held && !d.benches && d.counts.join() === '1 optical design' && d.where === 'Optics designer', JSON.stringify(d));
       const posted = p.waitForRequest(r => r.method() === 'POST' && /\/v1\/workspaces\/w_me\/benches$/.test(r.url()));
       await p.click('#appNew'); await p.click('#spaceNewMake');

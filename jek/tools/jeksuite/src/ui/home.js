@@ -67,7 +67,7 @@ let homeSeq = 0, homeRO = null;
    The rail's apps open the app's page here (#app=<id>), not the app: what it does, its benches alone (the same folders,
    search and sorting as My benches), and the one picked shown large beside them, to open in the app. Anything else in
    the rail leaves it. */
-const appHash = () => { const m = location.hash.match(/^#app=(jekray|jekoptic|jekrfd|jekfilm|jekion|jekcad)$/); return m ? m[1] : null; };
+const appHash = () => { const m = location.hash.match(/^#app=(jekray|jekoptic|jekfilm|jekrf|jekrfd|jekion|jekcad)$/); return m ? m[1] : null; };
 export function showApp(id) {
   closeMenu();
   if (id) { Object.assign(cloudPlace, { app: id, view: 'folder', folder: null, q: '', history: null, sel: null }); const s = document.getElementById('homeSearch'); if (s) s.value = ''; if (appHash() !== id) location.hash = 'app=' + id; fillHome(); return; }
@@ -96,7 +96,7 @@ export const copyPlaces = (notWs) => (account ? account.workspaces : []).filter(
 /* A bench's app, where the API's mark is behind what it holds: an API from before an app was made marks that app's
    benches JEKray's. Each bench marked JEKray's is looked at once (its content says its format), what was found is
    kept by its id for the next visit, and the list is drawn again if any turned out to be another app's. */
-const TOOL_KEY = 'jeksuite-tools', TOOL_OF_FORMAT = { jekcad: 'jekcad', jekfilm: 'jekfilm', jekion: 'jekion', jekoptic: 'jekoptic' };
+const TOOL_KEY = 'jeksuite-tools', TOOL_OF_FORMAT = { jekcad: 'jekcad', jekfilm: 'jekfilm', jekion: 'jekion', jekoptic: 'jekoptic', jekrf: 'jekrf', jekrfd: 'jekrfd' };
 /* (what was found is kept by the bench's id: 'jekcad' and the like for good, since a bench never changes its app;
    'jekray' with the version it was seen at, as v<n>, so a bench the look failed on, or one saved over since, is
    looked at again. The store is read each time: JEKcad writes to it too, for each part studio it saves or opens.) */
@@ -843,8 +843,9 @@ export function newMenuItems() {
 export const NEW_KINDS = [
   { app: 'jekray', into: null, label: 'JEKray bench', icon: 'bench' },
   { app: 'jekoptic', into: null, label: 'Optical design', icon: 'lens', sub: true },
-  { app: 'jekray', into: 'rf', label: 'RF design', icon: 'rf', sub: true },
   { app: 'jekfilm', into: null, label: 'Coating', icon: 'coat', sub: true },
+  { app: 'jekrf', into: null, label: 'JEKrf bench', icon: 'rf' },
+  { app: 'jekrfd', into: null, label: 'RF design', icon: 'lens', sub: true },
   { app: 'jekion', into: null, label: 'JEKion bench', icon: 'ion' },
   { app: 'jekcad', into: null, label: 'JEKcad part studio', icon: 'cube' },
 ];
@@ -853,6 +854,9 @@ export function newContent(app, name) {
   if (app === 'jekion') return { format: 'jekion', version: 1, name, electrodes: [], ions: [], detectors: [] };
   if (app === 'jekcad') return { format: 'jekcad', version: 1, name, units: 'mm', variables: [], features: [], rollback: null, parts: {} };
   // a design: a uid of its own (what the benches using it are linked by), its parts made in the Optics designer
+  // a JEKrf bench, empty; an RF design, its uid of its own (its parts made in the RF designer)
+  if (app === 'jekrf') return { format: 'jekrf', version: 1, name, elements: [], fibres: [] };
+  if (app === 'jekrfd') return { format: 'jekrfd', version: 1, name, uid: 'o' + Array.from(crypto.getRandomValues(new Uint8Array(10)), b => b.toString(36).padStart(2, '0')).join('').slice(0, 18), elements: [], fibres: [] };
   if (app === 'jekoptic') return { format: 'jekoptic', version: 1, name, uid: 'o' + Array.from(crypto.getRandomValues(new Uint8Array(10)), b => b.toString(36).padStart(2, '0')).join('').slice(0, 18), elements: [], fibres: [] };
   if (app === 'jekfilm') return { format: 'jekfilm', version: 1, name, spec: { target: 'ar', sub: { glass: 'N-BK7' }, lo: 450, hi: 650, design: 550 }, layers: [{ n: 1.38, d: 99.638 }] };
   return { format: 'jekray', version: 1, name, elements: [], fibres: [] };
@@ -861,7 +865,6 @@ export function newContent(app, name) {
    in its app (#cloud=<id>, and :lens, :rf or :coat into a designer). Signed out, or with nowhere to save, it starts in
    the app itself, in that browser (#new, #new=lens…). */
 export function startNew(app, into) {
-  if (appOf(app).into && appOf(app).id === app) { into = appOf(app).into; app = 'jekray'; }
   track('cloud', 'new.' + app + (into ? '.' + into : ''));
   const places = newPlaces().filter(w => w.active);
   if (!account || !places.length) { openApp(app, 'new' + (into ? '=' + into : '')); if (account) toast('Started in ' + appOf(app).name + ': saving it to the cloud needs JEKrayPro'); return; }

@@ -52,20 +52,24 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hprev .rt-actions { justify-content: flex-start; flex-wrap: wrap; gap: 0.4rem; margin: 0.15rem 0 0; }
 .rt-hprev .rt-actions .rt-btn { display: inline-flex; align-items: center; gap: 0.3rem; }
 .rt-hprev .rt-hprevmore { margin-left: auto; }
-/* each app's colour, here in the suite only: JEKray yellow, JEKion light blue, JEKcad red; JEKray's designers (the
-   Optical, RF and Coating designers, listed under it) shades of its yellow. --app is the colour itself (a tag's fill, an
+/* each app's colour, here in the suite only: JEKray yellow, JEKrf orange, JEKion light blue, JEKcad red; each one's
+   designers (listed under it) shades of its colour. --app is the colour itself (a tag's fill, an
    edge), --app-on what is written on it, --app-ink the colour as a line on the page (an icon, a pressed chip's edge),
    darker where amber or blue on white would be faint. */
 .space-home .jekray { --app: var(--jek-amber); --app-on: #1a1a1a; --app-ink: #c27a12; }
 .space-home .jekoptic { --app: #f6cf6e; --app-on: #1a1a1a; --app-ink: #a8740f; }
 .space-home .jekrfd { --app: #e3a33a; --app-on: #1a1a1a; --app-ink: #9a5f0a; }
 .space-home .jekfilm { --app: #c98a1c; --app-on: #fff; --app-ink: #7d5208; }
+.space-home .jekrf { --app: var(--jek-orange); --app-on: #1a1a1a; --app-ink: #c4541f; }
+.space-home .jekrfd { --app: #f7a37a; --app-on: #1a1a1a; --app-ink: #b04a18; }
 .space-home .jekion { --app: var(--jek-sky); --app-on: #1a1a1a; --app-ink: #3d93aa; }
 .space-home .jekcad { --app: var(--jek-red); --app-on: #fff; --app-ink: var(--jek-red); }
 :root[data-rt-theme="dark"] .space-home .jekray { --app-ink: var(--jek-amber); }
 :root[data-rt-theme="dark"] .space-home .jekoptic { --app-ink: #f6cf6e; }
 :root[data-rt-theme="dark"] .space-home .jekrfd { --app-ink: #e8ad4c; }
 :root[data-rt-theme="dark"] .space-home .jekfilm { --app-ink: #d99a2b; }
+:root[data-rt-theme="dark"] .space-home .jekrf { --app-ink: var(--jek-orange); }
+:root[data-rt-theme="dark"] .space-home .jekrfd { --app-ink: #f7a37a; }
 :root[data-rt-theme="dark"] .space-home .jekion { --app-ink: var(--jek-sky); }
 :root[data-rt-theme="dark"] .space-home .jekcad { --app-ink: #ef5d75; }
 /* JEKray's designers under it, in the rail and New's menu; on a designer's page, JEKray above its name */

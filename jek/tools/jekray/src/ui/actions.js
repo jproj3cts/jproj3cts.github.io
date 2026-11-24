@@ -1,4 +1,4 @@
-import { EMBED, LOCKED, OPTIC, TEST_MODE, clamp, cloud } from '../core/constants.js';
+import { EMBED, LOCKED, PAGE_FORMAT, PAGE_MODE, TEST_MODE, clamp, cloud } from '../core/constants.js';
 import { asmCheck, asmKind, asmOf, asmOfSelection, normAssemblies, remapDesign } from '../core/assembly.js';
 import { liveMates, mateSpread, matesCopied, normMates } from '../core/mates.js';
 import { designOne, makeAssembly, splitAssembly } from './assembly.js';
@@ -28,7 +28,7 @@ import { goal } from '../io/usage.js';
 import { hooks } from '../core/hooks.js';
 import { scheduleSave } from '../io/autosave.js';
 import { sweepBenchEdited } from './sweeps.js';
-import { openDesign } from '../io/optic.js';
+import { openDesign } from '../io/designs.js';
 
 /* ==========================================================================
    Actions
@@ -534,9 +534,10 @@ export function markUnsaved(on) {
 }
 export function saveFile() {
   if (!accountGate('save the bench as a file')) return;
-  // the Optics designer's file is a .optic (a design), JEKray's a .jekray
-  const name = safeFileName(project.name) + (OPTIC ? '.optic' : '.jekray');
-  downloadFile(name, new Blob([JSON.stringify(serialize(), null, 2)], { type: OPTIC ? 'application/x-jekoptic' : 'application/x-jekray' }));
+  // each program's own file: JEKray's .jekray, the Optics designer's .optic, JEKrf's .jekrf, its RF designer's .rfd
+  const ext = { ray: 'jekray', optic: 'optic', rf: 'jekrf', rfd: 'rfd' }[PAGE_MODE];
+  const name = safeFileName(project.name) + '.' + ext;
+  downloadFile(name, new Blob([JSON.stringify(serialize(), null, 2)], { type: 'application/x-' + PAGE_FORMAT }));
   toast('Saved ' + name);
   markUnsaved(false);
   goal('save');

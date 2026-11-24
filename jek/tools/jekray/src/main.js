@@ -230,7 +230,7 @@ import './io/account.js';
 import './io/usage.js';
 import './io/cloud.js';
 import './io/film-coats.js';
-import './io/optic.js';
+import './io/designs.js';
 import './io/nudges.js';
 import './io/autosave.js';
 import './ui/news-data.js';

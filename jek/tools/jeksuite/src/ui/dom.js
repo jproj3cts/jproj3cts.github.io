@@ -7,19 +7,20 @@ import { expHas, expRead } from '../../../jekray/src/core/exp-list.js';
 
 /* the apps, as the hub lists and opens them: their page, their tab's name, what they are. JEKray's designers are
    listed under it, indented (parent): the Optics designer is JEKray's page as a program of its own (?optic), its
-   designs .optic files (the cloud's 'jekoptic'); the RF designer opens in JEKray's tab, in its designer (into), and
-   until it has files of its own (.rfd) its designs are JEKray benches; the Coating designer is JEKfilm's page, its
-   files the cloud's 'jekfilm'. short is the name on a bench's tag and a chip. */
+   designs .optic files (the cloud's 'jekoptic'); the Coating designer is JEKfilm's page, its files the cloud's
+   'jekfilm'. JEKrf (JEKray's page with ?rf, its benches .jekrf) has its RF designer under it (?rfd, designs .rfd);
+   both are experimental (exp), as JEKion is. short is the name on a bench's tag and a chip. */
 export const APPS = [
   { id: 'jekray', name: 'JEKray', url: '/jek/tools/jekray.html', tab: 'jekray', icon: 'bench', about: '/jek/products/design-software/jekray/',
     line: 'Optics, fibre, electronics and RF on one bench: rays, Gaussian beams and the diffracted field, in 2D and 3D.' },
   { id: 'jekoptic', name: 'Optics designer', short: 'Optics', parent: 'jekray', url: '/jek/tools/jekray.html?optic', tab: 'jekoptic', icon: 'lens', about: '/jek/docs/jekray/lens-design/', thing: 'optical design',
     line: 'Lenses, mirrors and stops on one axis designed together, surface by surface: conditions, analyses, the optimiser, tolerancing, drawings and a report. Each design is a .optic, used on any bench.' },
-  { id: 'jekrfd', name: 'RF designer', short: 'RF', parent: 'jekray', into: 'rf', url: '/jek/tools/jekray.html', tab: 'jekray', icon: 'rf', about: '/jek/docs/jekray/rf/designer/', thing: 'RF design',
-    line: 'A feed horn’s beam through RF lenses and mirrors, designed as a whole: conditions, analyses, the optimiser, tolerancing and a lens that can be made.',
-    held: 'RF designs are saved as JEKray benches for now, so they are listed under JEKray. They get files of their own (.rfd) next.' },
   { id: 'jekfilm', name: 'Coating designer', short: 'Coating', parent: 'jekray', url: '/jek/tools/jekfilm.html', tab: 'jekfilm', icon: 'coat', about: '/jek/products/design-software/jekfilm/', thing: 'coating',
     line: 'Thin-film coatings designed over a band and a range of angles: anti-reflection, high reflectors, beam splitters and dichroic edges.' },
+  { id: 'jekrf', name: 'JEKrf', exp: 'jekrf', url: '/jek/tools/jekray.html?rf', tab: 'jekrf', icon: 'rf', about: '/jek/docs/jekray/rf/',
+    line: 'RF and millimetre-wave quasi-optics: feed horns, RF lenses and mirrors on a bench, traced as rays and Gaussian beams. Each bench is a .jekrf.' },
+  { id: 'jekrfd', name: 'RF designer', short: 'RF', parent: 'jekrf', exp: 'jekrf', url: '/jek/tools/jekray.html?rfd', tab: 'jekrfd', icon: 'lens', about: '/jek/docs/jekray/rf/designer/', thing: 'RF design',
+    line: 'A feed horn’s beam through RF lenses and mirrors, designed as a whole: conditions, analyses, the optimiser, tolerancing and a lens that can be made. Each design is a .rfd, used on any JEKrf bench.' },
   { id: 'jekion', name: 'JEKion', exp: 'jekion', url: '/jek/tools/jekion.html', tab: 'jekion', icon: 'ion', about: '/jek/products/design-software/jekion/',
     line: 'Charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live.' },
   { id: 'jekcad', name: 'JEKcad', url: '/jek/tools/jekcad.html', tab: 'jekcad', icon: 'cube', about: '/jek/products/design-software/jekcad/', thing: 'part studio',

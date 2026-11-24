@@ -2,7 +2,7 @@ import { EMBED } from '../core/constants.js';
 import { h } from './dom.js';
 import { editCan } from './actions.js';
 import { PALETTE_NAMES, addPart, exp, palettesOn, partsOf } from './experimental.js';
-import { EXAMPLES } from './news.js';
+import { examplesShown } from './news.js';
 import { openDemo } from './tours.js';
 import { PART_USES } from './part-uses.js';
 
@@ -45,7 +45,7 @@ export function commandList() {
 export function findList() {
   const out = [];
   for (const pal of palettesOn()) for (const p of partsOf(pal)) out.push({ label: p.long, path: ['Add a part', PALETTE_NAMES[pal]], key: '', off: false, need: '', uses: PART_USES[p.key] || '', run: () => addPart(p.key) });
-  for (const [group, , list] of EXAMPLES) for (const [id, t, , x] of list) if (!x || exp(x)) out.push({ label: t, path: ['Example', group], key: '', off: false, need: '', run: () => openDemo(id, true) });
+  for (const [group, , list] of examplesShown()) for (const [id, t, , x] of list) if (!x || exp(x)) out.push({ label: t, path: ['Example', group], key: '', off: false, need: '', run: () => openDemo(id, true) });
   return out;
 }
 // the commands holding every word typed, those whose name starts with it first

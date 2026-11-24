@@ -26,7 +26,7 @@ import { stockCard } from './lens-stock.js';
 import { saveReport } from './lens-report.js';
 import { setSelection } from './render.js';
 import { changed, saveFile, toast } from './actions.js';
-import { handedLight, opticShow, useOnBench } from '../io/optic.js';
+import { handedLight, opticShow, useOnBench } from '../io/designs.js';
 import { checkpoint, redo, undo } from './tabs.js';
 import { isRfAsm, openRfDesign } from './rf-workspace.js';
 import { fmtWs } from '../core/format.js';
@@ -41,7 +41,7 @@ import { track } from '../io/usage.js';
    leaving the workspace is only going back to the bench. A design started from nothing has no
    light on the bench yet: Place on a bench gives it a source for each field and a screen at its
    image, set to its conditions.
-   With ?optic the page is the Optics designer, a program of its own (io/optic.js): this workspace is the whole page,
+   With ?optic the page is the Optics designer, a program of its own (io/designs.js): this workspace is the whole page,
    on the one design its .optic file holds, with the page's bar in its head and Use on a bench in place of going back.
    ========================================================================== */
 let WS = null;                     // { asm, tab, sel, draft, took }
@@ -89,6 +89,16 @@ export function closeLensDesign() {
   document.body.classList.remove('rt-lens-open');
   setSelection(asmMembers(asm));
   changed(true);
+}
+
+/* the page's bar's pieces, moved into a designer's head (the Optics designer's here, the RF designer's in
+   ui/rf-workspace.js): each found once and kept, since drawn again the head is made anew and they are out of the page
+   until put back in it */
+export function barPiece(id) {
+  const el = barKept.get(id) || document.getElementById(id);
+  const it = el ? (el.classList.contains('rt-more') || id === 'btnSpace' || id === 'btnSave' ? el : el.closest('.rt-more')) : null;
+  if (it) barKept.set(id, it);
+  return it;
 }
 
 /* ---------- The page ---------- */
@@ -160,13 +170,7 @@ function drawWs() {
   // the Optics designer: the design is the document, its name the file's, and the page's own bar (JEKsuite's mark, File,
   // the keep sign, Save, the account) is moved up here, the bench under it never shown
   if (OPTIC) name.addEventListener('change', () => { project.name = asm.name; const n = document.getElementById('projName'); if (n) n.value = asm.name; });
-  // (each found once and kept: drawn again, the head is made anew and they are out of the page until put back in it)
-  const moved = id => {
-    const el = barKept.get(id) || document.getElementById(id);
-    const it = el ? (el.classList.contains('rt-more') || id === 'btnSpace' || id === 'btnSave' ? el : el.closest('.rt-more')) : null;
-    if (it) barKept.set(id, it);
-    return it;
-  };
+  const moved = barPiece;
   sec.append(h('header', { class: 'rt-lhead' + (OPTIC ? ' rt-ophead' : '') },
     ...(OPTIC ? [moved('btnSpace'), h('a', { class: 'rt-hmark rt-opmark', href: '/jek/docs/jekray/lens-design/', target: '_blank', rel: 'noopener', title: 'About the Optics designer: its pages in the JEKray docs' }, 'Optics designer'), moved('btnFile'),
       h('nav', { class: 'rt-lcrumb', 'aria-label': 'The design' }, name)]

@@ -36,8 +36,8 @@ export function folderFits(folders, id, into) {
   if (!into) return true;
   return !folderPath(folders, into).some(f => f.id === id);
 }
-/* the apps in the order the hub lists them (JEKray with its designers under it, then the others): 'app' sorts by it */
-export const APP_ORDER = ['jekray', 'jekoptic', 'jekrfd', 'jekfilm', 'jekion', 'jekcad'];
+/* the apps in the order the hub lists them (each with its designers under it): 'app' sorts by it */
+export const APP_ORDER = ['jekray', 'jekoptic', 'jekfilm', 'jekrf', 'jekrfd', 'jekion', 'jekcad'];
 const appRank = b => { const i = APP_ORDER.indexOf(b.tool || 'jekray'); return i < 0 ? APP_ORDER.length : i; };
 /* the benches in an order: 'changed' and 'size' largest first, 'name' and 'folder' by the alphabet, 'app' as the hub
    lists the apps; flip

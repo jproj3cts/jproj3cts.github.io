@@ -93,7 +93,7 @@ export function normRfMc(m) {
   });
   return { keys, configs, active: Math.round(clamp(num(m.active, 0), 0, configs.length - 1)) };
 }
-/* where a design on a bench came from: the .optic it is a copy of (io/optic.js), by its uid, and when it is in the
+/* where a design on a bench came from: the .optic it is a copy of (io/designs.js), by its uid, and when it is in the
    cloud its bench id and the version copied */
 export function normOpticSrc(s) {
   if (!s || typeof s !== 'object' || typeof s.uid !== 'string' || !/^[A-Za-z0-9_-]{8,40}$/.test(s.uid)) return null;

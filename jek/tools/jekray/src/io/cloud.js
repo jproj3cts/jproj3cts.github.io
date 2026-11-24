@@ -1,5 +1,5 @@
-import { EMBED, OPTIC, TEST_MODE, cloud, cloudOpening, appStoreKey, setCloud, setCloudOpening } from '../core/constants.js';
-import { opticPage } from './optic.js';
+import { EMBED, PAGE_MODE, TEST_MODE, cloud, cloudOpening, appStoreKey, setCloud, setCloudOpening } from '../core/constants.js';
+import { modePage } from './designs.js';
 import { hooks } from '../core/hooks.js';
 import { V, project } from '../state/project.js';
 import { serialize } from '../state/elements.js';
@@ -23,6 +23,8 @@ import { newLensDesign } from '../ui/assembly.js';
 import { newRfDesign } from '../ui/rf-workspace.js';
 import { noteRecent } from './recent.js';
 
+/* each program's tab, by its mode (a cloud bench of another program opens there) */
+const MODE_TABS = { ray: 'jekray', optic: 'jekoptic', rf: 'jekrf', rfd: 'jekrfd' };
 /* ---------- Cloud benches ----------
    A bench opened from, or saved to, the cloud stays linked to it: `cloud` holds its id,
    workspace and the version this copy is based on. Edits save themselves at most every 30
@@ -321,10 +323,12 @@ async function cloudOpen(id, version) {
   if (meta.tool === 'jekfilm' || fmt === 'jekfilm') { openInJekfilm(meta, version); toast('“' + meta.name + '” is a JEKfilm coating: opened in JEKfilm'); return; }
   // a part studio, by its mark or its content (one saved by an API from before JEKcad is marked JEKray's)
   if (meta.tool === 'jekcad' || fmt === 'jekcad') { openInJekcad(meta, version); toast('“' + meta.name + '” is a JEKcad part studio: opened in JEKcad'); return; }
-  // a design opens in the Optics designer, a bench in JEKray (each page is the other's when it is the wrong one)
-  if ((meta.tool === 'jekoptic' || fmt === 'jekoptic') !== OPTIC) {
-    window.open(opticPage() + (OPTIC ? '' : '?optic') + '#cloud=' + meta.id + (version ? '@' + version : ''), OPTIC ? 'jekray' : 'jekoptic');
-    toast('“' + meta.name + '” is ' + (OPTIC ? 'a JEKray bench: opened in JEKray' : 'a design: opened in the Optics designer'));
+  // a design opens in its designer, a JEKrf bench in JEKrf, a JEKray bench in JEKray: in that program's tab when it
+  // is not this page (an older JEKray bench is JEKrf's to carry on with too, when it is opened there)
+  const mode = { jekoptic: 'optic', jekrf: 'rf', jekrfd: 'rfd' }[meta.tool] || { jekoptic: 'optic', jekrf: 'rf', jekrfd: 'rfd' }[fmt] || 'ray';
+  if (mode !== PAGE_MODE && !(mode === 'ray' && PAGE_MODE === 'rf')) {
+    window.open(modePage(mode) + '#cloud=' + meta.id + (version ? '@' + version : ''), MODE_TABS[mode]);
+    toast('“' + meta.name + '” is ' + { ray: 'a JEKray bench: opened in JEKray', optic: 'a design: opened in the Optics designer', rf: 'a JEKrf bench: opened in JEKrf', rfd: 'an RF design: opened in the RF designer' }[mode]);
     return;
   }
   setCloudOpening(true);

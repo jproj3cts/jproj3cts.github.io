@@ -2063,20 +2063,24 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hprev .rt-actions { justify-content: flex-start; flex-wrap: wrap; gap: 0.4rem; margin: 0.15rem 0 0; }
 .rt-hprev .rt-actions .rt-btn { display: inline-flex; align-items: center; gap: 0.3rem; }
 .rt-hprev .rt-hprevmore { margin-left: auto; }
-/* each app's colour, here in the suite only: JEKray yellow, JEKion light blue, JEKcad red; JEKray's designers (the
-   Optical, RF and Coating designers, listed under it) shades of its yellow. --app is the colour itself (a tag's fill, an
+/* each app's colour, here in the suite only: JEKray yellow, JEKrf orange, JEKion light blue, JEKcad red; each one's
+   designers (listed under it) shades of its colour. --app is the colour itself (a tag's fill, an
    edge), --app-on what is written on it, --app-ink the colour as a line on the page (an icon, a pressed chip's edge),
    darker where amber or blue on white would be faint. */
 .space-home .jekray { --app: var(--jek-amber); --app-on: #1a1a1a; --app-ink: #c27a12; }
 .space-home .jekoptic { --app: #f6cf6e; --app-on: #1a1a1a; --app-ink: #a8740f; }
 .space-home .jekrfd { --app: #e3a33a; --app-on: #1a1a1a; --app-ink: #9a5f0a; }
 .space-home .jekfilm { --app: #c98a1c; --app-on: #fff; --app-ink: #7d5208; }
+.space-home .jekrf { --app: var(--jek-orange); --app-on: #1a1a1a; --app-ink: #c4541f; }
+.space-home .jekrfd { --app: #f7a37a; --app-on: #1a1a1a; --app-ink: #b04a18; }
 .space-home .jekion { --app: var(--jek-sky); --app-on: #1a1a1a; --app-ink: #3d93aa; }
 .space-home .jekcad { --app: var(--jek-red); --app-on: #fff; --app-ink: var(--jek-red); }
 :root[data-rt-theme="dark"] .space-home .jekray { --app-ink: var(--jek-amber); }
 :root[data-rt-theme="dark"] .space-home .jekoptic { --app-ink: #f6cf6e; }
 :root[data-rt-theme="dark"] .space-home .jekrfd { --app-ink: #e8ad4c; }
 :root[data-rt-theme="dark"] .space-home .jekfilm { --app-ink: #d99a2b; }
+:root[data-rt-theme="dark"] .space-home .jekrf { --app-ink: var(--jek-orange); }
+:root[data-rt-theme="dark"] .space-home .jekrfd { --app-ink: #f7a37a; }
 :root[data-rt-theme="dark"] .space-home .jekion { --app-ink: var(--jek-sky); }
 :root[data-rt-theme="dark"] .space-home .jekcad { --app-ink: #ef5d75; }
 /* JEKray's designers under it, in the rail and New's menu; on a designer's page, JEKray above its name */
@@ -2295,13 +2299,26 @@ const EMBED = IN_PAGE && !TEST_MODE && /(^|[?&])embed\b/.test(QUERY);
 // ?embed=locked: the parts stay where they are; the reader pans, zooms, turns the 3D view and plays the sweeps
 const LOCKED = EMBED && /(^|[?&])embed=locked\b/.test(QUERY);
 const FORMAT = 'jekray';
-/* ?optic: the page is the Optics designer, JEKray's lens designer as a program of its own. Its document is a .optic,
-   a design: the parts of one assembly and its record, written as a bench is but with format 'jekoptic' (and a uid
-   that links the benches using it back to it). It keeps its work apart from JEKray's bench in this browser: each
-   store's key (appStoreKey) has '-optic' after it. */
-const OPTIC = IN_PAGE && !IN_WORKER && /(^|[?&])optic\b/.test(typeof location === 'undefined' ? '' : location.search);
-const OPTIC_FORMAT = 'jekoptic';
-const appStoreKey = k => OPTIC ? k + '-optic' : k;
+/* The page as another program, by its query (each keeps its work apart from JEKray's bench in this browser: each
+   store's key, appStoreKey, has the mode after it):
+   ?optic  the Optics designer, JEKray's lens designer as a program of its own; its document is a design, a .optic
+           (format 'jekoptic'): the parts of one assembly and its record, with a uid that links the benches using it
+   ?rf     JEKrf, the RF bench (format 'jekrf', a .jekrf): JEKray's bench with the RF parts alone
+   ?rfd    JEKrf's RF designer, a program of its own as the Optics designer is; its document a .rfd (format 'jekrfd')
+   (io/designs.js links the designs and the benches that use them) */
+const PAGE_Q = typeof location === 'undefined' || !IN_PAGE || IN_WORKER ? '' : location.search;
+const OPTIC = /(^|[?&])optic\b/.test(PAGE_Q);
+const RFD = !OPTIC && /(^|[?&])rfd\b/.test(PAGE_Q);
+const RFAPP = !OPTIC && !RFD && /(^|[?&])rf\b/.test(PAGE_Q);
+const DESIGNER = OPTIC || RFD;
+const OPTIC_FORMAT = 'jekoptic', RF_FORMAT = 'jekrf', RFD_FORMAT = 'jekrfd';
+/* the page's own mode ('ray', 'optic', 'rf' or 'rfd') and the format of the file it keeps */
+const PAGE_MODE = OPTIC ? 'optic' : RFD ? 'rfd' : RFAPP ? 'rf' : 'ray';
+const PAGE_FORMAT = { ray: FORMAT, optic: OPTIC_FORMAT, rf: RF_FORMAT, rfd: RFD_FORMAT }[PAGE_MODE];
+const PAGE_FORMATS = [FORMAT, OPTIC_FORMAT, RF_FORMAT, RFD_FORMAT];
+/* the page's query, kept in the address when a link's hash is taken off */
+const PAGE_QUERY = { ray: '', optic: '?optic', rf: '?rf', rfd: '?rfd' }[PAGE_MODE];
+const appStoreKey = k => (PAGE_MODE === 'ray' ? k : k + '-' + PAGE_MODE);
 const STORE_KEY = appStoreKey('jek-raytracer-session-v1');
 const VERSION = 1;
 const TRACE_BUDGET = 4e6;  // ray–element interactions per redraw, keeps the page responsive
@@ -2330,6 +2347,7 @@ function mkCanvas(w, h) {
    them, as they change, from the store (ui/experimental.js in JEKray, the storage event).
    ========================================================================== */
 const EXPERIMENTAL = [
+  { key: 'jekrf', app: true, name: 'JEKrf', what: 'RF and millimetre-wave quasi-optics: feed horns, RF lenses and mirrors on a bench of their own (.jekrf), and the RF designer, whose designs (.rfd) the benches use. Not yet fully validated, so treat its numbers as a guide. Shown in JEKsuite and on the site while this is ticked.' },
   { key: 'jekion', app: true, name: 'JEKion', what: 'charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live. Not yet fully validated, so treat its numbers as a guide. Shown in JEKsuite and on the site while this is ticked.' },
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
   { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
@@ -2833,19 +2851,20 @@ function h(tag, attrs, ...kids) {
 }
 /* the apps, as the hub lists and opens them: their page, their tab's name, what they are. JEKray's designers are
    listed under it, indented (parent): the Optics designer is JEKray's page as a program of its own (?optic), its
-   designs .optic files (the cloud's 'jekoptic'); the RF designer opens in JEKray's tab, in its designer (into), and
-   until it has files of its own (.rfd) its designs are JEKray benches; the Coating designer is JEKfilm's page, its
-   files the cloud's 'jekfilm'. short is the name on a bench's tag and a chip. */
+   designs .optic files (the cloud's 'jekoptic'); the Coating designer is JEKfilm's page, its files the cloud's
+   'jekfilm'. JEKrf (JEKray's page with ?rf, its benches .jekrf) has its RF designer under it (?rfd, designs .rfd);
+   both are experimental (exp), as JEKion is. short is the name on a bench's tag and a chip. */
 const APPS = [
   { id: 'jekray', name: 'JEKray', url: '/jek/tools/jekray.html', tab: 'jekray', icon: 'bench', about: '/jek/products/design-software/jekray/',
     line: 'Optics, fibre, electronics and RF on one bench: rays, Gaussian beams and the diffracted field, in 2D and 3D.' },
   { id: 'jekoptic', name: 'Optics designer', short: 'Optics', parent: 'jekray', url: '/jek/tools/jekray.html?optic', tab: 'jekoptic', icon: 'lens', about: '/jek/docs/jekray/lens-design/', thing: 'optical design',
     line: 'Lenses, mirrors and stops on one axis designed together, surface by surface: conditions, analyses, the optimiser, tolerancing, drawings and a report. Each design is a .optic, used on any bench.' },
-  { id: 'jekrfd', name: 'RF designer', short: 'RF', parent: 'jekray', into: 'rf', url: '/jek/tools/jekray.html', tab: 'jekray', icon: 'rf', about: '/jek/docs/jekray/rf/designer/', thing: 'RF design',
-    line: 'A feed horn’s beam through RF lenses and mirrors, designed as a whole: conditions, analyses, the optimiser, tolerancing and a lens that can be made.',
-    held: 'RF designs are saved as JEKray benches for now, so they are listed under JEKray. They get files of their own (.rfd) next.' },
   { id: 'jekfilm', name: 'Coating designer', short: 'Coating', parent: 'jekray', url: '/jek/tools/jekfilm.html', tab: 'jekfilm', icon: 'coat', about: '/jek/products/design-software/jekfilm/', thing: 'coating',
     line: 'Thin-film coatings designed over a band and a range of angles: anti-reflection, high reflectors, beam splitters and dichroic edges.' },
+  { id: 'jekrf', name: 'JEKrf', exp: 'jekrf', url: '/jek/tools/jekray.html?rf', tab: 'jekrf', icon: 'rf', about: '/jek/docs/jekray/rf/',
+    line: 'RF and millimetre-wave quasi-optics: feed horns, RF lenses and mirrors on a bench, traced as rays and Gaussian beams. Each bench is a .jekrf.' },
+  { id: 'jekrfd', name: 'RF designer', short: 'RF', parent: 'jekrf', exp: 'jekrf', url: '/jek/tools/jekray.html?rfd', tab: 'jekrfd', icon: 'lens', about: '/jek/docs/jekray/rf/designer/', thing: 'RF design',
+    line: 'A feed horn’s beam through RF lenses and mirrors, designed as a whole: conditions, analyses, the optimiser, tolerancing and a lens that can be made. Each design is a .rfd, used on any JEKrf bench.' },
   { id: 'jekion', name: 'JEKion', exp: 'jekion', url: '/jek/tools/jekion.html', tab: 'jekion', icon: 'ion', about: '/jek/products/design-software/jekion/',
     line: 'Charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live.' },
   { id: 'jekcad', name: 'JEKcad', url: '/jek/tools/jekcad.html', tab: 'jekcad', icon: 'cube', about: '/jek/products/design-software/jekcad/', thing: 'part studio',
@@ -3804,8 +3823,8 @@ function folderFits(folders, id, into) {
   if (!into) return true;
   return !folderPath(folders, into).some(f => f.id === id);
 }
-/* the apps in the order the hub lists them (JEKray with its designers under it, then the others): 'app' sorts by it */
-const APP_ORDER = ['jekray', 'jekoptic', 'jekrfd', 'jekfilm', 'jekion', 'jekcad'];
+/* the apps in the order the hub lists them (each with its designers under it): 'app' sorts by it */
+const APP_ORDER = ['jekray', 'jekoptic', 'jekfilm', 'jekrf', 'jekrfd', 'jekion', 'jekcad'];
 const appRank = b => { const i = APP_ORDER.indexOf(b.tool || 'jekray'); return i < 0 ? APP_ORDER.length : i; };
 /* the benches in an order: 'changed' and 'size' largest first, 'name' and 'folder' by the alphabet, 'app' as the hub
    lists the apps; flip
@@ -3893,7 +3912,7 @@ let homeSeq = 0, homeRO = null;
    The rail's apps open the app's page here (#app=<id>), not the app: what it does, its benches alone (the same folders,
    search and sorting as My benches), and the one picked shown large beside them, to open in the app. Anything else in
    the rail leaves it. */
-const appHash = () => { const m = location.hash.match(/^#app=(jekray|jekoptic|jekrfd|jekfilm|jekion|jekcad)$/); return m ? m[1] : null; };
+const appHash = () => { const m = location.hash.match(/^#app=(jekray|jekoptic|jekfilm|jekrf|jekrfd|jekion|jekcad)$/); return m ? m[1] : null; };
 function showApp(id) {
   closeMenu();
   if (id) { Object.assign(cloudPlace, { app: id, view: 'folder', folder: null, q: '', history: null, sel: null }); const s = document.getElementById('homeSearch'); if (s) s.value = ''; if (appHash() !== id) location.hash = 'app=' + id; fillHome(); return; }
@@ -3922,7 +3941,7 @@ const copyPlaces = (notWs) => (account ? account.workspaces : []).filter(w => w.
 /* A bench's app, where the API's mark is behind what it holds: an API from before an app was made marks that app's
    benches JEKray's. Each bench marked JEKray's is looked at once (its content says its format), what was found is
    kept by its id for the next visit, and the list is drawn again if any turned out to be another app's. */
-const TOOL_KEY = 'jeksuite-tools', TOOL_OF_FORMAT = { jekcad: 'jekcad', jekfilm: 'jekfilm', jekion: 'jekion', jekoptic: 'jekoptic' };
+const TOOL_KEY = 'jeksuite-tools', TOOL_OF_FORMAT = { jekcad: 'jekcad', jekfilm: 'jekfilm', jekion: 'jekion', jekoptic: 'jekoptic', jekrf: 'jekrf', jekrfd: 'jekrfd' };
 /* (what was found is kept by the bench's id: 'jekcad' and the like for good, since a bench never changes its app;
    'jekray' with the version it was seen at, as v<n>, so a bench the look failed on, or one saved over since, is
    looked at again. The store is read each time: JEKcad writes to it too, for each part studio it saves or opens.) */
@@ -4669,8 +4688,9 @@ function newMenuItems() {
 const NEW_KINDS = [
   { app: 'jekray', into: null, label: 'JEKray bench', icon: 'bench' },
   { app: 'jekoptic', into: null, label: 'Optical design', icon: 'lens', sub: true },
-  { app: 'jekray', into: 'rf', label: 'RF design', icon: 'rf', sub: true },
   { app: 'jekfilm', into: null, label: 'Coating', icon: 'coat', sub: true },
+  { app: 'jekrf', into: null, label: 'JEKrf bench', icon: 'rf' },
+  { app: 'jekrfd', into: null, label: 'RF design', icon: 'lens', sub: true },
   { app: 'jekion', into: null, label: 'JEKion bench', icon: 'ion' },
   { app: 'jekcad', into: null, label: 'JEKcad part studio', icon: 'cube' },
 ];
@@ -4679,6 +4699,9 @@ function newContent(app, name) {
   if (app === 'jekion') return { format: 'jekion', version: 1, name, electrodes: [], ions: [], detectors: [] };
   if (app === 'jekcad') return { format: 'jekcad', version: 1, name, units: 'mm', variables: [], features: [], rollback: null, parts: {} };
   // a design: a uid of its own (what the benches using it are linked by), its parts made in the Optics designer
+  // a JEKrf bench, empty; an RF design, its uid of its own (its parts made in the RF designer)
+  if (app === 'jekrf') return { format: 'jekrf', version: 1, name, elements: [], fibres: [] };
+  if (app === 'jekrfd') return { format: 'jekrfd', version: 1, name, uid: 'o' + Array.from(crypto.getRandomValues(new Uint8Array(10)), b => b.toString(36).padStart(2, '0')).join('').slice(0, 18), elements: [], fibres: [] };
   if (app === 'jekoptic') return { format: 'jekoptic', version: 1, name, uid: 'o' + Array.from(crypto.getRandomValues(new Uint8Array(10)), b => b.toString(36).padStart(2, '0')).join('').slice(0, 18), elements: [], fibres: [] };
   if (app === 'jekfilm') return { format: 'jekfilm', version: 1, name, spec: { target: 'ar', sub: { glass: 'N-BK7' }, lo: 450, hi: 650, design: 550 }, layers: [{ n: 1.38, d: 99.638 }] };
   return { format: 'jekray', version: 1, name, elements: [], fibres: [] };
@@ -4687,7 +4710,6 @@ function newContent(app, name) {
    in its app (#cloud=<id>, and :lens, :rf or :coat into a designer). Signed out, or with nowhere to save, it starts in
    the app itself, in that browser (#new, #new=lens…). */
 function startNew(app, into) {
-  if (appOf(app).into && appOf(app).id === app) { into = appOf(app).into; app = 'jekray'; }
   track('cloud', 'new.' + app + (into ? '.' + into : ''));
   const places = newPlaces().filter(w => w.active);
   if (!account || !places.length) { openApp(app, 'new' + (into ? '=' + into : '')); if (account) toast('Started in ' + appOf(app).name + ': saving it to the cloud needs JEKrayPro'); return; }

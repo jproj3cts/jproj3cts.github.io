@@ -2596,13 +2596,26 @@ const EMBED = IN_PAGE && !TEST_MODE && /(^|[?&])embed\b/.test(QUERY);
 // ?embed=locked: the parts stay where they are; the reader pans, zooms, turns the 3D view and plays the sweeps
 const LOCKED = EMBED && /(^|[?&])embed=locked\b/.test(QUERY);
 const FORMAT = 'jekray';
-/* ?optic: the page is the Optics designer, JEKray's lens designer as a program of its own. Its document is a .optic,
-   a design: the parts of one assembly and its record, written as a bench is but with format 'jekoptic' (and a uid
-   that links the benches using it back to it). It keeps its work apart from JEKray's bench in this browser: each
-   store's key (appStoreKey) has '-optic' after it. */
-const OPTIC = IN_PAGE && !IN_WORKER && /(^|[?&])optic\b/.test(typeof location === 'undefined' ? '' : location.search);
-const OPTIC_FORMAT = 'jekoptic';
-const appStoreKey = k => OPTIC ? k + '-optic' : k;
+/* The page as another program, by its query (each keeps its work apart from JEKray's bench in this browser: each
+   store's key, appStoreKey, has the mode after it):
+   ?optic  the Optics designer, JEKray's lens designer as a program of its own; its document is a design, a .optic
+           (format 'jekoptic'): the parts of one assembly and its record, with a uid that links the benches using it
+   ?rf     JEKrf, the RF bench (format 'jekrf', a .jekrf): JEKray's bench with the RF parts alone
+   ?rfd    JEKrf's RF designer, a program of its own as the Optics designer is; its document a .rfd (format 'jekrfd')
+   (io/designs.js links the designs and the benches that use them) */
+const PAGE_Q = typeof location === 'undefined' || !IN_PAGE || IN_WORKER ? '' : location.search;
+const OPTIC = /(^|[?&])optic\b/.test(PAGE_Q);
+const RFD = !OPTIC && /(^|[?&])rfd\b/.test(PAGE_Q);
+const RFAPP = !OPTIC && !RFD && /(^|[?&])rf\b/.test(PAGE_Q);
+const DESIGNER = OPTIC || RFD;
+const OPTIC_FORMAT = 'jekoptic', RF_FORMAT = 'jekrf', RFD_FORMAT = 'jekrfd';
+/* the page's own mode ('ray', 'optic', 'rf' or 'rfd') and the format of the file it keeps */
+const PAGE_MODE = OPTIC ? 'optic' : RFD ? 'rfd' : RFAPP ? 'rf' : 'ray';
+const PAGE_FORMAT = { ray: FORMAT, optic: OPTIC_FORMAT, rf: RF_FORMAT, rfd: RFD_FORMAT }[PAGE_MODE];
+const PAGE_FORMATS = [FORMAT, OPTIC_FORMAT, RF_FORMAT, RFD_FORMAT];
+/* the page's query, kept in the address when a link's hash is taken off */
+const PAGE_QUERY = { ray: '', optic: '?optic', rf: '?rf', rfd: '?rfd' }[PAGE_MODE];
+const appStoreKey = k => (PAGE_MODE === 'ray' ? k : k + '-' + PAGE_MODE);
 const STORE_KEY = appStoreKey('jek-raytracer-session-v1');
 const VERSION = 1;
 const TRACE_BUDGET = 4e6;  // ray–element interactions per redraw, keeps the page responsive
@@ -2631,6 +2644,7 @@ function mkCanvas(w, h) {
    them, as they change, from the store (ui/experimental.js in JEKray, the storage event).
    ========================================================================== */
 const EXPERIMENTAL = [
+  { key: 'jekrf', app: true, name: 'JEKrf', what: 'RF and millimetre-wave quasi-optics: feed horns, RF lenses and mirrors on a bench of their own (.jekrf), and the RF designer, whose designs (.rfd) the benches use. Not yet fully validated, so treat its numbers as a guide. Shown in JEKsuite and on the site while this is ticked.' },
   { key: 'jekion', app: true, name: 'JEKion', what: 'charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live. Not yet fully validated, so treat its numbers as a guide. Shown in JEKsuite and on the site while this is ticked.' },
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
   { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
@@ -9124,7 +9138,7 @@ function normRfMc(m) {
   });
   return { keys, configs, active: Math.round(clamp(num(m.active, 0), 0, configs.length - 1)) };
 }
-/* where a design on a bench came from: the .optic it is a copy of (io/optic.js), by its uid, and when it is in the
+/* where a design on a bench came from: the .optic it is a copy of (io/designs.js), by its uid, and when it is in the
    cloud its bench id and the version copied */
 function normOpticSrc(s) {
   if (!s || typeof s !== 'object' || typeof s.uid !== 'string' || !/^[A-Za-z0-9_-]{8,40}$/.test(s.uid)) return null;
@@ -12401,10 +12415,10 @@ function opticUid() {
 const lightOf = () => (project && project.light) || (project && (project.light = normLight(null, project.elements))) || { rays: true, envelope: true, field: false, scale: 'lin', byPower: true };
 function serialize() {
   return {
-    format: OPTIC ? OPTIC_FORMAT : FORMAT, version: VERSION,
+    format: PAGE_FORMAT, version: VERSION,
     name: project.name,
-    // a design (.optic) carries the uid the benches using it are linked by (io/optic.js)
-    ...(OPTIC ? { uid: project.uid || (project.uid = opticUid()) } : {}),
+    // a design (.optic, .rfd) carries the uid the benches using it are linked by (io/designs.js)
+    ...(DESIGNER ? { uid: project.uid || (project.uid = opticUid()) } : {}),
     saved: new Date().toISOString(),
     view: project.view, snap: project.snap, maxBounces: project.maxBounces, minPower: project.minPower, ghosts: project.ghosts, light: lightOf(),
     library: project.library || [],
@@ -12520,7 +12534,7 @@ function loadProject(data) {
   hooks.view3dReset();        // another project: back to 2D, its views forgotten
   setLoadGen(loadGen + 1);
   if (!data || typeof data !== 'object') throw new Error('The file is not a ray tracer project.');
-  if (data.format !== FORMAT && data.format !== OPTIC_FORMAT) throw new Error('This file is not a .jekray project.');
+  if (!PAGE_FORMATS.includes(data.format)) throw new Error('This file is not a .jekray project.');
   if (data.version > VERSION) throw new Error('This project was saved by a newer version of the ray tracer.');
   if (!Array.isArray(data.elements)) throw new Error('The project has no element list.');
   const p = {
@@ -12538,7 +12552,7 @@ function loadProject(data) {
     cavityLock: data.cavityLock && typeof data.cavityLock === 'object' ? Object.fromEntries(Object.entries(data.cavityLock).filter(([, v]) => v === 'lock' || v === 'built')) : {},
     elements: [],
     mods: normCarried(data.mods),                  // the code of the mods its parts use: kept, never run from here
-    ...(isOpticUid(data.uid) ? { uid: data.uid } : {}),       // a design's (.optic): what benches using it are linked by
+    ...(isOpticUid(data.uid) ? { uid: data.uid } : {}),       // a design's (.optic, .rfd): what benches using it are linked by
   };
   setProject(p);
   for (const e of data.elements) {
@@ -29607,7 +29621,7 @@ function lensPanel(el) {
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'lens' }));
   // an RF lens: the system it is part of designed in the RF designer (made an assembly of its own first if it is not one)
   if (el.mmw) panel.append(h('div', { class: 'rt-rows' }, h('button', { class: 'rt-btn', type: 'button', title: 'Its feed horn’s beam through it to the goal: design the lens and the system in the RF designer',
-    onclick: () => { const a = asmOf(el) || makeAssembly([el]); if (a) openLensDesign(a); } }, 'Design as an RF assembly…')));
+    onclick: () => { const a = asmOf(el) || makeAssembly([el]); if (a) openDesign(a); } }, 'Design as an RF assembly…')));
   if (el.mmw) rfLensPatternSection(el);                                     // an RF lens with its horn, as an antenna
   if (el.mmw) { const o = orderRow(el); if (o) panel.append(o); }          // an RF lens that can be made: ask for a quote
   panel.append(h('div', { class: 'rt-actions' },
@@ -29991,7 +30005,7 @@ function grinPanel(el) {
       D.M.name + ': typical values; these plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : '')], 'note')));
   // the system it is part of, designed in the RF designer (made an assembly of its own first if it is not one)
   panel.append(h('div', { class: 'rt-rows' }, h('button', { class: 'rt-btn', type: 'button', title: 'Its feed horn’s beam through it to the goal: design the disc and the system in the RF designer',
-    onclick: () => { const a = asmOf(el) || makeAssembly([el]); if (a) openLensDesign(a); } }, 'Design as an RF assembly…')));
+    onclick: () => { const a = asmOf(el) || makeAssembly([el]); if (a) openDesign(a); } }, 'Design as an RF assembly…')));
   mountSection(el);
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'grin' }));        // the beam at it, kept current
   rfLensPatternSection(el);
@@ -36206,6 +36220,11 @@ function rwToBench(asm, P) {
   }
 }
 
+/* (for io/designs.js) whether it is open, on which assembly; a design's horns put on the bench, or moved to follow it */
+const rfDesignOpen = () => !!RW;
+const rfDesignAsm = () => (RW ? RW.asm : null);
+const rfPlaceOnBench = asm => rwPlace(asm);
+const rfFollowHorns = asm => rwToBench(asm, designPrescription(asm));
 function openRfDesign(asm, opts) {
   const C = asmCheck(asmMembers(asm), { ref: asm.ref, rev: asm.rev });
   if (!C.ok) { toast('Its parts are no longer on one axis: ' + C.why, true); return false; }
@@ -36216,7 +36235,8 @@ function openRfDesign(asm, opts) {
     asm.kind = 'rf'; asm.rf = T.rf;
   }
   rfSyncCond(asm, P);
-  RW = { asm, tab: 'data', sel: null, design: false, draft: !!(opts && opts.draft), synth: null };
+  // (in the RF designer the design is the document: never a draft waiting for a bench)
+  RW = { asm, tab: 'data', sel: null, design: false, draft: !RFD && !!(opts && opts.draft), synth: null };
   const sec = rwShell();
   sec.hidden = false;
   document.body.classList.add('rt-lens-open');
@@ -36235,6 +36255,7 @@ function closeRfDesign() {
   changed(true);
 }
 function rwLeave() {
+  if (RFD) return;
   if (RW && RW.draft) { checkpoint(); rwPlace(RW.asm); }
   closeRfDesign();
 }
@@ -36244,7 +36265,8 @@ function rwShell() {
   sec = h('section', { class: 'rt-lens rt-rfws', id: 'rfWs', hidden: '', tabindex: '-1', 'aria-label': 'RF design' });
   sec.addEventListener('keydown', e => {
     const k = e.key.toLowerCase(), typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
-    if (k === 'escape') { e.preventDefault(); rwLeave(); }
+    if (k === 'escape') { if (RFD) return; e.preventDefault(); rwLeave(); }
+    else if (RFD && (e.ctrlKey || e.metaKey) && k === 's') { e.preventDefault(); saveFile(); }
     else if ((e.ctrlKey || e.metaKey) && !typing && (k === 'z' || k === 'y')) { e.preventDefault(); if (k === 'y' || e.shiftKey) redo(); else undo(); rwAfterUndo(); }
     e.stopPropagation();
   });
@@ -36255,7 +36277,7 @@ function rwShell() {
 function rwAfterUndo() {
   if (!RW) return;
   const a = (project.assemblies || []).find(x => x.id === RW.asm.id);
-  if (!a || !asmMembers(a).length) { RW = null; document.getElementById('rfWs').hidden = true; document.body.classList.remove('rt-lens-open'); toast('The design was undone'); return; }
+  if (!a || !asmMembers(a).length) { RW = null; document.getElementById('rfWs').hidden = true; document.body.classList.remove('rt-lens-open'); toast('The design was undone'); if (RFD) opticShow(); return; }
   RW.asm = a; designOf(a);
   rwRender();
 }
@@ -36277,19 +36299,27 @@ function rwDraw() {
   sec.replaceChildren();
   const name = h('input', { class: 'rt-lname', type: 'text', value: asm.name, size: String(Math.max(6, Math.min(40, asm.name.length + 1))), 'aria-label': 'Design name', spellcheck: 'false' });
   name.addEventListener('change', rwField(name, () => { checkpoint(); asm.name = String(name.value || 'Assembly').slice(0, 80); changed(false); }));
-  sec.append(h('header', { class: 'rt-lhead' },
-    h('span', { class: 'rt-hmark' }, 'JEKray'),
-    h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill rt-rfpill' }, 'RF design')),
+  // the RF designer (?rfd): the design is the document, its name the file's, the page's bar moved up here
+  if (RFD) name.addEventListener('change', () => { project.name = asm.name; const n = document.getElementById('projName'); if (n) n.value = asm.name; });
+  sec.append(h('header', { class: 'rt-lhead' + (RFD ? ' rt-ophead' : '') },
+    ...(RFD ? [barPiece('btnSpace'), h('a', { class: 'rt-hmark rt-opmark', href: '/jek/docs/jekray/rf/designer/', target: '_blank', rel: 'noopener', title: 'About the RF designer: its pages in the docs' }, 'RF designer'), barPiece('btnFile'),
+      h('nav', { class: 'rt-lcrumb', 'aria-label': 'The design' }, name)]
+      : [h('span', { class: 'rt-hmark' }, 'JEKray'),
+        h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill rt-rfpill' }, 'RF design'))]),
     h('span', { class: 'rt-lgap' }),
     ...rwCfgPicker(asm),
     // (not for a system with a graded-index disc: the optical designer has no such part)
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); rwAfterUndo(); } }, '↶'),
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); rwAfterUndo(); } }, '↷'),
-    P.parts.some(p => p.kind === 'grin') ? null : h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the Optics designer: every surface, ray traces and its analyses', onclick: () => { closeRfDesign(); openLensDesign(asm, { optical: true }); } }, 'Optics designer'),
+    RFD || P.parts.some(p => p.kind === 'grin') ? null : h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the Optics designer: every surface, ray traces and its analyses', onclick: () => { closeRfDesign(); openLensDesign(asm, { optical: true }); } }, 'Optics designer'),
     hooks.saveParts ? proMark(h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off rt-proneed' : ''), type: 'button', id: 'rfKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: 'Keep the whole system (its lenses, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { if (!/^Sign in/.test(why)) toast(why, true); hooks.proFix('keep a design in My parts'); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…'), 'keep a design in My parts') : null,
     proMark(h('button', { class: 'rt-btn', type: 'button', id: 'rfReport', title: 'The design as a PDF: its conditions and figures, the layout, where the power goes, Element data and merit, its analyses, tolerances, what can be made and each lens’s drawing', onclick: () => { if (designPro('save a design report')) saveRfReport(asm, { mc: RW_MC && RW_MC.asm === asm && !RW_MC.running ? RW_MC : null }); } }, 'Report (PDF)'), 'save a design report'),
-    h('button', { class: 'rt-btn primary', type: 'button', id: 'rfLeave', title: RW.draft ? 'Put it on the bench with its feed horn, and its receiver or a load at its goal' : 'Back to the bench, where its parts and horns are as designed here (Esc)', onclick: rwLeave },
-      RW.draft ? 'Place on a bench' : 'Back to the bench')));
+    ...(RFD ? [barPiece('btnSave'),
+      h('button', { class: 'rt-btn primary', type: 'button', id: 'rfUse', title: 'Put this design on the bench in JEKrf, with its feed horn, and its receiver or a load at its goal; it follows the design as you change it here', onclick: useOnBench }, 'Use on a bench'),
+      barPiece('acct')]
+      : [h('button', { class: 'rt-btn primary', type: 'button', id: 'rfLeave', title: RW.draft ? 'Put it on the bench with its feed horn, and its receiver or a load at its goal' : 'Back to the bench, where its parts and horns are as designed here (Esc)', onclick: rwLeave },
+        RW.draft ? 'Place on a bench' : 'Back to the bench')])));
+  if (RFD) keepSign();
   const body = h('div', { class: 'rt-lbody' });
   rwSelOk(P);
   body.append(rwSysList(asm, P), h('div', { class: 'rt-lmain' }, rwLayoutCard(asm, P, T), rwFigures(asm, T), rwEditor(asm, P), rwTabs(),
@@ -36376,7 +36406,8 @@ function rwSysList(asm, P) {
   h('div', { class: 'rt-rfsep' }),
   item('goal', '→', 'Goal', (RW_GOAL_SHORT[R.goal.kind] || R.goal.kind) + ' · ' + rwFmt(R.goal.d, 4) + ' mm on', 'What the system is for, after its last part'),
   h('div', { class: 'rt-rfsep' }),
-  h('button', { class: 'rt-btn', type: 'button', title: 'The feed horn lighting it and a receiving horn after it, as they are on the bench', onclick: rwTake }, 'Take from the bench'));
+  // (the RF designer has no bench of its own to take them from)
+  RFD ? null : h('button', { class: 'rt-btn', type: 'button', title: 'The feed horn lighting it and a receiving horn after it, as they are on the bench', onclick: rwTake }, 'Take from the bench'));
   const linked = [R.feed.id && getEl(R.feed.id) ? 'the feed horn' : null, R.goal.kind === 'couple' && R.goal.rx.id && getEl(R.goal.rx.id) ? 'the receiver' : null].filter(Boolean);
   if (linked.length) card.append(h('p', { class: 'rt-lsub' }, 'On the bench, ' + linked.join(' and ') + ' follow' + (linked.length === 1 ? 's' : '') + ' the system.'));
   return card;
@@ -37584,7 +37615,7 @@ async function saveRfReport(asm, opts) {
    leaving the workspace is only going back to the bench. A design started from nothing has no
    light on the bench yet: Place on a bench gives it a source for each field and a screen at its
    image, set to its conditions.
-   With ?optic the page is the Optics designer, a program of its own (io/optic.js): this workspace is the whole page,
+   With ?optic the page is the Optics designer, a program of its own (io/designs.js): this workspace is the whole page,
    on the one design its .optic file holds, with the page's bar in its head and Use on a bench in place of going back.
    ========================================================================== */
 let WS = null;                     // { asm, tab, sel, draft, took }
@@ -37632,6 +37663,16 @@ function closeLensDesign() {
   document.body.classList.remove('rt-lens-open');
   setSelection(asmMembers(asm));
   changed(true);
+}
+
+/* the page's bar's pieces, moved into a designer's head (the Optics designer's here, the RF designer's in
+   ui/rf-workspace.js): each found once and kept, since drawn again the head is made anew and they are out of the page
+   until put back in it */
+function barPiece(id) {
+  const el = barKept.get(id) || document.getElementById(id);
+  const it = el ? (el.classList.contains('rt-more') || id === 'btnSpace' || id === 'btnSave' ? el : el.closest('.rt-more')) : null;
+  if (it) barKept.set(id, it);
+  return it;
 }
 
 /* ---------- The page ---------- */
@@ -37703,13 +37744,7 @@ function drawWs() {
   // the Optics designer: the design is the document, its name the file's, and the page's own bar (JEKsuite's mark, File,
   // the keep sign, Save, the account) is moved up here, the bench under it never shown
   if (OPTIC) name.addEventListener('change', () => { project.name = asm.name; const n = document.getElementById('projName'); if (n) n.value = asm.name; });
-  // (each found once and kept: drawn again, the head is made anew and they are out of the page until put back in it)
-  const moved = id => {
-    const el = barKept.get(id) || document.getElementById(id);
-    const it = el ? (el.classList.contains('rt-more') || id === 'btnSpace' || id === 'btnSave' ? el : el.closest('.rt-more')) : null;
-    if (it) barKept.set(id, it);
-    return it;
-  };
+  const moved = barPiece;
   sec.append(h('header', { class: 'rt-lhead' + (OPTIC ? ' rt-ophead' : '') },
     ...(OPTIC ? [moved('btnSpace'), h('a', { class: 'rt-hmark rt-opmark', href: '/jek/docs/jekray/lens-design/', target: '_blank', rel: 'noopener', title: 'About the Optics designer: its pages in the JEKray docs' }, 'Optics designer'), moved('btnFile'),
       h('nav', { class: 'rt-lcrumb', 'aria-label': 'The design' }, name)]
@@ -55540,9 +55575,10 @@ function markUnsaved(on) {
 }
 function saveFile() {
   if (!accountGate('save the bench as a file')) return;
-  // the Optics designer's file is a .optic (a design), JEKray's a .jekray
-  const name = safeFileName(project.name) + (OPTIC ? '.optic' : '.jekray');
-  downloadFile(name, new Blob([JSON.stringify(serialize(), null, 2)], { type: OPTIC ? 'application/x-jekoptic' : 'application/x-jekray' }));
+  // each program's own file: JEKray's .jekray, the Optics designer's .optic, JEKrf's .jekrf, its RF designer's .rfd
+  const ext = { ray: 'jekray', optic: 'optic', rf: 'jekrf', rfd: 'rfd' }[PAGE_MODE];
+  const name = safeFileName(project.name) + '.' + ext;
+  downloadFile(name, new Blob([JSON.stringify(serialize(), null, 2)], { type: 'application/x-' + PAGE_FORMAT }));
   toast('Saved ' + name);
   markUnsaved(false);
   goal('save');
@@ -56977,7 +57013,7 @@ async function readShareHash(h) {
   } else if (kind !== 'j') throw new Error('that is not a JEKray link');
   try { return JSON.parse(new TextDecoder().decode(bytes)); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
 }
-const shareBase = () => location.origin + location.pathname;
+const shareBase = () => location.origin + location.pathname + PAGE_QUERY;      // (JEKrf's, a designer's: its own page)
 /* A link for a QR code, as small as it can be: the bench without its notes, its parts renumbered
    0, 1, 2... (not where a cavity's lock setting is keyed by them), deflated, and written in base
    32 capitals after /R/ on the site, all of it in the QR code's alphanumeric mode (5.5 bits a
@@ -57285,7 +57321,7 @@ const IMPORT_SAME = new Set(['id', 'type', 'name', 'x', 'y', 'angle', 'bench', '
 function prepImport(data, notes) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('That is not a JEKray project: it should be one JSON object.');
   if (!Array.isArray(data.elements)) throw new Error('The project has no "elements" list.');
-  if (data.format === undefined) data.format = OPTIC ? OPTIC_FORMAT : FORMAT;       // what else would it be
+  if (data.format === undefined) data.format = PAGE_FORMAT;       // what else would it be
   if (data.version === undefined) data.version = VERSION;
   const named = e => e && typeof e === 'object' ? String(e.name || e.type || '?') : '?';
   // every element gets an id; fibres, split sources and tabs may name what they mean
@@ -57449,15 +57485,14 @@ function parseProjectText(text) {
 }
 /* open a project from its data: undoable, then the report if anything was changed */
 function openProjectData(data, label) {
-  // a design (.optic) opened on a bench is put on it, linked; in the Optics designer, a bench is JEKray's to open
+  // a design (.optic, .rfd) opened on a bench is put on it, linked (or sent to its own app's bench); a designer opens
+  // its own kind alone; JEKray's bench is not JEKrf's, but JEKrf carries on with a JEKray bench (saved as a .jekrf)
   if (data && typeof data === 'object' && !Array.isArray(data)) {
-    if (!OPTIC && data.format === OPTIC_FORMAT) {
-      const asm = placeDesign(data, isOpticUid(data.uid) ? { uid: data.uid } : null);
-      placeOnBench(asm); setSelection(asmMembers(asm)); changed(true);
-      toast('Put the design ' + label + ' on the bench, with light for it. Edit it in the Optics designer: double-click it');
-      return [];
-    }
-    if (OPTIC && data.format === FORMAT) throw new Error('that is a JEKray bench, not a design: open it in JEKray. A design here is a .optic file.');
+    const f = data.format, design = f === OPTIC_FORMAT || f === RFD_FORMAT;
+    if (DESIGNER && f !== PAGE_FORMAT) throw new Error(design ? 'that is another kind of design: open it in its own designer.' : 'that is a bench, not a design: open it in ' + (f === RF_FORMAT ? 'JEKrf' : 'JEKray') + '.');
+    if (!DESIGNER && design) { placeDesignFile(data, label); return []; }
+    if (PAGE_MODE === 'ray' && f === RF_FORMAT) throw new Error('that is a JEKrf bench: open it in JEKrf.');
+    if (PAGE_MODE === 'rf' && f === FORMAT) data.format = RF_FORMAT;
   }
   if (cloud && !cloudOpening) cloudLink(null);  // something else on the bench: no longer the cloud's
   const notes = [];
@@ -57484,7 +57519,7 @@ function openProjectData(data, label) {
   // a link (or an example) may say which panels to show and how
   if (raw.ui) applyUi(raw.ui);
   markUnsaved(false);
-  if (OPTIC) opticShow(); else setTimeout(opticOffers, 0);
+  if (DESIGNER) opticShow(); else setTimeout(opticOffers, 0);
   return notes;
 }
 function showImportReport(notes) {
@@ -58708,7 +58743,7 @@ const PALETTES = {
   get rf() { return pickerRows(PALETTE_PARTS.rf); },
   get pic() { return pickerRows(PALETTE_PARTS.pic); },
 };
-let palette = (() => { try { const pv = localStorage.getItem('jek-raytracer-palette'); return pv === 'fibre' || pv === 'pic' || pv === 'elec' || pv === 'rf' || pv === 'draw' ? pv : 'free'; } catch (err) { return 'free'; } })();   // (a private window: free space)
+let palette = (() => { try { const pv = localStorage.getItem(appStoreKey('jek-raytracer-palette')); if (RFAPP) return pv === 'draw' || pv === 'elec' ? pv : 'rf'; return pv === 'fibre' || pv === 'pic' || pv === 'elec' || pv === 'draw' ? pv : 'free'; } catch (err) { return 'free'; } })();   // (a private window: free space)
 function assignPalette(v) { return (palette = v); }
 /* The parts, two ways in: a picker (+ Add part, or A or /) with a search, a tab for each palette and
    the parts in groups, each with its symbol as the bench draws it; and a rail down the bench's left
@@ -58723,7 +58758,9 @@ const PART_GROUPS = {
   get pic() { return PALETTE_GROUPS.pic; },
   get elec() { return PALETTE_GROUPS.elec; },
 };
-const palettesOn = () => Object.keys(PALETTES).filter(p => (p !== 'pic' || exp('pic')) );
+/* the palettes offered: JEKrf's RF parts and the circuits they feed; JEKray's the rest (the RF parts are JEKrf's: a
+   bench holding some still opens and traces in JEKray) */
+const palettesOn = () => (RFAPP ? ['rf', 'elec'] : Object.keys(PALETTES).filter(p => p !== 'rf' && (p !== 'pic' || exp('pic'))));
 const partsOf = pal => PALETTES[pal].filter(it => !it[3] || exp(it[3])).map(([key, short, long]) => ({ key, short, long: long || short, pal }));
 // a palette's parts in their groups; any not listed in a group under Other
 function partGroups(pal) {
@@ -58977,7 +59014,7 @@ function pickerShown(on) {
   const tip = document.getElementById('emptyHint');
   if (tip) tip.hidden = !!on;
   if (!on) { picker.hidden = true; addBtn.setAttribute('aria-expanded', 'false'); return; }
-  if (!palettesOn().includes(pickTab) && !(pickTab === 'mine' && mineOn()) && !(pickTab === 'recent' && recentTiles().length)) pickTab = 'free';
+  if (!palettesOn().includes(pickTab) && !(pickTab === 'mine' && mineOn()) && !(pickTab === 'recent' && recentTiles().length)) pickTab = palettesOn()[0];
   if (mineOn()) loadMine().then(() => { if (!picker.hidden && pickTab === 'mine') mineChanged(); });
   // beside the rail's Add part, level with it (or, the rail hidden, at the bench's top left), kept on the screen
   // (under it, the rail being across the top of the bench)
@@ -59144,7 +59181,7 @@ function fillRail() {
     i ? h('span', { class: 'rt-rsep ' + pal, 'aria-hidden': 'true' }) : null,
     ...partGroups(pal).map(g => {
       const b = h('button', { type: 'button', class: 'rt-rgroup ' + pal, title: PALETTE_NAMES[pal] + ': ' + g.name, 'aria-label': PALETTE_NAMES[pal] + ': ' + g.name }, h('img', { alt: '', src: partIcon(g.parts[0].key), width: '26', height: '26' }));
-      b.addEventListener('click', e => { e.stopPropagation(); if (palette !== pal) { assignPalette(pal); lastParts = pal; try { localStorage.setItem('jek-raytracer-palette', pal); } catch (err) { /* fine */ } } flyShown(b, g); });
+      b.addEventListener('click', e => { e.stopPropagation(); if (palette !== pal) { assignPalette(pal); lastParts = pal; try { localStorage.setItem(appStoreKey('jek-raytracer-palette'), pal); } catch (err) { /* fine */ } } flyShown(b, g); });
       return b;
     })]).filter(Boolean);
   // (My parts are a tab of + Add's, not a button of the bar's)
@@ -59162,7 +59199,7 @@ function setPalette(pal) {
   }
   assignPalette(pal);
   if (pal !== 'draw' && drawTool !== 'select') setDrawTool('select');
-  try { localStorage.setItem('jek-raytracer-palette', palette); } catch (err) { /* not kept: fine */ }
+  try { localStorage.setItem(appStoreKey('jek-raytracer-palette'), palette); } catch (err) { /* not kept: fine */ }
   fillRail();
 }
 /* the palettes offered change with the experimental switch */
@@ -61170,6 +61207,8 @@ function wireUsage() {
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') usageFlush(); });
   addEventListener('pagehide', () => { if (!usageLeft) { usageLeft = true; track('leave', usageMinutes(Date.now() - USAGE_T0)); } usageFlush(); });
 }
+/* each program's tab, by its mode (a cloud bench of another program opens there) */
+const MODE_TABS = { ray: 'jekray', optic: 'jekoptic', rf: 'jekrf', rfd: 'jekrfd' };
 /* ---------- Cloud benches ----------
    A bench opened from, or saved to, the cloud stays linked to it: `cloud` holds its id,
    workspace and the version this copy is based on. Edits save themselves at most every 30
@@ -61468,10 +61507,12 @@ async function cloudOpen(id, version) {
   if (meta.tool === 'jekfilm' || fmt === 'jekfilm') { openInJekfilm(meta, version); toast('“' + meta.name + '” is a JEKfilm coating: opened in JEKfilm'); return; }
   // a part studio, by its mark or its content (one saved by an API from before JEKcad is marked JEKray's)
   if (meta.tool === 'jekcad' || fmt === 'jekcad') { openInJekcad(meta, version); toast('“' + meta.name + '” is a JEKcad part studio: opened in JEKcad'); return; }
-  // a design opens in the Optics designer, a bench in JEKray (each page is the other's when it is the wrong one)
-  if ((meta.tool === 'jekoptic' || fmt === 'jekoptic') !== OPTIC) {
-    window.open(opticPage() + (OPTIC ? '' : '?optic') + '#cloud=' + meta.id + (version ? '@' + version : ''), OPTIC ? 'jekray' : 'jekoptic');
-    toast('“' + meta.name + '” is ' + (OPTIC ? 'a JEKray bench: opened in JEKray' : 'a design: opened in the Optics designer'));
+  // a design opens in its designer, a JEKrf bench in JEKrf, a JEKray bench in JEKray: in that program's tab when it
+  // is not this page (an older JEKray bench is JEKrf's to carry on with too, when it is opened there)
+  const mode = { jekoptic: 'optic', jekrf: 'rf', jekrfd: 'rfd' }[meta.tool] || { jekoptic: 'optic', jekrf: 'rf', jekrfd: 'rfd' }[fmt] || 'ray';
+  if (mode !== PAGE_MODE && !(mode === 'ray' && PAGE_MODE === 'rf')) {
+    window.open(modePage(mode) + '#cloud=' + meta.id + (version ? '@' + version : ''), MODE_TABS[mode]);
+    toast('“' + meta.name + '” is ' + { ray: 'a JEKray bench: opened in JEKray', optic: 'a design: opened in the Optics designer', rf: 'a JEKrf bench: opened in JEKrf', rfd: 'an RF design: opened in the RF designer' }[mode]);
     return;
   }
   setCloudOpening(true);
@@ -61885,42 +61926,57 @@ function wireFilmCoats() {
   });
 }
 /* ==========================================================================
-   The Optics designer and the benches that use its designs
-   The Optics designer is JEKray's page opened with ?optic (core/constants.js OPTIC): its document is one design, a
-   .optic (format 'jekoptic'), the parts of one assembly and its record, with a uid. A bench uses a design as a copy of
-   its parts, the assembly keeping where it came from (asm.src: { uid, and in the cloud id and v }), so it traces,
-   shares and opens offline as before.
-   - The designer, as the design changes, tells the other tabs on the channel 'jek-optic'; a bench open in one with that
-     design on it takes the change at once, in place, as a step of Undo.
+   The designers, and the benches that use their designs
+   Each designer is JEKray's page as a program of its own (core/constants.js): the Optics designer (?optic, its designs
+   .optic files, used on JEKray's benches) and JEKrf's RF designer (?rfd, .rfd files, used on JEKrf's benches, ?rf). A
+   design is the parts of one assembly and its record, with a uid. A bench uses it as a copy of its parts, the assembly
+   keeping where it came from (asm.src: { uid, and in the cloud id and v }), so it traces, shares and opens offline.
+   - The designer, as the design changes, tells the other tabs on its channel ('jek-optic', 'jek-rfd'); a bench open in
+     one with that design on it takes the change at once, where it stands, as a step of Undo (an RF design's horns on
+     the bench kept, and moved to follow it).
    - A bench opened later whose design moved on in the cloud is offered the newer version, never given it unasked.
-   - From a bench, Edit in the Optics designer hands the assembly over (localStorage 'jek-optic-handoff') and opens the
-     designer's tab on it (#take), linking it first if it was not; from the designer, Use on a bench hands the design
-     to JEKray's tab (localStorage 'jek-optic-place', #place-optic), which puts it on the bench with light for it.
+   - From a bench, Design… hands the assembly over (localStorage '<channel>-handoff') and opens the designer's tab on it
+     (#take), linking it first if it was not; from the designer, Use on a bench hands the design to its bench's tab
+     ('<channel>-place', #place-optic or #place-rfd), which puts it on the bench with light (or horns) for it.
    ========================================================================== */
-const OPTIC_CHANNEL = 'jek-optic', OPTIC_HANDOFF = 'jek-optic-handoff', OPTIC_PLACE = 'jek-optic-place', OPTIC_FRESH = 120e3;
-let opticChan = null, opticSendTimer = 0, opticLastFollow = { asm: null, t: 0 };
-const opticOffered = new Set();                       // 'id@v' already offered this visit
-const isOpticAsm = a => a && !isRfAsm(a) && a.kind !== 'rf';
-/* the page's own path, with ?optic for the designer, and the other app's */
+const DESIGN_FRESH = 120e3;
+/* the two kinds of design: the page each is made on (mode) and used on (bench), their names, files and ways in */
+const DESIGN_KINDS = {
+  optic: { key: 'optic', mode: 'optic', bench: 'ray', name: 'Optics designer', app: 'JEKray', ext: '.optic', format: OPTIC_FORMAT,
+    is: a => !!a && !isRfAsm(a) && a.kind !== 'rf', open: a => openLensDesign(a, { optical: true }), isOpen: () => lensDesignOpen(), openAsm: () => lensDesignAsm(),
+    close: () => closeLensDesign(), make: () => newLensDesign(), light: a => asmBenchLight(a), lit: a => placeOnBench(a) },
+  rfd: { key: 'rfd', mode: 'rfd', bench: 'rf', name: 'RF designer', app: 'JEKrf', ext: '.rfd', format: RFD_FORMAT,
+    is: a => !!a && (a.kind === 'rf' || isRfAsm(a)), open: a => openRfDesign(a), isOpen: () => rfDesignOpen(), openAsm: () => rfDesignAsm(),
+    close: () => closeRfDesign(), make: () => newRfDesign(), light: () => null, lit: a => rfPlaceOnBench(a) },
+};
+const designKind = asm => (DESIGN_KINDS.rfd.is(asm) ? DESIGN_KINDS.rfd : DESIGN_KINDS.optic);
+/* the kind of design this page is the designer of (null on a bench) */
+const PAGE_KIND = OPTIC ? DESIGN_KINDS.optic : RFD ? DESIGN_KINDS.rfd : null;
+const designChan = {}, chanName = k => 'jek-' + k.key, MODE_Q = { ray: '', optic: '?optic', rf: '?rf', rfd: '?rfd' }, MODE_TAB = { ray: 'jekray', optic: 'jekoptic', rf: 'jekrf', rfd: 'jekrfd' };
+let designSendTimer = 0, designLastFollow = { asm: null, t: 0 };
+const designOffered = new Set();                       // 'id@v' already offered this visit
+/* the page's own file (the built page, or on the dev page the dev page), and a mode's address and tab */
 const opticPage = () => location.pathname.replace(/[^/]*$/, '') + (/jekray-dev\.html$/.test(location.pathname) ? 'jekray-dev.html' : 'jekray.html');
-const toOpticTab = hash => window.open(opticPage() + '?optic#' + hash, 'jekoptic');
-const toBenchTab = hash => window.open(opticPage() + '#' + hash, 'jekray');
-function opticPut(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); return true; } catch (err) { toast('This browser is blocking storage, so the design could not be handed over. Save it as a file and open that instead.', true); return false; } }
-function opticTake(key) {
+const modePage = mode => opticPage() + MODE_Q[mode];
+const toMode = (mode, hash) => window.open(modePage(mode) + (hash ? '#' + hash : ''), MODE_TAB[mode]);
+function designPut(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); return true; } catch (err) { toast('This browser is blocking storage, so the design could not be handed over. Save it as a file and open that instead.', true); return false; } }
+function designTake(key) {
   let v = null;
   try { v = JSON.parse(localStorage.getItem(key)); localStorage.removeItem(key); } catch (err) { /* nothing handed over */ }
-  return v && v.content && Date.now() - (v.t || 0) < OPTIC_FRESH ? v : null;
+  return v && v.content && Date.now() - (v.t || 0) < DESIGN_FRESH ? v : null;
 }
 
 /* ---------- A design as a file, made from an assembly on a bench ---------- */
 function designContent(asm, u) {
-  const M = asmMembers(asm), rec = JSON.parse(JSON.stringify(asm));
+  const K = designKind(asm), M = asmMembers(asm), rec = JSON.parse(JSON.stringify(asm));
   delete rec.src; delete rec.lock;
   rec.bench = 'b1';
-  return { format: OPTIC_FORMAT, version: VERSION, name: asm.name, uid: u, benches: [{ id: 'b1', name: 'Design' }], tab: 'b1',
+  // (an RF design's horns are the bench's, not the design's: their links stay behind)
+  if (rec.rf) { if (rec.rf.feed) delete rec.rf.feed.id; if (rec.rf.goal && rec.rf.goal.rx) delete rec.rf.goal.rx.id; }
+  return { format: K.format, version: VERSION, name: asm.name, uid: u, benches: [{ id: 'b1', name: 'Design' }], tab: 'b1',
     elements: JSON.parse(JSON.stringify(M)).map(e => Object.assign(e, { bench: 'b1', locked: false })), fibres: [], assemblies: [rec] };
 }
-/* the design in a .optic's content: its assembly's record and parts (null when it has none) */
+/* the design in a design file's content: its assembly's record and parts (null when it has none) */
 function designIn(data) {
   const els = data && Array.isArray(data.elements) ? data.elements.filter(e => e && typeof e === 'object') : [];
   const rec = (data && Array.isArray(data.assemblies) ? data.assemblies : []).find(a => a && els.some(e => e.group === a.id));
@@ -61951,94 +62007,122 @@ function placeDesign(data, src, opts) {
   asmMoveTo(asm, opts.at || { x: Math.round(V().cx), y: Math.round(V().cy) });
   return asm;
 }
-/* a linked assembly given its design's newer content, where it stands */
+/* a linked assembly given its design's newer content, where it stands (an RF design's horns kept, and moved to follow) */
 function updateDesign(asm, data, src, quiet) {
-  const at = asmPlace(asm);
+  const at = asmPlace(asm), horns = asm.rf ? { feed: asm.rf.feed && asm.rf.feed.id, rx: asm.rf.goal && asm.rf.goal.rx && asm.rf.goal.rx.id } : null;
   if (!quiet) checkpoint();
   project.elements = project.elements.filter(e => e.group !== asm.id);
   project.assemblies = (project.assemblies || []).filter(a => a.id !== asm.id);
-  return placeDesign(data, src, { at, keep: asm.id, quiet: true });
+  const a = placeDesign(data, src, { at, keep: asm.id, quiet: true });
+  if (horns && a.rf) {
+    if (horns.feed && a.rf.feed) a.rf.feed.id = horns.feed;
+    if (horns.rx && a.rf.goal && a.rf.goal.rx) a.rf.goal.rx.id = horns.rx;
+    try { rfFollowHorns(a); } catch (err) { /* the horns stay where they were */ }
+  }
+  return a;
 }
-/* Edit in the Optics designer: the assembly linked to a design of its own (a new one, when it had none), handed over */
+/* Design…: the assembly linked to a design of its own (a new one, when it had none), handed to its designer's tab */
 function editInOptic(asm) {
-  if (!asm || !isOpticAsm(asm)) return false;
+  if (!asm) return false;
+  const K = designKind(asm);
   if (!asm.src) { checkpoint(); asm.src = { uid: opticUid() }; changed(false); }
-  // with the light arriving at it on the bench, for the designer's Take conditions from the bench
+  // with the light arriving at it on the bench, for the Optics designer's Take conditions from the bench
   let light = null;
-  try { const B = asmBenchLight(asm); light = B ? { B: JSON.parse(JSON.stringify(B)), bench: benchName(asm.bench) } : null; } catch (err) { /* none */ }
-  if (!opticPut(OPTIC_HANDOFF, { t: Date.now(), content: designContent(asm, asm.src.uid), src: asm.src, light })) return false;
-  track('designer', 'optic.edit');
-  toOpticTab('take');
-  toast('Opened ' + asm.name + ' in the Optics designer: what you change there comes back here as you go');
+  try { const B = K.light(asm); light = B ? { B: JSON.parse(JSON.stringify(B)), bench: benchName(asm.bench) } : null; } catch (err) { /* none */ }
+  if (!designPut(chanName(K) + '-handoff', { t: Date.now(), content: designContent(asm, asm.src.uid), src: asm.src, light })) return false;
+  track('designer', K.key + '.edit');
+  toMode(K.mode, 'take');
+  toast('Opened ' + asm.name + ' in the ' + K.name + ': what you change there comes back here as you go');
   return true;
 }
-/* the way into a design from a bench: the Optics designer, in its own tab, for an optical one (the RF designer is
-   still the bench's own); here, on the page, in the designer itself, a test page, or when asked (here) */
+/* the way into a design from a bench: its designer, in its own tab; here, on the page, in a designer itself, on a test
+   page, or when asked (here) */
 let opticTabs = !TEST_MODE && !EMBED;
 const setOpticTabs = v => (opticTabs = !!v);
 function openDesign(asm, opts) {
   if (!asm) return false;
-  if (opticTabs && !OPTIC && isOpticAsm(asm) && !(opts && opts.here)) return editInOptic(asm);
+  if (opticTabs && !DESIGNER && !(opts && opts.here)) return editInOptic(asm);
   return openLensDesign(asm, opts);
 }
-/* a new optical design, from the bench: started in the Optics designer */
+/* a new design, from a bench: started in its designer (the Optics designer's from JEKray, the RF designer's from JEKrf) */
 function newOpticDesign() {
-  if (!opticTabs || OPTIC) return newLensDesign();
+  if (!opticTabs || DESIGNER) return newLensDesign();
   track('designer', 'optic.new');
-  toOpticTab('new');
+  toMode('optic', 'new');
   return null;
 }
-/* a bench's design took a change from the designer (live), or is offered the cloud's newer one */
+function newRfdDesign() {
+  if (!opticTabs || DESIGNER) return newRfDesign();
+  track('designer', 'rfd.new');
+  toMode('rfd', 'new');
+  return null;
+}
+/* a bench's design took a change from its designer (live) */
 function opticFollow(m) {
-  if (OPTIC || !m || m.kind !== 'design' || !isOpticUid(m.uid) || !m.content) return;
+  if (DESIGNER || !m || m.kind !== 'design' || !isOpticUid(m.uid) || !m.content) return;
   const mine = assemblies().filter(a => a.src && (m.id && a.src.id ? a.src.id === m.id : a.src.uid === m.uid));
   if (!mine.length) return;
   // one step of Undo for a run of changes to the same design
-  const quiet = opticLastFollow.asm === mine.map(a => a.id).join() && Date.now() - opticLastFollow.t < 4000;
+  const quiet = designLastFollow.asm === mine.map(a => a.id).join() && Date.now() - designLastFollow.t < 4000;
   if (!quiet) checkpoint();
   const src = { uid: m.uid, ...(m.id ? { id: m.id } : {}), ...(m.v ? { v: m.v } : {}) };
   let ok = 0;
   for (const a of mine) { try { updateDesign(a, m.content, src, true); ok++; } catch (err) { /* left as it was */ } }
-  opticLastFollow = { asm: mine.map(a => a.id).join(), t: Date.now() };
+  designLastFollow = { asm: mine.map(a => a.id).join(), t: Date.now() };
   if (ok) changed(true);
 }
 /* a bench just opened: its designs in the cloud that have moved on since they were copied, offered */
 async function opticOffers() {
-  if (OPTIC || TEST_MODE || EMBED || !accountsOn() || !account) return;
+  if (DESIGNER || TEST_MODE || EMBED || !accountsOn() || !account) return;
   for (const a of assemblies().filter(x => x.src && x.src.id)) {
     try {
       const b = await api('/v1/benches/' + a.src.id);
-      if (!(b.version > (a.src.v || 0)) || opticOffered.has(b.id + '@' + b.version)) continue;
-      opticOffered.add(b.id + '@' + b.version);
-      toast('“' + b.name + '” has changed in the Optics designer since ' + a.name + ' was put on this bench', false, { label: 'Update it', fn: () => {
+      if (!(b.version > (a.src.v || 0)) || designOffered.has(b.id + '@' + b.version)) continue;
+      designOffered.add(b.id + '@' + b.version);
+      toast('“' + b.name + '” has changed in the ' + designKind(a).name + ' since ' + a.name + ' was put on this bench', false, { label: 'Update it', fn: () => {
         try { updateDesign(a, JSON.parse(b.content), Object.assign({}, a.src, { v: b.version })); changed(true); toast('Updated ' + a.name + ' to version ' + b.version); }
         catch (err) { toast('Could not update it: ' + err.message, true); }
       } });
     } catch (err) { /* offline, or no longer ours: the bench keeps its copy */ }
   }
 }
-/* #place-optic: a design the designer sent, put on the bench with light for it (or, already here, shown) */
-function opticPlaceHanded() {
-  const v = opticTake(OPTIC_PLACE);
-  if (!v) { toast('Nothing to put on the bench: open the design in the Optics designer and choose Use on a bench again.', true); return; }
+/* #place-optic, #place-rfd: a design its designer sent, put on the bench with light (horns) for it, or, here already, shown */
+function designPlaceHanded(K) {
+  const v = designTake(chanName(K) + '-place');
+  if (!v) { toast('Nothing to put on the bench: open the design in the ' + K.name + ' and choose Use on a bench again.', true); return; }
   const there = v.src && assemblies().find(a => a.src && a.src.uid === v.src.uid);
   if (there) { setSelection(asmMembers(there)); toast(there.name + ' is on this bench already, and follows the design as it changes'); return; }
   try {
     const asm = placeDesign(v.content, v.src && isOpticUid(v.src.uid) ? v.src : null);
-    placeOnBench(asm);
+    K.lit(asm);
     setSelection(asmMembers(asm));
     changed(true);
-    track('designer', 'optic.place');
+    track('designer', K.key + '.place');
   } catch (err) { toast('Could not put the design on the bench: ' + err.message, true); }
 }
+/* a design file opened on a bench: its own kind is put on it, linked; the other kind is sent to its own bench's tab */
+function placeDesignFile(data, label) {
+  const K = data.format === RFD_FORMAT ? DESIGN_KINDS.rfd : DESIGN_KINDS.optic;
+  const src = isOpticUid(data.uid) ? { uid: data.uid } : null;
+  if (K.bench !== PAGE_MODE) {
+    if (!designPut(chanName(K) + '-place', { t: Date.now(), content: data, src })) return;
+    toMode(K.bench, 'place-' + K.key);
+    toast(label + ' is ' + (K.key === 'rfd' ? 'an RF design' : 'an optical design') + ': put on a bench in ' + K.app + ', in its own tab');
+    return;
+  }
+  const asm = placeDesign(data, src);
+  K.lit(asm); setSelection(asmMembers(asm)); changed(true);
+  toast('Put the design ' + label + ' on the bench, with ' + (K.key === 'rfd' ? 'its horns' : 'light for it') + '. Edit it in the ' + K.name + ': double-click it');
+}
 
-/* ---------- In the designer ---------- */
+/* ---------- In a designer ---------- */
 /* the one design the page holds, opened: made from what was opened when it is not yet one (a single lens, say), or
    a new design when there is nothing to design */
 function opticShow() {
-  if (!OPTIC) return;
-  let asm = assemblies().find(isOpticAsm);
-  if (!asm) {
+  const K = PAGE_KIND;
+  if (!K) return;
+  let asm = assemblies().find(K.is);
+  if (!asm && K.key === 'optic') {
     const parts = project.elements.filter(e => ['lens', 'stop', 'mirror', 'window'].includes(e.type) || asmKind(e));
     if (parts.length && asmCheck(parts, {}).ok) {
       const id = 'g' + uid().slice(1), C = asmCheck(parts, {});
@@ -62049,35 +62133,41 @@ function opticShow() {
     }
   }
   // (a design made empty in the cloud, by JEKsuite's New, keeps the name it was given there)
-  if (!asm) { const nm = project.name && !/^(Untitled bench|New design)$/.test(project.name) ? project.name : 'New design'; newLensDesign(); asm = assemblies().find(isOpticAsm); if (asm) project.name = asm.name = nm; }
+  if (!asm) {
+    const nm = project.name && !/^(Untitled bench|New design|New RF design)$/.test(project.name) ? project.name : K.key === 'rfd' ? 'New RF design' : 'New design';
+    if (K.isOpen()) K.close();
+    K.make(); asm = assemblies().find(K.is); if (asm) project.name = asm.name = nm;
+  }
   // the design's name is the file's
   else if (project.name && asm.name !== project.name) asm.name = String(project.name).slice(0, 80);
   // (open already on this very record: nothing to do; on one a load or New replaced: opened again on this)
-  if (lensDesignOpen()) { if (lensDesignAsm() === asm) return; closeLensDesign(); }
-  if (asm) { openLensDesign(asm, { optical: true }); const n = document.getElementById('projName'); if (n) n.value = project.name; }
+  if (K.isOpen()) { if (K.openAsm() === asm) return; K.close(); }
+  if (asm) { K.open(asm); const n = document.getElementById('projName'); if (n) n.value = project.name; }
 }
 /* the design as it stands, to the benches that use it: soon after each change */
 function opticChanged() {
-  if (!OPTIC || TEST_MODE || EMBED || !opticChan) return;
-  clearTimeout(opticSendTimer);
-  opticSendTimer = setTimeout(() => {
-    try { opticChan.postMessage({ kind: 'design', uid: serialize().uid, id: cloud ? cloud.id : null, v: cloud ? cloud.version : null, content: serialize() }); } catch (err) { /* no other tab hears */ }
+  if (!PAGE_KIND || TEST_MODE || EMBED || !designChan[PAGE_KIND.key]) return;
+  clearTimeout(designSendTimer);
+  designSendTimer = setTimeout(() => {
+    try { const content = serialize(); designChan[PAGE_KIND.key].postMessage({ kind: 'design', uid: content.uid, id: cloud ? cloud.id : null, v: cloud ? cloud.version : null, content }); } catch (err) { /* no other tab hears */ }
   }, 400);
 }
-/* Use on a bench: the design handed to JEKray's tab, which puts it down linked to it */
+/* Use on a bench: the design handed to its bench's tab (JEKray's, JEKrf's), which puts it down linked to it */
 function useOnBench() {
+  const K = PAGE_KIND;
+  if (!K) return;
   const content = serialize();
-  if (!opticPut(OPTIC_PLACE, { t: Date.now(), content, src: { uid: content.uid, ...(cloud ? { id: cloud.id, v: cloud.version } : {}) } })) return;
-  track('designer', 'optic.use');
-  toBenchTab('place-optic');
-  toast('Sent to JEKray: it is on the bench there, and follows this design as it changes');
+  if (!designPut(chanName(K) + '-place', { t: Date.now(), content, src: { uid: content.uid, ...(cloud ? { id: cloud.id, v: cloud.version } : {}) } })) return;
+  track('designer', K.key + '.use');
+  toMode(K.bench, 'place-' + K.key);
+  toast('Sent to ' + K.app + ': it is on the bench there, and follows this design as it changes');
 }
 /* the light that arrived at the design on the bench it was opened from, when it was ({ uid, B, bench }; null when not) */
 let opticLight = null;
 const handedLight = () => (opticLight && opticLight.uid === project.uid ? opticLight : null);
 /* #take: the assembly a bench handed over, opened here (its cloud version, when it has one and the person can open it) */
-async function opticTakeHanded(openData, openCloud) {
-  const v = opticTake(OPTIC_HANDOFF);
+async function designTakeHanded(openData, openCloud) {
+  const v = designTake(chanName(PAGE_KIND) + '-handoff');
   if (!v) { toast('Nothing was handed over: choose Design… on the assembly on the bench again.', true); return; }
   opticLight = v.light && v.light.B && v.src ? { uid: v.src.uid, B: v.light.B, bench: String(v.light.bench || 'the bench') } : null;
   if (v.src && v.src.id && accountsOn() && account) {
@@ -62087,39 +62177,59 @@ async function opticTakeHanded(openData, openCloud) {
   opticShow();
 }
 
-/* ---------- The page as the Optics designer ---------- */
-/* its title and the File menu's words for a design; what is the bench's alone, out of the way */
+/* ---------- The page as another program ---------- */
+/* its title, its file's name in the File menu, and what is another program's out of the way */
 function opticPageSetup() {
-  if (!OPTIC) return;
-  document.body.classList.add('rt-optic');
-  document.title = 'Optics designer | JEKray';
+  if (PAGE_MODE === 'ray') {
+    // JEKray: the RF designer is JEKrf's now (a bench with RF parts still opens and traces here)
+    for (const id of ['btnNewRf', 'btnRfOfSel']) { const el = document.getElementById(id); if (el) el.hidden = true; }
+    return;
+  }
   const say = (sel, text, title) => { const el = document.querySelector(sel); if (!el) return; const k = el.querySelector('.k'); el.textContent = text; if (k) el.append(k); if (title) el.title = title; };
-  say('#btnNew', 'New design');
-  say('#btnOpen', 'Open a .optic file…');
-  say('#fileMenu [data-click="btnSave"]', 'Save as .optic');
+  const hide = sels => { for (const sel of sels) for (const el of document.querySelectorAll(sel)) el.hidden = true; };
+  document.body.classList.add('rt-' + PAGE_MODE);
+  if (RFAPP) {
+    document.title = 'JEKrf';
+    const wm = document.querySelector('.rt-title .jek-wm'); if (wm) wm.innerHTML = 'JEK<b>rf</b>';
+    const ab = document.querySelector('.rt-title a'); if (ab) { ab.href = '/jek/docs/jekray/rf/'; ab.title = 'About JEKrf: its pages in the docs'; }
+    say('#btnOpen', 'Open a .jekrf file…', 'A JEKrf bench, a JEKray bench to carry on here as a JEKrf one, or an RF design (.rfd)');
+    say('#fileMenu [data-click="btnSave"]', 'Save as .jekrf');
+    const save = document.getElementById('btnSave'); if (save) save.title = 'Save the bench as a .jekrf file (Ctrl+S)';
+    const file = document.getElementById('fileJekray'); if (file) file.accept = '.jekrf,.jekray,.rfd,application/json';
+    const nd = document.querySelector('#newDialog p'); if (nd) nd.textContent = 'The current bench will be cleared. Save it as a .jekrf file first if you want to keep it. You can still undo this.';
+    // the optical designers and JEKfilm are JEKray's; share links (short ones open in JEKray for now) are to come
+    hide(['#btnNewLens', '#btnLensOfSel', '#btnCoatDesign', '#btnShare', '#fileMenu [data-click="btnShare"]']);
+    return;
+  }
+  const K = PAGE_KIND;
+  document.title = K.name + ' | ' + K.app;
+  say('#btnNew', K.key === 'rfd' ? 'New RF design' : 'New design');
+  say('#btnOpen', 'Open a ' + K.ext + ' file…');
+  say('#fileMenu [data-click="btnSave"]', 'Save as ' + K.ext);
   say('#btnCloudList', 'My designs on JEKsuite…', 'Every design and bench in the cloud, on JEKsuite (in its own tab)');
   say('#btnCloudFork', 'Fork this design…', 'Carry on in a new cloud design, leaving this one as it is');
-  const save = document.getElementById('btnSave'); if (save) save.title = 'Save the design as a .optic file (Ctrl+S)';
-  const file = document.getElementById('fileJekray'); if (file) file.accept = '.optic,application/json';
-  const nd = document.querySelector('#newDialog p'); if (nd) nd.textContent = 'The current design will be cleared. Save it as a .optic file first if you want to keep it. You can still undo this.';
+  const save = document.getElementById('btnSave'); if (save) save.title = 'Save the design as a ' + K.ext + ' file (Ctrl+S)';
+  const file = document.getElementById('fileJekray'); if (file) file.accept = K.ext + ',application/json';
+  const nd = document.querySelector('#newDialog p'); if (nd) nd.textContent = 'The current design will be cleared. Save it as a ' + K.ext + ' file first if you want to keep it. You can still undo this.';
   const nc = document.getElementById('newConfirm'); if (nc) nc.textContent = 'Start a new design';
   // the bench's own: examples, packs, objects, the layout's and the bench's exports, share links (a design's are to come)
-  for (const sel of ['#fileMenu [data-click="btnExamples"]', '#fileMenu [data-click="btnShare"]', '#btnImport', '#btnImportStl', '#btnPacks', '#btnExportFigure', '#btnExportZmx', '#btnExportData'])
-    for (const el of document.querySelectorAll(sel)) el.hidden = true;
-  for (const el of document.querySelectorAll('#fileMenu .rt-sub[data-what="export the layout"]')) el.hidden = true;
+  hide(['#fileMenu [data-click="btnExamples"]', '#fileMenu [data-click="btnShare"]', '#btnImport', '#btnImportStl', '#btnPacks', '#btnExportFigure', '#btnExportZmx', '#btnExportData', '#fileMenu .rt-sub[data-what="export the layout"]']);
 }
 
-/* ---------- The hash, the channel ---------- */
-/* #take or #place-optic: handled (true), with the page's own ways of opening a file and a cloud bench */
+/* ---------- The hash, the channels ---------- */
+/* #take in a designer, #place-optic on JEKray's bench, #place-rfd on JEKrf's: handled (true), with the page's own ways
+   of opening a file and a cloud bench */
 function opticHash(openData, openCloud) {
-  if (OPTIC && location.hash === '#take') { opticTakeHanded(openData, openCloud); return true; }
-  if (!OPTIC && location.hash === '#place-optic') { opticPlaceHanded(); return true; }
+  if (PAGE_KIND && location.hash === '#take') { designTakeHanded(openData, openCloud); return true; }
+  for (const K of Object.values(DESIGN_KINDS)) if (K.bench === PAGE_MODE && location.hash === '#place-' + K.key) { designPlaceHanded(K); return true; }
   return false;
 }
 function wireOptic() {
   if (TEST_MODE || EMBED || typeof BroadcastChannel === 'undefined') return;
-  opticChan = new BroadcastChannel(OPTIC_CHANNEL);
-  opticChan.onmessage = e => opticFollow(e.data);
+  for (const K of Object.values(DESIGN_KINDS)) {
+    designChan[K.key] = new BroadcastChannel(chanName(K));
+    designChan[K.key].onmessage = e => opticFollow(e.data);
+  }
 }
 /* ==========================================================================
    JEKray's own sign-in prompts, on the bench; the account itself is io/account.js, shared with JEKion and JEKsuite,
@@ -62385,6 +62495,8 @@ const BUG_TO = 'support@jeksys.net', BUG_MAILTO_MAX = 1900;
 
 /* The examples, by group: file name in demos/, title, and one line on what it shows. The
    gallery shows each with a picture from demos/thumbs/ (demos/thumbs/light/ in the Light theme). */
+/* the examples a program shows: JEKrf's RF ones alone, JEKray's the rest (J.examples() and #demo= reach every one) */
+const examplesShown = () => EXAMPLES.filter(g => (g[0] === 'RF and millimetre waves') === RFAPP);
 const EXAMPLES = [
   ['Interference and cavities', false, [
     ['michelson', 'Michelson interferometer', 'Move a mirror and watch the fringes at the output port walk.'],
@@ -62628,7 +62740,7 @@ function wireNews() {
     const fill = () => {
       const q = search.value.trim().toLowerCase();
       grid.replaceChildren();
-      for (const [group, beta, list] of EXAMPLES) {
+      for (const [group, beta, list] of examplesShown()) {
         const hits = list.filter(([id, t, d, x]) => (!x || exp(x)) && (!q || (group + ' ' + t + ' ' + d).toLowerCase().includes(q)));
         if (!hits.length) continue;
         grid.append(h('h3', null, group, beta ? h('span', { class: 'rt-beta' }, 'Beta') : null),
@@ -63783,7 +63895,7 @@ function fillMetrics(targetSel, metricSel, famBox) {
 }
 
 /* a new bench, from JEKsuite's New (#new): what was on the bench kept in Earlier versions, unlinked from the cloud */
-function startNewBench() { if (project.elements.length) keepSnapshot('Before New', true); if (cloud) cloudLink(null); newProject(); if (OPTIC) opticShow(); }
+function startNewBench() { if (project.elements.length) keepSnapshot('Before New', true); if (cloud) cloudLink(null); newProject(); if (DESIGNER) opticShow(); }
 function newProject() {
   pauseAll();
   checkpoint();
@@ -63811,7 +63923,7 @@ function wireTours() {
 
   document.getElementById('btnImport').addEventListener('click', () => openZmx(false));
   document.getElementById('btnNewLens').addEventListener('click', () => newOpticDesign());
-  document.getElementById('btnNewRf').addEventListener('click', () => newRfDesign());
+  document.getElementById('btnNewRf').addEventListener('click', () => newRfdDesign());
   // the selection as a design: its assembly if it is one, else the parts made one (lenses and stops on one axis); an RF
   // system needs RF parts among them, and opens in the RF designer (openLensDesign routes an RF assembly there)
   const ofSelection = rf => {
@@ -64486,7 +64598,7 @@ function commandList() {
 function findList() {
   const out = [];
   for (const pal of palettesOn()) for (const p of partsOf(pal)) out.push({ label: p.long, path: ['Add a part', PALETTE_NAMES[pal]], key: '', off: false, need: '', uses: PART_USES[p.key] || '', run: () => addPart(p.key) });
-  for (const [group, , list] of EXAMPLES) for (const [id, t, , x] of list) if (!x || exp(x)) out.push({ label: t, path: ['Example', group], key: '', off: false, need: '', run: () => openDemo(id, true) });
+  for (const [group, , list] of examplesShown()) for (const [id, t, , x] of list) if (!x || exp(x)) out.push({ label: t, path: ['Example', group], key: '', off: false, need: '', run: () => openDemo(id, true) });
   return out;
 }
 // the commands holding every word typed, those whose name starts with it first
@@ -65826,15 +65938,15 @@ if (!TEST_MODE) window.addEventListener('storage', e => { if (e.key === EXP_KEY 
   // a share link opened with nothing kept here: an empty bench while the link's own is fetched, not the example first
   const blankFirst = !project && !!(shared || short);
   if (!project) demoProject();
-  // the Optics designer with nothing kept: no example bench under it, a new design (opticShow, below)
-  if (OPTIC && !restored && !blankFirst) { project.elements = []; project.suppressed = []; project.parked = []; project.fibres = []; project.assemblies = []; project.name = 'New design'; }
+  // a designer or JEKrf with nothing kept: no example bench, an empty one (a designer's new design: opticShow, below)
+  if (PAGE_MODE !== 'ray' && !restored && !blankFirst) { project.elements = []; project.suppressed = []; project.parked = []; project.fibres = []; project.assemblies = []; project.name = DESIGNER ? 'New design' : 'Untitled bench'; }
   if (blankFirst) { project.elements = []; project.suppressed = []; project.parked = []; project.name = 'Opening the shared bench\u2026'; }
   nameInput.value = project.name;
   renderBenchTabs();
   setStatus(restored ? 'Restored your last session' : '');
   if (EMBED) embedMode();
   if (shared || short) {
-    if (!EMBED) window.history.replaceState(null, '', location.pathname + (OPTIC ? '?optic' : ''));
+    if (!EMBED) window.history.replaceState(null, '', location.pathname + PAGE_QUERY);
     // (the link could not be opened: the example after all, rather than an empty bench)
     Promise.resolve(short ? openShortLink(short[1]) : openShareHash(shared[1])).then(() => { if (blankFirst && !allParts().length) { demoProject(); nameInput.value = project.name; renderBenchTabs(); changed(true); } });
   }
@@ -65848,9 +65960,9 @@ if (!TEST_MODE) window.addEventListener('storage', e => { if (e.key === EXP_KEY 
     goal('landing');
     setTimeout(() => openDemo('michelson').then(() => playAll()), 300);
   }
-  else if (!restored && !OPTIC && !TEST_MODE && !EMBED && !/[#?&](demo=|tour=|examples|pro\b|ex=|place-optic)/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
+  else if (!restored && PAGE_MODE === 'ray' && !TEST_MODE && !EMBED && !/[#?&](demo=|tour=|examples|pro\b|ex=|place-optic)/.test(location.hash + '&' + location.search)) setTimeout(showWelcome, 400);
   // the Optics designer: its design open, the page its workspace; a bench: its designs in the cloud that moved on, offered
-  if (OPTIC) opticShow();
+  if (DESIGNER) opticShow();
   else if (restored && accountsOn()) Promise.resolve(accountLoaded).then(() => setTimeout(opticOffers, 2500));
   // restored on a later visit, signed out: what keeping it here alone means, once the account is known
   if (restored && accountsOn()) Promise.resolve(accountLoaded).then(() => setTimeout(() => returnNudge(again, arrived), 1500));
@@ -66190,7 +66302,7 @@ if (!TEST_MODE) window.addEventListener('storage', e => { if (e.key === EXP_KEY 
     lensParaxial(name, nm) { const el = this.byName(name), S = lensSystem(asmPrescription({ ref: el.id, rev: false }, [el]), nm); return { efl: S.par.efl, bfl: S.par.bfl }; },
     openLensDesign(name) { const a = assemblies().find(x => x.name === name); return !!a && openLensDesign(a); },
     closeLensDesign() { closeLensDesign(); closeRfDesign(); closeCoatDesign(); },
-    // the Optics designer's files (io/optic.js): a design made from an assembly, put on the bench, a change sent to it
+    // the Optics designer's files (io/designs.js): a design made from an assembly, put on the bench, a change sent to it
     opticTabs(on) { setOpticTabs(on); },
     designFile(name) { const a = assemblies().find(x => x.name === name); if (!a) return null; if (!a.src) a.src = { uid: opticUid() }; return designContent(a, a.src.uid); },
     placeDesign(data, src) { const a = placeDesign(data, src || null); changed(true); traceScene(); return a.name; },
@@ -66374,7 +66486,7 @@ if (!TEST_MODE) window.addEventListener('storage', e => { if (e.key === EXP_KEY 
   // address so a reload keeps the bench as edited rather than opening the example again
   const demo = !TEST_MODE && !ig && (location.hash + '&' + location.search).match(/[#?&]demo=([a-z0-9-]+)/);
   if (demo) {
-    if (!EMBED) window.history.replaceState(null, '', location.pathname + (OPTIC ? '?optic' : ''));
+    if (!EMBED) window.history.replaceState(null, '', location.pathname + PAGE_QUERY);
     openDemo(demo[1]);
   }
   // #examples opens the gallery, #tour=<name> starts a tour, #pro offers JEKrayPro (the product page links to all three);
@@ -66383,12 +66495,12 @@ if (!TEST_MODE) window.addEventListener('storage', e => { if (e.key === EXP_KEY 
   const helpLink = () => {
     const tr = location.hash.match(/^#tour=([a-z]+)/), pro = location.hash === '#pro', benches = location.hash === '#benches';
     const cl = location.hash.match(/^#cloud=([A-Za-z0-9_-]+)(?:@(\d+))?(?::(lens|rf|coat))?$/), nw = location.hash.match(/^#new(?:=(lens|rf|coat))?$/);
-    // a design handed over (#take in the designer, #place-optic on a bench: io/optic.js)
-    if (opticHash(openProjectData, openCloudBench)) { window.history.replaceState(null, '', location.pathname + (OPTIC ? '?optic' : '')); return true; }
-    // a new optical design is the Optics designer's (an older link to JEKray's own)
-    if (!OPTIC && nw && nw[1] === 'lens') { location.replace(opticPage() + '?optic#new'); return true; }
+    // a design handed over (#take in the designer, #place-optic on a bench: io/designs.js)
+    if (opticHash(openProjectData, openCloudBench)) { window.history.replaceState(null, '', location.pathname + PAGE_QUERY); return true; }
+    // a new optical design is the Optics designer's, a new RF design JEKrf's RF designer's (older links to the bench's own)
+    if (!DESIGNER && nw && (nw[1] === 'lens' || nw[1] === 'rf')) { location.replace(modePage(nw[1] === 'lens' ? 'optic' : 'rfd') + '#new'); return true; }
     if (location.hash !== '#examples' && !pro && !benches && !cl && !nw && !(tr && TOURS[tr[1]])) return false;
-    window.history.replaceState(null, '', location.pathname + (OPTIC ? '?optic' : ''));
+    window.history.replaceState(null, '', location.pathname + PAGE_QUERY);
     hideWelcome();
     const into = w => { if (w === 'lens') newLensDesign(); else if (w === 'rf') newRfDesign(); else if (w === 'coat') designInFilm(null); };
     setTimeout(async () => {
@@ -66402,7 +66514,7 @@ if (!TEST_MODE) window.addEventListener('storage', e => { if (e.key === EXP_KEY 
   };
   // this tab is the JEKray one: JEKion's My benches opens here rather than in a new tab each time (the Optics
   // designer's is its own, where a bench's Edit in the Optics designer opens)
-  if (!TEST_MODE && !EMBED && (!window.name || OPTIC)) window.name = OPTIC ? 'jekoptic' : 'jekray';
+  if (!TEST_MODE && !EMBED && (!window.name || PAGE_MODE !== 'ray')) window.name = { ray: 'jekray', optic: 'jekoptic', rf: 'jekrf', rfd: 'jekrfd' }[PAGE_MODE];
   if (!TEST_MODE && !EMBED) helpLink();
   // ?kiosk (or ?kiosk=all): recording, the page's notes and panels out of the way (J.kiosk does the same)
   if (/[?&]kiosk\b/.test(location.search)) kioskSet(true, { all: /[?&]kiosk=all\b/.test(location.search) });
@@ -66411,7 +66523,7 @@ if (!TEST_MODE) window.addEventListener('storage', e => { if (e.key === EXP_KEY 
     if (!EMBED && helpLink()) return;
     const sh = location.hash.match(/^#p=([zjq][A-Za-z0-9_-]+)/), ss = location.hash.match(/^#s=([A-Za-z2-7]{10})$/), dm = location.hash.match(/^#demo=([a-z0-9-]+)/);
     if (!sh && !ss && !dm) return;
-    if (!EMBED) window.history.replaceState(null, '', location.pathname + (OPTIC ? '?optic' : ''));
+    if (!EMBED) window.history.replaceState(null, '', location.pathname + PAGE_QUERY);
     hideWelcome();
     if (sh) openShareHash(sh[1]); else if (ss) openShortLink(ss[1]); else openDemo(dm[1], true);
   });

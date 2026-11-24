@@ -22,7 +22,7 @@ import { GR_N, grLabel } from '../../core/gradient.js';
 import { checkpoint } from '../tabs.js';
 import { asmOf } from '../../core/assembly.js';
 import { makeAssembly } from '../assembly.js';
-import { openLensDesign } from '../lens-workspace.js';
+import { openDesign } from '../../io/designs.js';
 
 /* Lens on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/lens.js */
 
@@ -352,7 +352,7 @@ function lensPanel(el) {
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'lens' }));
   // an RF lens: the system it is part of designed in the RF designer (made an assembly of its own first if it is not one)
   if (el.mmw) panel.append(h('div', { class: 'rt-rows' }, h('button', { class: 'rt-btn', type: 'button', title: 'Its feed horn’s beam through it to the goal: design the lens and the system in the RF designer',
-    onclick: () => { const a = asmOf(el) || makeAssembly([el]); if (a) openLensDesign(a); } }, 'Design as an RF assembly…')));
+    onclick: () => { const a = asmOf(el) || makeAssembly([el]); if (a) openDesign(a); } }, 'Design as an RF assembly…')));
   if (el.mmw) rfLensPatternSection(el);                                     // an RF lens with its horn, as an antenna
   if (el.mmw) { const o = orderRow(el); if (o) panel.append(o); }          // an RF lens that can be made: ask for a quote
   panel.append(h('div', { class: 'rt-actions' },

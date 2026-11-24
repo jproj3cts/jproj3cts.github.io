@@ -1,4 +1,4 @@
-import { BEAM_Z, FORMAT, OPTIC, OPTIC_FORMAT, VERSION, ZOOM_MAX, clamp } from '../core/constants.js';
+import { BEAM_Z, DESIGNER, PAGE_FORMAT, PAGE_FORMATS, VERSION, ZOOM_MAX, clamp } from '../core/constants.js';
 import { keptAssemblies, normAssemblies } from '../core/assembly.js';
 import { keptMates, normMates } from '../core/mates.js';
 import { hooks } from '../core/hooks.js';
@@ -275,10 +275,10 @@ export function opticUid() {
 export const lightOf = () => (project && project.light) || (project && (project.light = normLight(null, project.elements))) || { rays: true, envelope: true, field: false, scale: 'lin', byPower: true };
 export function serialize() {
   return {
-    format: OPTIC ? OPTIC_FORMAT : FORMAT, version: VERSION,
+    format: PAGE_FORMAT, version: VERSION,
     name: project.name,
-    // a design (.optic) carries the uid the benches using it are linked by (io/optic.js)
-    ...(OPTIC ? { uid: project.uid || (project.uid = opticUid()) } : {}),
+    // a design (.optic, .rfd) carries the uid the benches using it are linked by (io/designs.js)
+    ...(DESIGNER ? { uid: project.uid || (project.uid = opticUid()) } : {}),
     saved: new Date().toISOString(),
     view: project.view, snap: project.snap, maxBounces: project.maxBounces, minPower: project.minPower, ghosts: project.ghosts, light: lightOf(),
     library: project.library || [],
@@ -394,7 +394,7 @@ export function loadProject(data) {
   hooks.view3dReset();        // another project: back to 2D, its views forgotten
   setLoadGen(loadGen + 1);
   if (!data || typeof data !== 'object') throw new Error('The file is not a ray tracer project.');
-  if (data.format !== FORMAT && data.format !== OPTIC_FORMAT) throw new Error('This file is not a .jekray project.');
+  if (!PAGE_FORMATS.includes(data.format)) throw new Error('This file is not a .jekray project.');
   if (data.version > VERSION) throw new Error('This project was saved by a newer version of the ray tracer.');
   if (!Array.isArray(data.elements)) throw new Error('The project has no element list.');
   const p = {
@@ -412,7 +412,7 @@ export function loadProject(data) {
     cavityLock: data.cavityLock && typeof data.cavityLock === 'object' ? Object.fromEntries(Object.entries(data.cavityLock).filter(([, v]) => v === 'lock' || v === 'built')) : {},
     elements: [],
     mods: normCarried(data.mods),                  // the code of the mods its parts use: kept, never run from here
-    ...(isOpticUid(data.uid) ? { uid: data.uid } : {}),       // a design's (.optic): what benches using it are linked by
+    ...(isOpticUid(data.uid) ? { uid: data.uid } : {}),       // a design's (.optic, .rfd): what benches using it are linked by
   };
   setProject(p);
   for (const e of data.elements) {

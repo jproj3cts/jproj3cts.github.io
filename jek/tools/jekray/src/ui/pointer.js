@@ -33,7 +33,7 @@ import { setPalette } from './rail.js';
 import { scheduleSave } from '../io/autosave.js';
 import { fwPump, midDrag } from '../page/workers.js';
 import { asmOf } from '../core/assembly.js';
-import { openDesign } from '../io/optic.js';
+import { openDesign } from '../io/designs.js';
 
 /* ==========================================================================
    Hit testing and pointer interaction

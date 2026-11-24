@@ -1,14 +1,12 @@
-import { BEAM_Z, FORMAT, OPTIC, OPTIC_FORMAT, TEST_MODE, VERSION, cloud, cloudOpening } from '../core/constants.js';
-import { asmMembers } from '../core/assembly.js';
+import { BEAM_Z, DESIGNER, FORMAT, OPTIC_FORMAT, PAGE_FORMAT, PAGE_MODE, RFD_FORMAT, RF_FORMAT, TEST_MODE, VERSION, cloud, cloudOpening } from '../core/constants.js';
 import { GLASS, glassKey } from '../core/glass.js';
 import { RF_MAT } from '../core/rf.js';
 import { TYPE_LABEL } from '../parts/registry.js';
 import { history, project, selectOne, setProject, typeLabel } from '../state/project.js';
-import { isOpticUid, loadProject } from '../state/elements.js';
+import { loadProject } from '../state/elements.js';
 import { tippable } from '../engines/trace.js';
 import { stepInvalidate } from '../engines/sweep-store.js';
-import { W, setSelFibreId, setSelection } from '../ui/render.js';
-import { placeOnBench } from '../ui/lens-workspace.js';
+import { W, setSelFibreId } from '../ui/render.js';
 import { pauseAll, playing } from '../ui/sweeps.js';
 import { FC, FC_ORDER, fcNames, fcPortsOf, pkey, portsOf } from '../engines/fibre.js';
 import { PIC } from '../engines/pic.js';
@@ -20,7 +18,7 @@ import { checkpoint, renderBenchTabs } from '../ui/tabs.js';
 import { applyUi } from './share.js';
 import { cloudLink } from './cloud.js';
 import { keepSnapshot } from './autosave.js';
-import { opticOffers, opticShow, placeDesign } from './optic.js';
+import { opticOffers, opticShow, placeDesignFile } from './designs.js';
 import { modsOffer } from './mods.js';
 import { noteRecent } from './recent.js';
 
@@ -36,7 +34,7 @@ const IMPORT_SAME = new Set(['id', 'type', 'name', 'x', 'y', 'angle', 'bench', '
 function prepImport(data, notes) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('That is not a JEKray project: it should be one JSON object.');
   if (!Array.isArray(data.elements)) throw new Error('The project has no "elements" list.');
-  if (data.format === undefined) data.format = OPTIC ? OPTIC_FORMAT : FORMAT;       // what else would it be
+  if (data.format === undefined) data.format = PAGE_FORMAT;       // what else would it be
   if (data.version === undefined) data.version = VERSION;
   const named = e => e && typeof e === 'object' ? String(e.name || e.type || '?') : '?';
   // every element gets an id; fibres, split sources and tabs may name what they mean
@@ -200,15 +198,14 @@ export function parseProjectText(text) {
 }
 /* open a project from its data: undoable, then the report if anything was changed */
 export function openProjectData(data, label) {
-  // a design (.optic) opened on a bench is put on it, linked; in the Optics designer, a bench is JEKray's to open
+  // a design (.optic, .rfd) opened on a bench is put on it, linked (or sent to its own app's bench); a designer opens
+  // its own kind alone; JEKray's bench is not JEKrf's, but JEKrf carries on with a JEKray bench (saved as a .jekrf)
   if (data && typeof data === 'object' && !Array.isArray(data)) {
-    if (!OPTIC && data.format === OPTIC_FORMAT) {
-      const asm = placeDesign(data, isOpticUid(data.uid) ? { uid: data.uid } : null);
-      placeOnBench(asm); setSelection(asmMembers(asm)); changed(true);
-      toast('Put the design ' + label + ' on the bench, with light for it. Edit it in the Optics designer: double-click it');
-      return [];
-    }
-    if (OPTIC && data.format === FORMAT) throw new Error('that is a JEKray bench, not a design: open it in JEKray. A design here is a .optic file.');
+    const f = data.format, design = f === OPTIC_FORMAT || f === RFD_FORMAT;
+    if (DESIGNER && f !== PAGE_FORMAT) throw new Error(design ? 'that is another kind of design: open it in its own designer.' : 'that is a bench, not a design: open it in ' + (f === RF_FORMAT ? 'JEKrf' : 'JEKray') + '.');
+    if (!DESIGNER && design) { placeDesignFile(data, label); return []; }
+    if (PAGE_MODE === 'ray' && f === RF_FORMAT) throw new Error('that is a JEKrf bench: open it in JEKrf.');
+    if (PAGE_MODE === 'rf' && f === FORMAT) data.format = RF_FORMAT;
   }
   if (cloud && !cloudOpening) cloudLink(null);  // something else on the bench: no longer the cloud's
   const notes = [];
@@ -235,7 +232,7 @@ export function openProjectData(data, label) {
   // a link (or an example) may say which panels to show and how
   if (raw.ui) applyUi(raw.ui);
   markUnsaved(false);
-  if (OPTIC) opticShow(); else setTimeout(opticOffers, 0);
+  if (DESIGNER) opticShow(); else setTimeout(opticOffers, 0);
   return notes;
 }
 function showImportReport(notes) {

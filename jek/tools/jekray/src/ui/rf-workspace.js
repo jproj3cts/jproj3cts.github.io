@@ -1,3 +1,4 @@
+import { RFD } from '../core/constants.js';
 import { asmAxisAt, asmCheck, asmMembers, mirrorSecApply, normCond, normRfCond } from '../core/assembly.js';
 import { C_NM_GHZ, PRINTER, RF_HORNS, RF_MAT, applyRf, hornGeom, lensZones, mountVolume, mountedDia, normMount, normZoned, printedMatch, rfBeam } from '../core/rf.js';
 import { lensThickness, lensVolume } from './readouts.js';
@@ -19,13 +20,14 @@ import { helpLine, justStopped, stopButton, throttle } from './panel.js';
 import { h } from './dom.js';
 import { matchLayer } from './panels.js';
 import { greyInk, setSelection } from './render.js';
-import { changed, toast } from './actions.js';
+import { changed, saveFile, toast } from './actions.js';
+import { opticShow, useOnBench } from '../io/designs.js';
 import { checkpoint, redo, undo } from './tabs.js';
-import { openLensDesign, shareBar } from './lens-workspace.js';
+import { barPiece, openLensDesign, shareBar } from './lens-workspace.js';
 import { fmtWs } from '../core/format.js';
 import { hooks } from '../core/hooks.js';
 import { saveRfReport } from './rf-report.js';
-import { designPro, proMark } from './pro.js';
+import { designPro, keepSign, proMark } from './pro.js';
 import { track } from '../io/usage.js';
 
 /* ==========================================================================
@@ -99,6 +101,11 @@ function rwToBench(asm, P) {
   }
 }
 
+/* (for io/designs.js) whether it is open, on which assembly; a design's horns put on the bench, or moved to follow it */
+export const rfDesignOpen = () => !!RW;
+export const rfDesignAsm = () => (RW ? RW.asm : null);
+export const rfPlaceOnBench = asm => rwPlace(asm);
+export const rfFollowHorns = asm => rwToBench(asm, designPrescription(asm));
 export function openRfDesign(asm, opts) {
   const C = asmCheck(asmMembers(asm), { ref: asm.ref, rev: asm.rev });
   if (!C.ok) { toast('Its parts are no longer on one axis: ' + C.why, true); return false; }
@@ -109,7 +116,8 @@ export function openRfDesign(asm, opts) {
     asm.kind = 'rf'; asm.rf = T.rf;
   }
   rfSyncCond(asm, P);
-  RW = { asm, tab: 'data', sel: null, design: false, draft: !!(opts && opts.draft), synth: null };
+  // (in the RF designer the design is the document: never a draft waiting for a bench)
+  RW = { asm, tab: 'data', sel: null, design: false, draft: !RFD && !!(opts && opts.draft), synth: null };
   const sec = rwShell();
   sec.hidden = false;
   document.body.classList.add('rt-lens-open');
@@ -128,6 +136,7 @@ export function closeRfDesign() {
   changed(true);
 }
 function rwLeave() {
+  if (RFD) return;
   if (RW && RW.draft) { checkpoint(); rwPlace(RW.asm); }
   closeRfDesign();
 }
@@ -137,7 +146,8 @@ function rwShell() {
   sec = h('section', { class: 'rt-lens rt-rfws', id: 'rfWs', hidden: '', tabindex: '-1', 'aria-label': 'RF design' });
   sec.addEventListener('keydown', e => {
     const k = e.key.toLowerCase(), typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
-    if (k === 'escape') { e.preventDefault(); rwLeave(); }
+    if (k === 'escape') { if (RFD) return; e.preventDefault(); rwLeave(); }
+    else if (RFD && (e.ctrlKey || e.metaKey) && k === 's') { e.preventDefault(); saveFile(); }
     else if ((e.ctrlKey || e.metaKey) && !typing && (k === 'z' || k === 'y')) { e.preventDefault(); if (k === 'y' || e.shiftKey) redo(); else undo(); rwAfterUndo(); }
     e.stopPropagation();
   });
@@ -148,7 +158,7 @@ function rwShell() {
 function rwAfterUndo() {
   if (!RW) return;
   const a = (project.assemblies || []).find(x => x.id === RW.asm.id);
-  if (!a || !asmMembers(a).length) { RW = null; document.getElementById('rfWs').hidden = true; document.body.classList.remove('rt-lens-open'); toast('The design was undone'); return; }
+  if (!a || !asmMembers(a).length) { RW = null; document.getElementById('rfWs').hidden = true; document.body.classList.remove('rt-lens-open'); toast('The design was undone'); if (RFD) opticShow(); return; }
   RW.asm = a; designOf(a);
   rwRender();
 }
@@ -170,19 +180,27 @@ function rwDraw() {
   sec.replaceChildren();
   const name = h('input', { class: 'rt-lname', type: 'text', value: asm.name, size: String(Math.max(6, Math.min(40, asm.name.length + 1))), 'aria-label': 'Design name', spellcheck: 'false' });
   name.addEventListener('change', rwField(name, () => { checkpoint(); asm.name = String(name.value || 'Assembly').slice(0, 80); changed(false); }));
-  sec.append(h('header', { class: 'rt-lhead' },
-    h('span', { class: 'rt-hmark' }, 'JEKray'),
-    h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill rt-rfpill' }, 'RF design')),
+  // the RF designer (?rfd): the design is the document, its name the file's, the page's bar moved up here
+  if (RFD) name.addEventListener('change', () => { project.name = asm.name; const n = document.getElementById('projName'); if (n) n.value = asm.name; });
+  sec.append(h('header', { class: 'rt-lhead' + (RFD ? ' rt-ophead' : '') },
+    ...(RFD ? [barPiece('btnSpace'), h('a', { class: 'rt-hmark rt-opmark', href: '/jek/docs/jekray/rf/designer/', target: '_blank', rel: 'noopener', title: 'About the RF designer: its pages in the docs' }, 'RF designer'), barPiece('btnFile'),
+      h('nav', { class: 'rt-lcrumb', 'aria-label': 'The design' }, name)]
+      : [h('span', { class: 'rt-hmark' }, 'JEKray'),
+        h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill rt-rfpill' }, 'RF design'))]),
     h('span', { class: 'rt-lgap' }),
     ...rwCfgPicker(asm),
     // (not for a system with a graded-index disc: the optical designer has no such part)
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Undo (Ctrl+Z)', 'aria-label': 'Undo', onclick: () => { undo(); rwAfterUndo(); } }, '↶'),
     h('button', { class: 'rt-btn rt-icon quiet', type: 'button', title: 'Redo (Ctrl+Y)', 'aria-label': 'Redo', onclick: () => { redo(); rwAfterUndo(); } }, '↷'),
-    P.parts.some(p => p.kind === 'grin') ? null : h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the Optics designer: every surface, ray traces and its analyses', onclick: () => { closeRfDesign(); openLensDesign(asm, { optical: true }); } }, 'Optics designer'),
+    RFD || P.parts.some(p => p.kind === 'grin') ? null : h('button', { class: 'rt-btn quiet', type: 'button', title: 'The same parts in the Optics designer: every surface, ray traces and its analyses', onclick: () => { closeRfDesign(); openLensDesign(asm, { optical: true }); } }, 'Optics designer'),
     hooks.saveParts ? proMark(h('button', { class: 'rt-btn quiet' + (hooks.proWhy() ? ' rt-off rt-proneed' : ''), type: 'button', id: 'rfKeep', 'aria-disabled': hooks.proWhy() ? 'true' : null, title: 'Keep the whole system (its lenses, with their conditions and design) as a part, in My parts or a team’s parts, to add to any bench', onclick: () => { const why = hooks.proWhy(); if (why) { if (!/^Sign in/.test(why)) toast(why, true); hooks.proFix('keep a design in My parts'); } else hooks.saveParts(asmMembers(asm)); } }, 'Keep as a part…'), 'keep a design in My parts') : null,
     proMark(h('button', { class: 'rt-btn', type: 'button', id: 'rfReport', title: 'The design as a PDF: its conditions and figures, the layout, where the power goes, Element data and merit, its analyses, tolerances, what can be made and each lens’s drawing', onclick: () => { if (designPro('save a design report')) saveRfReport(asm, { mc: RW_MC && RW_MC.asm === asm && !RW_MC.running ? RW_MC : null }); } }, 'Report (PDF)'), 'save a design report'),
-    h('button', { class: 'rt-btn primary', type: 'button', id: 'rfLeave', title: RW.draft ? 'Put it on the bench with its feed horn, and its receiver or a load at its goal' : 'Back to the bench, where its parts and horns are as designed here (Esc)', onclick: rwLeave },
-      RW.draft ? 'Place on a bench' : 'Back to the bench')));
+    ...(RFD ? [barPiece('btnSave'),
+      h('button', { class: 'rt-btn primary', type: 'button', id: 'rfUse', title: 'Put this design on the bench in JEKrf, with its feed horn, and its receiver or a load at its goal; it follows the design as you change it here', onclick: useOnBench }, 'Use on a bench'),
+      barPiece('acct')]
+      : [h('button', { class: 'rt-btn primary', type: 'button', id: 'rfLeave', title: RW.draft ? 'Put it on the bench with its feed horn, and its receiver or a load at its goal' : 'Back to the bench, where its parts and horns are as designed here (Esc)', onclick: rwLeave },
+        RW.draft ? 'Place on a bench' : 'Back to the bench')])));
+  if (RFD) keepSign();
   const body = h('div', { class: 'rt-lbody' });
   rwSelOk(P);
   body.append(rwSysList(asm, P), h('div', { class: 'rt-lmain' }, rwLayoutCard(asm, P, T), rwFigures(asm, T), rwEditor(asm, P), rwTabs(),
@@ -269,7 +287,8 @@ function rwSysList(asm, P) {
   h('div', { class: 'rt-rfsep' }),
   item('goal', '→', 'Goal', (RW_GOAL_SHORT[R.goal.kind] || R.goal.kind) + ' · ' + rwFmt(R.goal.d, 4) + ' mm on', 'What the system is for, after its last part'),
   h('div', { class: 'rt-rfsep' }),
-  h('button', { class: 'rt-btn', type: 'button', title: 'The feed horn lighting it and a receiving horn after it, as they are on the bench', onclick: rwTake }, 'Take from the bench'));
+  // (the RF designer has no bench of its own to take them from)
+  RFD ? null : h('button', { class: 'rt-btn', type: 'button', title: 'The feed horn lighting it and a receiving horn after it, as they are on the bench', onclick: rwTake }, 'Take from the bench'));
   const linked = [R.feed.id && getEl(R.feed.id) ? 'the feed horn' : null, R.goal.kind === 'couple' && R.goal.rx.id && getEl(R.goal.rx.id) ? 'the receiver' : null].filter(Boolean);
   if (linked.length) card.append(h('p', { class: 'rt-lsub' }, 'On the bench, ' + linked.join(' and ') + ' follow' + (linked.length === 1 ? 's' : '') + ' the system.'));
   return card;

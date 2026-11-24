@@ -3,12 +3,18 @@ layout: docs
 title: RF and millimetre waves
 permalink: /jek/docs/jekray/rf/
 redirect_from: /jek/docs/jekray2d/rf/
-description: Quasi-optics from 1 GHz to 3 THz in JEKray. Feed horns launch and receive Gaussian beams, and lenses of RF dielectrics, mirrors, wire grids and absorbers shape them. Units are GHz and dBm.
+description: JEKrf, quasi-optics from 1 GHz to 3 THz. Feed horns launch and receive Gaussian beams, and lenses of RF dielectrics, mirrors, wire grids and absorbers shape them. Units are GHz and dBm.
 ---
 
 <p class="dx-lead">At millimetre and sub-millimetre wavelengths a beam is only a few wavelengths across. It is guided by lenses and mirrors as light is, but it spreads by diffraction within the bench, and it is sent and taken in by horns. The RF tab has the parts of such a bench. Its beams are Gaussian beams, traced as any other is.</p>
 
-The RF parts are on the **RF** tab of parts, in yellow, beside Free space, Fibre and Electronics.
+## JEKrf
+
+The RF parts are in **JEKrf**, an app of its own built on JEKray: [jekray.html?rf](/jek/tools/jekray.html?rf), or **JEKrf** in [JEKsuite](/jek/docs/jekray/jeksuite/). It is experimental while it is checked: switch it on under **Experimental features…** in JEKsuite's account menu (a free account is enough), and JEKsuite and the site list it.
+
+- **Its bench.** Each bench is a **.jekrf** file. The RF parts are on the **RF** tab of parts, with **Circuits** beside them for what the horns and detectors feed. Its examples are the RF ones.
+- **Its RF designer.** The [RF designer](/jek/docs/jekray/rf/designer/) opens in a tab of its own, and each design is a **.rfd** file used on JEKrf's benches, linked as the [Optics designer's designs](/jek/docs/jekray/lens-design/) are to JEKray's: **Design…** on an assembly opens it there, its changes come back to the bench as you go, and **Use on a bench** puts a design on the bench with its feed horn and its receiver or load.
+- **JEKray's benches.** JEKray no longer offers the RF parts or the RF designer. A JEKray bench that has RF parts on it still opens and traces there, and **File › Open** in JEKrf carries one on as a JEKrf bench.
 
 ## Frequency and wavelength
 

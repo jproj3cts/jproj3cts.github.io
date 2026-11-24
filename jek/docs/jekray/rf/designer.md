@@ -11,7 +11,7 @@ description: "The RF designer: a feed horn's beam through a system of RF lenses 
 
 ## Opening it
 
-Open it with **Design as an RF assembly…** in an RF lens's panel (the lens is made an assembly of its own first if it is not in one), by double-clicking an assembly of RF parts, with **Tools › RF designer, of the selection**, or from **My benches › Open a workspace**, which makes a new cloud bench and opens it in the designer; **Keep as a part…** in its header saves the whole system in My parts or a team's parts. **Tools › RF designer, new…** starts from a made-to-order lens for 24 GHz. **Optics designer** in its bar opens the same parts in the [Optics designer](/jek/docs/jekray/lens-design/), surface by surface; **RF designer** there comes back.
+The RF designer is part of [JEKrf](/jek/docs/jekray/rf/) and opens in a tab of its own, at [jekray.html?rfd](/jek/tools/jekray.html?rfd). Each design is a **.rfd** file: **Save** downloads it, **File › Save to cloud** keeps it in JEKsuite, and **Use on a bench** puts it on JEKrf's bench with its feed horn, and its receiver or an absorber load at its goal. On a JEKrf bench, **Design as an RF assembly…** in an RF lens's panel (the lens is made an assembly of its own first if it is not in one), a double-click on an assembly of RF parts, or **Tools › RF designer, of the selection** opens it there, linked: each change comes back to the bench as you go, the bench's horns moving with it. **Tools › RF designer, new…** (or **New › RF design** in JEKsuite) starts from a made-to-order lens for 24 GHz. **Keep as a part…** in its header saves the whole system in My parts or a team's parts.
 
 ## Its conditions
 
@@ -19,7 +19,7 @@ Open it with **Design as an RF assembly…** in an RF lens's panel (the lens is 
 - **Feed horn**: its kind, aperture radius and slant length, its distance from its aperture to the first lens, and how far it stands **off the axis**. Off the axis it is aimed at the first lens's centre, and the beam leaves steered the other way: the figures then give the beam's direction (from the wavefront leaving, real rays), the beam deviation factor (its angle over the feed's) and the **scan loss** against the same system fed on the axis. The beam's centre is followed through the system beside the Gaussian beam, so the spillover and the aperture efficiency are those of a beam off each aperture's centre, and the phase error is that of the rays from where the feed stands: a scanned lens's coma.
 - **Goal**: what comes after the last lens. **Collimate the beam** (an antenna); **Focus to a waist** of a given radius at a given distance; or **Into a receiving horn**, of a given kind and size, its aperture at a given distance.
 
-**Take from the bench** reads the feed horn lighting the first lens and any receiving horn on the axis after the last. Those horns then follow the conditions: change the feed's distance or size here and the horn on the bench moves and changes with it. **Place on a bench**, for a new design, puts its feed horn on the bench, and at its goal a receiving horn or an absorber load.
+The horns on a bench follow the conditions: change the feed's distance or size here and the feed horn on each JEKrf bench using the design moves and changes with it. **Use on a bench**, for a design not yet on one, puts its feed horn on the bench, and at its goal a receiving horn or an absorber load.
 
 ## The beam
 

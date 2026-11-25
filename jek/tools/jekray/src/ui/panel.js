@@ -258,7 +258,7 @@ function tabulate(root, el) {
   // a name with an aside in brackets ("Split in four (reads right less left, top less bottom)") shows its name alone,
   // the whole of it in its tooltip; its words are kept, out of sight, for a screen reader and for what finds it by them
   const shorten = (lab, at) => {
-    const t = lab.textContent.trim(), a = /^(.*\S)\s*\((.{8,})\)$/.exec(t);
+    const t = lab.textContent.trim(), a = /^(.*\S)\s*\(([^()]*\s[^()]*|[^()]{8,})\)$/.exec(t);
     if (!a || lab.children.length > (lab === at && lab.matches('.rt-check') ? 1 : 0)) return;
     at.dataset.short = a[1]; if (!at.title) at.title = t;
   };
@@ -275,7 +275,8 @@ function tabulate(root, el) {
     if (ctl.type === 'checkbox') { f.classList.add('rt-pt-tick'); return; }
     if (ctl.type !== 'text') { f.classList.add('rt-pt-cell'); return; }
     // (a unit with words after it, "Open (% of cycle)": the unit to its column, the whole in the tooltip)
-    const lone = lab.childNodes.length === 1 && lab.firstChild.nodeType === 3, w = lone ? /^(.*\S)\s*\(([%\u00b0]) [^()]+\)$/.exec(lab.textContent) : null;
+    // (and a unit with a note after it, "Time span (s; 0: auto)")
+    const lone = lab.childNodes.length === 1 && lab.firstChild.nodeType === 3, w = lone ? /^(.*\S)\s*\(([%\u00b0]) [^()]+\)$/.exec(lab.textContent) || /^(.*\S)\s*\(([^();\s]{1,7});\s[^()]+\)$/.exec(lab.textContent) : null;
     if (w && !f.title) f.title = lab.textContent;
     const m = w || (lone ? UNIT_IN_LABEL.exec(lab.textContent) : null);
     if (!ctl.dataset.path && !m) { f.classList.add('rt-pt-text'); shorten(lab, lab); return; }

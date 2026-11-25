@@ -189,10 +189,9 @@ new sections with `propTable`. When adding to a panel:
   goes in the row's `title`.
 - **Sections are the panel's own folding headings** (`h3`), named for what they hold (Surface, Coating), not for the
   part. No fold-outs inside a section: every setting is a row.
-- **A worked-out figure goes among the settings only if it follows from the settings alone** (an EFL from a radius, a
+- **A worked-out figure goes among the settings only if it follows from the settings alone** (a focal length from a radius, a
   groove spacing from lines per mm): `readRow({ name, read, unit })` appended with the settings. What depends on the
-  light (a wavelength, what arrives) stays in the Readout, and a figure is never shown in both. A focal length is
-  called EFL.
+  light (a wavelength, what arrives) stays in the Readout, and a figure is never shown in both.
 - **Readouts** (`.rt-readout`) are rows of the same look, and come before Colours. **A part's readout tabs** (Rays,
   Diffraction, Pulse) start with their own view: Name and Position show on the first tab only, and a tab's settings
   (Plot, Map scale, MTF, Focus model) are table rows.

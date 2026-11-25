@@ -172,9 +172,7 @@ function elecPanelFor(el) {
     lpf: () => [{ name: 'Time constant', unit: 'ms', read: () => (el.fc > 0 ? sg(1000 / (2 * Math.PI * el.fc)) : null), title: 'Of one pole at its corner: 1 / 2\u03c0 f.' }],
     hpf: () => [{ name: 'Time constant', unit: 'ms', read: () => (el.fc > 0 ? sg(1000 / (2 * Math.PI * el.fc)) : null), title: 'Of one pole at its corner: 1 / 2\u03c0 f.' }],
     bpf: () => [{ name: 'Q', read: () => (el.bw > 0 ? sg(el.f0 / el.bw) : null), title: 'Its centre over its bandwidth.' }],
-    sig: () => [{ name: 'Period', unit: 'ms', read: () => (el.f > 0 ? sg(1000 / el.f) : null) }],
-    daq: () => [{ name: 'One step', unit: '\u00b5V', read: () => (el.bits > 0 ? sg(2e6 * el.range / Math.pow(2, el.bits)) : null), title: 'Its least significant bit: its range over its levels.' },
-      { name: 'Reads up to', unit: 'Hz', read: () => sg(el.rate / 2), title: 'Half its sample rate: a tone above this folds back as an alias.' }] }[el.kind];
+    sig: () => [{ name: 'Period', unit: 'ms', read: () => (el.f > 0 ? sg(1000 / el.f) : null) }] }[el.kind];
   if (pick) for (const r of pick()) box.append(readRow(r));
   panel.append(box);
   if (el.kind === 'thru') thruSection(el);

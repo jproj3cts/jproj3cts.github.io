@@ -63,7 +63,7 @@ export function jonesPanel(el) {
   rows.append(param(wp ? 'Fast axis from p (\u00b0)' : 'Transmission axis from p (\u00b0)', el, 'axis', { wide: true }),
     param('Diameter (mm)', el, 'length', { wide: true }),
     // (a waveplate's retardance as an angle: its waves times 360)
-    wp ? readRow({ name: 'Retardance, as an angle', unit: '\u00b0', read: () => (isFinite(el.retard) ? String(+(360 * el.retard).toPrecision(5)) : null), title: 'The phase it puts between its fast and slow axes: its retardance in waves times 360\u00b0.' }) : null);
+    wp ? readRow({ name: 'Phase delay', unit: '\u00b0', read: () => (isFinite(el.retard) ? String(+(360 * el.retard).toPrecision(5)) : null), title: 'The phase it puts between its fast and slow axes: its retardance in waves times 360\u00b0.' }) : null);
   panel.append(rows);
   panel.append(h('p', { style: 'margin-top:0.6rem' }, wp
     ? 'Rays pass straight through; only the polarisation changes. A quarter wave at 45\u00b0 turns linear light circular, and a half wave at \u03b8 rotates linear light by 2\u03b8. Retardance is taken as given at every wavelength. Its Roll, under Position, turns the axis too: the two add.'

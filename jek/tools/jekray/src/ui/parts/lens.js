@@ -127,8 +127,8 @@ function focalRow(el) {
   const inp = numInput(id, () => { const v = paraxial(el, nm).efl; return isFinite(v) ? +v.toPrecision(6) : ''; }, v => {
     if (!setLensFocal(el, v, nm)) toast('That focal length cannot be reached by scaling its faces');
   }, { commit: true, placeholder: 'none' });
-  return h('div', { class: 'rt-f wide', title: 'EFL, its effective focal length, at ' + nm + ' nm (the bench\u2019s first source). Type one to have it: every face\u2019s radius (with its aspheric and diffractive terms) is scaled together, so it keeps its form; its thickness stays.' },
-    h('label', { for: id }, 'EFL (mm)'), inp);
+  return h('div', { class: 'rt-f wide', title: 'Its effective focal length at ' + nm + ' nm (the bench\u2019s first source). Type one to have it: every face\u2019s radius (with its aspheric and diffractive terms) is scaled together, so it keeps its form; its thickness stays.' },
+    h('label', { for: id }, 'Focal length (mm)'), inp);
 }
 /* the lens to scale, in its own frame (light from the left): each glass tinted, each face's outline (a coated face in
    its coating's colour, a mirror in silver), its radius beside it, its thickness and diameter dimensioned, and a warning

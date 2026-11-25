@@ -28706,9 +28706,7 @@ function elecPanelFor(el) {
     lpf: () => [{ name: 'Time constant', unit: 'ms', read: () => (el.fc > 0 ? sg(1000 / (2 * Math.PI * el.fc)) : null), title: 'Of one pole at its corner: 1 / 2\u03c0 f.' }],
     hpf: () => [{ name: 'Time constant', unit: 'ms', read: () => (el.fc > 0 ? sg(1000 / (2 * Math.PI * el.fc)) : null), title: 'Of one pole at its corner: 1 / 2\u03c0 f.' }],
     bpf: () => [{ name: 'Q', read: () => (el.bw > 0 ? sg(el.f0 / el.bw) : null), title: 'Its centre over its bandwidth.' }],
-    sig: () => [{ name: 'Period', unit: 'ms', read: () => (el.f > 0 ? sg(1000 / el.f) : null) }],
-    daq: () => [{ name: 'One step', unit: '\u00b5V', read: () => (el.bits > 0 ? sg(2e6 * el.range / Math.pow(2, el.bits)) : null), title: 'Its least significant bit: its range over its levels.' },
-      { name: 'Reads up to', unit: 'Hz', read: () => sg(el.rate / 2), title: 'Half its sample rate: a tone above this folds back as an alias.' }] }[el.kind];
+    sig: () => [{ name: 'Period', unit: 'ms', read: () => (el.f > 0 ? sg(1000 / el.f) : null) }] }[el.kind];
   if (pick) for (const r of pick()) box.append(readRow(r));
   panel.append(box);
   if (el.kind === 'thru') thruSection(el);
@@ -29531,7 +29529,7 @@ function mirrorPanel(el) {
     { name: 'Off-axis offset', path: 'offset', unit: 'mm', dflt: 0, title: 'Slides the mirror this far along its parent curve, off the curve’s axis: with a conic of −1, an off-axis parabola.' },
     { name: 'Hole through it', path: 'hole', unit: 'mm', dflt: 0, opts: { blank: 0, placeholder: 'none' } },
     ...(el.A || []).map((_, j) => ({ name: 'A' + (4 + 2 * j), path: `A.${j}`, dflt: 0, opts: { blank: 0 } })),
-    { name: 'EFL', unit: 'mm', read: () => (f0() === null || para() ? null : fmtPt(f0())), title: 'Its effective focal length: half its radius, for light near its axis.' },
+    { name: 'Focal length', unit: 'mm', read: () => (f0() === null || para() ? null : fmtPt(f0())), title: 'Half its radius, for light near its axis.' },
     { name: 'Turns the beam', unit: '°', read: () => (para() ? fmtPt(2 * Math.atan(Math.abs(el.offset) / (2 * Math.abs(f0()))) * 180 / Math.PI) : null), title: 'An off-axis parabola: how far it turns a beam that comes in along its parent’s axis.' },
     { name: 'Focus from the mirror', unit: 'mm', read: () => (para() ? fmtPt(Math.abs(f0()) + el.offset * el.offset / (4 * Math.abs(f0()))) : null), title: 'An off-axis parabola’s reflected focal length: from the middle of the mirror to its focus.' },
   ]));
@@ -29666,8 +29664,8 @@ function focalRow(el) {
   const inp = numInput(id, () => { const v = paraxial(el, nm).efl; return isFinite(v) ? +v.toPrecision(6) : ''; }, v => {
     if (!setLensFocal(el, v, nm)) toast('That focal length cannot be reached by scaling its faces');
   }, { commit: true, placeholder: 'none' });
-  return h('div', { class: 'rt-f wide', title: 'EFL, its effective focal length, at ' + nm + ' nm (the bench\u2019s first source). Type one to have it: every face\u2019s radius (with its aspheric and diffractive terms) is scaled together, so it keeps its form; its thickness stays.' },
-    h('label', { for: id }, 'EFL (mm)'), inp);
+  return h('div', { class: 'rt-f wide', title: 'Its effective focal length at ' + nm + ' nm (the bench\u2019s first source). Type one to have it: every face\u2019s radius (with its aspheric and diffractive terms) is scaled together, so it keeps its form; its thickness stays.' },
+    h('label', { for: id }, 'Focal length (mm)'), inp);
 }
 /* the lens to scale, in its own frame (light from the left): each glass tinted, each face's outline (a coated face in
    its coating's colour, a mirror in silver), its radius beside it, its thickness and diameter dimensioned, and a warning
@@ -30192,7 +30190,7 @@ function jonesPanel(el) {
   rows.append(param(wp ? 'Fast axis from p (\u00b0)' : 'Transmission axis from p (\u00b0)', el, 'axis', { wide: true }),
     param('Diameter (mm)', el, 'length', { wide: true }),
     // (a waveplate's retardance as an angle: its waves times 360)
-    wp ? readRow({ name: 'Retardance, as an angle', unit: '\u00b0', read: () => (isFinite(el.retard) ? String(+(360 * el.retard).toPrecision(5)) : null), title: 'The phase it puts between its fast and slow axes: its retardance in waves times 360\u00b0.' }) : null);
+    wp ? readRow({ name: 'Phase delay', unit: '\u00b0', read: () => (isFinite(el.retard) ? String(+(360 * el.retard).toPrecision(5)) : null), title: 'The phase it puts between its fast and slow axes: its retardance in waves times 360\u00b0.' }) : null);
   panel.append(rows);
   panel.append(h('p', { style: 'margin-top:0.6rem' }, wp
     ? 'Rays pass straight through; only the polarisation changes. A quarter wave at 45\u00b0 turns linear light circular, and a half wave at \u03b8 rotates linear light by 2\u03b8. Retardance is taken as given at every wavelength. Its Roll, under Position, turns the axis too: the two add.'
@@ -32381,7 +32379,7 @@ function tabulate(root, el) {
   // a name with an aside in brackets ("Split in four (reads right less left, top less bottom)") shows its name alone,
   // the whole of it in its tooltip; its words are kept, out of sight, for a screen reader and for what finds it by them
   const shorten = (lab, at) => {
-    const t = lab.textContent.trim(), a = /^(.*\S)\s*\((.{8,})\)$/.exec(t);
+    const t = lab.textContent.trim(), a = /^(.*\S)\s*\(([^()]*\s[^()]*|[^()]{8,})\)$/.exec(t);
     if (!a || lab.children.length > (lab === at && lab.matches('.rt-check') ? 1 : 0)) return;
     at.dataset.short = a[1]; if (!at.title) at.title = t;
   };
@@ -32398,7 +32396,8 @@ function tabulate(root, el) {
     if (ctl.type === 'checkbox') { f.classList.add('rt-pt-tick'); return; }
     if (ctl.type !== 'text') { f.classList.add('rt-pt-cell'); return; }
     // (a unit with words after it, "Open (% of cycle)": the unit to its column, the whole in the tooltip)
-    const lone = lab.childNodes.length === 1 && lab.firstChild.nodeType === 3, w = lone ? /^(.*\S)\s*\(([%\u00b0]) [^()]+\)$/.exec(lab.textContent) : null;
+    // (and a unit with a note after it, "Time span (s; 0: auto)")
+    const lone = lab.childNodes.length === 1 && lab.firstChild.nodeType === 3, w = lone ? /^(.*\S)\s*\(([%\u00b0]) [^()]+\)$/.exec(lab.textContent) || /^(.*\S)\s*\(([^();\s]{1,7});\s[^()]+\)$/.exec(lab.textContent) : null;
     if (w && !f.title) f.title = lab.textContent;
     const m = w || (lone ? UNIT_IN_LABEL.exec(lab.textContent) : null);
     if (!ctl.dataset.path && !m) { f.classList.add('rt-pt-text'); shorten(lab, lab); return; }

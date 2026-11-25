@@ -647,7 +647,8 @@
   /* what a part reads: rows as its settings' table has them, a name and the figure worked out for it (in italics, as a
      table's own worked-out rows), no box round them */
   .rt-readout { margin-top: 0.4rem; font-size: 0.875rem; color: var(--jek-ink-soft); }
-  .rt-readout dl { display: grid; grid-template-columns: minmax(4.5rem, 1.2fr) minmax(0, 1fr); column-gap: 0; margin: 0; }
+  /* (the name's column as wide as the names need, up to most of the row: a figure in words has the rest) */
+  .rt-readout dl { display: grid; grid-template-columns: fit-content(62%) minmax(0, 1fr); column-gap: 0; margin: 0; }
   .rt-readout dt, .rt-readout dd { padding: 0.25rem 0; border-bottom: 1px solid var(--jek-line); line-height: 1.3; }
   .rt-readout dt { color: var(--jek-ink-soft); font-style: italic; }
   /* a line with no label (a note) runs the full width */
@@ -669,6 +670,10 @@
     cursor: pointer;
   }
   .rt-tab.on { color: var(--jek-ink); border-bottom-color: var(--jek-cyan); }
+  /* a view chosen inside a readout tab (the Diffraction tab's maps and plots): the same row of tabs */
+  .rt-views { display: flex; flex-wrap: wrap; gap: 0 0.1rem; margin: 0 0 0.5rem; border-bottom: 1px solid var(--jek-line); }
+  .rt-views > .rt-link.rt-view { padding: 0.35rem 0.5rem; font-size: 0.8125rem; font-weight: 600; color: var(--jek-ink-soft); text-decoration: none !important; border-bottom: 2px solid transparent; }
+  .rt-views > .rt-link.rt-view.on { color: var(--jek-ink); border-bottom-color: var(--jek-cyan); }
   .rt-tab.empty { opacity: 0.45; }
   .rt-muted { opacity: 0.45; }
   .rt-tab:focus-visible { outline: none; box-shadow: var(--jek-focus); }
@@ -39515,12 +39520,13 @@ function holdScale(el, which, v) {
 }
 function diffractionSection(el) {
   panel.append(h('h3', null, 'Diffraction'));
-  const tabs = h('div', { class: 'rt-inline', style: 'margin-bottom:0.4rem;flex-wrap:wrap;column-gap:0.8rem;row-gap:0.2rem' });
+  // (its views chosen as a readout tab's views are: a row of tabs, the one shown marked)
+  const tabs = h('div', { class: 'rt-views' });
   const cv = h('canvas', { style: 'width:100%;display:block' });
   const scaleRow = propTable(el, [{ name: 'Map scale', choose: [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB']], get: () => el.mapScale, set: v => { el.mapScale = v; }, opts: { rebuild: false } }]);
   const box = h('div', { class: 'rt-readout' });
   const views = [['map', 'Irradiance'], ['phase', 'Phase'], ['pol', 'Polarisation'], ['psf', 'Profiles'], ['mtf', 'MTF'], ['ee', 'Enclosed energy']];
-  for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { vs(el).diffView = key; refresh(); } }, text));
+  for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link rt-view', type: 'button', onclick: () => { vs(el).diffView = key; refresh(); } }, text));
   const keyBox = h('div', { class: 'rt-diffkey' });
   const refresh = () => {
     const pv = vs(el).diffView === 'phase' || vs(el).diffView === 'pol';
@@ -39529,6 +39535,7 @@ function diffractionSection(el) {
     views.forEach(([key], i) => {
       tabs.children[i].style.fontWeight = vs(el).diffView === key ? '700' : '600';
       tabs.children[i].style.textDecoration = vs(el).diffView === key ? 'underline' : 'none';
+      tabs.children[i].classList.toggle('on', vs(el).diffView === key);
     });
     scaleRow.style.display = vs(el).diffView === 'map' ? '' : 'none';
     cv.style.opacity = busy && !playing.size ? '0.5' : '1';      // while sweeps play, each field shows as it arrives

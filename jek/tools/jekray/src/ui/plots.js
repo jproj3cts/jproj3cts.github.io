@@ -330,12 +330,13 @@ function holdScale(el, which, v) {
 }
 export function diffractionSection(el) {
   panel.append(h('h3', null, 'Diffraction'));
-  const tabs = h('div', { class: 'rt-inline', style: 'margin-bottom:0.4rem;flex-wrap:wrap;column-gap:0.8rem;row-gap:0.2rem' });
+  // (its views chosen as a readout tab's views are: a row of tabs, the one shown marked)
+  const tabs = h('div', { class: 'rt-views' });
   const cv = h('canvas', { style: 'width:100%;display:block' });
   const scaleRow = propTable(el, [{ name: 'Map scale', choose: [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB']], get: () => el.mapScale, set: v => { el.mapScale = v; }, opts: { rebuild: false } }]);
   const box = h('div', { class: 'rt-readout' });
   const views = [['map', 'Irradiance'], ['phase', 'Phase'], ['pol', 'Polarisation'], ['psf', 'Profiles'], ['mtf', 'MTF'], ['ee', 'Enclosed energy']];
-  for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { vs(el).diffView = key; refresh(); } }, text));
+  for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link rt-view', type: 'button', onclick: () => { vs(el).diffView = key; refresh(); } }, text));
   const keyBox = h('div', { class: 'rt-diffkey' });
   const refresh = () => {
     const pv = vs(el).diffView === 'phase' || vs(el).diffView === 'pol';
@@ -344,6 +345,7 @@ export function diffractionSection(el) {
     views.forEach(([key], i) => {
       tabs.children[i].style.fontWeight = vs(el).diffView === key ? '700' : '600';
       tabs.children[i].style.textDecoration = vs(el).diffView === key ? 'underline' : 'none';
+      tabs.children[i].classList.toggle('on', vs(el).diffView === key);
     });
     scaleRow.style.display = vs(el).diffView === 'map' ? '' : 'none';
     cv.style.opacity = busy && !playing.size ? '0.5' : '1';      // while sweeps play, each field shows as it arrives

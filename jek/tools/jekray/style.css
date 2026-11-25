@@ -602,7 +602,8 @@
   /* what a part reads: rows as its settings' table has them, a name and the figure worked out for it (in italics, as a
      table's own worked-out rows), no box round them */
   .rt-readout { margin-top: 0.4rem; font-size: 0.875rem; color: var(--jek-ink-soft); }
-  .rt-readout dl { display: grid; grid-template-columns: minmax(4.5rem, 1.2fr) minmax(0, 1fr); column-gap: 0; margin: 0; }
+  /* (the name's column as wide as the names need, up to most of the row: a figure in words has the rest) */
+  .rt-readout dl { display: grid; grid-template-columns: fit-content(62%) minmax(0, 1fr); column-gap: 0; margin: 0; }
   .rt-readout dt, .rt-readout dd { padding: 0.25rem 0; border-bottom: 1px solid var(--jek-line); line-height: 1.3; }
   .rt-readout dt { color: var(--jek-ink-soft); font-style: italic; }
   /* a line with no label (a note) runs the full width */
@@ -624,6 +625,10 @@
     cursor: pointer;
   }
   .rt-tab.on { color: var(--jek-ink); border-bottom-color: var(--jek-cyan); }
+  /* a view chosen inside a readout tab (the Diffraction tab's maps and plots): the same row of tabs */
+  .rt-views { display: flex; flex-wrap: wrap; gap: 0 0.1rem; margin: 0 0 0.5rem; border-bottom: 1px solid var(--jek-line); }
+  .rt-views > .rt-link.rt-view { padding: 0.35rem 0.5rem; font-size: 0.8125rem; font-weight: 600; color: var(--jek-ink-soft); text-decoration: none !important; border-bottom: 2px solid transparent; }
+  .rt-views > .rt-link.rt-view.on { color: var(--jek-ink); border-bottom-color: var(--jek-cyan); }
   .rt-tab.empty { opacity: 0.45; }
   .rt-muted { opacity: 0.45; }
   .rt-tab:focus-visible { outline: none; box-shadow: var(--jek-focus); }

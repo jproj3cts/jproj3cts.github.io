@@ -153,7 +153,27 @@ through `core/hooks.js`.
   be deleted. Anything it gains that touches the cloud (benches, parts, links) goes through the API, whose own account
   and plan checks are the gate.
 
+## Modelling rule (the tools)
+JEKray and its sister tools are modelling programs. A part is modelled as the physical thing it is, and its behaviour
+comes out of the physics the engine already traces. It is never a rule that asserts the answer.
+- **Build a part from what it is made of**: real surfaces, materials and coatings, met by the same laws as every other
+  part (reflection, refraction, Fresnel, polarisation in 3D, the beam and the field). A corner cube is three mirrors;
+  a prism is its glass faces. If the result is known in closed form (a ray comes back antiparallel, a lens focuses at
+  f), that is what the tests check the model against, not what the code writes down.
+- **No teleporting or special-casing a part in the tracer** to produce its textbook behaviour: no ray moved to where
+  it "should" leave, no direction set by formula, no polarisation, path or loss put in by hand. If a part needs
+  something the engine cannot do yet (a face with its own tilt, an outline that is not a disc), extend the engine in
+  general terms so any part can use it.
+- **If the proper model is out of reach in the time, stop and say so before building.** State what a proper model
+  needs, what the shortcut would leave out, and ask. Do not ship the shortcut and list its gaps afterwards.
+- **A simplification that stays is a physical idealisation of a real quantity, named in the docs' Assumptions**
+  (a mirror that follows its drive at any frequency, a filter whose edge does not move with tilt), never a missing
+  mechanism. "Not modelled" in a write-up of new work is a sign to go back and model it.
+- **Before calling a new part done, list what it gets from the engine and what it asserts.** Anything asserted is
+  either removed or raised with the owner.
+
 ## Adding or changing a tool feature — checklist
+0. A new part or behaviour: read the Modelling rule above first.
 1. Part field: `norm` (default so old files load — there are no format migrations) and `guide.fields`; the panel in
    `ui/parts/<type>.js`; physics in the engine; 3D model in `ui/view3d.js` if it shows. New module → `order.json`.
 2. `cd jek/tools/jekray && node build.mjs` (writes `jekray.html`, `jekray-dev.html`, `src/main.js`, `src/worker-main.js`;

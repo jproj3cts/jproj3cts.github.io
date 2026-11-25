@@ -126,12 +126,27 @@
           <figure class="jek-shot"><img src="img/saturated-absorption.png" alt="Saturated absorption spectroscopy of a rubidium cell, the probe read on a photodiode" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
-          <div><h2>Design and optimise your custom lens</h2><p>Optimise your own lens in the <a href="/jek/tools/jekray.html?optic">Optics designer</a>, check its yield with Monte Carlo tolerancing, then order it made through us (coming soon). Bring in your Zemax files, and send the workshop an ISO&nbsp;10110 drawing and STEP solids. Its faces take coatings from the <a href="/jek/products/design-software/jekfilm/">Coating designer</a>. Each opens in a tab of its own beside the bench.</p><p><a href="/jek/docs/jekray/lens-design/">How lens design works</a></p></div>
+          <div><h2>Design and optimise your custom lens</h2><p>Optimise your own lens in the <a href="#optics-designer">Optics designer</a>, check its yield with Monte Carlo tolerancing, then order it made through us (coming soon). Bring in your Zemax files, and send the workshop an ISO&nbsp;10110 drawing and STEP solids. Its faces take coatings from the <a href="#coating-designer">Coating designer</a>. Each opens in a tab of its own beside the bench.</p><p><a href="/jek/docs/jekray/lens-design/">How lens design works</a></p></div>
           <figure class="jek-shot"><img src="img/lens-drawing.png" alt="A lens drawing in the manner of ISO 10110: the lens in section with its dimensions, surfaces, glass and tolerances" loading="lazy"></figure>
         </div>
         <div class="jek-feature">
           <div><h2>Rays and the diffracted field</h2><p>Rays keep the bench live while you drag parts. Switch on the diffracted field and it stays optimised, picking the right method for each stretch of beam so a tight focus and a long beam both run in a browser tab.</p><p><a href="/jek/docs/jekray/concepts/">Read how the light is modelled</a></p></div>
           <figure class="jek-shot"><img src="img/field-3d.png" alt="A Mach&ndash;Zehnder interferometer in 3D, the diffracted field drawn along each beam on a log scale" loading="lazy"></figure>
+        </div>
+      </div>
+    </section>
+
+    <section class="jek-section" id="designers">
+      <div class="jek-wrap">
+        <h2>Designers</h2>
+        <p class="jek-lede">Two designers open beside the bench, each in a tab of its own. What you design there is used on the bench, and follows the design as you change it.</p>
+        <div class="jek-feature" id="optics-designer">
+          <div><h3>Optics designer</h3><p>Lenses, mirrors and stops on one axis, designed together surface by surface. Set the fields, wavelengths and aperture, then optimise with a merit function, glass substitution and a global search. Tolerance it by Monte Carlo, and send the workshop an ISO&nbsp;10110 drawing, STEP solids and a PDF report. Zemax .zmx and .zar files import. Each design is a .optic file; <b>Use on a bench</b> puts it on JEKray&rsquo;s bench with a source for each field and a screen at its image.</p><p><a href="/jek/tools/jekray.html?optic">Open the Optics designer</a> &middot; <a href="/jek/docs/jekray/lens-design/">How lens design works</a></p></div>
+          <figure class="jek-shot"><img src="img/optics-designer.png" alt="The Optics designer: a singlet's design conditions, its layout with two fields, its first-order figures and its element data" loading="lazy"></figure>
+        </div>
+        <div class="jek-feature" id="coating-designer">
+          <div><h3>Coating designer</h3><p>Thin-film coatings for your band and range of angles: anti-reflection, high reflectors, beam splitters and dichroic edges, on any of 13 glasses and crystals. The optimiser tunes every thickness and a needle search adds layers where they help; thickness errors run at random show how it fares as made. It uses the thin-film model JEKray traces with: a quarter wave of MgF<sub>2</sub> on N-BK7 reflects 1.26% at 550&nbsp;nm, the closed form to 10<sup>&minus;9</sup>. Each coating is a .coat file, put on any face on the bench.</p><p><a href="/jek/tools/jekfilm.html">Open the Coating designer</a> &middot; <a href="/jek/tools/jekfilm.html?demo=bbar-visible">Open an example</a> &middot; <a href="/jek/docs/jekray/jekfilm/">How it works</a></p></div>
+          <figure class="jek-shot"><img src="img/coating-designer.png" alt="The Coating designer with a three-layer broadband anti-reflection coating on N-BK7: its design settings, its reflectance against wavelength and angle, and its layers" loading="lazy"></figure>
         </div>
       </div>
     </section>

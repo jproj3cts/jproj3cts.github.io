@@ -172,7 +172,7 @@ function drawWs() {
   if (OPTIC) name.addEventListener('change', () => { project.name = asm.name; const n = document.getElementById('projName'); if (n) n.value = asm.name; });
   const moved = barPiece;
   sec.append(h('header', { class: 'rt-lhead' + (OPTIC ? ' rt-ophead' : '') },
-    ...(OPTIC ? [moved('btnSpace'), h('a', { class: 'rt-hmark rt-opmark', href: '/jek/docs/jekray/lens-design/', target: '_blank', rel: 'noopener', title: 'About the Optics designer: its pages in the JEKray docs' }, 'Optics designer'), moved('btnFile'),
+    ...(OPTIC ? [moved('btnSpace'), h('a', { class: 'rt-hmark rt-opmark', href: '/jek/products/design-software/jekray/#optics-designer', target: '_blank', rel: 'noopener', title: 'About the Optics designer, on JEKray\u2019s page' }, 'Optics designer'), moved('btnFile'),
       h('nav', { class: 'rt-lcrumb', 'aria-label': 'The design' }, name)]
       : [h('span', { class: 'rt-hmark' }, 'JEKray'),
         h('nav', { class: 'rt-lcrumb', 'aria-label': 'Where you are' }, h('span', { class: 'from' }, benchName(asm.bench)), h('span', { 'aria-hidden': 'true' }, '›'), name, h('span', { class: 'rt-lpill' }, 'Optics designer'))]),

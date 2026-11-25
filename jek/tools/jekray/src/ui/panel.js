@@ -5,7 +5,8 @@ import { assemblyPanel, designOneRow } from './assembly.js';
 import { fmtHz, fmtLen, fmtNum } from '../core/format.js';
 import { syncLine } from '../core/pulses.js';
 import { V, extraSel, project, selectOne, selectedId, suppressedPart, typeLabel } from '../state/project.js';
-import { getEl, selected, NET_3D } from '../state/elements.js';
+import { getEl, normElementBase, selected, NET_3D } from '../state/elements.js';
+import { FREE_PARTS, PARTS } from '../parts/registry.js';
 import { mateFollow, mateHold, matesOf } from '../core/mates.js';
 import { matesPanel } from './mate3d.js';
 import { tippable } from '../engines/trace.js';
@@ -237,6 +238,44 @@ export function propTable(el, rows) {
     if (to) { e.preventDefault(); to.focus(); to.select(); }
   });
   return T;
+}
+/* Which parts' panels are tables: every free-space part (and an imported body). */
+export const tablePart = el => !!el && (el.type === 'stl' || FREE_PARTS.includes(PARTS[el.type]));
+/* A panel built the older way (param, selectField, textField and ticks in rt-rows and grid2) made a table as it stands:
+   each list of settings becomes a table and each setting a row of it, in place and with what it is made of kept (its
+   label, its box, its sweep's \u223f and controls), so nothing that finds a setting by its label or its row loses it. A
+   label's unit, "(mm)", goes to the unit's column (and stays in the label out of sight); a setting still at a new
+   part's value is dimmed. What is not a setting (a note, a button, a pair of boxes) runs across the table. A part's
+   module can still build its tables itself (propTable), where it wants figures worked out among its settings. */
+const UNIT_IN_LABEL = /^(.*\S)\s*\((per [^()\s]{1,5}|[^()\s]{1,7})\)$/;
+function tabulate(root, el) {
+  let fresh = null;
+  try { fresh = normElementBase(Object.assign({ type: el.type, name: 'x' }, el.type === 'fcomp' || el.type === 'elec' || el.type === 'pic' ? { kind: el.kind } : null)); } catch (err) { fresh = null; }
+  const same = (a, b) => a === b || (a === undefined || a === null || a === 0 || a === '') && (b === undefined || b === null || b === 0 || b === '');
+  const tick = f => { f.classList.add('rt-pt-row', 'rt-pt-tick'); };
+  const row = f => {
+    if (f.matches('label.rt-check')) { if (f.querySelectorAll('input').length === 1) tick(f); else f.classList.add('rt-pt-wide'); return; }
+    const lab = f.matches('.rt-f') ? f.querySelector(':scope > .rt-lab > label, :scope > label') : null, ctl = lab ? f.querySelector(':scope > input, :scope > select') : null;
+    if (!lab || !ctl || f.classList.contains('rt-pair') || f.classList.contains('rt-pgridf') || f.querySelectorAll(':scope > input, :scope > select').length !== 1) { f.classList.add('rt-pt-wide'); return; }
+    f.classList.remove('wide', 'rt-fstack');
+    f.classList.add('rt-pt-row');
+    lab.classList.add('rt-pt-name');
+    if (ctl.tagName === 'SELECT') { f.classList.add('rt-pt-choose'); return; }
+    if (ctl.type === 'checkbox') { f.classList.add('rt-pt-tick'); return; }
+    if (ctl.type !== 'text') { f.classList.add('rt-pt-cell'); return; }
+    if (!ctl.dataset.path) { f.classList.add('rt-pt-text'); return; }
+    const m = lab.childNodes.length === 1 && lab.firstChild.nodeType === 3 ? UNIT_IN_LABEL.exec(lab.textContent) : null;
+    if (m) { lab.textContent = m[1]; lab.append(h('span', { class: 'rt-sr' }, ' (' + m[2] + ')')); }
+    f.append(h('span', { class: 'rt-pt-unit' }, m ? m[2] : ''));
+    if (fresh) bindSync(f, () => { let d; try { d = getPath(fresh, ctl.dataset.path); } catch (err) { d = NaN; } f.classList.toggle('dflt', same(getPath(el, ctl.dataset.path), d)); });
+  };
+  for (const box of [...root.querySelectorAll('.rt-rows, .rt-pgrid2')]) {
+    if (box.closest('.rt-pt, .rt-sweep, .rt-readout, table') || box.parentElement.closest('.rt-f')) continue;
+    box.classList.remove('rt-rows', 'rt-pgrid2'); box.classList.add('rt-pt'); box.removeAttribute('style');
+    for (const f of [...box.children]) row(f);
+  }
+  // a tick on its own in the panel: a table of one row
+  for (const c of [...root.querySelectorAll(':scope > label.rt-check')]) { const t = h('div', { class: 'rt-pt' }); c.replaceWith(t); t.append(c); c.removeAttribute('style'); row(c); }
 }
 /* a grid of numbers three to a row, each with its name over it (and its sweep's ∿ beside the name): the Position section's X, Y, Z and Angle, Tip, Roll. items: [path, label] or null
    (an empty cell); the open sweeps' controls follow the grid */
@@ -757,7 +796,7 @@ function renderPanelBody(el) {
   if (asm) panel.append(asm);
   const nameF = textField('Name', () => el.name, v => { el.name = v; title.firstChild.textContent = v; }, { wide: true });
   // (a part whose panel is a table: its name a row of one, plain until pointed at, as its settings are)
-  const asTable = !!(PART_UI[el.type] && PART_UI[el.type].table);
+  const asTable = tablePart(el);
   // on one of its readout tabs (Rays, Diffraction, Pulse…) the tab's own view starts at the top: its name is in the
   // title, and its place is on its first tab
   const onSub = asTable && !!vs(el).screenTab && vs(el).screenTab !== 'params';
@@ -821,6 +860,7 @@ function renderPanelBody(el) {
       h('button', { class: 'rt-btn', type: 'button', onclick: () => { selectOne(null); setBenchTab('cavity'); renderPanel(); requestRender(); } }, 'Show')));
   }
 
+  if (asTable) tabulate(panel, el);
   sectionise(panel, el.type);
   // (a table panel's: the three the same size, a third of the row each; the design's button keeps its words for a screen
   // reader and its tooltip, and shows the short of them)

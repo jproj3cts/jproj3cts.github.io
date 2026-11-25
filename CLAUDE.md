@@ -172,10 +172,14 @@ comes out of the physics the engine already traces. It is never a rule that asse
 - **Before calling a new part done, list what it gets from the engine and what it asserts.** Anything asserted is
   either removed or raised with the owner.
 
-## Part panels (JEKray; being moved to tables, part by part)
-A part's panel is a table, not a stack of boxed inputs. `propTable(el, rows)` in `ui/panel.js` makes one; a part opts in
-with `table: true` on its `PART_UI` entry (the mirror and the source so far), which also makes its Name and Position rows
-of one. When converting a part, or adding to a converted one:
+## Part panels (JEKray's free-space parts are tables)
+A free-space part's panel is a table, not a stack of boxed inputs (`tablePart(el)` in `ui/panel.js`: every free-space part
+and an imported body; fibre, circuit and photonic parts are still boxes). Two ways a panel becomes one, both giving the
+same rows: `propTable(el, rows)` builds a table from row specs (the mirror and the source: used where figures worked out
+from the settings sit among them), and `tabulate(panel, el)` turns a panel built the older way (`param`, `selectField`,
+`textField`, ticks, in `rt-rows` or `grid2`) into tables in place after the part's `panel()` has run, keeping each row's
+`.rt-f`, label and box so what finds a setting by them still does. So a part's module need not change to be a table; write
+new sections with `propTable`. When adding to a panel:
 - **A row a setting**: name, value, unit and the sweep's ∿ in columns. The unit is its own column, never in the name
   (the label keeps it out of sight for a screen reader, so its text is still "Radius (mm)"). Values are plain text until
   pointed at. A row still at a new part's value is dimmed (`dflt`), so what has been set stands out.

@@ -2,7 +2,7 @@ import { fmtNum } from '../../core/format.js';
 import { V } from '../../state/project.js';
 import { STOP_SHAPES, frame, stopBlades, stopSlitLike } from '../../core/mask.js';
 import { ctx, pathLocal, selInk } from '../render.js';
-import { panel, param, selectField } from '../panel.js';
+import { panel, param, selectField, readRow } from '../panel.js';
 import { h } from '../dom.js';
 
 /* Stop on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/stop.js */
@@ -39,6 +39,9 @@ function stopPanel(el) {
   if (s === 'knife') rows.append(selectField('Covers', [['1', 'The side above the edge'], ['-1', 'The side below the edge']],
     () => String(el.side), v => { el.side = +v; }));
   rows.append(param('Outer size (mm)', el, 'outer'));
+  // what it leaves open: an iris's circle, a slit of a set height
+  rows.append(readRow({ name: 'Open area', unit: 'mm\u00b2', title: 'The area light can pass: an iris\u2019s circle, or a slit\u2019s width times its height where it has one.',
+    read: () => (s === 'round' ? String(+(Math.PI * el.aperture * el.aperture / 4).toPrecision(4)) : stopSlitLike(el) && s !== 'double' && s !== 'comb' && el.height > 0 ? String(+(el.aperture * el.height).toPrecision(4)) : null) }));
   panel.append(rows);
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'An opaque plate of the outer size. Rays through an opening carry on untouched; anything striking a blade stops there. The offset moves the opening (or the pair of slits, the comb, the edge or the block) along the stop. A double slit\u2019s separation and a comb\u2019s pitch run centre to centre; a slit\u2019s height is its length out of the bench plane, blank for unlimited. Out of the bench plane an iris and a block are circles and slits run to their height, which matters to the diffracted field: the beam\u2019s reference ray passes through the blades, so the stop acts as a mask on the field wherever it sits across the beam. Sweep the width to watch a system vignette, or the separation to walk Young\u2019s fringes.'));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'stop' }));

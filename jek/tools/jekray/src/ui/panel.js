@@ -273,9 +273,12 @@ function tabulate(root, el) {
     if (ctl.tagName === 'SELECT') { f.classList.add('rt-pt-choose'); shorten(lab, lab); return; }
     if (ctl.type === 'checkbox') { f.classList.add('rt-pt-tick'); return; }
     if (ctl.type !== 'text') { f.classList.add('rt-pt-cell'); return; }
-    const m = lab.childNodes.length === 1 && lab.firstChild.nodeType === 3 ? UNIT_IN_LABEL.exec(lab.textContent) : null;
+    // (a unit with words after it, "Open (% of cycle)": the unit to its column, the whole in the tooltip)
+    const lone = lab.childNodes.length === 1 && lab.firstChild.nodeType === 3, w = lone ? /^(.*\S)\s*\(([%\u00b0]) [^()]+\)$/.exec(lab.textContent) : null;
+    if (w && !f.title) f.title = lab.textContent;
+    const m = w || (lone ? UNIT_IN_LABEL.exec(lab.textContent) : null);
     if (!ctl.dataset.path && !m) { f.classList.add('rt-pt-text'); shorten(lab, lab); return; }
-    if (m) { lab.textContent = m[1]; lab.append(h('span', { class: 'rt-sr' }, ' (' + m[2] + ')')); }
+    if (m) { const whole = lab.textContent; lab.textContent = m[1]; lab.append(h('span', { class: 'rt-sr' }, whole.slice(m[1].length))); }
     f.append(h('span', { class: 'rt-pt-unit' }, m ? m[2] : ''));
     if (!m) shorten(lab, lab);
     if (fresh && ctl.dataset.path) bindSync(f, () => { let d; try { d = getPath(fresh, ctl.dataset.path); } catch (err) { d = NaN; } f.classList.toggle('dflt', same(getPath(el, ctl.dataset.path), d)); });

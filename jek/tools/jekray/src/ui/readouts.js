@@ -193,7 +193,7 @@ function updateReadoutsIn(container, el) {
       'Sources count at the power set on each. Noise is over the noise bandwidth, \u03c0/2 times the bandwidth given (its single pole\u2019s 3 dB corner).'];
   } else if (el.type === 'aom') {
     const nm = benchNms()[0], lam = nm * 1e-6, Lam = el.v * 1e3 / (el.rf * 1e6);
-    parts = [[['Acoustic period', fmtLen(Lam)], ['Deflection at ' + nm + ' nm', (Math.asin(clamp(lam / Lam, -1, 1)) / deg * 1000).toPrecision(4) + ' mdeg (' + (lam / Lam * 1000).toPrecision(4) + ' mrad)'],
+    parts = [[['Deflection at ' + nm + ' nm', (Math.asin(clamp(lam / Lam, -1, 1)) / deg * 1000).toPrecision(4) + ' mdeg (' + (lam / Lam * 1000).toPrecision(4) + ' mrad)'],
       ['Bragg angle', (Math.asin(clamp(lam / (2 * Lam), -1, 1)) / deg).toPrecision(4) + '\u00b0'], ['Shift of the diffracted order', (el.order < 0 ? '\u2212' : '+') + fmtHz(el.rf * 1e6)]], 'Angles are in air, from the element\u2019s normal.'];
   } else if (el.type === 'eom') {
     const sb = eomSidebands(el), tot = sb.reduce((a, [, c]) => a + c[0] * c[0] + c[1] * c[1], 0);
@@ -224,8 +224,7 @@ function updateReadoutsIn(container, el) {
       rows.push(['Passes', (el.roll ? 'nearest ' : '') + (sP ? 's' : 'p') + (no < ne ? ' (ordinary)' : ' (extraordinary)')]); }
     parts = [rows, (el.roll || el.tip ? 'Rays entering the crystal split along its own two polarisations, turned with its ' + (el.roll && el.tip ? 'tip and roll' : el.roll ? 'roll' : 'tip') + ' (rolled 90\u00b0, s and p swap)' : 'Rays entering the crystal split into s and p') + ', each with its own index. Dispersion of ' + C.name + ' from its Sellmeier equations.'];
   } else if (el.type === 'cell') {
-    const C = cellInfo(el), rows = [['Atoms in the vapour', (+(C.n * 1e-6).toPrecision(3)) + ' /cm\u00b3'], ['Doppler width (FWHM)', fmtHz(C.doppler)], ['Natural width', fmtHz(C.natural)],
-      ['Saturation intensity (cycling)', (+(C.Isat / 10).toPrecision(3)) + ' mW/cm\u00b2']];
+    const C = cellInfo(el), rows = [];        // (the vapour's own figures, which follow from its settings alone, are rows among them: ui/parts/cell.js)
     C.beams.slice(0, 4).forEach(b => {
       const nm = getEl(b.src) ? getEl(b.src).name : 'Beam', at = (b.nu - C.nu0 >= 0 ? '+' : '') + fmtHz(b.nu - C.nu0) + ' from centre: ', tail = (+(b.I / 10).toPrecision(3)) + ' mW/cm\u00b2 at its centre, w ' + fmtLen(b.w);
       if (cellPolar(el)) {

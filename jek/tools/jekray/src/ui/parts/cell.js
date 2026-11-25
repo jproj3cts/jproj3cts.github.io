@@ -2,9 +2,10 @@ import { ATOMS } from '../../core/cells.js';
 import { V } from '../../state/project.js';
 import { frame } from '../../core/mask.js';
 import { ctx, pathLocal, selInk } from '../render.js';
-import { helpLine, bindSync, panel, param, selectField, vs } from '../panel.js';
+import { helpLine, bindSync, panel, param, selectField, vs, readRow } from '../panel.js';
 import { h } from '../dom.js';
-import { drawCellSpectrum, readoutBox } from '../panels.js';
+import { cellInfo, drawCellSpectrum, readoutBox } from '../panels.js';
+import { fmtHz } from '../../core/format.js';
 import { plotSaveRow } from '../plots.js';
 
 /* Vapour cell on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/cell.js */
@@ -27,7 +28,12 @@ function cellPanel(el) {
     selectField('Atoms', Object.entries(ATOMS).map(([k, v]) => [k, v.name]), () => el.atom, v => { el.atom = v; }, { wide: true }),
     selectField('Line', [['D2', 'D2 (Rb 780, Cs 852, K 767 nm)'], ['D1', 'D1 (Rb 795, Cs 894, K 770 nm)']], () => el.line, v => { el.line = v; }, { wide: true }),
     param('Temperature (°C)', el, 'temp'), param('Field (G)', el, 'bField'),
-    param('Length (mm)', el, 'cellLen'), param('Diameter (mm)', el, 'length')));
+    param('Length (mm)', el, 'cellLen'), param('Diameter (mm)', el, 'length'),
+    // what follows from the atoms and the temperature alone
+    readRow({ name: 'Atoms in the vapour', unit: '/cm\u00b3', read: () => (+(cellInfo(el).n * 1e-6).toPrecision(3)).toExponential(2), title: 'The vapour\u2019s number density at this temperature, from its vapour pressure.' }),
+    readRow({ name: 'Doppler width (FWHM)', read: () => fmtHz(cellInfo(el).doppler), title: 'The width the atoms\u2019 thermal motion gives the line.' }),
+    readRow({ name: 'Natural width', read: () => fmtHz(cellInfo(el).natural) }),
+    readRow({ name: 'Saturation intensity', unit: 'mW/cm\u00b2', read: () => String(+(cellInfo(el).Isat / 10).toPrecision(3)), title: 'For the cycling transition.' })));
   panel.append(readoutBox('cell'));
   const vsEl = vs(el);
   vsEl.cellSpan = vsEl.cellSpan || 'all';

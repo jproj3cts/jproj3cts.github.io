@@ -28795,7 +28795,10 @@ function elecDrawChopper(el, sel) {
 function elecChopperPanel(el) {
   panel.append(h('h3', null, 'Optical chopper'));
   panel.append(h('div', { class: 'rt-rows' }, param('Frequency (Hz)', el, 'f'), param('Open (% of cycle)', el, 'duty'),
-    param('Phase (°)', el, 'phase'), param('Diameter (mm)', el, 'length')));
+    param('Phase (°)', el, 'phase'), param('Diameter (mm)', el, 'length'),
+    // (its cycle, and how long of each it is open)
+    readRow({ name: 'Period', unit: 'ms', read: () => (el.f > 0 ? String(+(1000 / el.f).toPrecision(4)) : null) }),
+    readRow({ name: 'Open for', unit: 'ms', read: () => (el.f > 0 ? String(+(10 * el.duty / el.f).toPrecision(4)) : null), title: 'How long it is open in each cycle.' })));
   panel.append(readoutBox('chopper'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A slotted wheel across the beam: open for the first part of each cycle, shut for the rest, with sharp edges. The bench shows it open; photodetectors behind it see the chopped light in their Signal views. Its phase is when in the cycle it opens, against the start of the generators\u2019 cycles (t = 0): 0\u00b0 opens at t = 0, 90\u00b0 a quarter of a cycle later. It matters only against something else on the same clock (another chopper, a generator\u2019s drive); a lock-in referenced to this chopper\u2019s own ref output sees no change, its reference shifting with it.' +
     ' Its ref output is 0 to 5 V, rising as it opens: wire it to a lock-in\u2019s reference.'));
@@ -30041,6 +30044,9 @@ function stopPanel(el) {
   if (s === 'knife') rows.append(selectField('Covers', [['1', 'The side above the edge'], ['-1', 'The side below the edge']],
     () => String(el.side), v => { el.side = +v; }));
   rows.append(param('Outer size (mm)', el, 'outer'));
+  // what it leaves open: an iris's circle, a slit of a set height
+  rows.append(readRow({ name: 'Open area', unit: 'mm\u00b2', title: 'The area light can pass: an iris\u2019s circle, or a slit\u2019s width times its height where it has one.',
+    read: () => (s === 'round' ? String(+(Math.PI * el.aperture * el.aperture / 4).toPrecision(4)) : stopSlitLike(el) && s !== 'double' && s !== 'comb' && el.height > 0 ? String(+(el.aperture * el.height).toPrecision(4)) : null) }));
   panel.append(rows);
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'An opaque plate of the outer size. Rays through an opening carry on untouched; anything striking a blade stops there. The offset moves the opening (or the pair of slits, the comb, the edge or the block) along the stop. A double slit\u2019s separation and a comb\u2019s pitch run centre to centre; a slit\u2019s height is its length out of the bench plane, blank for unlimited. Out of the bench plane an iris and a block are circles and slits run to their height, which matters to the diffracted field: the beam\u2019s reference ray passes through the blades, so the stop acts as a mask on the field wherever it sits across the beam. Sweep the width to watch a system vignette, or the separation to walk Young\u2019s fringes.'));
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'stop' }));
@@ -30100,6 +30106,8 @@ function prismPanel(el) {
     param(el.shape === 'window' || el.shape === 'dove' ? 'Height (mm)' : el.shape === 'right' || el.shape === 'amici' ? 'Leg length (mm)' : el.shape === 'polygon' ? 'Height (mm)' : el.shape === 'penta' || el.shape === 'pellin' ? 'First face (mm)' : 'Side (mm)', el, 'size', { wide: el.shape !== 'window' }),
   );
   if (el.shape === 'window') rows.append(param('Thickness (mm)', el, 'thickness'));
+  // (a right-angle prism's long face: its leg times \u221a2)
+  if (el.shape === 'right' || el.shape === 'amici') rows.append(readRow({ name: 'Hypotenuse', unit: 'mm', read: () => String(+(el.size * Math.SQRT2).toPrecision(5)), title: 'Its long face: the leg length times \u221a2.' }));
   // a polygon's corners, typed as x, y pairs; any prism's silvered faces, by number
   if (el.shape === 'polygon') {
     const box = h('input', { type: 'text', value: (el.verts || []).map(p => +p[0].toFixed(3) + ', ' + (+p[1].toFixed(3))).join('; '), 'aria-label': 'Corners' });
@@ -30172,7 +30180,9 @@ function jonesPanel(el) {
     if (el.retardCustom) rows.append(param('Retardance (waves)', el, 'retard', { wide: true }));
   }
   rows.append(param(wp ? 'Fast axis from p (\u00b0)' : 'Transmission axis from p (\u00b0)', el, 'axis', { wide: true }),
-    param('Diameter (mm)', el, 'length', { wide: true }));
+    param('Diameter (mm)', el, 'length', { wide: true }),
+    // (a waveplate's retardance as an angle: its waves times 360)
+    wp ? readRow({ name: 'Retardance, as an angle', unit: '\u00b0', read: () => (isFinite(el.retard) ? String(+(360 * el.retard).toPrecision(5)) : null), title: 'The phase it puts between its fast and slow axes: its retardance in waves times 360\u00b0.' }) : null);
   panel.append(rows);
   panel.append(h('p', { style: 'margin-top:0.6rem' }, wp
     ? 'Rays pass straight through; only the polarisation changes. A quarter wave at 45\u00b0 turns linear light circular, and a half wave at \u03b8 rotates linear light by 2\u03b8. Retardance is taken as given at every wavelength. Its Roll, under Position, turns the axis too: the two add.'
@@ -30555,7 +30565,10 @@ function spectrometerPanel(el) {
   panel.append(h('h3', null, 'Array'));
   panel.append(h('div', { class: 'rt-rows' }, param('From (nm)', el, 'wmin'), param('To (nm)', el, 'wmax'), param('Pixels', el, 'pixels'), param('Pitch (µm)', el, 'pitch'),
     selectField('Sensor', Object.entries(SPEC_SENSORS).map(([k, S]) => [k, S.name]), () => el.sensor, v => { el.sensor = v; }, { wide: true }),
-    param('Integration (ms)', el, 'tint'), param('Full well (e⁻)', el, 'well'), param('Read noise (e⁻)', el, 'read'), param('Dark (e⁻/s)', el, 'dark')));
+    param('Integration (ms)', el, 'tint'), param('Full well (e⁻)', el, 'well'), param('Read noise (e⁻)', el, 'read'), param('Dark (e⁻/s)', el, 'dark'),
+    // what its entrance, range and array give it
+    readRow({ name: 'Resolution', unit: 'nm', read: () => String(+specReading(el).R.toPrecision(3)), title: 'The narrowest line it can tell apart: set by its entrance and its pixels.' }),
+    readRow({ name: 'Dispersion on the array', unit: 'nm/\u00b5m', read: () => String(+specDispersion(el).toPrecision(3)) })));
   panel.append(helpLine('What it reads, and how.', ['Only the light through its entrance counts: the part of each beam or ray on the slit (or a fibre entrance’s core), arriving within its NA; the rest of its face blocks the light. The array spans its range evenly, so the dispersion is the range over the array’s length, and the resolution is the entrance’s width and two pixels together, times the dispersion: a narrower slit sharpens the lines and lets less light in. Each source arrives as a line as wide as its own (its coherence length’s, or a pulse’s bandwidth). Counts are the photoelectrons in the integration time, by the sensor’s quantum efficiency at each wavelength, up to the full well; the noise is shot, dark and read noise. The kinds set every value to a typical instrument of that kind.'], 'note', 'margin-top:0.6rem'));
 }
 
@@ -30722,7 +30735,9 @@ function gainPanel(el) {
   panel.append(h('div', { class: 'rt-rows' },
     param('Gain a pass (×)', el, 'g0'), param('Line centre (nm)', el, 'centre'),
     param('FWHM (nm)', el, 'fwhm'), param('Saturation intensity (kW/cm\u00b2)', el, 'isat', { wide: true }),
-    param('Diameter (mm)', el, 'length')));
+    param('Diameter (mm)', el, 'length'),
+    // (its line's width as a frequency: c \u0394\u03bb / \u03bb\u00b2)
+    readRow({ name: 'Linewidth', unit: 'GHz', read: () => (el.centre > 0 ? String(+(299792458 * el.fwhm / (el.centre * el.centre)).toPrecision(4)) : null), title: 'Its gain line\u2019s full width at half maximum as a frequency: c \u0394\u03bb / \u03bb\u00b2.' })));
   panel.append(readoutBox('gain'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Multiplies the power of light crossing it, most at its line centre and less away from it: the gain a pass is the small-signal gain, which the pump sets. In a cavity, the cavity card (on each of its elements) shows whether the round trip gains more than it loses. Above threshold it lases, and the gain saturates until the round trip is exactly one: the card gives the circulating power, the power leaving through each partly transmitting mirror and the best output coupler, and the output leaves those mirrors as a beam on the bench. Saturation is that of a homogeneous line, every beam through the gain saturating it together (Rigrod\u2019s analysis, exact at any gain and coupling), with the power set by the saturation intensity over the cavity mode\u2019s area at the gain (Nd:YAG 2.9 kW/cm\u00b2, Ti:sapphire 200, Yb:YAG 10); 0 turns it off. The laser runs on one mode at the seed\u2019s wavelength: put the seed on the gain line.'));
 }
@@ -30752,7 +30767,12 @@ function cellPanel(el) {
     selectField('Atoms', Object.entries(ATOMS).map(([k, v]) => [k, v.name]), () => el.atom, v => { el.atom = v; }, { wide: true }),
     selectField('Line', [['D2', 'D2 (Rb 780, Cs 852, K 767 nm)'], ['D1', 'D1 (Rb 795, Cs 894, K 770 nm)']], () => el.line, v => { el.line = v; }, { wide: true }),
     param('Temperature (°C)', el, 'temp'), param('Field (G)', el, 'bField'),
-    param('Length (mm)', el, 'cellLen'), param('Diameter (mm)', el, 'length')));
+    param('Length (mm)', el, 'cellLen'), param('Diameter (mm)', el, 'length'),
+    // what follows from the atoms and the temperature alone
+    readRow({ name: 'Atoms in the vapour', unit: '/cm\u00b3', read: () => (+(cellInfo(el).n * 1e-6).toPrecision(3)).toExponential(2), title: 'The vapour\u2019s number density at this temperature, from its vapour pressure.' }),
+    readRow({ name: 'Doppler width (FWHM)', read: () => fmtHz(cellInfo(el).doppler), title: 'The width the atoms\u2019 thermal motion gives the line.' }),
+    readRow({ name: 'Natural width', read: () => fmtHz(cellInfo(el).natural) }),
+    readRow({ name: 'Saturation intensity', unit: 'mW/cm\u00b2', read: () => String(+(cellInfo(el).Isat / 10).toPrecision(3)), title: 'For the cycling transition.' })));
   panel.append(readoutBox('cell'));
   const vsEl = vs(el);
   vsEl.cellSpan = vsEl.cellSpan || 'all';
@@ -30954,7 +30974,9 @@ function modulatorPanel(el) {
       param('Drive (MHz)', el, 'rf'), param('Sound speed (m/s)', el, 'v'),
       param('Diffraction efficiency (%)', el, 'eff'),
       selectField('Order', [['1', '+1 (shifted up)'], ['-1', '\u22121 (shifted down)']], () => String(el.order), v => { el.order = +v; }),
-      param('Diameter (mm)', el, 'length', { wide: true })));
+      param('Diameter (mm)', el, 'length', { wide: true }),
+      // (the sound wave's own wavelength in the crystal, the grating the light meets: its speed over its drive)
+      readRow({ name: 'Acoustic wavelength', unit: '\u00b5m', read: () => (el.rf > 0 ? String(+(el.v / el.rf).toPrecision(4)) : null), title: 'The period of the sound wave in the crystal, which is the grating the light diffracts from: the sound speed over the drive frequency.' })));
     panel.append(readoutBox('aom'));
     panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A Bragg cell: sound at the drive frequency makes a moving grating of period v / f in the crystal. The chosen order takes its share of the light, turned by \u03bbf/v and shifted in frequency by the drive; the rest goes straight through, unshifted. Tellurium dioxide carries sound at about 4200 m/s, fused silica 5960 m/s. Shifted light makes no steady fringes with the rest; on a photodiode it beats at the drive frequency.'));
   } else {
@@ -31280,7 +31302,7 @@ function updateReadoutsIn(container, el) {
       'Sources count at the power set on each. Noise is over the noise bandwidth, \u03c0/2 times the bandwidth given (its single pole\u2019s 3 dB corner).'];
   } else if (el.type === 'aom') {
     const nm = benchNms()[0], lam = nm * 1e-6, Lam = el.v * 1e3 / (el.rf * 1e6);
-    parts = [[['Acoustic period', fmtLen(Lam)], ['Deflection at ' + nm + ' nm', (Math.asin(clamp(lam / Lam, -1, 1)) / deg * 1000).toPrecision(4) + ' mdeg (' + (lam / Lam * 1000).toPrecision(4) + ' mrad)'],
+    parts = [[['Deflection at ' + nm + ' nm', (Math.asin(clamp(lam / Lam, -1, 1)) / deg * 1000).toPrecision(4) + ' mdeg (' + (lam / Lam * 1000).toPrecision(4) + ' mrad)'],
       ['Bragg angle', (Math.asin(clamp(lam / (2 * Lam), -1, 1)) / deg).toPrecision(4) + '\u00b0'], ['Shift of the diffracted order', (el.order < 0 ? '\u2212' : '+') + fmtHz(el.rf * 1e6)]], 'Angles are in air, from the element\u2019s normal.'];
   } else if (el.type === 'eom') {
     const sb = eomSidebands(el), tot = sb.reduce((a, [, c]) => a + c[0] * c[0] + c[1] * c[1], 0);
@@ -31311,8 +31333,7 @@ function updateReadoutsIn(container, el) {
       rows.push(['Passes', (el.roll ? 'nearest ' : '') + (sP ? 's' : 'p') + (no < ne ? ' (ordinary)' : ' (extraordinary)')]); }
     parts = [rows, (el.roll || el.tip ? 'Rays entering the crystal split along its own two polarisations, turned with its ' + (el.roll && el.tip ? 'tip and roll' : el.roll ? 'roll' : 'tip') + ' (rolled 90\u00b0, s and p swap)' : 'Rays entering the crystal split into s and p') + ', each with its own index. Dispersion of ' + C.name + ' from its Sellmeier equations.'];
   } else if (el.type === 'cell') {
-    const C = cellInfo(el), rows = [['Atoms in the vapour', (+(C.n * 1e-6).toPrecision(3)) + ' /cm\u00b3'], ['Doppler width (FWHM)', fmtHz(C.doppler)], ['Natural width', fmtHz(C.natural)],
-      ['Saturation intensity (cycling)', (+(C.Isat / 10).toPrecision(3)) + ' mW/cm\u00b2']];
+    const C = cellInfo(el), rows = [];        // (the vapour's own figures, which follow from its settings alone, are rows among them: ui/parts/cell.js)
     C.beams.slice(0, 4).forEach(b => {
       const nm = getEl(b.src) ? getEl(b.src).name : 'Beam', at = (b.nu - C.nu0 >= 0 ? '+' : '') + fmtHz(b.nu - C.nu0) + ' from centre: ', tail = (+(b.I / 10).toPrecision(3)) + ' mW/cm\u00b2 at its centre, w ' + fmtLen(b.w);
       if (cellPolar(el)) {
@@ -32360,9 +32381,12 @@ function tabulate(root, el) {
     if (ctl.tagName === 'SELECT') { f.classList.add('rt-pt-choose'); shorten(lab, lab); return; }
     if (ctl.type === 'checkbox') { f.classList.add('rt-pt-tick'); return; }
     if (ctl.type !== 'text') { f.classList.add('rt-pt-cell'); return; }
-    const m = lab.childNodes.length === 1 && lab.firstChild.nodeType === 3 ? UNIT_IN_LABEL.exec(lab.textContent) : null;
+    // (a unit with words after it, "Open (% of cycle)": the unit to its column, the whole in the tooltip)
+    const lone = lab.childNodes.length === 1 && lab.firstChild.nodeType === 3, w = lone ? /^(.*\S)\s*\(([%\u00b0]) [^()]+\)$/.exec(lab.textContent) : null;
+    if (w && !f.title) f.title = lab.textContent;
+    const m = w || (lone ? UNIT_IN_LABEL.exec(lab.textContent) : null);
     if (!ctl.dataset.path && !m) { f.classList.add('rt-pt-text'); shorten(lab, lab); return; }
-    if (m) { lab.textContent = m[1]; lab.append(h('span', { class: 'rt-sr' }, ' (' + m[2] + ')')); }
+    if (m) { const whole = lab.textContent; lab.textContent = m[1]; lab.append(h('span', { class: 'rt-sr' }, whole.slice(m[1].length))); }
     f.append(h('span', { class: 'rt-pt-unit' }, m ? m[2] : ''));
     if (!m) shorten(lab, lab);
     if (fresh && ctl.dataset.path) bindSync(f, () => { let d; try { d = getPath(fresh, ctl.dataset.path); } catch (err) { d = NaN; } f.classList.toggle('dflt', same(getPath(el, ctl.dataset.path), d)); });

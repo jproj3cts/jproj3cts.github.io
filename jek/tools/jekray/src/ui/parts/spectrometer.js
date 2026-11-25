@@ -3,7 +3,7 @@ import { lastTrace } from '../../engines/trace.js';
 import { SPEC_L, SPEC_PRESETS, SPEC_SENSORS, SPEC_W, specPresetOf } from '../../parts/spectrometer.js';
 import { specDispersion, specReading, specTrace } from '../../engines/spectrometer.js';
 import { bodyFill, ctx, pathLocal, selInk, sx, sy } from '../render.js';
-import { bindSync, helpLine, panel, param, renderPanel, selectField, vs } from '../panel.js';
+import { bindSync, helpLine, panel, param, renderPanel, selectField, vs, readRow } from '../panel.js';
 import { h } from '../dom.js';
 import { drawAxes, plotArea, plotCsv, plotSaveRow } from '../plots.js';
 
@@ -108,7 +108,10 @@ function spectrometerPanel(el) {
   panel.append(h('h3', null, 'Array'));
   panel.append(h('div', { class: 'rt-rows' }, param('From (nm)', el, 'wmin'), param('To (nm)', el, 'wmax'), param('Pixels', el, 'pixels'), param('Pitch (µm)', el, 'pitch'),
     selectField('Sensor', Object.entries(SPEC_SENSORS).map(([k, S]) => [k, S.name]), () => el.sensor, v => { el.sensor = v; }, { wide: true }),
-    param('Integration (ms)', el, 'tint'), param('Full well (e⁻)', el, 'well'), param('Read noise (e⁻)', el, 'read'), param('Dark (e⁻/s)', el, 'dark')));
+    param('Integration (ms)', el, 'tint'), param('Full well (e⁻)', el, 'well'), param('Read noise (e⁻)', el, 'read'), param('Dark (e⁻/s)', el, 'dark'),
+    // what its entrance, range and array give it
+    readRow({ name: 'Resolution', unit: 'nm', read: () => String(+specReading(el).R.toPrecision(3)), title: 'The narrowest line it can tell apart: set by its entrance and its pixels.' }),
+    readRow({ name: 'Dispersion on the array', unit: 'nm/\u00b5m', read: () => String(+specDispersion(el).toPrecision(3)) })));
   panel.append(helpLine('What it reads, and how.', ['Only the light through its entrance counts: the part of each beam or ray on the slit (or a fibre entrance’s core), arriving within its NA; the rest of its face blocks the light. The array spans its range evenly, so the dispersion is the range over the array’s length, and the resolution is the entrance’s width and two pixels together, times the dispersion: a narrower slit sharpens the lines and lets less light in. Each source arrives as a line as wide as its own (its coherence length’s, or a pulse’s bandwidth). Counts are the photoelectrons in the integration time, by the sensor’s quantum efficiency at each wavelength, up to the full well; the noise is shot, dark and read noise. The kinds set every value to a typical instrument of that kind.'], 'note', 'margin-top:0.6rem'));
 }
 

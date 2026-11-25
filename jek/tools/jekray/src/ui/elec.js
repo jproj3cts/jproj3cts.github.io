@@ -11,7 +11,7 @@ import {
 } from '../engines/elec.js';
 import { INST } from './instruments.js';
 import { playing } from './sweeps.js';
-import { helpLine, bindSync, panel, param, selectField, textField } from './panel.js';
+import { helpLine, bindSync, panel, param, readRow, selectField, textField } from './panel.js';
 import { h } from './dom.js';
 import { readoutBox, partnerSection } from './panels.js';
 import { plotSaveRow } from './plots.js';
@@ -261,7 +261,10 @@ function elecDrawChopper(el, sel) {
 function elecChopperPanel(el) {
   panel.append(h('h3', null, 'Optical chopper'));
   panel.append(h('div', { class: 'rt-rows' }, param('Frequency (Hz)', el, 'f'), param('Open (% of cycle)', el, 'duty'),
-    param('Phase (°)', el, 'phase'), param('Diameter (mm)', el, 'length')));
+    param('Phase (°)', el, 'phase'), param('Diameter (mm)', el, 'length'),
+    // (its cycle, and how long of each it is open)
+    readRow({ name: 'Period', unit: 'ms', read: () => (el.f > 0 ? String(+(1000 / el.f).toPrecision(4)) : null) }),
+    readRow({ name: 'Open for', unit: 'ms', read: () => (el.f > 0 ? String(+(10 * el.duty / el.f).toPrecision(4)) : null), title: 'How long it is open in each cycle.' })));
   panel.append(readoutBox('chopper'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A slotted wheel across the beam: open for the first part of each cycle, shut for the rest, with sharp edges. The bench shows it open; photodetectors behind it see the chopped light in their Signal views. Its phase is when in the cycle it opens, against the start of the generators\u2019 cycles (t = 0): 0\u00b0 opens at t = 0, 90\u00b0 a quarter of a cycle later. It matters only against something else on the same clock (another chopper, a generator\u2019s drive); a lock-in referenced to this chopper\u2019s own ref output sees no change, its reference shifting with it.' +
     ' Its ref output is 0 to 5 V, rising as it opens: wire it to a lock-in\u2019s reference.'));

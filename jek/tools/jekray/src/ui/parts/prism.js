@@ -1,7 +1,7 @@
 import { PRISM_SHAPES } from '../../state/project.js';
 import { hitBlock } from './hits.js';
 import { drawBlock } from './cube.js';
-import { panel, param, selectField } from '../panel.js';
+import { panel, param, selectField, readRow } from '../panel.js';
 import { h } from '../dom.js';
 import { blockNote, coatingRows, materialRows } from '../panels.js';
 import { removeSweeps } from '../plots.js';
@@ -18,6 +18,8 @@ function prismPanel(el) {
     param(el.shape === 'window' || el.shape === 'dove' ? 'Height (mm)' : el.shape === 'right' || el.shape === 'amici' ? 'Leg length (mm)' : el.shape === 'polygon' ? 'Height (mm)' : el.shape === 'penta' || el.shape === 'pellin' ? 'First face (mm)' : 'Side (mm)', el, 'size', { wide: el.shape !== 'window' }),
   );
   if (el.shape === 'window') rows.append(param('Thickness (mm)', el, 'thickness'));
+  // (a right-angle prism's long face: its leg times \u221a2)
+  if (el.shape === 'right' || el.shape === 'amici') rows.append(readRow({ name: 'Hypotenuse', unit: 'mm', read: () => String(+(el.size * Math.SQRT2).toPrecision(5)), title: 'Its long face: the leg length times \u221a2.' }));
   // a polygon's corners, typed as x, y pairs; any prism's silvered faces, by number
   if (el.shape === 'polygon') {
     const box = h('input', { type: 'text', value: (el.verts || []).map(p => +p[0].toFixed(3) + ', ' + (+p[1].toFixed(3))).join('; '), 'aria-label': 'Corners' });

@@ -1,6 +1,6 @@
 import { ctx, drawPlate, pathLocal } from '../render.js';
 import { hitSlab } from './hits.js';
-import { panel, param, selectField } from '../panel.js';
+import { panel, param, selectField, readRow } from '../panel.js';
 import { h } from '../dom.js';
 import { readoutBox } from '../panels.js';
 
@@ -30,7 +30,9 @@ export function modulatorPanel(el) {
       param('Drive (MHz)', el, 'rf'), param('Sound speed (m/s)', el, 'v'),
       param('Diffraction efficiency (%)', el, 'eff'),
       selectField('Order', [['1', '+1 (shifted up)'], ['-1', '\u22121 (shifted down)']], () => String(el.order), v => { el.order = +v; }),
-      param('Diameter (mm)', el, 'length', { wide: true })));
+      param('Diameter (mm)', el, 'length', { wide: true }),
+      // (the sound wave's own wavelength in the crystal, the grating the light meets: its speed over its drive)
+      readRow({ name: 'Acoustic wavelength', unit: '\u00b5m', read: () => (el.rf > 0 ? String(+(el.v / el.rf).toPrecision(4)) : null), title: 'The period of the sound wave in the crystal, which is the grating the light diffracts from: the sound speed over the drive frequency.' })));
     panel.append(readoutBox('aom'));
     panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A Bragg cell: sound at the drive frequency makes a moving grating of period v / f in the crystal. The chosen order takes its share of the light, turned by \u03bbf/v and shifted in frequency by the drive; the rest goes straight through, unshifted. Tellurium dioxide carries sound at about 4200 m/s, fused silica 5960 m/s. Shifted light makes no steady fringes with the rest; on a photodiode it beats at the drive frequency.'));
   } else {

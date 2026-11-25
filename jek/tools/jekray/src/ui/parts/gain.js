@@ -1,6 +1,6 @@
 import { drawPlate } from '../render.js';
 import { hitSlab } from './hits.js';
-import { panel, param } from '../panel.js';
+import { panel, param, readRow } from '../panel.js';
 import { h } from '../dom.js';
 import { readoutBox } from '../panels.js';
 
@@ -11,7 +11,9 @@ function gainPanel(el) {
   panel.append(h('div', { class: 'rt-rows' },
     param('Gain a pass (×)', el, 'g0'), param('Line centre (nm)', el, 'centre'),
     param('FWHM (nm)', el, 'fwhm'), param('Saturation intensity (kW/cm\u00b2)', el, 'isat', { wide: true }),
-    param('Diameter (mm)', el, 'length')));
+    param('Diameter (mm)', el, 'length'),
+    // (its line's width as a frequency: c \u0394\u03bb / \u03bb\u00b2)
+    readRow({ name: 'Linewidth', unit: 'GHz', read: () => (el.centre > 0 ? String(+(299792458 * el.fwhm / (el.centre * el.centre)).toPrecision(4)) : null), title: 'Its gain line\u2019s full width at half maximum as a frequency: c \u0394\u03bb / \u03bb\u00b2.' })));
   panel.append(readoutBox('gain'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Multiplies the power of light crossing it, most at its line centre and less away from it: the gain a pass is the small-signal gain, which the pump sets. In a cavity, the cavity card (on each of its elements) shows whether the round trip gains more than it loses. Above threshold it lases, and the gain saturates until the round trip is exactly one: the card gives the circulating power, the power leaving through each partly transmitting mirror and the best output coupler, and the output leaves those mirrors as a beam on the bench. Saturation is that of a homogeneous line, every beam through the gain saturating it together (Rigrod\u2019s analysis, exact at any gain and coupling), with the power set by the saturation intensity over the cavity mode\u2019s area at the gain (Nd:YAG 2.9 kW/cm\u00b2, Ti:sapphire 200, Yb:YAG 10); 0 turns it off. The laser runs on one mode at the seed\u2019s wavelength: put the seed on the gain line.'));
 }

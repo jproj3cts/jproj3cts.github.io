@@ -206,7 +206,7 @@ function sourcePanel(el) {
   // what its field starts from: a Gaussian beam along its axis (a new source's), or even illumination across the fan (a
   // uniform pupil: a lens's Airy pattern, Strehl and MTF); the bench's Light turns the rays, or the beams, off for every source
   panel.append(h('h3', null, 'Field'));
-  panel.append(propTable(el, [{ name: 'Starts from', choose: [['gauss', 'A Gaussian beam'], ['flat', 'Even illumination (a uniform pupil)']],
+  panel.append(propTable(el, [{ name: 'Starts from', choose: [['gauss', 'A Gaussian beam'], ['flat', 'Even illumination']], title: 'A Gaussian beam along its axis, or even illumination across the ray fan: a uniform pupil, as a lens\u2019s Airy pattern, Strehl and MTF are worked out from',
     get: () => (el.gauss ? 'gauss' : 'flat'), set: v => { el.gauss = v === 'gauss'; if (el.gauss) gaussFromFan(el); } }]));
   if (!el.gauss) {
     // the fan's width and divergence shape the field: a top-hat of its width, its edge soft enough for the grid

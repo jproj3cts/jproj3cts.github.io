@@ -528,7 +528,7 @@
   .rt-panel .rt-pt-row.rt-pt-choose > select { box-sizing: border-box; width: 100%; min-width: 0; height: 1.5rem; padding: 0 0.2rem; text-align: right; text-align-last: right; background: transparent; border: 1px solid transparent; border-radius: 2px; color: var(--jek-ink); font-family: var(--jek-sans); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
   .rt-panel .rt-pt-row.rt-pt-choose > select:hover, .rt-panel .rt-pt-row.rt-pt-choose > select:focus { background: var(--jek-well); border-color: var(--jek-line-2); }
   .rt-pt-row.rt-pt-cell > :nth-child(2) { justify-self: end; }
-  .rt-panel .rt-pt-row.rt-pt-tick > input { grid-column: 2; justify-self: end; width: 1rem; height: 1rem; margin: 0 0.3rem 0 0.6rem; }
+  .rt-panel .rt-pt-row.rt-pt-tick > input { grid-column: 2; justify-self: end; width: 0.8125rem; height: 0.8125rem; margin: 0 0.3rem 0 0.6rem; }
   .rt-panel .rt-pt-row.rt-pt-cell > input[type="color"] { width: 2.6rem; height: 1.3rem; padding: 0; margin-right: 0.3rem; }
   .rt-pt-wide { grid-column: 1 / -1; padding: 0.3rem 0; border-bottom: 1px solid var(--jek-line); }
   /* the part's actions at the foot of a table panel: each the same size, sharing the row */

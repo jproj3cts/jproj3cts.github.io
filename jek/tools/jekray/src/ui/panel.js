@@ -193,8 +193,13 @@ export function propTable(el, rows) {
     if (!r) continue;
     if (typeof r === 'string') { T.append(h('div', { class: 'rt-pt-sec' }, r)); continue; }
     if (r.read) {
-      const v = h('span', { class: 'rt-pt-val' }), row = h('div', { class: 'rt-pt-row derived', title: r.title }, h('span', { class: 'rt-pt-name' }, r.name), v, h('span', { class: 'rt-pt-unit' }, r.unit || ''), h('span'));
-      bindSync(v, () => { const t = r.read(); v.textContent = t; row.hidden = t === null || t === undefined || t === ''; });
+      // (read may give the figure with its unit, as "19.85 m": a unit that goes with the figure's size is shown in the unit's column)
+      const v = h('span', { class: 'rt-pt-val' }), u = h('span', { class: 'rt-pt-unit' }, r.unit || ''), row = h('div', { class: 'rt-pt-row derived', title: r.title }, h('span', { class: 'rt-pt-name' }, r.name), v, u, h('span'));
+      bindSync(v, () => {
+        const t = r.read(), m = r.unit || t === null || t === undefined ? null : /^(\S+) (\S+)$/.exec(String(t));
+        v.textContent = m ? m[1] : t; if (!r.unit) u.textContent = m ? m[2] : '';
+        row.hidden = t === null || t === undefined || t === '';
+      });
       T.append(row);
       continue;
     }

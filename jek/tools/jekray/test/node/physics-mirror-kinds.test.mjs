@@ -14,6 +14,7 @@ const ST = await import('../../src/state/project.js');
 const TRACE = await import('../../src/engines/trace.js');
 const E = await import('../../src/engines/elec.js');
 const { portsOf } = await import('../../src/engines/fibre.js');
+const { detectorReading } = await import('../../src/engines/fibre-face.js');
 
 const load = (elements, fibres) => { loadProject({ format: 'jekray', version: 1, name: 'mirrors', elements, fibres: fibres || [], minPower: 1e-6 }); TRACE.setLastTraceKey(null); TRACE.traceScene(); return TRACE.lastTrace; };
 const byId = id => ST.project.elements.find(e => e.id === id);
@@ -26,7 +27,7 @@ const atX = (L, X) => L.y + L.dy / L.dx * (X - L.x), atY = (L, Y) => L.x + L.dx 
 
 test('each kind is a mirror (or a filter, a prism) of its own settings, named for what it is', () => {
   const made = Object.fromEntries(['mirror', 'concave', 'convex', 'parabolic', 'oap', 'partial', 'chirped', 'steering', 'dichroic', 'retro'].map(k => [k, makeElement(k, 0, 0)]));
-  for (const k of ['mirror', 'concave', 'convex', 'parabolic', 'oap', 'partial', 'chirped', 'steering']) assert.equal(made[k].type, 'mirror', k);
+  for (const k of ['mirror', 'concave', 'convex', 'parabolic', 'oap', 'partial', 'chirped', 'steering', 'retro']) assert.equal(made[k].type, 'mirror', k);
   assert.equal(made.mirror.R, null); assert.equal(made.mirror.reflect, 100); assert.equal(made.mirror.steer, undefined);
   assert.ok(made.concave.R > 0 && made.concave.k === 0); assert.ok(made.convex.R < 0);
   assert.ok(made.parabolic.k === -1 && made.parabolic.offset === 0);
@@ -34,7 +35,8 @@ test('each kind is a mirror (or a filter, a prism) of its own settings, named fo
   assert.equal(made.partial.reflect, 50); assert.ok(made.chirped.gdd < 0);
   assert.ok(made.steering.steer === true && made.steering.steerK === 1);
   assert.ok(made.dichroic.type === 'filter' && made.dichroic.reflect === true);
-  assert.ok(made.retro.type === 'prism' && made.retro.shape === 'right');
+  assert.ok(made.retro.retro === true && made.retro.R === null && ST.typeLabel(made.retro) === 'Retroreflector');
+  assert.equal(made.mirror.retro, undefined);
   assert.deepEqual(Object.values(made).map(e => e.name), ['Mirror 1', 'Concave mirror 1', 'Convex mirror 1', 'Parabolic mirror 1', 'Off-axis parabola 1', 'Partial reflector 1', 'Chirped mirror 1', 'Steering mirror 1', 'Dichroic mirror 1', 'Retroreflector 1']);
 });
 
@@ -67,33 +69,94 @@ test('a partial reflector halves the light; a dichroic mirror reflects the short
   assert.ok(way(1064).dx > 0.99, '1064 nm goes on through');
 });
 
-test('a retroreflector sends a beam back parallel to itself, as far the other side of its middle, at any angle in the plane', () => {
-  for (const [y, deg] of [[3, 0], [-5, 0], [2, 4], [0, -4]]) {
-    const a = deg * Math.PI / 180, L = legs(load([src({ rays: 1, width: 0, y, angle: deg }), kind('retro')]), 0.5);
-    const back = L[L.length - 1];
-    assert.ok(Math.abs(back.dx + Math.cos(a)) < 1e-9 && Math.abs(back.dy + Math.sin(a)) < 1e-9, 'antiparallel: ' + [y, deg, back.dx, back.dy]);
-    assert.ok(back.w > 0.8, 'by total internal reflection: only its two passes of the entry face lost, ' + back.w);
+test('a retroreflector (a corner cube) sends light back the way it came, from the point opposite across its middle, in and out of the plane', () => {
+  // the last leg of the ray in 3D: where it starts, its direction, and what it carries
+  const back = (o, cube = {}) => {
+    load([src(Object.assign({ rays: 1, width: 0 }, o)), kind('retro', cube)]);
+    const r = TRACE.lastTrace.rays.filter(q => q.w > 0.01).pop(), p = r.pts, n = p.length, z = r.zs || [];
+    const v = [p[n - 2] - p[n - 4], p[n - 1] - p[n - 3], z.length ? z[(n >> 1) - 1] - z[(n >> 1) - 2] : 0], l = Math.hypot(...v);
+    return { at: [p[n - 4], p[n - 3], z.length ? z[(n >> 1) - 2] : null], d: v.map(c => c / l), w: r.w };
+  };
+  // in the plane, at any angle: antiparallel, with nothing lost (a plain mirror would send a beam in at 15° off at 30°)
+  // (each aimed to meet the face y mm from its middle)
+  for (const [y, a] of [[3, 0], [-5, 0], [2, 4], [0, -6], [0, 15], [1, -12]]) {
+    const r = a * Math.PI / 180, B = back({ y: y - 100 * Math.tan(r), angle: a });
+    assert.ok(Math.abs(B.d[0] + Math.cos(r)) < 1e-9 && Math.abs(B.d[1] + Math.sin(r)) < 1e-9 && Math.abs(B.d[2]) < 1e-9, 'antiparallel: ' + [y, a, B.d]);
+    assert.ok(Math.abs(B.w - 1) < 1e-9, 'all of it: ' + B.w);
   }
-  // past about 5.7° one way, N-BK7 no longer reflects totally at the first short face, and light leaks out of it
-  const far = legs(load([src({ rays: 1, width: 0, angle: -8 }), kind('retro')]), 0.3).pop();
-  assert.ok(far.w < 0.8, 'beyond its acceptance some is lost: ' + far.w);
-  // straight in, 3 mm above the middle: back 3 mm below it
-  const L = legs(load([src({ rays: 1, width: 0, y: 3 }), kind('retro')]), 0.5), back = L[L.length - 1];
-  assert.ok(Math.abs(back.y + 3) < 1e-9, 'mirrored about the middle: ' + back.y);
+  // straight in, 3 mm to one side of the middle: back out 3 mm the other side
+  load([src({ rays: 1, width: 0, y: 3 }), kind('retro'), { type: 'screen', id: 'C', name: 'C', x: 20, y: 0, angle: 0, length: 40 }]);
+  const hit = TRACE.lastTrace.screens.C.filter(h => h.w > 0.5);
+  assert.ok(hit.length === 1 && Math.abs(hit[0].y + 3) < 1e-9, 'mirrored about the middle: ' + hit.map(h => h.y));
+  // out of the plane too, which a roof cannot do: a beam climbing 3° comes back down the same line
+  const up = back({ tip: 3, z: 75 }), t = 3 * Math.PI / 180;
+  assert.ok(Math.abs(up.d[0] + Math.cos(t)) < 1e-9 && Math.abs(up.d[1]) < 1e-9 && Math.abs(up.d[2] + Math.sin(t)) < 1e-9, 'antiparallel in 3D: ' + up.d);
+  // and tipped or turned itself, it still does: 10° turned and 5° tipped changes nothing of the way back
+  const tilted = back({ y: 2 }, { angle: 190, tip: 5 });
+  assert.ok(Math.abs(tilted.d[0] + 1) < 1e-9 && Math.abs(tilted.d[1]) < 1e-9 && Math.abs(tilted.d[2]) < 1e-9, 'whatever way it faces: ' + tilted.d);
+  // its path is a mirror's at its corner: the light back at a screen has gone as far as off a plane mirror set
+  // length/√2 behind the face, wherever across the face it went in
+  const opl = (el, y) => { load([src({ rays: 1, width: 0, y }), el, { type: 'screen', id: 'C', name: 'C', x: 20, y: 0, angle: 0, length: 40 }]); return TRACE.lastTrace.screens.C.filter(h => h.w > 0.5)[0].opl; };
+  const D = 25.4 / Math.SQRT2, flat = opl({ type: 'mirror', id: 'M', name: 'M', x: 100 + D, y: 0, angle: 180, length: 25.4 }, 0);
+  for (const y of [0, 3, -7]) assert.ok(Math.abs(opl(kind('retro'), y) - flat) < 1e-9, 'path at ' + y + ': ' + opl(kind('retro'), y) + ' vs ' + flat);
+  // light on its back, or so far off its axis that it would leave outside the face, is lost
+  assert.equal(TRACE.lastTrace.rays.length > 0, true);
+  load([src({ rays: 1, width: 0 }), kind('retro', { angle: 0 })]);
+  assert.ok(!TRACE.lastTrace.rays.some(q => q.w > 0.01 && q.pts[0] < 99 && q.pts[q.pts.length - 2] < 50), 'nothing comes back off its back');
+  load([src({ rays: 1, width: 0, y: -40, angle: 35 }), kind('retro', { x: 60 })]);
+  assert.ok(!TRACE.lastTrace.rays.some(q => q.w > 0.01 && q.pts[q.pts.length - 2] < 0), 'at 35°, in near its edge, it would leave outside the face');
+  // reflecting 81 % in all, that much comes back
+  assert.ok(Math.abs(back({}, { reflect: 81 }).w - 0.81) < 1e-9);
 });
 
-test('a steering mirror turns by its volts: the beam on a small photodiode leaves it as the drive rises, and the bench stays at rest', () => {
-  const els = v => [src({ width: 1, rays: 11, power: 1 }), kind('steering', { steerK: 1 }),
+test('a steering mirror turns and tips by its volts: the bench shows it where a DC drive puts it, and the file keeps it at rest', () => {
+  const els = (v, extra = {}) => [src({ width: 1, rays: 11, power: 1 }), kind('steering', Object.assign({ steerK: 1 }, extra)),
     { type: 'detector', id: 'D', name: 'D', x: 100, y: 200, angle: 270, length: 2 }, { type: 'elec', kind: 'dc', id: 'V', name: 'V', x: -60, y: 40, v }];
   load(els(0));
   const M = byId('M'), X = E.elecExtra(M), k = portsOf(M).length - X.length;
-  assert.deepEqual(X.map(p => [p.elec, p.name]), [['in', 'tilt']]);
+  assert.deepEqual(X.map(p => [p.elec, p.name]), [['in', 'turn'], ['in', 'tip']]);
   assert.deepEqual(E.elecExtra(kind('mirror')), [], 'a plain mirror has no input');
-  const out = v => { load(els(v), [{ a: ['V', 0], b: ['M', k], wire: true }]); return E.ELEC.detSignalFull(byId('D')).dc; };
-  const v0 = out(0), v1 = out(0.1), v2 = out(0.2), v3 = out(0.5);
-  // 200 mm on, the beam moves 2 × 200 × tan(θ): 0.1° is 0.7 mm, 0.5° is 3.5 mm, off a 2 mm diode
-  assert.ok(v0 > 0 && v1 < v0 && v2 < v1 && v3 === 0, 'the reading falls: ' + [v0, v1, v2, v3]);
-  assert.equal(byId('M').angle, 135, 'the mirror is left as it stood');
-  // the other way round the same, by symmetry
-  assert.ok(Math.abs(out(-0.1) - v1) < 1e-9 * v0);
+  // the reflected ray's direction on the bench as traced, and what the photodiode reads there and through the electronics
+  const shown = (v, port = 0) => {
+    const T = load(els(v), [{ a: ['V', 0], b: ['M', k + port], wire: true }]), L = legs(T, 0.001).filter(l => l.x > 99 && Math.abs(l.dy) > 0.5);
+    const mid = L[L.length >> 1], up = Math.max(0, ...TRACE.lastTrace.rays.filter(q => q.zs).map(q => Math.abs(q.zs[q.zs.length - 1] - q.zs[0])));
+    return { deg: Math.atan2(mid.dx, mid.dy) * 180 / Math.PI, mw: detectorReading(byId('D')).mw, dc: E.ELEC.detSignalFull(byId('D')).dc, pose: E.ELEC.steerPose(byId('M')), rest: [byId('M').angle, byId('M').tip], up };
+  };
+  const a0 = shown(0), a1 = shown(0.1), a2 = shown(0.2), a5 = shown(0.5);
+  // the mirror turns 1° a volt and the beam twice that: 0.1 V is 0.2°, which is 0.7 mm on a diode 200 mm on; 0.5 V is off it
+  assert.ok(Math.abs(a0.deg) < 1e-9 && Math.abs(Math.abs(a1.deg) - 0.2) < 1e-6 && Math.abs(Math.abs(a5.deg) - 1) < 1e-6, 'the beam turns by twice the mirror: ' + [a0.deg, a1.deg, a5.deg]);
+  assert.ok(a0.mw > 0 && a1.mw < a0.mw && a2.mw < a1.mw && a5.mw === 0, 'the diode on the bench reads less: ' + [a0.mw, a1.mw, a2.mw, a5.mw]);
+  for (const a of [a0, a1, a2, a5]) assert.deepEqual(a.rest, [135, undefined], 'the part itself is left at rest');
+  assert.deepEqual(a1.pose.map(v => +v.toFixed(9)), [0.1, 0]);
+  // the electronics read the same light (worked out from the mirror at rest, with the drive on it)
+  for (const a of [a0, a1, a2]) assert.ok(Math.abs(a.dc / a0.dc - a.mw / a0.mw) < 1e-9, 'the diode’s signal goes with its reading: ' + [a.dc, a.mw]);
+  assert.equal(a5.dc, 0);
+  assert.ok(Math.abs(shown(-0.1).mw - a1.mw) < 1e-9 * a0.mw, 'the other way round the same');
+  // its tip input tips it out of the plane: the beam climbs off the diode the same
+  const t1 = shown(0.1, 1), t5 = shown(0.5, 1);
+  assert.deepEqual(t1.pose.map(v => +v.toFixed(9)), [0, 0.1]);
+  // (0.1 V lifts it 0.7 mm, still on a diode 2 mm across; 0.5 V lifts it 3.5 mm, off it)
+  assert.ok(Math.abs(t1.deg) < 1e-3 && Math.abs(t1.up) > 0.3 && t1.mw > 0 && t5.mw === 0, 'tipped, the beam climbs and leaves the diode: ' + [t1.deg, t1.up, t1.mw, t5.mw]);
+  assert.deepEqual(t1.rest, [135, undefined]);
+});
+
+test('a slow drive moves the mirror on the bench at the page’s clock; a quick one leaves it at its mean for the photodiodes to follow', () => {
+  const els = f => [src({ width: 1, rays: 11, power: 1 }), kind('steering', { steerK: 1 }),
+    { type: 'detector', id: 'D', name: 'D', x: 100, y: 200, angle: 270, length: 2 }, { type: 'elec', kind: 'sig', id: 'G', name: 'G', x: -60, y: 40, f, amp: 0.3, offset: 0.1, wave: 'sine' }];
+  load(els(1));
+  const k = portsOf(byId('M')).length - E.elecExtra(byId('M')).length, wire = [{ a: ['G', 0], b: ['M', k], wire: true }];
+  const at = (f, t) => { E.ELEC.setSteerTime(t); load(els(f), wire); const p = E.ELEC.steerPose(byId('M'))[0]; E.ELEC.setSteerTime(null); return p; };
+  // no clock (a worker, a script): the mean
+  assert.ok(Math.abs(at(1, null) - 0.1) < 1e-9);
+  // 1 Hz, on the clock: over a cycle it swings 0.3° either side of 0.1°
+  const P = [0, 0.125, 0.25, 0.5, 0.75].map(t => at(1, t));
+  assert.ok(Math.max(...P) - Math.min(...P) > 0.55 && Math.max(...P) <= 0.4 + 1e-9 && Math.min(...P) >= -0.2 - 1e-9, 'it follows the sine: ' + P);
+  assert.ok(Math.abs(at(1, 0.3) - at(1, 1.3)) < 1e-9, 'a second on, the same');
+  load(els(1), wire); assert.equal(E.ELEC.steerMoving(), true); assert.equal(E.ELEC.steerTones(byId('M'), false), false);
+  // 1 kHz: too quick to draw, so the bench keeps the mean whatever the clock, and says the drive is quick
+  for (const t of [0, 0.0003, 0.7]) assert.ok(Math.abs(at(1000, t) - 0.1) < 1e-9);
+  load(els(1000), wire); assert.equal(E.ELEC.steerMoving(), false); assert.equal(E.ELEC.steerTones(byId('M'), true), false); assert.equal(E.ELEC.steerTones(byId('M'), false), true);
+  // and the photodiode's signal carries the scan: a tone at the drive, the beam swept on and off the diode
+  const S = E.ELEC.detSignalFull(byId('D'));
+  assert.ok(S.tones.some(t => Math.abs(t.f - 1000) < 1e-6 && Math.hypot(t.re, t.im) > 0.01 * S.dc), 'a 1 kHz tone on the diode');
 });

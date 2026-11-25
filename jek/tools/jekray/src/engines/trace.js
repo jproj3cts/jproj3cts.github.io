@@ -29,6 +29,7 @@ import { ffGrad, ffSag } from '../core/freeform.js';
 import { dpBend, dpPhase, dpPower, dpSlopeOverR } from '../core/diffractive.js';
 import { GR_REACH, grDelta, grH, grSlopeOverR, grStep } from '../core/gradient.js';
 import { elementSurfaces, meshRay } from '../core/stl.js';
+import { ELEC } from './elec.js';
 import {
   frame, lensEdges, maskBeamFit, maskMeanSlope, stopExtent, stopMargin, stopSlitLike, toLocal, toLocalDir, toWorld,
   toWorldDir
@@ -472,7 +473,7 @@ export const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + scatRevNow() +
    answers are looked up again when it is taken */
 const traceKeyBase = () => loadGen + '|' + MODS.rev + '|' + heldMark() + traceKeyRest();
 const traceKeyRest = () => project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + (lightOf().rays !== false ? 'R' : '-') + '|' + project.benches.map(b => b.id).join(',') + '|' +
-  JSON.stringify(project.elements.filter(e => e.type !== 'elec' && e.type !== 'draw'), keyCut) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire), keyCut);
+  JSON.stringify(project.elements.filter(e => e.type !== 'elec' && e.type !== 'draw'), keyCut) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire), keyCut) + ELEC.steerKey();   // (and where the steering mirrors' drives put them)
 // what changes nothing in the light: a part's name and where it is written, its import notes, drawings; where a
 // fibre component or a chip part sits (their networks are solved by what joins what: a fibre's length is its own
 // setting), and the way a fibre or waveguide is drawn across the bench
@@ -889,7 +890,9 @@ function fromSurfFrame(J, sLoc, d, sig, fx) {
   const pl = [sig * (u[1] * sLoc[2] - u[2] * sLoc[1]), sig * (u[2] * sLoc[0] - u[0] * sLoc[2]), sig * (u[0] * sLoc[1] - u[1] * sLoc[0])];
   return turnJ(J, vdot3(sLoc, S), vdot3(pl, S));
 }
-function traceSceneOnce() {
+/* (the steering mirrors stand where their drives put them for the length of the trace, and at rest again after) */
+function traceSceneOnce() { const rest = ELEC.steerOn(); try { return traceSceneAsPosed(); } finally { rest(); } }
+function traceSceneAsPosed() {
   ensureBenches(project);
   rfNotes.clear();
   // each bench's surfaces on their own: a ray meets only those of the bench it is on
@@ -1845,7 +1848,7 @@ function traceSceneOnce() {
         // tangential ABCD for this surface, q = (A q + B) / (C q + D): one for the light that
         // carries on through it and one for the light it reflects, so a partly reflecting
         // face sends each branch on with its own beam
-        let qT = null, qRf = null, evT = null, evR = null, wentR = false;
+        let qT = null, qRf = null, evT = null, evR = null, wentR = false, retroT = 0;
         if (chief) {
           const abcd = (A, C, D, n2, mode, n1) => {
             const dr = C * qr + D, di = C * qi, nr = A * qr, ni = A * qi, den = dr * dr + di * di;
@@ -1891,6 +1894,36 @@ function traceSceneOnce() {
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny; ldz -= 2 * cosd * nz;
             wentR = true;
           }
+        } else if (s.kind === 'mirror' && s.retro) {
+          // A corner cube (a hollow one: three mirrors square to each other, their corner s.retro behind the middle of
+          // its face). Whatever way the light comes in, three reflections send it back the way it came, and the ray
+          // out is the ray in turned about the corner: as if it met a mirror square to itself through the corner
+          // (which sets its path) and left from the point opposite, across the corner. So it travels on to that plane,
+          // crosses to the far side of the corner, and comes back out through the face. Light that would leave outside
+          // the face is lost, as is light on its back.
+          const E = s.el, tp = (E.tip || 0) * deg, an = E.angle * deg, n3 = [Math.cos(tp) * Math.cos(an), Math.cos(tp) * Math.sin(an), Math.sin(tp)];
+          const C3 = [E.x, E.y, anyZ ? zOf(E) : 0], P3 = [px, py, anyZ ? zh : 0], d3 = [dx, dy, uz || 0];
+          const A3 = C3.map((c, i) => c - s.retro * n3[i]);
+          const t1 = (A3[0] - P3[0]) * d3[0] + (A3[1] - P3[1]) * d3[1] + (A3[2] - P3[2]) * d3[2], dn = vdot3(d3, n3);
+          const F3 = P3.map((v, i) => v + t1 * d3[i]), G3 = A3.map((a, i) => 2 * a - F3[i]);
+          const t2 = dn < 0 ? ((G3[0] - C3[0]) * n3[0] + (G3[1] - C3[1]) * n3[1] + (G3[2] - C3[2]) * n3[2]) / dn : -1;
+          const out = G3.map((g, i) => g - t2 * d3[i]);
+          if (!(dn < 0 && t1 > 0 && t2 > 0) || Math.hypot(out[0] - C3[0], out[1] - C3[1], out[2] - C3[2]) > s.semi * (1 + 1e-9)) {
+            if (!chief) { blocked[E.id] = (blocked[E.id] || 0) + w; (blockedSrc[E.id] || (blockedSrc[E.id] = new Set())).add(src.id); }
+            break;
+          }
+          const ra = -Math.sqrt(Rms);
+          sr *= ra; si *= ra; pr *= ra; pi *= ra;
+          if (ra !== -1) { ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp; }
+          opl += nCur * (t1 + t2); gpl += gCur * (t1 + t2); retroT = t1 + t2;
+          // the ray as drawn: on to that plane, across the corner, and back out; it carries on from the face
+          if (anyZ) pts.zNext = F3[2];
+          pts.push(F3[0], F3[1]);
+          if (anyZ) { pts.zNext = G3[2]; zh = out[2]; }
+          pts.push(G3[0], G3[1]);
+          px = out[0]; py = out[1];
+          ldx = -ldx; ldy = -ldy; ldz = -ldz;
+          wentR = true;
         } else if (s.kind === 'mirror' || s.kind === 'filter' || s.kind === 'grid') {
           // a reflective filter (a dichroic) is a partial mirror whose reflectance is what it rejects
           // A mirror turns the field over from its coated face: half a wave. From behind, a
@@ -2038,6 +2071,7 @@ function traceSceneOnce() {
           }
         }
         if (chief) { [qr, qi] = wentR ? qRf : qT; evt = wentR ? evR : evT; }
+        if (chief && retroT) qr += retroT;          // a corner cube: the beam has been on to its corner's plane
         // where the beam came into a graded glass, and its pilot there: its segment runs from here to where it leaves
         if (gr && gr.at === true) gr.at = { x: px, y: py, z: zh, qr, qi, opl };
         if (wentR) par ^= 1;

@@ -4,12 +4,9 @@ import { normPartMake } from '../core/part-make.js';
 /* Prism: A glass prism or window. */
 export const PRISM = {
   type: 'prism', label: 'Prism',
-  picker: [{ key: 'prism', short: 'Prism' }, { key: 'retro', short: 'Retroreflector', long: 'Retroreflector (a right-angle prism: sends a beam back the way it came)' }],
-  keys: ['prism', 'retro'],
-  // a retroreflector: a right-angle prism with its long face to the beam, which turns back off its two short faces by
-  // total internal reflection, parallel to the way it came and as far the other side of the middle
-  make: (x, y, kind) => kind === 'retro' ? { type: 'prism', name: nextName('Retroreflector'), x, y, angle: 135, shape: 'right', size: 25.4, material: { glass: 'N-BK7' } }
-    : { type: 'prism', name: nextName('Prism'), x, y, shape: 'right', size: 20, material: { glass: 'N-BK7' } },
+  picker: [{ key: 'prism', short: 'Prism' }],
+  keys: ['prism'],
+  make: (x, y) => ({ type: 'prism', name: nextName('Prism'), x, y, shape: 'right', size: 20, material: { glass: 'N-BK7' } }),
   norm(e, base) {
     // a polygon's corners kept: 3 to 16 finite x, y pairs, else a small triangle
     const polyCorners = v => {

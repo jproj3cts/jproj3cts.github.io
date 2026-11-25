@@ -102,6 +102,7 @@ import './ui/pointer.js';
 import './state/params.js';
 import './ui/sweeps.js';
 import './ui/sweep-audit.js';
+import './ui/steer.js';
 import './engines/fibre-face.js';
 import './engines/fibre.js';
 import './engines/pic.js';

@@ -20,7 +20,7 @@ export const PART_USES = {
   chirped: 'chirped mirror gdd dispersion compress pulse ultrafast femtosecond',
   steering: 'steer scan galvo galvanometer piezo tip tilt fast steering mirror fsm point beam signal drive',
   dichroic: 'dichroic mirror reflect one colour pass another combine separate wavelengths long pass short pass',
-  retro: 'retroreflector retro reflect back return corner cube roof prism porro delay line',
+  retro: 'retroreflector retro reflect back return corner cube hollow cat eye delay line interferometer arm',
   lens: 'focus collimate image converge diverge magnify expand telescope relay objective',
   asphere: 'focus collimate aspheric lens aberration free high na',
   diffractive: 'focus diffractive fresnel zone plate doe lens',

@@ -43,6 +43,8 @@ import { V3D, wireView3d } from './view3d.js';
 import { MATE3D_API, wireMate3d } from './mate3d.js';
 import { INST } from './instruments.js';
 import { ELEC_UI } from './elec.js';
+import { steerIsPlaying, wireSteer } from './steer.js';
+import { ELEC } from '../engines/elec.js';
 import { METRICS, metricRaw, optimise, optimiseMany, sensitivity, updateSweepButtons } from './optimise.js';
 import { pinBoxes, pins, renderPanel, setPins, syncPanel, togglePin, viewState, vs } from './panel.js';
 import { portPower } from './panels.js';
@@ -147,7 +149,7 @@ installHooks({
   fieldWorker, fwRequest, fwMismatch, modAsk,
   saveParts: accountsOn() ? saveToMine : null,
 });
-wireRender(); wireScatter(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireFilmCoats(); wireOptic(); wireMods(); wireView3d(); wireMate3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline, vecLightLayer: () => lightLayer }); wireCommands(); wireRecent();
+wireRender(); wireSteer(); wireScatter(); wirePointer(); wireActions(); wireShare(); wireOpen(); wirePicker(); wireRail(); wirePacks(); wireNudges(); wireAccount(); wireCloud(); wireNews(); wireScripts(); wireDataExport(); wireFigure(); wireTasters(); wireTours(); wireCoatDesign(); wireFilmCoats(); wireOptic(); wireMods(); wireView3d(); wireMate3d(); wireCart(); wireUsage(); wireChallenge(); wireStep(); installHooks({ partHeadline, vecLightLayer: () => lightLayer }); wireCommands(); wireRecent();
 
 if (!TEST_MODE) setInterval(updateActivity, 150);
 
@@ -395,6 +397,7 @@ if (!TEST_MODE) window.addEventListener('storage', e => { if (e.key === EXP_KEY 
     version: () => APP_VERSION,
     // experimental features: switch them on or off, and whether one is on
     palettesOn: () => palettesOn(),
+    steerPlaying: () => steerIsPlaying(), steerPose: name => { const e = project.elements.find(q => q.name === name); return e ? ELEC.steerPose(e) : null; },
     // mods: wait until every result asked for has come (traced again after each), and how they stand
     async modsSettle() { for (let i = 0; i < 30; i++) { setLastTraceKey(null); traceScene(); if (!MODS.waiting.size) break; await Promise.allSettled([...MODS.waiting.values()]); } setLastTraceKey(null); traceScene(); },
     modsInfo: () => ({ packs: [...MODS.packs.keys()], failed: Object.fromEntries(MODS.failed), waiting: MODS.waiting.size, rev: MODS.rev, frame: !!MODS.frame, loaded: [...MODS.loaded.keys()] }),

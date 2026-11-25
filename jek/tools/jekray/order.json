@@ -102,6 +102,7 @@
   "state/params.js",
   "ui/sweeps.js",
   "ui/sweep-audit.js",
+  "ui/steer.js",
   "engines/fibre-face.js",
   "engines/fibre.js",
   "engines/pic.js",

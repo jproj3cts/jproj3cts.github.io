@@ -12,7 +12,7 @@ import { RF_METALS, hornLam } from '../core/rf.js';
 import { deg, extraSel, project, selectOne, selectedId } from '../state/project.js';
 import { FIBRE_COLOUR, FREE_3D, NET_3D, detR, fieldDec, getEl, lightOf, srcBody } from '../state/elements.js';
 import { portWorld, portsOf, portsOfOptic } from '../engines/fibre.js';
-import { ELEC_YELLOW } from '../engines/elec.js';
+import { ELEC, ELEC_YELLOW } from '../engines/elec.js';
 import { PIC_GREEN } from '../engines/pic.js';
 import { benchName, curBench, linkPartner } from '../state/tabs.js';
 import { lensSurfaces, polyVerts, rawSag, sagFn, lensStacks } from '../core/geometry.js';
@@ -586,7 +586,7 @@ export const V3D = (() => {
       case 'mirror': {
         const [s] = elementSurfaces(el), sg = sag3(s);
         let lo = sg(0, 0); for (let j = 0; j < 32; j++) lo = Math.min(lo, sg(s.semi * Math.cos(j * Math.PI / 16), s.semi * Math.sin(j * Math.PI / 16)));
-        const t = Math.max(2, Math.min(10, L * 0.25)), R0 = el.reflect >= 100;
+        const t = s.retro ? s.retro : Math.max(2, Math.min(10, L * 0.25)), R0 = el.reflect >= 100;   // (a corner cube: a block as deep as its corner)
         // an RF metal mirror is the colour of its metal, through and through; an optical one a coated glass
         const MC = { Al: 0xd9dde2, Cu: 0xc87b4a, Au: 0xd8a650, brass: 0xc9a54a, steel: 0xaeb4b9, ideal: 0xe6eaee };
         if (el.metal && RF_METALS[el.metal]) { const mm = mat.metal(MC[el.metal] || 0xd9dde2, el.metal === 'steel' ? 0.3 : 0.18); add(...sagSolid(sg, s.semi, lo - t, false, mm, mm)); return g; }
@@ -910,7 +910,8 @@ export const V3D = (() => {
       }
       if (!p) continue;
       used.add(el.id);
-      p.position.set(el.x, el.y, z3(el)); p.rotation.set((el.roll || 0) * deg, -(el.tip || 0) * deg, el.angle * deg, 'ZYX'); benchAxes(p);
+      const sp = ELEC.steerPose(el);            // a steering mirror stands where its drive puts it
+      p.position.set(el.x, el.y, z3(el)); p.rotation.set((el.roll || 0) * deg, -((el.tip || 0) + sp[1]) * deg, (el.angle + sp[0]) * deg, 'ZYX'); benchAxes(p);
       p.userData.id = el.id; p.traverse(o => { o.userData.id = el.id; if (o.userData.phosphor) for (const t of o.userData.texs) phosphorRoll(t, el); });
       G.parts.add(p);
       if (names) {

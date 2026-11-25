@@ -61,7 +61,17 @@ A mirror can add a group delay dispersion $$\mathrm{GDD}$$ (fs²) to each reflec
 
 ### Steering mirrors
 
-A mirror **steered by a signal** (a galvo, a piezo mount) has a **tilt** input for the [electronics](/jek/docs/jekray/electronics/). A voltage $$v$$ on it turns the mirror in the bench plane about its centre by $$\theta = k\,v$$, with $$k$$ its **Turn** in degrees per volt, and the reflected beam turns by $$2\theta$$. The drive is taken quasi-statically, as every drive is: the bench is traced again at levels across the drive's swing and each photodiode's light follows the drive by that table. So a beam scanned across a pinhole or a small photodiode gives the signal a real one would, and a DC level offsets the pointing a detector sees. The bench itself draws the mirror at rest, at 0 V. It turns in the bench plane only, and follows the drive at any frequency: a real mirror's resonance and settling time are not modelled.
+A mirror **steered by signals** (a galvo, a piezo mount) has two inputs for the [electronics](/jek/docs/jekray/electronics/): **turn** and **tip**. A voltage $$v$$ on turn turns the mirror in the bench plane about its centre by $$\theta = k\,v$$, and on tip tips it out of the plane by the same, with $$k$$ its **Turn** in degrees per volt. The reflected beam turns by $$2\theta$$. Its **Angle** and **Tip** are where it rests, at 0 V, and are what the file keeps.
+
+The bench shows the mirror where its drive puts it. A DC level moves it and the beam with it, and the panel says how far it stands from rest. A drive with a tone of 5 Hz or slower is played: the bench is traced again as the mirror moves, at the page's own clock. A quicker drive is not drawn. The mirror then stands at the drive's mean, and the photodiodes follow the motion quasi-statically, as they follow every drive: the bench is traced at levels across the drive's swing and each photodiode's light goes with the drive by that table. So a beam scanned across a pinhole or a small photodiode gives the signal a real one would.
+
+The mirror follows its drive at any frequency: a real one's resonance and settling time are not modelled. A photodiode's output wired back to a steering mirror is a loop through the light, which is not solved, so it reads nothing.
+
+### Retroreflectors
+
+A **retroreflector** is a hollow corner cube: three mirrors square to one another behind a round face. Light meeting the face goes back the way it came, whatever its angle in or out of the bench plane, and whichever way the retroreflector is turned or tipped. The ray out is the ray in turned about the corner, so it leaves from the point opposite, across the middle of the face. Its path is a plane mirror's set at the corner square to the ray, with the corner $$d/\sqrt2$$ behind the middle of a face of diameter $$d$$, as a cube corner's is.
+
+Light that would leave outside the face is lost, as it is on a real one: a beam through the middle is returned up to about $$19°$$ off the axis, less towards the edge. Light on its back is absorbed. Its **Reflectance** is for the three reflections together. The polarisation comes back as off a plane mirror: the mixing of polarisation a real corner cube's six sectors give is not modelled. The Gaussian beam and the diffracted field go through it as through that plane mirror, without the turn about the corner, which changes nothing for a beam that is symmetric about its own axis.
 
 ## In the parts list
 
@@ -76,9 +86,10 @@ The Mirrors group lists the plain mirror and the kinds most often wanted. Each i
 | Off-axis parabola | the 90° one: $$R = 50.8$$ mm, conic $$-1$$, offset $$50.8$$ mm, which turns a beam along its axis through a right angle to a focus $$50.8$$ mm away |
 | Partial reflector | flat, reflecting 50 %, the rest passing: a plate beam splitter or an output coupler |
 | Chirped mirror | flat, $$-50$$ fs² a reflection |
-| Steering mirror | flat, steered by a signal, 1° per volt |
+| Steering mirror | flat, steered by signals, 1° per volt |
+| Retroreflector | a corner cube with a 25.4 mm face, facing the beam |
 
-Two more entries in the group are other parts: the **Dichroic mirror** is a [filter](/jek/docs/jekray/free-space/filter/#as-a-dichroic) that reflects what it blocks, and the **Retroreflector** is a right-angle [prism](/jek/docs/jekray/free-space/prism/#as-a-retroreflector) with its long face to the beam.
+One more entry in the group is another part: the **Dichroic mirror** is a [filter](/jek/docs/jekray/free-space/filter/#as-a-dichroic) that reflects what it blocks.
 
 ## Settings
 

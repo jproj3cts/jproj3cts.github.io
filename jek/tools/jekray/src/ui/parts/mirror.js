@@ -2,6 +2,7 @@ import { V } from '../../state/project.js';
 import { moreFold } from './lens.js';
 import { sagFn } from '../../core/geometry.js';
 import { elementSurfaces } from '../../core/stl.js';
+import { ELEC } from '../../engines/elec.js';
 import { frame, toWorld } from '../../core/mask.js';
 import { ctx, getCss, lightLayer, metal, pathLocal, selInk, surfPoints, sx, sy } from '../render.js';
 import { hitSurface } from './hits.js';
@@ -17,8 +18,21 @@ import { readoutBox, readoutTabs } from '../panels.js';
 
 /* Mirror on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/mirror.js */
 
-function drawMirror(el, sel) {
+/* (a steering mirror is drawn where its drive puts it: posed for the drawing, at rest again after) */
+function drawMirror(el, sel) { const rest = ELEC.steerOn(el); try { drawMirrorPosed(el, sel); } finally { rest(); } }
+function drawMirrorPosed(el, sel) {
   const f = frame(el);
+  // a corner cube: its open face, and the mirrors behind it meeting at their corner
+  if (el.retro) {
+    const [r] = elementSurfaces(el), a = r.semi, d = r.retro;
+    ctx.strokeStyle = metal(0.45); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+    pathLocal(f, [[0, -a], [0, a]]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = sel ? selInk() : lightLayer ? metal() : getCss('--rt-metal');
+    ctx.lineWidth = sel ? 3.5 : 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    pathLocal(f, [[0, -a], [-d, 0], [0, a]]); ctx.stroke();
+    ctx.lineCap = 'butt'; ctx.lineJoin = 'miter';
+    return;
+  }
   const [s] = elementSurfaces(el);
   const pts = surfPoints(s, 48, false, f);
   // hatching on the back
@@ -55,7 +69,12 @@ function drawMirror(el, sel) {
 function mirrorPanel(el) {
   // what arrives at its face: the rays, the diffracted field and a pulse, read as a screen reads them
   if (readoutTabs(el, [['params', 'Mirror'], ['rays', 'Rays'], ['plots', 'Diffraction'], ['pulse', 'Pulse']])) return;
-  panel.append(h('h3', null, el.film ? 'Film beam splitter' : el.metal ? 'Metal mirror' : 'Mirror'));
+  panel.append(h('h3', null, el.retro ? 'Retroreflector' : el.film ? 'Film beam splitter' : el.metal ? 'Metal mirror' : 'Mirror'));
+  if (el.retro) {
+    panel.append(h('div', { class: 'rt-rows' }, param('Face diameter (mm)', el, 'length'), param('Reflectance (%)', el, 'reflect')));
+    panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A hollow corner cube: three mirrors square to one another behind its face. Light meeting the face goes back the way it came, whatever its angle in or out of the bench plane, leaving from the point opposite across the middle. Its path is a plane mirror\u2019s at the corner, ' + (+(el.length / Math.SQRT2).toPrecision(4)) + ' mm behind the face. Light that would leave outside the face is lost, as on a real one. Its reflectance is for the three reflections together; the polarisation comes back as off a plane mirror.'));
+    return;
+  }
   const nm = benchNms()[0], ghz = C_NM_GHZ / nm;
   if (el.film) {
     const F45 = filmCoef(el.film, nm, Math.SQRT1_2), pc = v => (100 * v).toPrecision(3) + ' %';

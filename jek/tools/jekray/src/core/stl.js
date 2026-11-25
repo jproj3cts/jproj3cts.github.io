@@ -268,6 +268,8 @@ export function elementSurfaces(el) {
   }
   if (el.type === 'lens') return lensSurfaces(el);
   if (el.type === 'mirror') {
+    // a corner cube: its face, the three mirrors' corner this far behind its middle (as a cube corner's is under a round face)
+    if (el.retro) return [makeSurf(el, 0, 0, 0, 0, [], el.length / 2, { kind: 'mirror', retro: el.length / Math.SQRT2 })];
     const c = el.R ? 1 / el.R : 0;
     return [makeSurf(el, 0, c, el.k || 0, 0, el.A ? el.A.slice() : [], el.length / 2, { kind: 'mirror', y0: el.offset || 0, FL: ffList(el.F), ...(el.hole > 0 ? { hole: el.hole / 2 } : {}) })];
   }

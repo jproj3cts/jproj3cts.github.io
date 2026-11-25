@@ -26,24 +26,26 @@ const legs = (T, min = 0.01) => T.rays.filter(r => r.w > min && r.pts.length >= 
 const atX = (L, X) => L.y + L.dy / L.dx * (X - L.x), atY = (L, Y) => L.x + L.dx / L.dy * (Y - L.y);
 
 test('each kind is a mirror (or a filter, a prism) of its own settings, named for what it is', () => {
-  const made = Object.fromEntries(['mirror', 'concave', 'convex', 'parabolic', 'oap', 'partial', 'chirped', 'steering', 'dichroic', 'retro'].map(k => [k, makeElement(k, 0, 0)]));
-  for (const k of ['mirror', 'concave', 'convex', 'parabolic', 'oap', 'partial', 'chirped', 'steering', 'retro']) assert.equal(made[k].type, 'mirror', k);
+  const made = Object.fromEntries(['mirror', 'spherical', 'parabolic', 'oap', 'chirped', 'steering', 'dichroic', 'retro'].map(k => [k, makeElement(k, 0, 0)]));
+  for (const k of ['mirror', 'spherical', 'parabolic', 'oap', 'chirped', 'steering', 'retro']) assert.equal(made[k].type, 'mirror', k);
   assert.equal(made.mirror.R, null); assert.equal(made.mirror.reflect, 100); assert.equal(made.mirror.steer, undefined);
-  assert.ok(made.concave.R > 0 && made.concave.k === 0); assert.ok(made.convex.R < 0);
+  assert.ok(made.spherical.R > 0 && made.spherical.k === 0);
+  for (const gone of ['concave', 'convex', 'partial']) assert.equal(makeElement(gone, 0, 0), undefined, gone + ' is no entry of its own');
   assert.ok(made.parabolic.k === -1 && made.parabolic.offset === 0);
   assert.ok(made.oap.k === -1 && made.oap.offset === made.oap.R, 'the 90° one: cut 2f off the axis, R = 2f');
-  assert.equal(made.partial.reflect, 50); assert.ok(made.chirped.gdd < 0);
+  assert.ok(made.chirped.gdd < 0);
   assert.ok(made.steering.steer === true && made.steering.steerK === 1);
   assert.ok(made.dichroic.type === 'filter' && made.dichroic.reflect === true);
   assert.ok(made.retro.retro === true && made.retro.R === null && ST.typeLabel(made.retro) === 'Retroreflector');
   assert.equal(made.mirror.retro, undefined);
-  assert.deepEqual(Object.values(made).map(e => e.name), ['Mirror 1', 'Concave mirror 1', 'Convex mirror 1', 'Parabolic mirror 1', 'Off-axis parabola 1', 'Partial reflector 1', 'Chirped mirror 1', 'Steering mirror 1', 'Dichroic mirror 1', 'Retroreflector 1']);
+  assert.deepEqual(Object.values(made).map(e => e.name), ['Mirror 1', 'Spherical mirror 1', 'Parabolic mirror 1', 'Off-axis parabola 1', 'Chirped mirror 1', 'Steering mirror 1', 'Dichroic mirror 1', 'Retroreflector 1']);
 });
 
-test('a concave mirror focuses at R/2 and a convex one spreads from R/2 behind it; a parabola focuses every ray at one point', () => {
+test('a spherical mirror focuses at R/2, and with a negative radius spreads from R/2 behind it; a parabola focuses every ray at one point', () => {
   // rays 2 mm and 4 mm off the axis, back from the mirror at x = 100: they cross the axis R/2 = 100 mm before it
   const cross = k => legs(load([src(), kind(k)])).filter(L => Math.abs(L.y) > 0.5 && L.dx < 0).map(L => +(L.x - L.y * L.dx / L.dy).toFixed(4));
-  const cc = cross('concave'), cv = cross('convex'), pb = cross('parabolic');
+  const cross2 = el => legs(load([src(), el])).filter(L => Math.abs(L.y) > 0.5 && L.dx < 0).map(L => +(L.x - L.y * L.dx / L.dy).toFixed(4));
+  const cc = cross('spherical'), cv = cross2(kind('spherical', { R: -200 })), pb = cross('parabolic');
   for (const x of cc) assert.ok(Math.abs(x - 0) < 0.05, 'concave, R 200: focus 100 mm before it, ' + x);
   for (const x of cv) assert.ok(Math.abs(x - 200) < 0.05, 'convex, R −200: from 100 mm behind it, ' + x);
   // the sphere's marginal rays cross short of the paraxial focus (spherical aberration); the parabola's all at f
@@ -60,8 +62,8 @@ test('an off-axis parabola turns a beam along its axis through a right angle to 
   for (const l of L) assert.ok(Math.abs(atY(l, 50.8) - 100) < 1e-6, 'at the focus: ' + atY(l, 50.8));
 });
 
-test('a partial reflector halves the light; a dichroic mirror reflects the short wavelength and passes the long', () => {
-  const P = legs(load([src({ rays: 1, width: 0 }), kind('partial')]));
+test('a mirror reflecting 50 % halves the light; a dichroic mirror reflects the short wavelength and passes the long', () => {
+  const P = legs(load([src({ rays: 1, width: 0 }), kind('mirror', { reflect: 50 })]));
   const on = P.find(l => l.dx > 0.99 && l.x > 99), up = P.find(l => Math.abs(l.dy) > 0.99);
   assert.ok(on && up && Math.abs(on.w - 0.5) < 1e-9 && Math.abs(up.w - 0.5) < 1e-9, 'half each way');
   const way = nm => { const D = legs(load([src({ rays: 1, width: 0, wavelength: nm }), kind('dichroic')]), 0.5).filter(l => l.x > 99); assert.equal(D.length, 1, nm + ' nm goes one way'); return D[0]; };

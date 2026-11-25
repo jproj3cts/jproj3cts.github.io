@@ -7,11 +7,9 @@ import { normF } from '../core/freeform.js';
    is the 90° one: a parent paraboloid of focal length f (R = 2f) cut 2f off its axis, where it turns a beam along the
    axis through a right angle to a focus 2f away (its reflected focal length, 50.8 mm here). */
 const MIRROR_KINDS = {
-  concave: () => ({ name: nextName('Concave mirror'), angle: 180, R: 200 }),
-  convex: () => ({ name: nextName('Convex mirror'), angle: 180, R: -200 }),
+  spherical: () => ({ name: nextName('Spherical mirror'), angle: 180, R: 200 }),
   parabolic: () => ({ name: nextName('Parabolic mirror'), angle: 180, R: 200, k: -1 }),
   oap: () => ({ name: nextName('Off-axis parabola'), angle: 180, R: 50.8, k: -1, offset: 50.8 }),
-  partial: () => ({ name: nextName('Partial reflector'), angle: 135, reflect: 50 }),
   chirped: () => ({ name: nextName('Chirped mirror'), angle: 135, gdd: -50 }),
   steering: () => ({ name: nextName('Steering mirror'), angle: 135, steer: true, steerK: 1 }),
   retro: () => ({ name: nextName('Retroreflector'), angle: 180, retro: true }),
@@ -19,13 +17,12 @@ const MIRROR_KINDS = {
 /* Mirror: A mirror, flat or curved (spherical or conic), partly transmitting if reflect < 100. */
 export const MIRROR = {
   type: 'mirror', label: 'Mirror',
-  picker: [{ key: 'mirror', short: 'Mirror' }, { key: 'concave', short: 'Concave mirror' }, { key: 'convex', short: 'Convex mirror' },
+  picker: [{ key: 'mirror', short: 'Mirror' }, { key: 'spherical', short: 'Spherical mirror', long: 'Spherical mirror (concave, or convex with a negative radius)' },
     { key: 'parabolic', short: 'Parabolic mirror' }, { key: 'oap', short: 'Off-axis parabola', long: 'Off-axis parabolic mirror (90°)' },
-    { key: 'partial', short: 'Partial reflector', long: 'Partial reflector (plate beam splitter, output coupler)' },
     { key: 'chirped', short: 'Chirped mirror', long: 'Chirped mirror (compresses a pulse)' },
     { key: 'steering', short: 'Steering mirror', long: 'Steering mirror (a galvo or piezo mirror, turned and tipped by signals)' },
     { key: 'retro', short: 'Retroreflector', long: 'Retroreflector (a corner cube: sends light back the way it came)' }],
-  keys: ['mirror', 'concave', 'convex', 'parabolic', 'oap', 'partial', 'chirped', 'steering', 'retro'],
+  keys: ['mirror', 'spherical', 'parabolic', 'oap', 'chirped', 'steering', 'retro'],
   // the general mirror, and the same mirror begun as the kinds most often wanted: each is only its settings, so any can
   // be made into any other in its panel. A curved one faces a beam along +x; a flat one folds it.
   make: (x, y, kind) => Object.assign({ type: 'mirror', x, y, length: 25.4 }, MIRROR_KINDS[kind] ? MIRROR_KINDS[kind]() : { name: nextName('Mirror'), angle: 135 }),

@@ -77,16 +77,14 @@ Because the mirrors are real, the rest follows as it does on the bench. Light fa
 
 ## In the parts list
 
-The Mirrors group lists the plain mirror and the kinds most often wanted. Each is this same mirror begun with its kind's settings, so any of them can be made into any other in its panel.
+The Mirrors group lists the plain mirror and the kinds most often wanted. Each is this same mirror begun with its kind's settings, so any of them can be made into any other in its panel. A partly reflecting mirror (a plate beam splitter, an output coupler) is any of them with its **Reflectance** below 100 %.
 
 | Entry | A new one is |
 |---|---|
 | Mirror | flat, fully reflecting, at 45° to fold a beam |
-| Concave mirror | spherical, $$R = 200$$ mm, facing the beam: $$f = 100$$ mm |
-| Convex mirror | spherical, $$R = -200$$ mm |
+| Spherical mirror | $$R = 200$$ mm, concave, facing the beam: $$f = 100$$ mm. A negative radius makes it convex |
 | Parabolic mirror | $$R = 200$$ mm, conic $$-1$$: no spherical aberration for a beam along its axis |
 | Off-axis parabola | the 90° one: $$R = 50.8$$ mm, conic $$-1$$, offset $$50.8$$ mm, which turns a beam along its axis through a right angle to a focus $$50.8$$ mm away |
-| Partial reflector | flat, reflecting 50 %, the rest passing: a plate beam splitter or an output coupler |
 | Chirped mirror | flat, $$-50$$ fs² a reflection |
 | Steering mirror | flat, steered by signals, 1° per volt |
 | Retroreflector | a hollow corner cube with a 25.4 mm opening, facing the beam |

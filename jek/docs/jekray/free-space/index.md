@@ -345,7 +345,7 @@ with $$\theta_\parallel$$ the beam's angle to the face's normal across and $$\th
 ### Mirrors
 
 <ul class="dx-cards">
-  <li><a class="free" href="/jek/docs/jekray/free-space/mirror/"><b>Mirror</b><small>Plane, concave, convex, parabolic or off-axis; partly transmitting; chirped; steered by signals; a corner-cube retroreflector.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray/free-space/mirror/"><b>Mirror</b><small>Plane, spherical, parabolic or off-axis; partly transmitting; chirped; steered by signals; a corner-cube retroreflector.</small></a></li>
 </ul>
 
 ### Lenses

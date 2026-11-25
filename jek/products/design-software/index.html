@@ -33,17 +33,29 @@
      as a catalogue index by topic, the resources in four columns */
   .jek-hero { padding-block: 2rem 1.6rem; }
   .jek-section { padding-block: 1.8rem; }
+  /* the apps: a row each, a picture beside its name, line and links; JEKray's designers under it on a rule in its yellow;
+     the experimental ones in a quiet panel, on the page only for someone who switched them on (jek.css hides data-exp) */
+  .rt-apps .rt-approw, .rt-apps .rt-expapps { max-width: 62rem; }
+  .rt-apps > h2 { margin: 0 0 0.4rem; }
+  .rt-approw { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 1.4rem; align-items: center; padding: 1.1rem 0; border-top: 1px solid var(--jek-line); }
+  .rt-approw img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top left; border: 1px solid var(--jek-line); border-radius: 2px; background: var(--jek-panel); }
+  .rt-approw h3 { margin: 0; font-size: 1.1rem; }
+  .rt-approw h3 .jek-wm { font-size: 1.15rem; }
+  .rt-approw p { margin: 0.3rem 0 0; max-width: 40rem; font-size: 0.95rem; line-height: 1.5; }
+  .rt-approw .rt-applinks { display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; margin-top: 0.5rem; }
+  .rt-approw.sub { grid-template-columns: 11rem minmax(0, 1fr); margin-left: 3.6rem; padding-left: 1.2rem; border-top: 0; border-left: 3px solid var(--jek-amber); }
+  .rt-expapps { margin-top: 1.4rem; padding: 0.6rem 1.2rem 0.2rem; background: var(--jek-well); border: 1px solid var(--jek-line); border-radius: 3px; }
+  .rt-expapps .rt-approw:first-of-type { border-top: 0; }
+  .rt-expnote { margin: 0.4rem 0 0; font-size: 0.85rem; color: var(--jek-ink-soft); }
+  html:not(.exp-jekrf):not(.exp-jekion) .rt-expapps { display: none; }
+  @media (max-width: 700px) { .rt-approw, .rt-approw.sub { grid-template-columns: 1fr; } .rt-approw.sub { margin-left: 1rem; } }
   .rt-feats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.6rem 1.8rem; align-items: start; }
   .rt-feats .jek-feature { display: flex; flex-direction: column; gap: 0.7rem; padding: 0; border-top: 0; }
   .rt-feats .jek-feature .jek-shot { order: -1; margin: 0; }
   .rt-feats .jek-shot img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
   .rt-feats .jek-feature h2, .rt-feats .jek-feature h3 { margin: 0; font-size: 1.08rem; }
-  #apps .rt-grouphead { margin: 2rem 0 0.9rem; font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--jek-ink-soft); }
-  #apps .rt-groupnote { margin: -0.5rem 0 1rem; font-size: 0.9rem; color: var(--jek-ink-soft); }
-  /* the experimental apps: on the page only for someone who switched them on (jek.css hides data-exp; both off, the group goes) */
-  html:not(.exp-jekrf):not(.exp-jekion) .rt-expgroup { display: none; }
   .rt-feats .jek-feature p { margin-top: 0.4rem; font-size: 0.9rem; line-height: 1.5; max-width: none; }
-  .rt-feats a, .rt-ex-lede a, .rt-topics a, .rt-res a { color: var(--jek-ink); text-decoration: underline; text-decoration-color: var(--jek-orange); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+  .rt-feats a, .rt-apps a, .rt-ex-lede a, .rt-topics a, .rt-res a { color: var(--jek-ink); text-decoration: underline; text-decoration-color: var(--jek-orange); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
   #examples h2 { margin: 0 0 0.5rem; }
   .rt-ex-lede { margin: 0 0 1.4rem; max-width: 72ch; color: var(--jek-ink-soft); }
   .rt-topics { columns: 4 15rem; column-gap: 2.5rem; }
@@ -84,50 +96,42 @@
           <div class="jek-facts"><span>Free, in your browser</span><span>Nothing to install</span><span>One account for every app</span></div>
         </div>
         <figure class="jek-shot cover">
-          <img src="img/jeksuite.png" alt="JEKsuite signed in: the apps in the left rail, the workspace's folders, and a JEKray bench and a JEKion bench side by side" width="1600" height="844">
-          <figcaption>My benches in JEKsuite: folders, and benches from JEKray and JEKion side by side.</figcaption>
+          <img src="img/jeksuite.png" alt="JEKsuite signed in: the apps in the left rail, the workspace's folders, and benches from two apps side by side" width="1600" height="844">
+          <figcaption>My benches in JEKsuite: folders, and benches from two apps side by side.</figcaption>
         </figure>
       </div>
     </section>
 
     <section class="jek-section" id="apps" style="padding-top: 0">
-      <div class="jek-wrap">
-      <h2 class="rt-grouphead">JEKray and its designers</h2>
-      <div class="rt-feats">
-        <div class="jek-feature">
+      <div class="jek-wrap rt-apps">
+        <h2>The apps</h2>
+        <div class="rt-approw">
+          <img src="jekray/img/whole-bench.png" alt="A JEKray bench in 3D: a modulated fibre laser, free-space optics and photodiodes wired to an oscilloscope" loading="lazy">
           <div><h3><span class="jek-wm">JEK<b>ray</b></span></h3><p>A bench simulator for optics, fibre and electronics, traced as you move parts.</p><p class="rt-applinks"><a href="/jek/products/design-software/jekray/">About JEKray</a><a href="/jek/tools/jekray.html">Launch JEKray</a></p></div>
-          <figure class="jek-shot"><img src="jekray/img/whole-bench.png" alt="A JEKray bench in 3D: a modulated fibre laser, free-space optics and photodiodes wired to an oscilloscope" loading="lazy"></figure>
         </div>
-        <div class="jek-feature">
-          <div><h3>Optics designer</h3><p>Lenses, mirrors and stops on one axis, designed together: the optimiser, tolerancing, ISO&nbsp;10110 drawings and a report. Each design is a .optic, used on any JEKray bench.</p><p class="rt-applinks"><a href="/jek/docs/jekray/lens-design/">About the Optics designer</a><a href="/jek/tools/jekray.html?optic">Open the Optics designer</a></p></div>
-          <figure class="jek-shot"><img src="jekray/img/lens-design.png" alt="A lens design in the Optics designer: its conditions, layout and element data" loading="lazy"></figure>
+        <div class="rt-approw sub">
+          <img src="jekray/img/lens-design.png" alt="A lens design in the Optics designer: its conditions, layout and element data" loading="lazy">
+          <div><h3>Optics designer</h3><p>JEKray&rsquo;s lens designer: lenses, mirrors and stops on one axis, optimised, toleranced and drawn to ISO&nbsp;10110. Each design is a .optic, used on any JEKray bench.</p><p class="rt-applinks"><a href="/jek/docs/jekray/lens-design/">About</a><a href="/jek/tools/jekray.html?optic">Open the Optics designer</a></p></div>
         </div>
-        <div class="jek-feature">
-          <div><h3>Coating designer</h3><p>Thin-film coatings for your band and angles, optimised and toleranced, then put on a JEKray face. Each coating is a .coat.</p><p class="rt-applinks"><a href="/jek/products/design-software/jekfilm/">About the Coating designer</a><a href="/jek/tools/jekfilm.html">Open the Coating designer</a></p></div>
-          <figure class="jek-shot"><img src="jekfilm/img/splitter.png" alt="A beam-splitter coating in the Coating designer: its reflectance against wavelength and angle" loading="lazy"></figure>
+        <div class="rt-approw sub">
+          <img src="jekfilm/img/splitter.png" alt="A beam-splitter coating in the Coating designer: its reflectance against wavelength and angle" loading="lazy">
+          <div><h3>Coating designer</h3><p>JEKray&rsquo;s thin-film designer: coatings for your band and angles, optimised and toleranced, then put on a JEKray face. Each coating is a .coat.</p><p class="rt-applinks"><a href="/jek/products/design-software/jekfilm/">About</a><a href="/jek/tools/jekfilm.html">Open the Coating designer</a></p></div>
         </div>
-      </div>
-      <h2 class="rt-grouphead">Mechanical design</h2>
-      <div class="rt-feats">
-        <div class="jek-feature">
+        <div class="rt-approw">
+          <img src="jekcad/img/plate.png" alt="A lens mount plate in JEKcad, with its feature list" loading="lazy">
           <div><h3><span class="jek-wm">JEK<b>cad</b></span></h3><p>Parametric CAD: sketch, dimension and build parts from a feature list. In development.</p><p class="rt-applinks"><a href="/jek/products/design-software/jekcad/">About JEKcad</a><a href="/jek/tools/jekcad.html">Launch JEKcad</a></p></div>
-          <figure class="jek-shot"><img src="jekcad/img/plate.png" alt="A lens mount plate in JEKcad, with its feature list" loading="lazy"></figure>
         </div>
-      </div>
-      <div class="rt-expgroup">
-      <h2 class="rt-grouphead">Experimental</h2>
-      <p class="rt-groupnote">Still being checked: shown here because you switched them on in JEKsuite&rsquo;s Experimental features.</p>
-      <div class="rt-feats">
-        <div class="jek-feature" data-exp="jekrf">
-          <div><h3><span class="jek-wm">JEK<b>rf</b></span></h3><p>RF and millimetre-wave quasi-optics: feed horns, RF lenses and mirrors on a bench of their own, and the RF designer, whose designs (.rfd) the benches use. Built on JEKray.</p><p class="rt-applinks"><a href="/jek/docs/jekray/rf/">About JEKrf</a><a href="/jek/tools/jekray.html?rf">Launch JEKrf</a></p></div>
-          <figure class="jek-shot"><img src="jekray/img/rf-24ghz-lens-antenna.png" alt="A 24 GHz lens antenna on a JEKrf bench: a feed horn and its lens" loading="lazy"></figure>
+        <div class="rt-expapps">
+          <p class="rt-expnote">Experimental, shown because you switched them on in JEKsuite&rsquo;s Experimental features: still being checked.</p>
+        <div class="rt-approw" data-exp="jekrf">
+          <img src="jekray/img/rf-24ghz-lens-antenna.png" alt="A 24 GHz lens antenna on a JEKrf bench: a feed horn and its lens" loading="lazy">
+          <div><h3><span class="jek-wm">JEK<b>rf</b></span></h3><p>RF and millimetre-wave quasi-optics on JEKray&rsquo;s code: feed horns, RF lenses and mirrors, and the RF designer, whose designs (.rfd) the benches use.</p><p class="rt-applinks"><a href="/jek/docs/jekray/rf/">About JEKrf</a><a href="/jek/tools/jekray.html?rf">Launch JEKrf</a></p></div>
         </div>
-        <div class="jek-feature" data-exp="jekion">
+        <div class="rt-approw" data-exp="jekion">
+          <img src="jekion/img/blade-3d.png" alt="A four-blade ion trap imported from CAD, in the 3D view" loading="lazy">
           <div><h3><span class="jek-wm">JEK<b>ion</b></span></h3><p>Charged-particle traps and beam optics: bring the electrodes in from CAD, solve the field and fly the ions.</p><p class="rt-applinks"><a href="/jek/products/design-software/jekion/">About JEKion</a><a href="/jek/tools/jekion.html">Launch JEKion</a></p></div>
-          <figure class="jek-shot"><img src="jekion/img/blade-3d.png" alt="A four-blade ion trap imported from CAD, in the 3D view" loading="lazy"></figure>
         </div>
-      </div>
-      </div>
+        </div>
       </div>
     </section>
 

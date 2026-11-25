@@ -14036,8 +14036,10 @@ const TESTS = [
         await quiet();
         J.set('Output 2', { faceMap: true }); await wait(1000); await quiet();
         const b0 = J.view3d.builds(), t0 = J.traceInfo().count, l0 = J.framesInfo().live; let busy = 0, frames = 0;
-        const tEnd = performance.now() + 4000;
-        while (performance.now() < tEnd) { await new Promise(r => W.requestAnimationFrame(r)); frames++; if (J.activity().bench) busy++; }
+        // (watched for 4 s and at least 40 frames: a busy CI runner can draw an out-of-sight frame only a few times in 4 s,
+        // too few steps to see each one's light taken again; 30 s at most)
+        const tEnd = performance.now() + 4000, tCap = performance.now() + 30000;
+        while ((performance.now() < tEnd || frames < 40) && performance.now() < tCap) { await new Promise(r => W.requestAnimationFrame(r)); frames++; if (J.activity().bench) busy++; }
         const b1 = J.view3d.builds(), res = { workers, also: Object.values(J.workersOk()).every(Boolean), frames, busy, traced: J.traceInfo().count - t0, live: J.framesInfo().live - l0, builds: b1.builds - b0.builds, built: b1.lightBuilt - b0.lightBuilt, reused: b1.lightReused - b0.lightReused, face: J.view3d.faceMaps(), playing: J.layers().playing };
         J.sweepPause();
         const ok = workers && res.also && res.playing === 2 && res.traced === 0 && res.live === 0 && res.busy === 0 && res.built === 0 && res.reused >= 4 && res.builds <= frames + 1 && (res.face || []).includes('Output 2');
@@ -14061,7 +14063,8 @@ const TESTS = [
       try {
         await J.sweepPlay('L', 'power');
         let D = null; const t0 = performance.now();
-        while (performance.now() - t0 < 1300) { await raf(); D = J.scope('D', 0, 'roll'); }
+        // (a little more than a cycle, and on a slow machine on until four steps are shown, 6 s at most)
+        while (performance.now() - t0 < 1300 || (D.rows.length < 4 && performance.now() - t0 < 6000)) { await raf(); D = J.scope('D', 0, 'roll'); }
         const rows = D.rows, ts = rows.map(r => r[0]), lv = rows.map(r => r[1]), sw = rows.map(r => r[2]);
         const rising = ts.every((t, i) => !i || t > ts[i - 1]), within = ts.every(t => t >= -1e-9 && t <= 1 + 1e-9);
         const res = { cols: D.cols, n: rows.length, rising, within, level: [Math.min(...lv), Math.max(...lv)], swing: [Math.min(...sw), Math.max(...sw)] };

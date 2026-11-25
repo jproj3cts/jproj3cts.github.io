@@ -1,5 +1,4 @@
 import { V } from '../../state/project.js';
-import { moreFold } from './lens.js';
 import { sagFn } from '../../core/geometry.js';
 import { elementSurfaces } from '../../core/stl.js';
 import { ELEC } from '../../engines/elec.js';
@@ -69,10 +68,11 @@ function drawMirrorPosed(el, sel) {
 function mirrorPanel(el) {
   // what arrives at its face: the rays, the diffracted field and a pulse, read as a screen reads them
   if (readoutTabs(el, [['params', 'Mirror'], ['rays', 'Rays'], ['plots', 'Diffraction'], ['pulse', 'Pulse']])) return;
-  panel.append(h('h3', null, el.retro ? 'Retroreflector' : el.film ? 'Film beam splitter' : el.metal ? 'Metal mirror' : 'Mirror'));
+  // (its sections are named by what they hold: a film beam splitter's alone by what it is)
+  if (el.film) panel.append(h('h3', null, 'Film beam splitter'));
   if (el.retro) {
-    panel.append(propTable(el, ['Corner cube', { name: 'Opening', path: 'length', unit: 'mm' }, { name: 'Each mirror reflects', path: 'reflect', unit: '%', dflt: 100 },
-      { name: 'Corner behind the opening', read: () => fmtPt(el.length / Math.SQRT2), unit: 'mm', title: 'Where the three mirrors meet: as deep as a cube corner is under the circle its faces just reach, the opening over \u221a2.' }]));
+    panel.append(h('h3', null, 'Corner cube'), propTable(el, [{ name: 'Opening', path: 'length', unit: 'mm' }, { name: 'Each mirror reflects', path: 'reflect', unit: '%', dflt: 100 },
+      { name: 'Corner depth', read: () => fmtPt(el.length / Math.SQRT2), unit: 'mm', title: 'Where the three mirrors meet: as deep as a cube corner is under the circle its faces just reach, the opening over \u221a2.' }]));
     panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A hollow corner cube: three flat mirrors square to one another, meeting at a corner ' + (+(el.length / Math.SQRT2).toPrecision(4)) + ' mm behind the middle of its round opening. Light reflects off all three and goes back the way it came, whatever its angle in or out of the bench plane, leaving from the point opposite across the middle. Light that meets only one or two of the mirrors before leaving goes elsewhere, as on a real one. What a mirror does not reflect is lost.'));
     return;
   }
@@ -88,8 +88,7 @@ function mirrorPanel(el) {
   }
   // its settings as a table: its surface, then its coating; the figures that follow from them among them
   const f0 = () => (el.R ? el.R / 2 : null), para = () => !!el.R && el.k === -1 && !!el.offset;
-  panel.append(propTable(el, [
-    'Surface',
+  panel.append(h('h3', null, 'Surface'), propTable(el, [
     { name: 'Width', path: 'length', unit: 'mm' },
     { name: 'Radius', path: 'R', unit: 'mm', dflt: null, opts: { blank: null, placeholder: 'plane' }, title: 'Its radius of curvature: positive is concave towards the reflecting face, negative convex. Blank for a plane mirror.' },
     { name: 'Conic', path: 'k', dflt: 0, opts: { blank: 0 }, title: '0 a sphere, −1 a paraboloid.' },
@@ -99,14 +98,16 @@ function mirrorPanel(el) {
     { name: 'Focal length', unit: 'mm', read: () => (f0() === null || para() ? null : fmtPt(f0())), title: 'Half its radius, for light near its axis.' },
     { name: 'Turns the beam', unit: '°', read: () => (para() ? fmtPt(2 * Math.atan(Math.abs(el.offset) / (2 * Math.abs(f0()))) * 180 / Math.PI) : null), title: 'An off-axis parabola: how far it turns a beam that comes in along its parent’s axis.' },
     { name: 'Focus from the mirror', unit: 'mm', read: () => (para() ? fmtPt(Math.abs(f0()) + el.offset * el.offset / (4 * Math.abs(f0()))) : null), title: 'An off-axis parabola’s reflected focal length: from the middle of the mirror to its focus.' },
-    el.metal ? null : 'Coating',
-    el.metal ? null : { name: 'Reflectance', path: 'reflect', unit: '%', dflt: 100 },
-    el.metal ? null : { name: 'Passes through', path: 'transmit', unit: '%', dflt: null, opts: { placeholder: 'the rest', blank: null }, title: 'What is neither reflected nor passed is absorbed. Blank: all that is not reflected passes.' },
-    el.metal ? null : { name: 'GDD a reflection', path: 'gdd', unit: 'fs²', dflt: 0, title: 'A chirped mirror: the group delay dispersion each reflection adds. Negative compresses a pulse.' },
   ]));
-  if (el.metal) panel.append(h('div', { class: 'rt-rows' }, selectField('Metal', Object.entries(RF_METALS).map(([k, v]) => [k, v.name]), () => el.metal, v => { el.metal = v; })));
+  if (!el.metal) panel.append(h('h3', null, 'Coating'), propTable(el, [
+    { name: 'Reflectance', path: 'reflect', unit: '%', dflt: 100 },
+    { name: 'Passes through', path: 'transmit', unit: '%', dflt: null, opts: { placeholder: 'the rest', blank: null }, title: 'What is neither reflected nor passed is absorbed. Blank: all that is not reflected passes.' },
+    { name: 'GDD a reflection', path: 'gdd', unit: 'fs²', dflt: 0, title: 'A chirped mirror: the group delay dispersion each reflection adds. Negative compresses a pulse.' },
+  ]));
+  if (el.metal) panel.append(h('h3', null, 'Metal'), h('div', { class: 'rt-rows' }, selectField('Metal', Object.entries(RF_METALS).map(([k, v]) => [k, v.name]), () => el.metal, v => { el.metal = v; })));
   // its aspheric and freeform terms: added and taken off here, each a row above once it is there
-  panel.append(moreFold(el.id + '|shape', 'Aspheric and freeform terms', !!((el.A && el.A.length) || (el.F && Object.keys(el.F).length)), h('div', { class: 'rt-rows' },
+  const termed = !!((el.A && el.A.length) || (el.F && Object.keys(el.F).length));
+  panel.append(h('h3', termed ? null : { 'data-shut': '' }, 'Aspheric and freeform terms'), h('div', { class: 'rt-rows' },
     h('div', { class: 'rt-inline wide' },
       (el.A || []).length < 7 ? h('button', { class: 'rt-link', type: 'button', onclick: () => { checkpoint(); el.A = (el.A || []).concat([0]); changed(true); } },
         (el.A || []).length ? 'Add A' + (4 + 2 * el.A.length) + ' term' : 'Add aspheric terms') : null,
@@ -114,7 +115,7 @@ function mirrorPanel(el) {
         checkpoint(); removeSweeps(el, 'A.' + (el.A.length - 1)); el.A.pop(); if (!el.A.length) delete el.A; changed(true);
       } }, 'Remove A' + (2 + 2 * el.A.length)) : null),
     ...ffRows(el, el, 'F', el.name || 'the mirror'),
-  )));
+  ));
   if (el.mmw && el.R) panel.append(readoutBox('mirror'));
   if (el.metal) panel.append(h('p', { class: 'note' }, 'Reflects ' + (100 * metalR(el.metal, ghz)).toPrecision(4) + ' % at ' + (+ghz.toPrecision(4)) + ' GHz: the loss is 4 Rs / Z0, Rs = \u221a(\u03c0 f \u03bc0 / \u03c3) the surface resistance of ' + RF_METALS[el.metal].name.toLowerCase() + '.'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'An off-axis offset slides the aperture that far along the parent curve, which is how off-axis parabolas work: set the parent radius, a conic of \u22121 and the offset. Leave the radius blank for a plane mirror. A positive radius is concave towards the reflecting face. At 100% the back of the mirror absorbs; below that it behaves as a thin partial reflector, and the transmitted part carries straight on. A GDD makes it a chirped (dispersive) mirror: each reflection adds that group-delay dispersion to a pulse, about the pulse\u2019s centre wavelength; negative compresses a pulse that glass has stretched.'));

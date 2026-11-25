@@ -520,7 +520,12 @@
   .rt-pt-row[hidden] { display: none; }
   .rt-pt-sec { grid-column: 1 / -1; padding: 0.5rem 0 0.2rem; font-size: 0.8125rem; font-weight: 700; color: var(--jek-ink); border-bottom: 1px solid var(--jek-line-2); }
   .rt-pt-sec:first-child { padding-top: 0.1rem; }
-  .rt-pt-name { font-size: 0.875rem; color: var(--jek-ink-soft); line-height: 1.2; padding: 0.15rem 0; }
+  .rt-panel .rt-pt .rt-pt-name { font-size: 0.875rem; font-weight: 400; color: var(--jek-ink-soft); line-height: 1.2; padding: 0.15rem 0; }
+  /* a row of text (the part's name): its value across the unit and sweep columns too */
+  .rt-panel .rt-pt-row.rt-pt-text > input { grid-column: 2 / -1; font-family: var(--jek-sans); }
+  /* the part's actions at the foot: what opens its design across the panel, what copies or removes it under it */
+  .rt-actions-wide { flex: 1 0 100%; display: flex; }
+  .rt-actions-wide > .rt-btn { flex: 1; }
   .rt-pt-unit { font-size: 0.8125rem; color: var(--jek-ink-soft); }
   .rt-panel .rt-pt-row > input { box-sizing: border-box; width: 100%; min-width: 0; height: 1.5rem; padding: 0 0.3rem; text-align: right; background: transparent; border: 1px solid transparent; border-radius: 2px; color: var(--jek-ink); font-family: var(--jek-mono); font-size: 0.875rem; font-weight: 600; }
   .rt-panel .rt-pt-row > input:hover { border-color: var(--jek-line-2); }

@@ -721,15 +721,19 @@ function renderPanelBody(el) {
   if (locked) panel.append(h('div', { class: 'rt-locknote' }, 'Locked as designed in ' + des.name + '. Open the padlock to edit here, or open its lens design.'));
   const asm = assumedBox(el);
   if (asm) panel.append(asm);
-  panel.append(h('div', { class: 'rt-rows' },
-    textField('Name', () => el.name, v => { el.name = v; title.firstChild.textContent = v; }, { wide: true })));
+  const nameF = textField('Name', () => el.name, v => { el.name = v; title.firstChild.textContent = v; }, { wide: true });
+  // (a part whose panel is a table: its name a row of one, plain until pointed at, as its settings are)
+  const asTable = !!(PART_UI[el.type] && PART_UI[el.type].table);
+  if (asTable) { nameF.className = 'rt-pt-row rt-pt-text'; nameF.querySelector('label').className = 'rt-pt-name'; panel.append(h('div', { class: 'rt-pt' }, nameF)); }
+  else panel.append(h('div', { class: 'rt-rows' }, nameF));
   // what it reads now, in one line (a detector's mW, a screen's spot, a lens's focal length), kept up to date
   const head = h('p', { class: 'rt-headline', 'aria-live': 'polite' });
   bindSync(head, () => { const t = hooks.partHeadline(el); head.textContent = t; head.hidden = !t; });
   panel.append(head);
   // a lens, mirror or window on its own: straight into lens design, right under its name
-  const dz = panel === mainPanel ? designOneRow(el) : null;
-  if (dz) panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;justify-content:flex-end;gap:0.35rem;margin:0.35rem 0 0.6rem' }, dz));
+  const dz = panel === mainPanel && !el.retro ? designOneRow(el) : null;   // (a corner cube is three mirrors, not a surface of a lens design)
+  // (in a table panel it goes with the part's other actions, at the foot)
+  if (dz && !asTable) panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;justify-content:flex-end;gap:0.35rem;margin:0.35rem 0 0.6rem' }, dz));
   panel.append(h('h3', null, 'Position'));
   const rows = h('div', { class: 'rt-rows' });
   // two rows of three: where it is (X, Y, and Z, its height above the breadboard, for a part with one), and how it is
@@ -737,9 +741,8 @@ function renderPanelBody(el) {
   const noSw = el.type === 'draw', hasZ = V3D.free(el) && !NET_3D.has(el.type), tips = tippable(el);
   const pc = [], ac = [];
   // (typed, what is mated to it goes with it)
-  const U0 = PART_UI[el.type];
   // (a part whose panel is a table, ui/parts: its position a table too)
-  if (U0 && U0.table) {
+  if (asTable) {
     const o = { noSweep: noSw, carry: true };
     rows.append(h('div', { class: 'rt-f wide', style: 'display:block' }, propTable(el, [
       { name: 'X', path: 'x', unit: 'mm', opts: o }, { name: 'Y', path: 'y', unit: 'mm', opts: o },
@@ -782,6 +785,7 @@ function renderPanelBody(el) {
 
   sectionise(panel, el.type);
   panel.append(h('div', { class: 'rt-actions' },
+    dz && asTable ? h('span', { class: 'rt-actions-wide' }, dz) : null,
     h('button', { class: 'rt-btn', 'data-keep': '', onclick: () => duplicate(el) }, 'Duplicate'),
     h('button', { class: 'rt-btn danger', onclick: () => removeEl(el) }, 'Delete'),
   ));

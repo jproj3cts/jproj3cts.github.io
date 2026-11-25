@@ -116,8 +116,13 @@ export function partIcon(key) {
   try {
     const el = makeElement(key, 0, 0);
     if (el) {
-      const r = Math.max(halfSize(el), el.type === 'fcomp' || el.type === 'elec' || el.type === 'pic' ? 9 : 0, el.type === 'source' ? 14 : 0, 4);
-      setCtx(c); setW(N); setH(N); setDPR(2); project.view = { cx: el.x, cy: el.y, scale: N * 0.4 / r };
+      let r = Math.max(halfSize(el), el.type === 'fcomp' || el.type === 'elec' || el.type === 'pic' ? 9 : 0, el.type === 'source' ? 14 : 0, 4), cx = el.x, cy = el.y;
+      // the symbol alone, not the part added: a curved mirror's curve is drawn deeper than a new one's really is (200 mm
+      // on a 25 mm mirror is all but flat at this size), so concave, convex and plane tell apart; and a corner cube is
+      // framed about its whole depth, not its opening
+      if (el.type === 'mirror' && el.R && !el.offset) el.R = Math.sign(el.R) * el.length * 0.8;
+      if (el.type === 'mirror' && el.retro) { const D = el.length / Math.SQRT2, a = el.angle * Math.PI / 180; cx -= D / 2 * Math.cos(a); cy -= D / 2 * Math.sin(a); r = Math.hypot(el.length / 2, D / 2); }
+      setCtx(c); setW(N); setH(N); setDPR(2); project.view = { cx, cy, scale: N * 0.4 / r };
       asOnBench(() => draw(el));
       url = cv.toDataURL();
     }

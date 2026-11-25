@@ -784,9 +784,9 @@ function renderPanelBody(el) {
   }
 
   sectionise(panel, el.type);
-  // (a table panel's: the three alike, a third of the row each; the design's button keeps its words for a screen
+  // (a table panel's: the three the same size, a third of the row each; the design's button keeps its words for a screen
   // reader and its tooltip, and shows the short of them)
-  if (dz && asTable) { dz.classList.remove('primary'); dz.dataset.short = /^Open/.test(dz.textContent) ? 'Open design\u2026' : 'Design\u2026'; }
+  if (dz && asTable) { dz.dataset.short = /^Open/.test(dz.textContent) ? 'Open design\u2026' : 'Design\u2026'; }
   panel.append(h('div', { class: 'rt-actions' + (asTable ? ' rt-actions-even' : '') },
     dz && asTable ? dz : null,
     h('button', { class: 'rt-btn', 'data-keep': '', onclick: () => duplicate(el) }, 'Duplicate'),

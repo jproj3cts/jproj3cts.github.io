@@ -329,7 +329,6 @@ function holdScale(el, which, v) {
   return st.hold[which];
 }
 export function diffractionSection(el) {
-  panel.append(h('h3', null, 'Diffraction'));
   // (its views chosen as a readout tab's views are: a row of tabs, the one shown marked)
   const tabs = h('div', { class: 'rt-views' });
   const cv = h('canvas', { style: 'width:100%;display:block' });

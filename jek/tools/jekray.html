@@ -32946,12 +32946,18 @@ function pulseSection(el) {
     const rows = [];
     if (!R) rows.push(['', 'No pulsed source reaches it. Give a source (or a fibre laser) a pulse duration.']);
     else {
-      rows.push(['Duration (FWHM)', R.dur ? fmtFs(R.dur) + (R.tl ? ', ' + (+(R.dur / R.tl).toPrecision(3)) + '× its transform limit (' + fmtFs(R.tl) + ')' : '') : 'more than one pulse: see below']);
-      rows.push(['Peak power', fmtW(R.peak) + (R.parts.length === 1 ? ', ' + fmtJ(R.parts[0].energy) + ' a pulse' : '')]);
+      // a figure a row: the duration and how it stands against its limit, the peak and a pulse's energy, then each pulse's
+      // delay and dispersion
+      const many = R.branches.length > 1;
+      rows.push(['Duration (FWHM)', R.dur ? fmtFs(R.dur) : 'more than one pulse: see below']);
+      if (R.dur && R.tl) rows.push(['Transform limit', fmtFs(R.tl) + ' (' + (+(R.dur / R.tl).toPrecision(3)) + '\u00d7 it)']);
+      rows.push(['Peak power', fmtW(R.peak)]);
+      if (R.parts.length === 1) rows.push(['Energy a pulse', fmtJ(R.parts[0].energy)]);
       for (const b of R.branches) {
-        rows.push(['Pulse ' + b.n + (R.branches.length > 1 ? ' (' + (+(100 * b.share).toPrecision(3)) + '%)' : ''),
-          (R.branches.length > 1 ? 'arrives ' + fmtFs(b.arrive) + ' after the first; ' : 'after ' + fmtFs(b.GD) + '; ') +
-          'GDD ' + fmtFs2(b.GDD) + ', TOD ' + fmtFs3(b.TOD) + (b.shown ? '' : ' (not in the plot: too far off)')]);
+        const who = many ? 'Pulse ' + b.n + ' ' : '';
+        rows.push(many ? ['Pulse ' + b.n + ' (' + (+(100 * b.share).toPrecision(3)) + '%)', fmtFs(b.arrive) + ' after the first'] : ['Delay', fmtFs(b.GD)]);
+        rows.push([who + 'GDD', fmtFs2(b.GDD)], [who + 'TOD', fmtFs3(b.TOD)]);
+        if (!b.shown) rows.push(['', (many ? 'Pulse ' + b.n : 'It') + ' is not in the plot: too far off.']);
         const sig3 = (v, eps) => Math.abs(v) < eps ? '0' : String(+v.toPrecision(3));
         if (Math.abs(b.chirpY) > 1e-4 || b.pft > 0.01) rows.push(['', 'spatial chirp ' + sig3(1000 * b.chirpY, 0.05) + ' µm/nm, angular dispersion ' + sig3(1e6 * b.angD, 0.005) + ' µrad/nm, pulse-front tilt ' + sig3(b.pft, 0.005) + '°']);
       }
@@ -39519,7 +39525,6 @@ function holdScale(el, which, v) {
   return st.hold[which];
 }
 function diffractionSection(el) {
-  panel.append(h('h3', null, 'Diffraction'));
   // (its views chosen as a readout tab's views are: a row of tabs, the one shown marked)
   const tabs = h('div', { class: 'rt-views' });
   const cv = h('canvas', { style: 'width:100%;display:block' });

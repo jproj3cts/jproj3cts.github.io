@@ -5,7 +5,7 @@ permalink: /jek/docs/jekray/free-space/lamp/
 description: The JEKray lamp, a point that shines all round, its rays evenly spaced, for lighthouses, bulbs and anything lit from one point in every direction.
 ---
 
-<p class="dx-lead">A lamp shines every way: a lighthouse's lamp, a bulb, a candle. Its rays leave in every direction, up and down as well as round, evenly spaced, and lenses, mirrors and detectors take what reaches them. For a quick 2D bench, the <strong>Circular lamp</strong> is a point shining round the bench plane only.</p>
+<p class="dx-lead">A lamp shines every way: a lighthouse's lamp, a bulb, a candle. Its rays leave in every direction, up and down as well as round, evenly spaced, and lenses, mirrors and detectors take what reaches them. For a quick 2D bench, set its <strong>Shines</strong> to round the bench plane only.</p>
 
 ## The model
 
@@ -17,9 +17,9 @@ Its **body takes the light that comes back to it**: a mirror behind a bulb sends
 
 **Up and down to** (°) is how far above and below the bench plane its light goes: 90° (the default) is every way, a whole sphere of directions; less is a band about the plane, as a lighthouse's lamp needs only the light its lenses take. The rays are spread over the band in rings of latitude, each ring given rays in proportion to its share of the sphere (its cosine), every other ring turned half a step, so they pack as a honeycomb and a lens catches an even, round patch of them; **Rings each way** is worked out from the rays to space them about as far apart up as round, unless you set it. The total stays the rays you set, and so does the power. The 3D view shows the light's height: a lighthouse's beams as beams, not a sheet.
 
-## The Circular lamp
+## Round the bench plane only
 
-**Add part › Circular lamp** is a point shining round the bench plane only, its rays $$360°/N$$ apart, the first along its direction: the plain fan of a 2D bench, traced quickly. It has a wavelength (and more, for white light), a power and its rays round it. A point lamp saved before lamps shone every way (no size, no light up and down) opens as one, so it traces as it did. In a file it is `{"type": "lamp2d"}`.
+Set a lamp's **Shines** to **Round the bench plane only** and it is a point shining round the bench plane only, its rays $$360°/N$$ apart, the first along its direction: the plain fan of a 2D bench, traced quickly. It has a wavelength (and more, for white light), a power and its rays round it. A point lamp saved before lamps shone every way (no size, no light up and down) opens as one, so it traces as it did. In a file it is `{"type": "lamp2d"}`. Setting Shines back to **Every way** gives it a new lamp's size and rays.
 
 Its **power** is shared by all its rays, so a detector reads the share of the light that reaches it: a lens 70 mm across, 87.5 mm off, takes about 12 % (44° of 360). More points draw a fuller glow and catch finer detail; a lighthouse's lenses want 200 or so. It is one wavelength, or several (**More wavelengths**, for white light), each firing the same rays. The light is unpolarised, each ray carried as two halves. The panel says how many rays it sends in all.
 

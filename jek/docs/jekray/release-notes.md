@@ -12,7 +12,7 @@ description: "Every change to JEKray, version by version, the newest first."
 {% raw %}
 ## Version 1.1
 
-<p class="note">12 October 2026, 286 changes</p>
+<p class="note">12 October 2026, 287 changes</p>
 
 <h3>The few that matter most</h3>
 
@@ -30,6 +30,7 @@ description: "Every change to JEKray, version by version, the newest first."
 <h3>Every change</h3>
 
 <ul>
+<li>The parts list, tidier: the <b>Lamp</b> and the Circular lamp are one part, a lamp whose <b>Shines</b> setting is every way (3D) or round the bench plane only (2D, fast); the AOM, the EOM and the optical chopper have a group of their own, <b>Modulators</b>; and the fibre tip and collimator are listed under <b>Tabs</b>, with the link plane.</li>
 <li>JEKfilm is now JEKray’s <b>Coating designer</b>, listed under JEKray beside the Optics designer. Its coatings save as <b>.coat</b> files, and a .jekfilm saved before still opens. Faces offer designed coatings as before, marked (Coating designer).</li>
 <li><b>JEKrf</b>, for RF and millimetre waves, is an app of its own, built on JEKray: its benches are <b>.jekrf</b> files with the RF and circuits parts, and its <b>RF designer</b> opens in its own tab, each design a <b>.rfd</b> used on JEKrf’s benches as the Optics designer’s are on JEKray’s. JEKray no longer offers the RF parts or the RF designer; a bench with RF parts still opens here. JEKrf is experimental while it is checked.</li>
 <li><b>Experimental features</b> are switched on and off in one place for every app: <b>Experimental features…</b> in JEKsuite’s account menu (Help › Experimental features in JEKray opens it). The apps not yet validated, JEKrf and JEKion, are among them, and JEKsuite and the site list them only while they are on.</li>

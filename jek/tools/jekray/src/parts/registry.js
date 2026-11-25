@@ -47,12 +47,13 @@ export const PART_ORDER = ['source', 'mirror', 'lens', 'screen', 'stop', 'cube',
 export const TYPE_LABEL = Object.fromEntries(PART_ORDER.map(t => [t, PARTS[t].label]));
 /* the free-space palette: its parts in the picker's order, and the rail's groups */
 export const FREE_PARTS = [SOURCE, MIRROR, LENS, CUBE, PRISM, WAVEPLATE, POLARISER, STOP, MASK, SCREEN, GRATING, CRYSTAL, FILTER, FARADAY, ISOLATOR, GAIN, CELL, NLC_PART, PARTICLE, FIBRE, DETECTOR, SPECTROMETER, CHOPPER, AOM, EOM, LINK];
-export const FREE_GROUPS = [['Sources and detectors', ['source', 'lamp', 'lamp2d', 'detector', 'spectrometer', 'screen', 'phosphor']],
+export const FREE_GROUPS = [['Sources and detectors', ['source', 'lamp', 'detector', 'spectrometer', 'screen', 'phosphor']],
   ['Mirrors', ['mirror']],
   ['Lenses', ['lens', 'asphere', 'diffractive', 'grinrod', 'cylinder', 'axicon']],
   ['Splitting and polarisation', ['cube', 'waveplate', 'polariser', 'crystal', 'faraday', 'isolator']],
   ['Shaping and filtering', ['stop', 'mask', 'filter', 'grating', 'prism']],
-  ['Active and atomic', ['gain', 'cell', 'nlc', 'particle', 'aom', 'eom', 'chopper']],
+  ['Active and atomic', ['gain', 'cell', 'nlc', 'particle']],
+  ['Modulators', ['aom', 'eom', 'chopper']],
   ['Tabs', ['link', 'fibre', 'collimator']]];
 /* Every palette the same way: its parts (each with its picker entries) and its groups, the parts' own. The free-space
    one is many parts, the others one each (the fibre components, the circuit blocks, the RF family, the photonic parts). */

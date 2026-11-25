@@ -61,16 +61,25 @@ function wlPair(el) {
   });
   return [txt, pre];
 }
+/* which way a lamp shines: every way (a bulb with a shape and size) or round the bench plane only (a point, quick); the
+   change gives it the other's own rays and size, as a new one has */
+function lampShines(el) {
+  return selectField('Shines', [['3d', 'Every way (3D)'], ['2d', 'Round the bench plane only (2D, fast)']], () => (el.lampFlat ? '2d' : '3d'), v => {
+    if (v === '2d') Object.assign(el, { lampFlat: true, lampD: 0, elev: 0, lampShape: 'sphere', rays: 180 });
+    else Object.assign(el, { lampFlat: false, lampD: 1, elev: 90, lampShape: 'sphere', rays: 500, rings: 0 });
+    renderPanel();
+  }, { wide: true });
+}
 function flatLampPanel(el) {
-  panel.append(h('h3', null, 'Circular lamp'));
+  panel.append(h('h3', null, 'Lamp'), lampShines(el));
   panel.append(grid2(param('Wavelength (nm)', el, 'wavelength'), param('Power (mW)', el, 'power')),
     grid2(param('Rays round it', el, 'rays'), h('span')), grid2(wlPair(el)));
-  panel.append(helpLine('A point shining round the bench plane only: quick, for 2D benches.', ['A point whose rays leave round the bench plane only, 360° over their number apart, the first along its direction: the plain fan of a 2D bench, traced quickly. For light every way, from a lamp with a shape and size, use the Lamp. Its power is shared by its rays, so a detector reads the share that reaches it.'], 'note', 'margin-top:0.2rem'));
+  panel.append(helpLine('A point shining round the bench plane only: quick, for 2D benches.', ['A point whose rays leave round the bench plane only, 360° over their number apart, the first along its direction: the plain fan of a 2D bench, traced quickly. For light every way, from a lamp with a shape and size, set Shines to every way. Its power is shared by its rays, so a detector reads the share that reaches it.'], 'note', 'margin-top:0.2rem'));
 }
 function lampPanel(el) {
   if (el.lampFlat) return flatLampPanel(el);
   // its shape and size
-  panel.append(h('h3', null, 'Lamp'));
+  panel.append(h('h3', null, 'Lamp'), lampShines(el));
   panel.append(grid2(selectField('Shape', [['sphere', 'Sphere'], ['cylinder', 'Cylinder']], () => el.lampShape, v => { el.lampShape = v; if (v === 'cylinder' && !isFinite(el.lampTip)) el.lampTip = 90; renderPanel(); }),
     param('Diameter (mm)', el, 'lampD', { placeholder: '0: a point' })));
   if (el.lampShape === 'cylinder') panel.append(grid2(param('Length (mm)', el, 'lampL'), param('Axis tipped up (°)', el, 'lampTip', { placeholder: '90: standing' })));

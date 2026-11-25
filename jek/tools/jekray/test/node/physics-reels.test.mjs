@@ -60,7 +60,7 @@ test('a Lamp and a Circular lamp are parts of their own: written as their types 
   run([f]); assert.equal(byName('Bulb').lampFlat, false, 'and opens again as one');
   // a Circular lamp: a point, flat in the plane
   run([{ type: 'lamp2d', id: 'C', name: 'Ring', x: 0, y: 0, wavelength: 580, rays: 12, pol: 's' }]);
-  assert.equal(byName('Ring').lampFlat, true); assert.equal(STATE.typeLabel(byName('Ring')), 'Circular lamp');
+  assert.equal(byName('Ring').lampFlat, true); assert.equal(STATE.typeLabel(byName('Ring')), 'Lamp');
   assert.ok(TRACE.lastTrace.rays.every(r => !r.zs || r.zs.every(z => z === 75)), 'in the plane');
   // a point lamp saved before lamps shone in 3D (no size, no light up): a Circular lamp, as it traced
   run([{ type: 'source', id: 'O', name: 'Old', lamp: true, x: 0, y: 0, wavelength: 580, rays: 12, divergence: 360, width: 0 }]);

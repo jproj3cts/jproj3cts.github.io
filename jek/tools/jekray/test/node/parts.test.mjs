@@ -59,8 +59,15 @@ test('every palette is built the same way: its rows the parts’ own picker entr
     for (const k of keys) assert.ok(makeElement(k, 0, 0), pal + ' ' + k + ' makes a part');
   }
   // the counts as they stand, and the photonic parts an experimental feature
-  assert.deepEqual(Object.fromEntries(Object.keys(PALETTE_PARTS).map(p => [p, PALETTES[p].length])), { free: 35, fibre: 32, elec: 19, rf: 12, pic: 8 });
+  assert.deepEqual(Object.fromEntries(Object.keys(PALETTE_PARTS).map(p => [p, PALETTES[p].length])), { free: 34, fibre: 32, elec: 19, rf: 12, pic: 8 });
   assert.ok(PALETTES.pic.every(r => r[3] === 'pic') && PALETTES.elec.every(r => !r[3]));
+  // one Lamp entry (the flat one is its Shines setting; its old key still makes one), the modulators a group of their
+  // own, and the fibre tip and collimator with the link plane
+  const freeKeys = PALETTES.free.map(r => r[0]), groupOf = k => PALETTE_GROUPS.free.find(([, ks]) => ks.includes(k))[0];
+  assert.ok(freeKeys.includes('lamp') && !freeKeys.includes('lamp2d'));
+  assert.equal(makeElement('lamp2d', 0, 0).lampFlat, true);
+  assert.deepEqual(['aom', 'eom', 'chopper'].map(groupOf), ['Modulators', 'Modulators', 'Modulators']);
+  assert.deepEqual(['link', 'fibre', 'collimator'].map(groupOf), ['Tabs', 'Tabs', 'Tabs']);
   assert.ok(PALETTE_GROUPS.elec.some(([, ks]) => ks.includes('elec:thru')), 'the electrical feedthrough is in a group');
 });
 test('an unknown type normalises to nothing, a known one to its defaults', () => {

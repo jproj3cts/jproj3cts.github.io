@@ -1587,6 +1587,23 @@ const TESTS = [
     },
   },
   {
+    name: 'A lamp is one part: its Shines setting makes it shine every way or round the bench plane only',
+    why: 'the Lamp and the Circular lamp were two entries in the parts list for one part. Now the free-space list has one Lamp entry and no Circular lamp, and a lamp’s panel has a Shines list. Set to round the bench plane only, the lamp is flat (a point, no light up and down, 180 rays); set back to every way it is a new lamp’s (1 mm across, 90° up and down, 500 rays), and the list shows each. 1 when all of that holds.',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const doc = rigDoc();
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lamp', id: 'L', name: 'Bulb', x: 0, y: 0 }] });
+      J.select('Bulb');
+      const sel = () => { const f = [...doc.querySelectorAll('#panel .rt-f')].find(x => x.querySelector('label') && x.querySelector('label').textContent === 'Shines'); return f && f.querySelector('select'); };
+      const set = v => { const s = sel(); s.value = v; s.dispatchEvent(new Event('change', { bubbles: true })); };
+      if (!sel() || sel().value !== '3d') return 0;
+      set('2d'); const a = J.byName('Bulb'), flat = a.lampFlat === true && a.lampD === 0 && a.elev === 0 && a.rays === 180 && sel().value === '2d';
+      set('3d'); const b = J.byName('Bulb'), round = b.lampFlat === false && b.lampD === 1 && b.elev === 90 && b.rays === 500 && sel().value === '3d';
+      if (!(flat && round)) console.log('lamp shines', JSON.stringify({ flat, round, a: [a.lampFlat, a.lampD, a.elev, a.rays], b: [b.lampFlat, b.lampD, b.elev, b.rays] }));
+      return flat && round ? 1 : 0;
+    },
+  },
+  {
     name: 'A lighthouse: a lamp all round, Fresnel panels on a ring spun about it, a ship that sees the flashes',
     why: 'a 360° lamp grouped with four Fresnel lenses (rings 4 mm) 87.5 mm round it, the lamp the group’s pivot: the ship 400 mm off reads light with a panel facing it (spin 0° and 90°) and none half way (45°); the ring’s parts turned to match; ray width and glow kept in the bench; the group’s panel offers Turn the group and a mirror’s Passes through (1 when all hold)',
     want: 1, tol: 0, unit: '',

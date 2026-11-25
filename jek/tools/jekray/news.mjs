@@ -7,6 +7,7 @@
 export const NEWS_RECENT = 20;
 export const NEWS_ALL = [
   ['1.1', '12 October 2026', [
+    'The parts list, tidier: the <b>Lamp</b> and the Circular lamp are one part, a lamp whose <b>Shines</b> setting is every way (3D) or round the bench plane only (2D, fast); the AOM, the EOM and the optical chopper have a group of their own, <b>Modulators</b>; and the fibre tip and collimator are listed under <b>Tabs</b>, with the link plane.',
     'JEKfilm is now JEKray\u2019s <b>Coating designer</b>, listed under JEKray beside the Optics designer. Its coatings save as <b>.coat</b> files, and a .jekfilm saved before still opens. Faces offer designed coatings as before, marked (Coating designer).',
     '<b>JEKrf</b>, for RF and millimetre waves, is an app of its own, built on JEKray: its benches are <b>.jekrf</b> files with the RF and circuits parts, and its <b>RF designer</b> opens in its own tab, each design a <b>.rfd</b> used on JEKrf\u2019s benches as the Optics designer\u2019s are on JEKray\u2019s. JEKray no longer offers the RF parts or the RF designer; a bench with RF parts still opens here. JEKrf is experimental while it is checked.',
     '<b>Experimental features</b> are switched on and off in one place for every app: <b>Experimental features\u2026</b> in JEKsuite\u2019s account menu (Help \u203a Experimental features in JEKray opens it). The apps not yet validated, JEKrf and JEKion, are among them, and JEKsuite and the site list them only while they are on.',

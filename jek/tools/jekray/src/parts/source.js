@@ -7,13 +7,13 @@ import { RAY_PATTERNS } from '../engines/trace.js';
 /* Source: A light source: a fan of rays and a Gaussian beam (or even illumination across the fan) whose diffracted field can be shown. */
 export const SOURCE = {
   type: 'source', label: 'Source',
-  picker: [{ key: 'source', short: 'Source' }, { key: 'lamp', short: 'Lamp', long: 'Lamp (shines every way, in 3D)' }, { key: 'lamp2d', short: 'Circular lamp', long: 'Circular lamp (2D: in the bench plane only, fast)' }],
+  picker: [{ key: 'source', short: 'Source' }, { key: 'lamp', short: 'Lamp', long: 'Lamp (shines every way, or round the bench plane only)' }],
   keys: ['source', 'lamp', 'lamp2d'],
   // a new source's rays in hexapolar rings across its beam (a file saved without a pattern is still a line);
   // a lamp: shining every way, as a bulb or a lighthouse's (its own part on the page; traced as a source); a circular lamp
   // a point shining round the bench plane only, the quick flat fan of a 2D bench
   make: (x, y, kind) => kind === 'lamp' ? { type: 'source', lamp: true, name: nextName('Lamp'), x, y, wavelength: 580, width: 0, divergence: 360, rays: 500, lampD: 1, lampShape: 'sphere', elev: 90, rings: 0 }
-    : kind === 'lamp2d' ? { type: 'source', lamp: true, lampFlat: true, name: nextName('Circular lamp'), x, y, wavelength: 580, width: 0, divergence: 360, rays: 180 }
+    : kind === 'lamp2d' ? { type: 'source', lamp: true, lampFlat: true, name: nextName('Lamp'), x, y, wavelength: 580, width: 0, divergence: 360, rays: 180 }
     : { type: 'source', name: nextName('Source'), x, y, wavelength: 633, width: 4, divergence: 0, rays: 11, pattern: 'hex', gauss: true, w0: 2, z0: 0 },
   norm(e, base) {
     const wl = e.mmw ? num(e.wavelength, 633) : Math.min(1e6, Math.max(100, num(e.wavelength, 633)));

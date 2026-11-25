@@ -381,6 +381,11 @@ with $$\theta_\parallel$$ the beam's angle to the face's normal across and $$\th
   <li><a class="free" href="/jek/docs/jekray/free-space/gain/"><b>Gain medium</b><small>A saturable gain sheet that makes a cavity lase.</small></a></li>
   <li><a class="free" href="/jek/docs/jekray/free-space/cell/"><b>Vapour cell</b><small>Rb, Cs or K: absorption, saturation, Zeeman.</small></a></li>
   <li><a class="free" href="/jek/docs/jekray/free-space/nlc/"><b>Nonlinear crystal</b><small>Second-harmonic generation in PPLN or PPKTP.</small></a></li>
+</ul>
+
+### Modulators
+
+<ul class="dx-cards">
   <li><a class="free" href="/jek/docs/jekray/free-space/aom/"><b>AOM</b><small>A Bragg cell: deflection and a frequency shift.</small></a></li>
   <li><a class="free" href="/jek/docs/jekray/free-space/eom/"><b>EOM</b><small>Phase sidebands, or amplitude modulation.</small></a></li>
   <li><a class="free" href="/jek/docs/jekray/free-space/chopper/"><b>Optical chopper</b><small>A slotted wheel, with a reference for a lock-in.</small></a></li>

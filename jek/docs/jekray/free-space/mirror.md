@@ -83,8 +83,7 @@ The Mirrors group lists the plain mirror and the kinds most often wanted. Each i
 |---|---|
 | Mirror | flat, fully reflecting, at 45° to fold a beam |
 | Spherical mirror | $$R = 200$$ mm, concave, facing the beam: $$f = 100$$ mm. A negative radius makes it convex |
-| Parabolic mirror | $$R = 200$$ mm, conic $$-1$$: no spherical aberration for a beam along its axis |
-| Off-axis parabola | the 90° one: $$R = 50.8$$ mm, conic $$-1$$, offset $$50.8$$ mm, which turns a beam along its axis through a right angle to a focus $$50.8$$ mm away |
+| Parabolic mirror | $$R = 200$$ mm, conic $$-1$$: no spherical aberration for a beam along its axis. With an **Off-axis offset** it is an off-axis parabola: $$R = 50.8$$ mm and an offset of $$50.8$$ mm turn a beam along the axis through a right angle to a focus $$50.8$$ mm away |
 | Chirped mirror | flat, $$-50$$ fs² a reflection |
 | Steering mirror | flat, steered by signals, 1° per volt |
 | Retroreflector | a hollow corner cube with a 25.4 mm opening, facing the beam |

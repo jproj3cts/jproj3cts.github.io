@@ -59,7 +59,7 @@ test('every palette is built the same way: its rows the parts’ own picker entr
     for (const k of keys) assert.ok(makeElement(k, 0, 0), pal + ' ' + k + ' makes a part');
   }
   // the counts as they stand, and the photonic parts an experimental feature
-  assert.deepEqual(Object.fromEntries(Object.keys(PALETTE_PARTS).map(p => [p, PALETTES[p].length])), { free: 41, fibre: 32, elec: 19, rf: 12, pic: 8 });
+  assert.deepEqual(Object.fromEntries(Object.keys(PALETTE_PARTS).map(p => [p, PALETTES[p].length])), { free: 40, fibre: 32, elec: 19, rf: 12, pic: 8 });
   assert.ok(PALETTES.pic.every(r => r[3] === 'pic') && PALETTES.elec.every(r => !r[3]));
   // one Lamp entry (the flat one is its Shines setting; its old key still makes one), the modulators a group of their
   // own, and the fibre tip and collimator with the link plane

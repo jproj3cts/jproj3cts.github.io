@@ -26,19 +26,18 @@ const legs = (T, min = 0.01) => T.rays.filter(r => r.w > min && r.pts.length >= 
 const atX = (L, X) => L.y + L.dy / L.dx * (X - L.x), atY = (L, Y) => L.x + L.dx / L.dy * (Y - L.y);
 
 test('each kind is a mirror (or a filter, a prism) of its own settings, named for what it is', () => {
-  const made = Object.fromEntries(['mirror', 'spherical', 'parabolic', 'oap', 'chirped', 'steering', 'dichroic', 'retro'].map(k => [k, makeElement(k, 0, 0)]));
-  for (const k of ['mirror', 'spherical', 'parabolic', 'oap', 'chirped', 'steering', 'retro']) assert.equal(made[k].type, 'mirror', k);
+  const made = Object.fromEntries(['mirror', 'spherical', 'parabolic', 'chirped', 'steering', 'dichroic', 'retro'].map(k => [k, makeElement(k, 0, 0)]));
+  for (const k of ['mirror', 'spherical', 'parabolic', 'chirped', 'steering', 'retro']) assert.equal(made[k].type, 'mirror', k);
   assert.equal(made.mirror.R, null); assert.equal(made.mirror.reflect, 100); assert.equal(made.mirror.steer, undefined);
   assert.ok(made.spherical.R > 0 && made.spherical.k === 0);
-  for (const gone of ['concave', 'convex', 'partial']) assert.equal(makeElement(gone, 0, 0), undefined, gone + ' is no entry of its own');
+  for (const gone of ['concave', 'convex', 'partial', 'oap']) assert.equal(makeElement(gone, 0, 0), undefined, gone + ' is no entry of its own');
   assert.ok(made.parabolic.k === -1 && made.parabolic.offset === 0);
-  assert.ok(made.oap.k === -1 && made.oap.offset === made.oap.R, 'the 90° one: cut 2f off the axis, R = 2f');
   assert.ok(made.chirped.gdd < 0);
   assert.ok(made.steering.steer === true && made.steering.steerK === 1);
   assert.ok(made.dichroic.type === 'filter' && made.dichroic.reflect === true);
   assert.ok(made.retro.retro === true && made.retro.R === null && ST.typeLabel(made.retro) === 'Retroreflector');
   assert.equal(made.mirror.retro, undefined);
-  assert.deepEqual(Object.values(made).map(e => e.name), ['Mirror 1', 'Spherical mirror 1', 'Parabolic mirror 1', 'Off-axis parabola 1', 'Chirped mirror 1', 'Steering mirror 1', 'Dichroic mirror 1', 'Retroreflector 1']);
+  assert.deepEqual(Object.values(made).map(e => e.name), ['Mirror 1', 'Spherical mirror 1', 'Parabolic mirror 1', 'Chirped mirror 1', 'Steering mirror 1', 'Dichroic mirror 1', 'Retroreflector 1']);
 });
 
 test('a spherical mirror focuses at R/2, and with a negative radius spreads from R/2 behind it; a parabola focuses every ray at one point', () => {
@@ -53,8 +52,8 @@ test('a spherical mirror focuses at R/2, and with a negative radius spreads from
   for (const x of pb) assert.ok(Math.abs(x) < 1e-6, 'a parabola has none: ' + x);
 });
 
-test('an off-axis parabola turns a beam along its axis through a right angle to a focus 2f away', () => {
-  const L = legs(load([src(), kind('oap')])).filter(l => l.n >= 6 || Math.abs(l.dy) > 0.5);
+test('a parabolic mirror with an offset of its radius (an off-axis parabola) turns a beam along its axis through a right angle to a focus 2f away', () => {
+  const L = legs(load([src(), kind('parabolic', { R: 50.8, offset: 50.8 })])).filter(l => l.n >= 6 || Math.abs(l.dy) > 0.5);
   assert.equal(L.length, 5);
   const mid = L.find(l => Math.abs(l.dx) < 1e-9);
   assert.ok(mid && Math.abs(mid.x - 100) < 1e-6 && mid.dy > 0, 'the middle ray leaves square to the way it came');

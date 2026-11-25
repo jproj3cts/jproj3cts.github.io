@@ -52,4 +52,4 @@ The button at the top right signs you in (Google, Microsoft, or an email address
 
 Apps and features still being built and checked are switched on in one place for every app: **Experimental features…** in JEKsuite's account menu (JEKray's **Help › Experimental features (in JEKsuite)…** opens it). They need a signed-in account; a free one is enough. The switch turns them all on or off together, and each has its own tick. The setting is kept in this browser and every open app follows it as it changes.
 
-The apps not yet validated, JEKrf and JEKion for now, are among them: JEKsuite lists them, and the site links to them, only while they are switched on. Their benches stay in your folders either way.
+The apps not yet validated, JEKrf and JEKion for now, are among them: JEKsuite lists them only while they are switched on; the site does not list them until they are ready. Their benches stay in your folders either way.

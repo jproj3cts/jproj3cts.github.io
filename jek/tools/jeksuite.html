@@ -10,7 +10,7 @@
 <script>if (location.hostname === 'www.jeksys.net') location.replace('https://jeksys.net' + location.pathname + location.search + location.hash);</script>
 <script>try { var t = localStorage.getItem('jekray-theme'); if (t === 'light' || (t === 'system' && !matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.dataset.rtTheme = 'light'; } catch (e) {}</script>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261125">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261126">
 <style>
   /* Ray tracer: page-specific styles. Site tokens come from jek.css. */
   :root {
@@ -2376,14 +2376,14 @@ function mkCanvas(w, h) {
 /* ==========================================================================
    The experimental features, as every app reads them
    New features start here, off until someone switches them on, then move to beta (a Beta badge on their examples),
-   then into the tool proper. Apps not yet validated are here too (app: true): JEKsuite shows them, and the site its
-   links to them, only to someone who has switched them on. The switch and each feature's tick are kept in this
+   then into the tool proper. Apps not yet validated are here too (app: true): JEKsuite shows them only to someone who has
+   switched them on, and the site not at all until they are ready. The switch and each feature's tick are kept in this
    browser (one store for every app on the site) and set in one place, JEKsuite's account menu; each app follows
    them, as they change, from the store (ui/experimental.js in JEKray, the storage event).
    ========================================================================== */
 const EXPERIMENTAL = [
-  { key: 'jekrf', app: true, name: 'JEKrf', what: 'RF and millimetre-wave quasi-optics: feed horns, RF lenses and mirrors on a bench of their own (.jekrf), and the RF designer, whose designs (.rfd) the benches use. Not yet fully validated, so treat its numbers as a guide. Shown in JEKsuite and on the site while this is ticked.' },
-  { key: 'jekion', app: true, name: 'JEKion', what: 'charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live. Not yet fully validated, so treat its numbers as a guide. Shown in JEKsuite and on the site while this is ticked.' },
+  { key: 'jekrf', app: true, name: 'JEKrf', what: 'RF and millimetre-wave quasi-optics: feed horns, RF lenses and mirrors on a bench of their own (.jekrf), and the RF designer, whose designs (.rfd) the benches use. Not yet fully validated, so treat its numbers as a guide. Shown in JEKsuite while this is ticked.' },
+  { key: 'jekion', app: true, name: 'JEKion', what: 'charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live. Not yet fully validated, so treat its numbers as a guide. Shown in JEKsuite while this is ticked.' },
   // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
   { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
   { key: 'mods', name: 'Modules (parts with code)', what: 'part packs that carry code, run in a sandbox: new plates, polarisation plates, fibre components, electronics blocks and readouts written by anyone, installed from a file or a link (File \u203a Part packs and modules\u2026) after a prompt saying what each adds. Their code cannot reach your account, your files or the internet.' },

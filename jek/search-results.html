@@ -57,8 +57,8 @@
       document.title = 'Search: ' + q + ' | JEK Systems';
       status.textContent = 'Searching for “' + q + '”…';
       const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-      // JEKion's pages only for someone who has it switched on (the site nav's script marks the page exp-jekion)
-      const shown = PAGES.filter((url) => !/\/jekion\//.test(url) || document.documentElement.classList.contains('exp-jekion'));
+      // the experimental apps' pages (JEKion) are not offered while they are not on sale
+      const shown = PAGES.filter((url) => !/\/jekion\//.test(url));
       const found = await Promise.all(shown.map(async (url) => {
         try {
           const res = await fetch(url);

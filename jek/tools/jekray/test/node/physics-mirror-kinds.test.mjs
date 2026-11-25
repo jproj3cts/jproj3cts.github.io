@@ -69,7 +69,7 @@ test('a partial reflector halves the light; a dichroic mirror reflects the short
   assert.ok(way(1064).dx > 0.99, '1064 nm goes on through');
 });
 
-test('a retroreflector (a corner cube) sends light back the way it came, from the point opposite across its middle, in and out of the plane', () => {
+test('a retroreflector is three mirrors square to one another: light comes back the way it came, from the point opposite across its middle, in and out of the plane', () => {
   // the last leg of the ray in 3D: where it starts, its direction, and what it carries
   const back = (o, cube = {}) => {
     load([src(Object.assign({ rays: 1, width: 0 }, o)), kind('retro', cube)]);
@@ -99,14 +99,21 @@ test('a retroreflector (a corner cube) sends light back the way it came, from th
   const opl = (el, y) => { load([src({ rays: 1, width: 0, y }), el, { type: 'screen', id: 'C', name: 'C', x: 20, y: 0, angle: 0, length: 40 }]); return TRACE.lastTrace.screens.C.filter(h => h.w > 0.5)[0].opl; };
   const D = 25.4 / Math.SQRT2, flat = opl({ type: 'mirror', id: 'M', name: 'M', x: 100 + D, y: 0, angle: 180, length: 25.4 }, 0);
   for (const y of [0, 3, -7]) assert.ok(Math.abs(opl(kind('retro'), y) - flat) < 1e-9, 'path at ' + y + ': ' + opl(kind('retro'), y) + ' vs ' + flat);
-  // light on its back, or so far off its axis that it would leave outside the face, is lost
-  assert.equal(TRACE.lastTrace.rays.length > 0, true);
+  // three reflections, off three faces: the ray drawn goes face to face inside it
+  load([src({ rays: 1, width: 0, y: 3 }), kind('retro')]);
+  assert.equal(TRACE.lastTrace.rays.filter(q => q.w > 0.5).reduce((n, q) => n + q.pts.length / 2 - 1, 0), 4, 'in, two legs between the faces, and out');
+  // light on its back does not come back
   load([src({ rays: 1, width: 0 }), kind('retro', { angle: 0 })]);
-  assert.ok(!TRACE.lastTrace.rays.some(q => q.w > 0.01 && q.pts[0] < 99 && q.pts[q.pts.length - 2] < 50), 'nothing comes back off its back');
-  load([src({ rays: 1, width: 0, y: -40, angle: 35 }), kind('retro', { x: 60 })]);
-  assert.ok(!TRACE.lastTrace.rays.some(q => q.w > 0.01 && q.pts[q.pts.length - 2] < 0), 'at 35°, in near its edge, it would leave outside the face');
-  // reflecting 81 % in all, that much comes back
-  assert.ok(Math.abs(back({}, { reflect: 81 }).w - 0.81) < 1e-9);
+  assert.ok(!TRACE.lastTrace.rays.some(q => q.w > 0.01 && q.pts[q.pts.length - 2] < -1), 'nothing comes back off its back');
+  // each face reflecting 90 %, three of them: 72.9 % comes back, and nothing passes through a face
+  assert.ok(Math.abs(back({ y: 3 }, { reflect: 90 }).w - 0.729) < 1e-9);
+  // off ideal mirrors a linear polarisation comes back as it went in, s as s and p as p, wherever on the face
+  const J = pol => { load([src({ rays: 1, width: 0, y: 4, pol }), kind('retro')]); return TRACE.lastTrace.rays.filter(q => q.w > 0.5).pop().J; };
+  const Js = J('s'), Jp = J('p');
+  assert.ok(Math.abs(Js[0] ** 2 + Js[1] ** 2 - 1) < 1e-9 && Math.abs(Jp[2] ** 2 + Jp[3] ** 2 - 1) < 1e-9, 's stays s, p stays p: ' + [Js, Jp]);
+  // the middle ray goes into the corner itself, where the three faces meet, and still comes back
+  const mid = back({});
+  assert.ok(Math.abs(mid.d[0] + 1) < 1e-9 && Math.abs(mid.w - 1) < 1e-9, 'into the corner: ' + [mid.d, mid.w]);
 });
 
 test('a steering mirror turns and tips by its volts: the bench shows it where a DC drive puts it, and the file keeps it at rest', () => {

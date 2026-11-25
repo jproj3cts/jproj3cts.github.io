@@ -65,7 +65,7 @@ The site should read as written by the people who build the things on it. Before
 ### Inside `jek/tools/jekray/src/`
 Layers (lint-enforced): `core/ state/ parts/ engines/ worker/` never import `ui/ io/ page/`; engines reach the page only
 through `core/hooks.js`.
-- A corner cube is a mirror with `retro: true` (`core/stl.js` gives its surface the corner's depth; the tracer's own branch in `engines/trace.js` sends the ray back about the corner).
+- A corner cube is a mirror with `retro: true`, traced as three real mirror faces (`retroSurfaces` in `core/stl.js`): each face a surface with its own tilt (`lf.a`, `ownTip`) and outline (`clip`), which the tracer meets as any tipped face (`intersectTip`; `tMin` lets a ray meet two faces at one point where they join).
 - **Parts**: `parts/<type>.js` (fields: `norm` defaults/clamps, `guide` text, `make`, picker) + `ui/parts/<type>.js`
   (`draw`, `hit`, `panel`). Registries: `parts/registry.js` (`PARTS`; every palette's rows and groups are its parts' own
   `picker` and `groups`, `PALETTE_PARTS` / `PALETTE_GROUPS`: free space many parts, fibre `fcomp`, circuits `elec`, RF `rf`,

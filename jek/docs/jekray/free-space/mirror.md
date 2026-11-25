@@ -69,9 +69,11 @@ The mirror follows its drive at any frequency: a real one's resonance and settli
 
 ### Retroreflectors
 
-A **retroreflector** is a hollow corner cube: three mirrors square to one another behind a round face. Light meeting the face goes back the way it came, whatever its angle in or out of the bench plane, and whichever way the retroreflector is turned or tipped. The ray out is the ray in turned about the corner, so it leaves from the point opposite, across the middle of the face. Its path is a plane mirror's set at the corner square to the ray, with the corner $$d/\sqrt2$$ behind the middle of a face of diameter $$d$$, as a cube corner's is.
+A **retroreflector** is a hollow corner cube: three flat mirrors square to one another, meeting at a corner behind a round opening. It is traced as those three mirrors. A ray reflects off each in turn by the same law as off any mirror, and three reflections off three square faces reverse its direction whatever way it came, in the bench plane or out of it, and whichever way the retroreflector is turned or tipped. The ray leaves from the point opposite, across the corner, having gone as far as off a plane mirror set at the corner square to it.
 
-Light that would leave outside the face is lost, as it is on a real one: a beam through the middle is returned up to about $$19°$$ off the axis, less towards the edge. Light on its back is absorbed. Its **Reflectance** is for the three reflections together. The polarisation comes back as off a plane mirror: the mixing of polarisation a real corner cube's six sectors give is not modelled. The Gaussian beam and the diffracted field go through it as through that plane mirror, without the turn about the corner, which changes nothing for a beam that is symmetric about its own axis.
+The corner is $$d/\sqrt2$$ behind the middle of an opening of diameter $$d$$, where a cube corner's is under the circle its three faces just reach. The faces' normals stand $$54.7°$$ from the axis, $$120°$$ apart round it, one leaning straight up. Each face ends where it meets the other two, at the opening's plane, and at the cylinder behind the opening.
+
+Because the mirrors are real, the rest follows as it does on the bench. Light far enough off the axis meets only one or two of them before it leaves, and goes elsewhere. **Each mirror reflects** sets one face's reflectance, so three faces at 90 % return 72.9 %, and what a face does not reflect is lost. The polarisation is carried through the three reflections in 3D, as through any tipped mirror: off ideal mirrors a linear polarisation comes back as it went in. The Gaussian beam and the diffracted field follow the three reflections too. A ray into the corner itself, or along the line where two faces meet, meets those faces one after another at that point. The backs of the mirrors absorb.
 
 ## In the parts list
 
@@ -87,7 +89,7 @@ The Mirrors group lists the plain mirror and the kinds most often wanted. Each i
 | Partial reflector | flat, reflecting 50 %, the rest passing: a plate beam splitter or an output coupler |
 | Chirped mirror | flat, $$-50$$ fs² a reflection |
 | Steering mirror | flat, steered by signals, 1° per volt |
-| Retroreflector | a corner cube with a 25.4 mm face, facing the beam |
+| Retroreflector | a hollow corner cube with a 25.4 mm opening, facing the beam |
 
 One more entry in the group is another part: the **Dichroic mirror** is a [filter](/jek/docs/jekray/free-space/filter/#as-a-dichroic) that reflects what it blocks.
 

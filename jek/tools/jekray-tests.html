@@ -1622,7 +1622,7 @@ const TESTS = [
       let none = !tick();
       J.load({ format: 'jekray', version: 1, elements: [parts[0], { type: 'mirror', id: 'M', name: 'Cube', x: 100, y: 0, angle: 180, retro: true }, { type: 'elec', kind: 'dc', id: 'G', name: 'V', x: 40, y: 60, v: 1 }] });
       J.select('Cube');
-      none = none && !tick() && labels().includes('Face diameter (mm)') && !labels().includes('Radius (mm)');
+      none = none && !tick() && labels().includes('Opening (mm)') && !labels().includes('Radius (mm)');
       if (!(dc && slow && quick && un && again && none)) console.log('steering mirror', JSON.stringify({ dc, slow, quick, un, again, none, off, seen, note: note(), pose: J.steerPose('Galvo') }));
       return dc && slow && quick && un && again && none ? 1 : 0;
     },

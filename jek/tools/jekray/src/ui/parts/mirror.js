@@ -71,8 +71,8 @@ function mirrorPanel(el) {
   if (readoutTabs(el, [['params', 'Mirror'], ['rays', 'Rays'], ['plots', 'Diffraction'], ['pulse', 'Pulse']])) return;
   panel.append(h('h3', null, el.retro ? 'Retroreflector' : el.film ? 'Film beam splitter' : el.metal ? 'Metal mirror' : 'Mirror'));
   if (el.retro) {
-    panel.append(h('div', { class: 'rt-rows' }, param('Face diameter (mm)', el, 'length'), param('Reflectance (%)', el, 'reflect')));
-    panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A hollow corner cube: three mirrors square to one another behind its face. Light meeting the face goes back the way it came, whatever its angle in or out of the bench plane, leaving from the point opposite across the middle. Its path is a plane mirror\u2019s at the corner, ' + (+(el.length / Math.SQRT2).toPrecision(4)) + ' mm behind the face. Light that would leave outside the face is lost, as on a real one. Its reflectance is for the three reflections together; the polarisation comes back as off a plane mirror.'));
+    panel.append(h('div', { class: 'rt-rows' }, param('Opening (mm)', el, 'length'), param('Each mirror reflects (%)', el, 'reflect')));
+    panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A hollow corner cube: three flat mirrors square to one another, meeting at a corner ' + (+(el.length / Math.SQRT2).toPrecision(4)) + ' mm behind the middle of its round opening. Light reflects off all three and goes back the way it came, whatever its angle in or out of the bench plane, leaving from the point opposite across the middle. Light that meets only one or two of the mirrors before leaving goes elsewhere, as on a real one. What a mirror does not reflect is lost.'));
     return;
   }
   const nm = benchNms()[0], ghz = C_NM_GHZ / nm;

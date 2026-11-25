@@ -671,7 +671,7 @@ export function rayPattern(src, n) {
 }
 export const zOf = el => el && el.z !== undefined ? el.z : BEAM_Z;
 export function setZ(el, z) { if (!isFinite(z)) return; z = clamp(+z, 0, 2000); if (Math.abs(z - BEAM_Z) < 1e-9) delete el.z; else el.z = +z.toFixed(4); }
-const anyHeights = () => project.elements.some(e => e.type === 'stl' || (e.z !== undefined && e.z !== BEAM_Z) || e.tip || e.roll || (e.type === 'source' && ((e.pattern && e.pattern !== 'line') || lampEmits(e))) || (e.type === 'fibre' && e.emitPattern) || (e.type === 'particle' && e.scatLight !== false));
+const anyHeights = () => project.elements.some(e => e.type === 'stl' || e.retro || (e.z !== undefined && e.z !== BEAM_Z) || e.tip || e.roll || (e.type === 'source' && ((e.pattern && e.pattern !== 'line') || lampEmits(e))) || (e.type === 'fibre' && e.emitPattern) || (e.type === 'particle' && e.scatLight !== false));
 // a mirror tipped out of the plane: degrees, up positive; kept only when not 0
 export const tippable = el => FREE_3D.has(el.type) && el.type !== 'draw' && el.type !== 'link';
 // rolled about its own axis: degrees, right-handed about the way it faces; kept only when not 0
@@ -804,13 +804,17 @@ function tipFace(s, px, py, h0, dx, dy, u, tmin) {
   if (s.flat && !s.cylS) { if (Math.abs(gx) < 1e-15) return null; t = (s.z - fx) / gx; if (t < tmin) return null; }   // (a cylinder curved out of the plane is flat in it, not here)
   else t = intersect3(s, fx, fy, qz, gx, gy, ez, tmin);
   if (t === null) return null;
-  return { t, y: fy + gy * t, z: qz + ez * t };
+  return { t, y: fy + gy * t, z: qz + ez * t, gx };
 }
 function intersectTip(s, px, py, h0, dx, dy, u, tmin) {
   const H = tipFace(s, px, py, h0, dx, dy, u, tmin);
   if (!H) return null;
   const { t, y, z } = H;
   if (inHole(s, y, z)) return null;
+  // a face with an outline of its own (a corner cube's). Where its faces meet, a ray meets two or three of them at one
+  // point: each is met in turn from the last with no way between them (see tMin), and a face the ray is already
+  // leaving is not met again there
+  if (s.clip) return (t > 1e-4 || H.gx < 0) && s.clip(y, z) ? t : null;
   if (s.el && zSquare(s.el)) return Math.abs(y) <= s.semi + 1e-9 && Math.abs(z) <= zHalf(s.el, s.semi) + 1e-9 ? t : null;
   return y * y + z * z <= s.semi * s.semi * (1 + 1e-12) + 1e-12 ? t : null;
 }
@@ -905,7 +909,8 @@ function traceSceneAsPosed() {
     const f = frame(el);
     const ss = elementSurfaces(el);
     // a part tipped out of the plane: each surface met in its tipped frame (see intersectTip)
-    for (const s of ss) { s.f = s.lf ? subFrame(f, s.lf) : f; if ((el.tip || el.roll) && !s.mesh) { s.tilt = true; s.tip = (el.tip || 0) * deg; s.roll = (el.roll || 0) * deg; s.ef = f; } surfs.push(s); }
+    // (a face with a tilt of its own, a corner cube's: the part's tip and roll are in it already, core/stl.js)
+    for (const s of ss) { s.f = s.lf ? subFrame(f, s.lf) : f; if (s.ownTip !== undefined) { s.tilt = true; s.tip = s.ownTip; s.roll = 0; s.ef = f; } else if ((el.tip || el.roll) && !s.mesh) { s.tilt = true; s.tip = (el.tip || 0) * deg; s.roll = (el.roll || 0) * deg; s.ef = f; } surfs.push(s); }
     if (el.type === 'link') linkSurf.set(el.id, ss[0]);
     if (el.type === 'lens' && !el.tip && !el.roll) for (const sg of lensEdges(el, ss)) segs.push({ f, sg, el: el.id });
     // a Lamp with a size: its body takes the light that comes back to it (a reflector's, another lamp's)
@@ -1146,7 +1151,7 @@ function traceSceneAsPosed() {
         // a cavity map's probe ray (engines/scatter-pupil-map.js): its state kept after each reflection, until it leaves
         if (src.vMap && bounce > 0 && pmapStep(src.vMap, vK, bounce, px, py, zh, dx, dy, uz, opl, sr, si, pr, pi, par)) break;
         if (last !== lastSeen) { lastPrev = lastSeen; lastSeen = last; }
-        const tMin = s => s === last || s === lastPrev ? 1e-4 : last && last.el && s.el !== last.el ? -EPS : EPS;
+        const tMin = s => s === last ? 1e-4 : s.clip && last && last.el === s.el ? -EPS : s === lastPrev ? 1e-4 : last && last.el && s.el !== last.el ? -EPS : EPS;   // (a corner cube's other faces: met at once where they join)
         let best = Infinity, hit = null, hitSeg = false;
         const surfs = surfsBy.get(bn) || NONE, segs = segsBy.get(bn) || NONE;
         // a Gaussian beam's reference ray also looks for elements its beam overlaps though it misses them
@@ -1848,7 +1853,7 @@ function traceSceneAsPosed() {
         // tangential ABCD for this surface, q = (A q + B) / (C q + D): one for the light that
         // carries on through it and one for the light it reflects, so a partly reflecting
         // face sends each branch on with its own beam
-        let qT = null, qRf = null, evT = null, evR = null, wentR = false, retroT = 0;
+        let qT = null, qRf = null, evT = null, evR = null, wentR = false;
         if (chief) {
           const abcd = (A, C, D, n2, mode, n1) => {
             const dr = C * qr + D, di = C * qi, nr = A * qr, ni = A * qi, den = dr * dr + di * di;
@@ -1894,36 +1899,6 @@ function traceSceneAsPosed() {
             ldx -= 2 * cosd * nx; ldy -= 2 * cosd * ny; ldz -= 2 * cosd * nz;
             wentR = true;
           }
-        } else if (s.kind === 'mirror' && s.retro) {
-          // A corner cube (a hollow one: three mirrors square to each other, their corner s.retro behind the middle of
-          // its face). Whatever way the light comes in, three reflections send it back the way it came, and the ray
-          // out is the ray in turned about the corner: as if it met a mirror square to itself through the corner
-          // (which sets its path) and left from the point opposite, across the corner. So it travels on to that plane,
-          // crosses to the far side of the corner, and comes back out through the face. Light that would leave outside
-          // the face is lost, as is light on its back.
-          const E = s.el, tp = (E.tip || 0) * deg, an = E.angle * deg, n3 = [Math.cos(tp) * Math.cos(an), Math.cos(tp) * Math.sin(an), Math.sin(tp)];
-          const C3 = [E.x, E.y, anyZ ? zOf(E) : 0], P3 = [px, py, anyZ ? zh : 0], d3 = [dx, dy, uz || 0];
-          const A3 = C3.map((c, i) => c - s.retro * n3[i]);
-          const t1 = (A3[0] - P3[0]) * d3[0] + (A3[1] - P3[1]) * d3[1] + (A3[2] - P3[2]) * d3[2], dn = vdot3(d3, n3);
-          const F3 = P3.map((v, i) => v + t1 * d3[i]), G3 = A3.map((a, i) => 2 * a - F3[i]);
-          const t2 = dn < 0 ? ((G3[0] - C3[0]) * n3[0] + (G3[1] - C3[1]) * n3[1] + (G3[2] - C3[2]) * n3[2]) / dn : -1;
-          const out = G3.map((g, i) => g - t2 * d3[i]);
-          if (!(dn < 0 && t1 > 0 && t2 > 0) || Math.hypot(out[0] - C3[0], out[1] - C3[1], out[2] - C3[2]) > s.semi * (1 + 1e-9)) {
-            if (!chief) { blocked[E.id] = (blocked[E.id] || 0) + w; (blockedSrc[E.id] || (blockedSrc[E.id] = new Set())).add(src.id); }
-            break;
-          }
-          const ra = -Math.sqrt(Rms);
-          sr *= ra; si *= ra; pr *= ra; pi *= ra;
-          if (ra !== -1) { ws = sr * sr + si * si; wp = pr * pr + pi * pi; w = ws + wp; }
-          opl += nCur * (t1 + t2); gpl += gCur * (t1 + t2); retroT = t1 + t2;
-          // the ray as drawn: on to that plane, across the corner, and back out; it carries on from the face
-          if (anyZ) pts.zNext = F3[2];
-          pts.push(F3[0], F3[1]);
-          if (anyZ) { pts.zNext = G3[2]; zh = out[2]; }
-          pts.push(G3[0], G3[1]);
-          px = out[0]; py = out[1];
-          ldx = -ldx; ldy = -ldy; ldz = -ldz;
-          wentR = true;
         } else if (s.kind === 'mirror' || s.kind === 'filter' || s.kind === 'grid') {
           // a reflective filter (a dichroic) is a partial mirror whose reflectance is what it rejects
           // A mirror turns the field over from its coated face: half a wave. From behind, a
@@ -2071,7 +2046,6 @@ function traceSceneAsPosed() {
           }
         }
         if (chief) { [qr, qi] = wentR ? qRf : qT; evt = wentR ? evR : evT; }
-        if (chief && retroT) qr += retroT;          // a corner cube: the beam has been on to its corner's plane
         // where the beam came into a graded glass, and its pilot there: its segment runs from here to where it leaves
         if (gr && gr.at === true) gr.at = { x: px, y: py, z: zh, qr, qi, opl };
         if (wentR) par ^= 1;

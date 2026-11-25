@@ -166,6 +166,16 @@ function elecPanelFor(el) {
     if (opts) box.append(selectField(label, opts.map(([v, t]) => [String(v), t]), () => String(el[k]), v => { const o = opts.find(([x]) => String(x) === v); el[k] = o ? o[0] : el[k]; }));
     else box.append(param(label, el, k));
   }
+  // a figure or two that follow from a block's settings alone, among them
+  const sg = v => String(+(+v).toPrecision(4)), pick = { amp: () => [{ name: 'Gain, in decibels', unit: 'dB', read: () => (el.gain > 0 ? sg(20 * Math.log10(el.gain)) : null) }],
+    att: () => [{ name: 'Passes, of the voltage', unit: '%', read: () => sg(100 * Math.pow(10, -Math.max(0, el.db) / 20)) }],
+    lpf: () => [{ name: 'Time constant', unit: 'ms', read: () => (el.fc > 0 ? sg(1000 / (2 * Math.PI * el.fc)) : null), title: 'Of one pole at its corner: 1 / 2\u03c0 f.' }],
+    hpf: () => [{ name: 'Time constant', unit: 'ms', read: () => (el.fc > 0 ? sg(1000 / (2 * Math.PI * el.fc)) : null), title: 'Of one pole at its corner: 1 / 2\u03c0 f.' }],
+    bpf: () => [{ name: 'Q', read: () => (el.bw > 0 ? sg(el.f0 / el.bw) : null), title: 'Its centre over its bandwidth.' }],
+    sig: () => [{ name: 'Period', unit: 'ms', read: () => (el.f > 0 ? sg(1000 / el.f) : null) }],
+    daq: () => [{ name: 'One step', unit: '\u00b5V', read: () => (el.bits > 0 ? sg(2e6 * el.range / Math.pow(2, el.bits)) : null), title: 'Its least significant bit: its range over its levels.' },
+      { name: 'Reads up to', unit: 'Hz', read: () => sg(el.rate / 2), title: 'Half its sample rate: a tone above this folds back as an alias.' }] }[el.kind];
+  if (pick) for (const r of pick()) box.append(readRow(r));
   panel.append(box);
   if (el.kind === 'thru') thruSection(el);
   const io = el.kind === 'node' || el.kind === 'thru' ? [] : [...K.ins.map(n => n + ' (in)'), ...K.outs.map(n => n + ' (out)')];

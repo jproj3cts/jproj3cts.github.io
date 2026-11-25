@@ -241,8 +241,9 @@ export function propTable(el, rows) {
   });
   return T;
 }
-/* Which parts' panels are tables: every free-space part (and an imported body). */
-export const tablePart = el => !!el && (el.type === 'stl' || FREE_PARTS.includes(PARTS[el.type]));
+/* Which parts' panels are tables: every free-space part (and an imported body), every fibre component and every circuit
+   block. (A photonic chip's parts are still boxes.) */
+export const tablePart = el => !!el && (el.type === 'stl' || el.type === 'fcomp' || el.type === 'elec' || FREE_PARTS.includes(PARTS[el.type]));
 /* A panel built the older way (param, selectField, textField and ticks in rt-rows and grid2) made a table as it stands:
    each list of settings becomes a table and each setting a row of it, in place and with what it is made of kept (its
    label, its box, its sweep's \u223f and controls), so nothing that finds a setting by its label or its row loses it. A

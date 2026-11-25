@@ -340,8 +340,6 @@ with $$\theta_\parallel$$ the beam's angle to the face's normal across and $$\th
   <li><a class="free" href="/jek/docs/jekray/free-space/screen/"><b>Screen</b><small>Spots, profiles, PSF and MTF, aberrations, pulses and optical traps.</small></a></li>
   <li><a class="free" href="/jek/docs/jekray/free-space/scattering/"><b>Scattering by a particle</b><small>A sphere by Lorenz–Mie, a rod or spheroid as an array of dipoles, in a tight focus or a wide beam.</small></a></li>
   <li><a class="free" href="/jek/docs/jekray/free-space/spectrometer/"><b>Spectrometer</b><small>Counts against wavelength through a slit or fibre entrance: resolution, saturation, signal-to-noise.</small></a></li>
-  <li><a class="free" href="/jek/docs/jekray/free-space/fibre-tip/"><b>Fibre tip</b><small>Into a fibre by mode overlap, and back out as a beam.</small></a></li>
-  <li><a class="free" href="/jek/docs/jekray/free-space/fibre-tip/#collimator"><b>Collimator</b><small>A fibre tip with its lens: a collimated beam out, and in.</small></a></li>
 </ul>
 
 ### Mirrors
@@ -392,4 +390,6 @@ with $$\theta_\parallel$$ the beam's angle to the face's normal across and $$\th
 
 <ul class="dx-cards">
   <li><a class="free" href="/jek/docs/jekray/free-space/link/"><b>Link plane</b><small>Joins two tabs: one plane seen from two benches.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray/free-space/fibre-tip/"><b>Fibre tip</b><small>Into a fibre by mode overlap, and back out as a beam.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray/free-space/fibre-tip/#collimator"><b>Collimator</b><small>A fibre tip with its lens: a collimated beam out, and in.</small></a></li>
 </ul>

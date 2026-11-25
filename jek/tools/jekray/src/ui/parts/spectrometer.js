@@ -66,16 +66,19 @@ function specSpectrumSection(el) {
   let sig = '';
   bindSync(cv, () => {
     const R = specReading(el);
-    const r = [['Resolution', (+R.R.toPrecision(3)) + ' nm (' + (+specDispersion(el).toPrecision(3)) + ' nm per µm of array)']];
+    const r = [['Resolution', (+R.R.toPrecision(3)) + ' nm'], ['Dispersion on the array', (+specDispersion(el).toPrecision(3)) + ' nm/\u00b5m']];
     if (!(R.face > 0)) r.push(['Light', 'None reaches its face']);
     else {
-      r.push(['Through the entrance', specFmtMw(R.mw) + (R.share !== null ? ', ' + (100 * R.share).toFixed(R.share < 0.1 ? 2 : 1) + '% of what reaches its face' : '')]);
+      r.push(['Through the entrance', specFmtMw(R.mw)]);
+      if (R.share !== null) r.push(['Share of what reaches its face', (100 * R.share).toFixed(R.share < 0.1 ? 2 : 1) + '%']);
       if (R.peak !== null) {
-        r.push(['Peak', specFmtNm(R.peak) + ', ' + specFmtE(R.counts) + ' counts' + (R.sat ? ' (saturated: shorten the integration time)' : '')]);
-        r.push(['Width (FWHM)', specFmtNm(R.fwhm) + (R.fwhm < 1.5 * R.R ? ', set by the resolution' : '')]);
+        r.push(['Peak', specFmtNm(R.peak)], ['Counts at the peak', specFmtE(R.counts)]);
+        if (R.sat) r.push(['', 'Saturated: shorten the integration time.']);
+        r.push(['Width (FWHM)', specFmtNm(R.fwhm)]);
+        if (R.fwhm < 1.5 * R.R) r.push(['', 'The width is set by the resolution.']);
         r.push(['Signal-to-noise at the peak', R.snr === null ? 'none while saturated' : String(+R.snr.toPrecision(3))]);
       } else if (R.mw > 0) r.push(['Peak', 'Outside its range, ' + el.wmin + ' to ' + el.wmax + ' nm']);
-      if (R.lines.length > 1) r.push(['Lines through the entrance', R.lines.length + ': ' + R.lines.slice(0, 6).map(L => specFmtNm(L.nm)).join(', ') + (R.lines.length > 6 ? '…' : '')]);
+      if (R.lines.length > 1) r.push(['Lines through the entrance', R.lines.length + ': ' + R.lines.slice(0, 6).map(L => specFmtNm(L.nm)).join(', ') + (R.lines.length > 6 ? '\u2026' : '')]);
     }
     const s2 = JSON.stringify(r);
     if (s2 !== sig) { sig = s2; rows.replaceChildren(h('dl', null, ...r.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }

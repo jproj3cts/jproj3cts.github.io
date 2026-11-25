@@ -593,6 +593,13 @@
   /* (a tick made the older way is its label, the box inside it: the words to the left, the box at the right edge) */
   .rt-panel label.rt-check.rt-pt-row { font-size: 0.875rem; font-weight: 400; color: var(--jek-ink-soft); cursor: pointer; margin: 0; gap: 0; }
   .rt-panel .rt-pt-row.rt-pt-cell > input[type="color"] { width: 2.6rem; height: 1.3rem; padding: 0; margin-right: 0.3rem; }
+  /* (a name shown short: its aside is in its tooltip) */
+  .rt-panel .rt-pt .rt-pt-name[data-short], .rt-panel label.rt-check.rt-pt-row[data-short] { font-size: 0; }
+  .rt-panel .rt-pt .rt-pt-name[data-short]::before, .rt-panel label.rt-check.rt-pt-row[data-short]::before { content: attr(data-short); font-size: 0.875rem; }
+  /* a lens's faces: its own small table, its boxes plain until pointed at as a row's are */
+  .rt-panel .rt-facegrid input, .rt-panel .rt-facegrid select { background: transparent; border-color: transparent; }
+  .rt-panel .rt-facegrid input:hover, .rt-panel .rt-facegrid select:hover, .rt-panel .rt-facegrid input:focus, .rt-panel .rt-facegrid select:focus { background: var(--jek-well); border-color: var(--jek-line-2); }
+  .rt-panel .rt-facegrid .rt-facerow { border-bottom: 1px solid var(--jek-line); }
   .rt-pt-wide { grid-column: 1 / -1; padding: 0.3rem 0; border-bottom: 1px solid var(--jek-line); }
   .rt-pt > p.rt-pt-wide, .rt-pt > .note.rt-pt-wide { border-bottom: none; margin: 0; }
   /* the part's actions at the foot of a table panel: each the same size, sharing the row */
@@ -664,7 +671,8 @@
   .rt-readout dt { color: var(--jek-ink-soft); font-style: italic; }
   /* a line with no label (a note) runs the full width */
   .rt-readout dt:empty { display: none; }
-  .rt-readout dt:empty + dd { grid-column: 1 / -1; text-align: left; font-family: var(--jek-sans); font-style: normal; font-size: 0.8125rem; color: var(--jek-ink-soft); }
+  .rt-readout dd { order: 0; }
+  .rt-readout dt:empty + dd { grid-column: 1 / -1; justify-content: flex-start !important; text-align: left; font-family: var(--jek-sans); font-style: normal; font-size: 0.8125rem; color: var(--jek-ink-soft); }
   /* (a figure sits at the right; one in words that runs over a line reads from its left edge, as text does) */
   .rt-readout dd { margin: 0; padding-left: 0.6rem; display: flex; justify-content: flex-end; text-align: left; font-family: var(--jek-mono); font-style: italic; color: var(--jek-ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
   .rt-readout .note { margin: 0.4rem 0 0; font-size: 0.75rem; }
@@ -28801,7 +28809,7 @@ function elecOpticPanel(el) {
   const rows = h('div', { class: 'rt-rows' });
   let what = '';
   if (isDet(el)) {
-    rows.append(selectField('Output', [['tia', 'Photodetector: a voltage, through its amplifier'], ['diode', 'Photodiode: its current, no amplifier']],
+    rows.append(selectField('Output', [['tia', 'Voltage, amplified'], ['diode', 'Photocurrent, no amplifier']],
       () => el.diode ? 'diode' : 'tia', v => { if (v === 'diode') el.diode = true; else delete el.diode; }, { wide: true }));
     if (el.type === 'detector') rows.append(selectField('Read the light from', [['rays', 'The trace (fast)'], ['field', 'The diffracted field (slow)']],
       () => el.fieldSample ? 'field' : 'rays', v => { if (v === 'field') el.fieldSample = true; else delete el.fieldSample; }, { wide: true }));
@@ -30496,16 +30504,19 @@ function specSpectrumSection(el) {
   let sig = '';
   bindSync(cv, () => {
     const R = specReading(el);
-    const r = [['Resolution', (+R.R.toPrecision(3)) + ' nm (' + (+specDispersion(el).toPrecision(3)) + ' nm per µm of array)']];
+    const r = [['Resolution', (+R.R.toPrecision(3)) + ' nm'], ['Dispersion on the array', (+specDispersion(el).toPrecision(3)) + ' nm/\u00b5m']];
     if (!(R.face > 0)) r.push(['Light', 'None reaches its face']);
     else {
-      r.push(['Through the entrance', specFmtMw(R.mw) + (R.share !== null ? ', ' + (100 * R.share).toFixed(R.share < 0.1 ? 2 : 1) + '% of what reaches its face' : '')]);
+      r.push(['Through the entrance', specFmtMw(R.mw)]);
+      if (R.share !== null) r.push(['Share of what reaches its face', (100 * R.share).toFixed(R.share < 0.1 ? 2 : 1) + '%']);
       if (R.peak !== null) {
-        r.push(['Peak', specFmtNm(R.peak) + ', ' + specFmtE(R.counts) + ' counts' + (R.sat ? ' (saturated: shorten the integration time)' : '')]);
-        r.push(['Width (FWHM)', specFmtNm(R.fwhm) + (R.fwhm < 1.5 * R.R ? ', set by the resolution' : '')]);
+        r.push(['Peak', specFmtNm(R.peak)], ['Counts at the peak', specFmtE(R.counts)]);
+        if (R.sat) r.push(['', 'Saturated: shorten the integration time.']);
+        r.push(['Width (FWHM)', specFmtNm(R.fwhm)]);
+        if (R.fwhm < 1.5 * R.R) r.push(['', 'The width is set by the resolution.']);
         r.push(['Signal-to-noise at the peak', R.snr === null ? 'none while saturated' : String(+R.snr.toPrecision(3))]);
       } else if (R.mw > 0) r.push(['Peak', 'Outside its range, ' + el.wmin + ' to ' + el.wmax + ' nm']);
-      if (R.lines.length > 1) r.push(['Lines through the entrance', R.lines.length + ': ' + R.lines.slice(0, 6).map(L => specFmtNm(L.nm)).join(', ') + (R.lines.length > 6 ? '…' : '')]);
+      if (R.lines.length > 1) r.push(['Lines through the entrance', R.lines.length + ': ' + R.lines.slice(0, 6).map(L => specFmtNm(L.nm)).join(', ') + (R.lines.length > 6 ? '\u2026' : '')]);
     }
     const s2 = JSON.stringify(r);
     if (s2 !== sig) { sig = s2; rows.replaceChildren(h('dl', null, ...r.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
@@ -30774,7 +30785,7 @@ function nlcPanel(el) {
   panel.append(h('h3', null, 'Nonlinear crystal'));
   panel.append(h('div', { class: 'rt-rows' },
     selectField('Crystal', Object.entries(NLC).map(([k, v]) => [k, v.name + ' (d_eff ' + (v.d * 1e12) + ' pm/V)']), () => el.material, v => { el.material = v; }, { wide: true }),
-    selectField('Its z axis', [['s', 'Out of the bench plane: s light converts'], ['p', 'In the plane: p light converts']], () => el.axis, v => { el.axis = v; }, { wide: true }),
+    (() => { const z = selectField('Its z axis', [['s', 'Out of the plane (s converts)'], ['p', 'In the plane (p converts)']], () => el.axis, v => { el.axis = v; }, { wide: true }); z.title = 'Light polarised along the crystal\u2019s z axis is what converts: s light with the axis out of the bench plane, p light with it in the plane'; return z; })(),
     param('Poling period (µm)', el, 'period'), param('Temperature (°C)', el, 'temp'),
     param('Length (mm)', el, 'nlLen'), param('Diameter (mm)', el, 'length'),
     selectField('End faces', [['ar', 'Anti-reflection coated (0.1%)'], ['bare', 'Bare']], () => el.faces, v => { el.faces = v; }, { wide: true })));
@@ -30785,9 +30796,18 @@ function nlcPanel(el) {
     const hits = ((lastTrace.nlc) || []).filter(H => H.id === el.id), rows = [];
     for (const H of hits.slice(0, 4)) {
       const r = H.r, S = getEl(H.src);
-      rows.push([(S ? S.name : 'Beam') + ', ' + (+H.nm.toPrecision(6)) + ' nm', fmtW(H.P) + ' along the crystal’s axis → ' + fmtW(r.P2) + ' at ' + (+(H.nm / 2).toPrecision(6)) + ' nm (' + (+(100 * r.conv).toPrecision(3)) + '% converted); ' + (+(r.eta * 100).toPrecision(3)) + ' %/W small-signal']);
-      rows.push(['Phase matching', (el.period > 0 ? 'period ' + el.period + ' µm' : 'period ' + (+r.period.toPrecision(5)) + ' µm, the best for this beam') + ' (' + (+r.periodPW.toPrecision(5)) + ' µm for a plane wave at ' + el.temp + ' °C); n = ' + r.n1.toFixed(4) + ', ' + r.n2.toFixed(4)]);
-      rows.push(['Focusing', 'ξ = L/b = ' + (+r.xi.toPrecision(3)) + ' (best 2.84), h = ' + (+r.h.toPrecision(3)) + ' of Boyd and Kleinman’s 1.068' + (Math.abs(r.mu) > 0.2 ? '; the waist sits ' + (+(r.mu * 50).toPrecision(2)) + '% of the length from the middle' : '')]);
+      // a figure a row, under the beam they are for
+      const nm2 = (+(H.nm / 2).toPrecision(6)) + ' nm', who = hits.length > 1 ? (S ? S.name : 'Beam') + ': ' : '';
+      rows.push([who + 'Fundamental, ' + (+H.nm.toPrecision(6)) + ' nm', fmtW(H.P)]);
+      rows.push([who + 'Harmonic, ' + nm2, fmtW(r.P2)]);
+      rows.push([who + 'Converted', (+(100 * r.conv).toPrecision(3)) + '%']);
+      rows.push([who + 'Efficiency, small-signal', (+(r.eta * 100).toPrecision(3)) + ' %/W']);
+      rows.push([who + 'Poling period' + (el.period > 0 ? '' : ', best for this beam'), (el.period > 0 ? el.period : +r.period.toPrecision(5)) + ' \u00b5m']);
+      rows.push([who + 'Period for a plane wave at ' + el.temp + ' \u00b0C', (+r.periodPW.toPrecision(5)) + ' \u00b5m']);
+      rows.push([who + 'Indices, fundamental and harmonic', r.n1.toFixed(4) + ', ' + r.n2.toFixed(4)]);
+      rows.push([who + 'Focusing \u03be = L/b (best 2.84)', String(+r.xi.toPrecision(3))]);
+      rows.push([who + 'Boyd\u2013Kleinman h (best 1.068)', String(+r.h.toPrecision(3))]);
+      if (Math.abs(r.mu) > 0.2) rows.push([who + 'Waist from the middle', (+(r.mu * 50).toPrecision(2)) + '% of the length']);
     }
     if (!hits.length) rows.push(['', 'No Gaussian beam crosses it. Send a laser through it focused near its middle (the bench’s Light showing the beams’ envelope or field).']);
     const s2 = JSON.stringify(rows);
@@ -31282,8 +31302,8 @@ function updateReadoutsIn(container, el) {
       rows.push(['Passes', (el.roll ? 'nearest ' : '') + (sP ? 's' : 'p') + (no < ne ? ' (ordinary)' : ' (extraordinary)')]); }
     parts = [rows, (el.roll || el.tip ? 'Rays entering the crystal split along its own two polarisations, turned with its ' + (el.roll && el.tip ? 'tip and roll' : el.roll ? 'roll' : 'tip') + ' (rolled 90\u00b0, s and p swap)' : 'Rays entering the crystal split into s and p') + ', each with its own index. Dispersion of ' + C.name + ' from its Sellmeier equations.'];
   } else if (el.type === 'cell') {
-    const C = cellInfo(el), rows = [['Atoms in the vapour', (+(C.n * 1e-6).toPrecision(3)) + ' per cm\u00b3'], ['Doppler width (FWHM)', fmtHz(C.doppler) + '; natural ' + fmtHz(C.natural)],
-      ['Saturation intensity', (+(C.Isat / 10).toPrecision(3)) + ' mW/cm\u00b2 (cycling transition)']];
+    const C = cellInfo(el), rows = [['Atoms in the vapour', (+(C.n * 1e-6).toPrecision(3)) + ' /cm\u00b3'], ['Doppler width (FWHM)', fmtHz(C.doppler)], ['Natural width', fmtHz(C.natural)],
+      ['Saturation intensity (cycling)', (+(C.Isat / 10).toPrecision(3)) + ' mW/cm\u00b2']];
     C.beams.slice(0, 4).forEach(b => {
       const nm = getEl(b.src) ? getEl(b.src).name : 'Beam', at = (b.nu - C.nu0 >= 0 ? '+' : '') + fmtHz(b.nu - C.nu0) + ' from centre: ', tail = (+(b.I / 10).toPrecision(3)) + ' mW/cm\u00b2 at its centre, w ' + fmtLen(b.w);
       if (cellPolar(el)) {
@@ -31292,7 +31312,9 @@ function updateReadoutsIn(container, el) {
         rows.push([nm, at + 'on its axis, ' + (100 * P.amp ** 2).toPrecision(3) + '% of \u03c3+ light through and ' + (100 * M.amp ** 2).toPrecision(3) + '% of \u03c3\u2212, the hands ' + (+((P.ph - M.ph) / deg).toPrecision(3)) + '\u00b0 apart in phase (a linear polarisation turned by half that); ' + tail]);
       } else {
         const R = evalPlan(cellPlanFor(el, b.nu, b.dir, b.src, undefined, b.sec), b.ly, 0);
-        rows.push([nm, at + (100 * R.amp ** 2).toPrecision(3) + '% through on its axis (OD ' + R.od.toPrecision(3) + '), ' + tail]);
+        // a figure a row, each named for its beam
+        rows.push([nm + ': from the line centre', (b.nu - C.nu0 >= 0 ? '+' : '') + fmtHz(b.nu - C.nu0)], [nm + ': through, on its axis', (100 * R.amp ** 2).toPrecision(3) + '%'], [nm + ': optical depth', R.od.toPrecision(3)],
+          [nm + ': intensity at its centre', (+(b.I / 10).toPrecision(3)) + ' mW/cm\u00b2'], [nm + ': beam radius w', fmtLen(b.w)]);
       }
     });
     if (!C.beams.length) rows.push(['', 'No Gaussian beam crosses it: the plot shows a weak beam\u2019s transmission.']);
@@ -32308,7 +32330,14 @@ function tabulate(root, el) {
   let fresh = null;
   try { fresh = normElementBase(Object.assign({ type: el.type, name: 'x' }, el.type === 'fcomp' || el.type === 'elec' || el.type === 'pic' ? { kind: el.kind } : null)); } catch (err) { fresh = null; }
   const same = (a, b) => a === b || (a === undefined || a === null || a === 0 || a === '') && (b === undefined || b === null || b === 0 || b === '');
-  const tick = f => { f.classList.add('rt-pt-row', 'rt-pt-tick'); };
+  // a name with an aside in brackets ("Split in four (reads right less left, top less bottom)") shows its name alone,
+  // the whole of it in its tooltip; its words are kept, out of sight, for a screen reader and for what finds it by them
+  const shorten = (lab, at) => {
+    const t = lab.textContent.trim(), a = /^(.*\S)\s*\((.{8,})\)$/.exec(t);
+    if (!a || lab.children.length > (lab === at && lab.matches('.rt-check') ? 1 : 0)) return;
+    at.dataset.short = a[1]; if (!at.title) at.title = t;
+  };
+  const tick = f => { f.classList.add('rt-pt-row', 'rt-pt-tick'); shorten(f, f); };
   const row = f => {
     if (f.matches('label.rt-check')) { if (f.querySelectorAll('input').length === 1) tick(f); else f.classList.add('rt-pt-wide'); return; }
     const lab = f.matches('.rt-f') ? f.querySelector(':scope > .rt-lab > label, :scope > label') : null, ctl = lab ? f.querySelector(':scope > input, :scope > select') : null;
@@ -32316,14 +32345,15 @@ function tabulate(root, el) {
     f.classList.remove('wide', 'rt-fstack');
     f.classList.add('rt-pt-row');
     lab.classList.add('rt-pt-name');
-    if (ctl.tagName === 'SELECT') { f.classList.add('rt-pt-choose'); return; }
+    if (ctl.tagName === 'SELECT') { f.classList.add('rt-pt-choose'); shorten(lab, lab); return; }
     if (ctl.type === 'checkbox') { f.classList.add('rt-pt-tick'); return; }
     if (ctl.type !== 'text') { f.classList.add('rt-pt-cell'); return; }
-    if (!ctl.dataset.path) { f.classList.add('rt-pt-text'); return; }
     const m = lab.childNodes.length === 1 && lab.firstChild.nodeType === 3 ? UNIT_IN_LABEL.exec(lab.textContent) : null;
+    if (!ctl.dataset.path && !m) { f.classList.add('rt-pt-text'); shorten(lab, lab); return; }
     if (m) { lab.textContent = m[1]; lab.append(h('span', { class: 'rt-sr' }, ' (' + m[2] + ')')); }
     f.append(h('span', { class: 'rt-pt-unit' }, m ? m[2] : ''));
-    if (fresh) bindSync(f, () => { let d; try { d = getPath(fresh, ctl.dataset.path); } catch (err) { d = NaN; } f.classList.toggle('dflt', same(getPath(el, ctl.dataset.path), d)); });
+    if (!m) shorten(lab, lab);
+    if (fresh && ctl.dataset.path) bindSync(f, () => { let d; try { d = getPath(fresh, ctl.dataset.path); } catch (err) { d = NaN; } f.classList.toggle('dflt', same(getPath(el, ctl.dataset.path), d)); });
   };
   for (const box of [...root.querySelectorAll('.rt-rows, .rt-pgrid2')]) {
     if (box.closest('.rt-pt, .rt-sweep, .rt-readout, table') || box.parentElement.closest('.rt-f')) continue;
@@ -32855,7 +32885,7 @@ function renderPanelBody(el) {
   const asTable = tablePart(el);
   // on one of its readout tabs (Rays, Diffraction, Pulse…) the tab's own view starts at the top: its name is in the
   // title, and its place is on its first tab
-  const onSub = asTable && !!vs(el).screenTab && vs(el).screenTab !== 'params';
+  const onSub = asTable && (el.type === 'spectrometer' ? (vs(el).specTab || 'spectrum') === 'spectrum' : !!vs(el).screenTab && vs(el).screenTab !== 'params');
   if (onSub) { /* nothing here */ }
   else if (asTable) { nameF.className = 'rt-pt-row rt-pt-text'; nameF.querySelector('label').className = 'rt-pt-name'; panel.append(h('div', { class: 'rt-pt' }, nameF)); }
   else panel.append(h('div', { class: 'rt-rows' }, nameF));

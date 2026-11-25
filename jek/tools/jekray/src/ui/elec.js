@@ -275,7 +275,7 @@ function elecOpticPanel(el) {
   const rows = h('div', { class: 'rt-rows' });
   let what = '';
   if (isDet(el)) {
-    rows.append(selectField('Output', [['tia', 'Photodetector: a voltage, through its amplifier'], ['diode', 'Photodiode: its current, no amplifier']],
+    rows.append(selectField('Output', [['tia', 'Voltage, amplified'], ['diode', 'Photocurrent, no amplifier']],
       () => el.diode ? 'diode' : 'tia', v => { if (v === 'diode') el.diode = true; else delete el.diode; }, { wide: true }));
     if (el.type === 'detector') rows.append(selectField('Read the light from', [['rays', 'The trace (fast)'], ['field', 'The diffracted field (slow)']],
       () => el.fieldSample ? 'field' : 'rays', v => { if (v === 'field') el.fieldSample = true; else delete el.fieldSample; }, { wide: true }));

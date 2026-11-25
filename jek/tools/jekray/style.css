@@ -548,6 +548,13 @@
   /* (a tick made the older way is its label, the box inside it: the words to the left, the box at the right edge) */
   .rt-panel label.rt-check.rt-pt-row { font-size: 0.875rem; font-weight: 400; color: var(--jek-ink-soft); cursor: pointer; margin: 0; gap: 0; }
   .rt-panel .rt-pt-row.rt-pt-cell > input[type="color"] { width: 2.6rem; height: 1.3rem; padding: 0; margin-right: 0.3rem; }
+  /* (a name shown short: its aside is in its tooltip) */
+  .rt-panel .rt-pt .rt-pt-name[data-short], .rt-panel label.rt-check.rt-pt-row[data-short] { font-size: 0; }
+  .rt-panel .rt-pt .rt-pt-name[data-short]::before, .rt-panel label.rt-check.rt-pt-row[data-short]::before { content: attr(data-short); font-size: 0.875rem; }
+  /* a lens's faces: its own small table, its boxes plain until pointed at as a row's are */
+  .rt-panel .rt-facegrid input, .rt-panel .rt-facegrid select { background: transparent; border-color: transparent; }
+  .rt-panel .rt-facegrid input:hover, .rt-panel .rt-facegrid select:hover, .rt-panel .rt-facegrid input:focus, .rt-panel .rt-facegrid select:focus { background: var(--jek-well); border-color: var(--jek-line-2); }
+  .rt-panel .rt-facegrid .rt-facerow { border-bottom: 1px solid var(--jek-line); }
   .rt-pt-wide { grid-column: 1 / -1; padding: 0.3rem 0; border-bottom: 1px solid var(--jek-line); }
   .rt-pt > p.rt-pt-wide, .rt-pt > .note.rt-pt-wide { border-bottom: none; margin: 0; }
   /* the part's actions at the foot of a table panel: each the same size, sharing the row */
@@ -619,7 +626,8 @@
   .rt-readout dt { color: var(--jek-ink-soft); font-style: italic; }
   /* a line with no label (a note) runs the full width */
   .rt-readout dt:empty { display: none; }
-  .rt-readout dt:empty + dd { grid-column: 1 / -1; text-align: left; font-family: var(--jek-sans); font-style: normal; font-size: 0.8125rem; color: var(--jek-ink-soft); }
+  .rt-readout dd { order: 0; }
+  .rt-readout dt:empty + dd { grid-column: 1 / -1; justify-content: flex-start !important; text-align: left; font-family: var(--jek-sans); font-style: normal; font-size: 0.8125rem; color: var(--jek-ink-soft); }
   /* (a figure sits at the right; one in words that runs over a line reads from its left edge, as text does) */
   .rt-readout dd { margin: 0; padding-left: 0.6rem; display: flex; justify-content: flex-end; text-align: left; font-family: var(--jek-mono); font-style: italic; color: var(--jek-ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
   .rt-readout .note { margin: 0.4rem 0 0; font-size: 0.75rem; }

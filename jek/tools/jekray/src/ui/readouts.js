@@ -224,8 +224,8 @@ function updateReadoutsIn(container, el) {
       rows.push(['Passes', (el.roll ? 'nearest ' : '') + (sP ? 's' : 'p') + (no < ne ? ' (ordinary)' : ' (extraordinary)')]); }
     parts = [rows, (el.roll || el.tip ? 'Rays entering the crystal split along its own two polarisations, turned with its ' + (el.roll && el.tip ? 'tip and roll' : el.roll ? 'roll' : 'tip') + ' (rolled 90\u00b0, s and p swap)' : 'Rays entering the crystal split into s and p') + ', each with its own index. Dispersion of ' + C.name + ' from its Sellmeier equations.'];
   } else if (el.type === 'cell') {
-    const C = cellInfo(el), rows = [['Atoms in the vapour', (+(C.n * 1e-6).toPrecision(3)) + ' per cm\u00b3'], ['Doppler width (FWHM)', fmtHz(C.doppler) + '; natural ' + fmtHz(C.natural)],
-      ['Saturation intensity', (+(C.Isat / 10).toPrecision(3)) + ' mW/cm\u00b2 (cycling transition)']];
+    const C = cellInfo(el), rows = [['Atoms in the vapour', (+(C.n * 1e-6).toPrecision(3)) + ' /cm\u00b3'], ['Doppler width (FWHM)', fmtHz(C.doppler)], ['Natural width', fmtHz(C.natural)],
+      ['Saturation intensity (cycling)', (+(C.Isat / 10).toPrecision(3)) + ' mW/cm\u00b2']];
     C.beams.slice(0, 4).forEach(b => {
       const nm = getEl(b.src) ? getEl(b.src).name : 'Beam', at = (b.nu - C.nu0 >= 0 ? '+' : '') + fmtHz(b.nu - C.nu0) + ' from centre: ', tail = (+(b.I / 10).toPrecision(3)) + ' mW/cm\u00b2 at its centre, w ' + fmtLen(b.w);
       if (cellPolar(el)) {
@@ -234,7 +234,9 @@ function updateReadoutsIn(container, el) {
         rows.push([nm, at + 'on its axis, ' + (100 * P.amp ** 2).toPrecision(3) + '% of \u03c3+ light through and ' + (100 * M.amp ** 2).toPrecision(3) + '% of \u03c3\u2212, the hands ' + (+((P.ph - M.ph) / deg).toPrecision(3)) + '\u00b0 apart in phase (a linear polarisation turned by half that); ' + tail]);
       } else {
         const R = evalPlan(cellPlanFor(el, b.nu, b.dir, b.src, undefined, b.sec), b.ly, 0);
-        rows.push([nm, at + (100 * R.amp ** 2).toPrecision(3) + '% through on its axis (OD ' + R.od.toPrecision(3) + '), ' + tail]);
+        // a figure a row, each named for its beam
+        rows.push([nm + ': from the line centre', (b.nu - C.nu0 >= 0 ? '+' : '') + fmtHz(b.nu - C.nu0)], [nm + ': through, on its axis', (100 * R.amp ** 2).toPrecision(3) + '%'], [nm + ': optical depth', R.od.toPrecision(3)],
+          [nm + ': intensity at its centre', (+(b.I / 10).toPrecision(3)) + ' mW/cm\u00b2'], [nm + ': beam radius w', fmtLen(b.w)]);
       }
     });
     if (!C.beams.length) rows.push(['', 'No Gaussian beam crosses it: the plot shows a weak beam\u2019s transmission.']);

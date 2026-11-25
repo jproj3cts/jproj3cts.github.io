@@ -252,7 +252,14 @@ function tabulate(root, el) {
   let fresh = null;
   try { fresh = normElementBase(Object.assign({ type: el.type, name: 'x' }, el.type === 'fcomp' || el.type === 'elec' || el.type === 'pic' ? { kind: el.kind } : null)); } catch (err) { fresh = null; }
   const same = (a, b) => a === b || (a === undefined || a === null || a === 0 || a === '') && (b === undefined || b === null || b === 0 || b === '');
-  const tick = f => { f.classList.add('rt-pt-row', 'rt-pt-tick'); };
+  // a name with an aside in brackets ("Split in four (reads right less left, top less bottom)") shows its name alone,
+  // the whole of it in its tooltip; its words are kept, out of sight, for a screen reader and for what finds it by them
+  const shorten = (lab, at) => {
+    const t = lab.textContent.trim(), a = /^(.*\S)\s*\((.{8,})\)$/.exec(t);
+    if (!a || lab.children.length > (lab === at && lab.matches('.rt-check') ? 1 : 0)) return;
+    at.dataset.short = a[1]; if (!at.title) at.title = t;
+  };
+  const tick = f => { f.classList.add('rt-pt-row', 'rt-pt-tick'); shorten(f, f); };
   const row = f => {
     if (f.matches('label.rt-check')) { if (f.querySelectorAll('input').length === 1) tick(f); else f.classList.add('rt-pt-wide'); return; }
     const lab = f.matches('.rt-f') ? f.querySelector(':scope > .rt-lab > label, :scope > label') : null, ctl = lab ? f.querySelector(':scope > input, :scope > select') : null;
@@ -260,14 +267,15 @@ function tabulate(root, el) {
     f.classList.remove('wide', 'rt-fstack');
     f.classList.add('rt-pt-row');
     lab.classList.add('rt-pt-name');
-    if (ctl.tagName === 'SELECT') { f.classList.add('rt-pt-choose'); return; }
+    if (ctl.tagName === 'SELECT') { f.classList.add('rt-pt-choose'); shorten(lab, lab); return; }
     if (ctl.type === 'checkbox') { f.classList.add('rt-pt-tick'); return; }
     if (ctl.type !== 'text') { f.classList.add('rt-pt-cell'); return; }
-    if (!ctl.dataset.path) { f.classList.add('rt-pt-text'); return; }
     const m = lab.childNodes.length === 1 && lab.firstChild.nodeType === 3 ? UNIT_IN_LABEL.exec(lab.textContent) : null;
+    if (!ctl.dataset.path && !m) { f.classList.add('rt-pt-text'); shorten(lab, lab); return; }
     if (m) { lab.textContent = m[1]; lab.append(h('span', { class: 'rt-sr' }, ' (' + m[2] + ')')); }
     f.append(h('span', { class: 'rt-pt-unit' }, m ? m[2] : ''));
-    if (fresh) bindSync(f, () => { let d; try { d = getPath(fresh, ctl.dataset.path); } catch (err) { d = NaN; } f.classList.toggle('dflt', same(getPath(el, ctl.dataset.path), d)); });
+    if (!m) shorten(lab, lab);
+    if (fresh && ctl.dataset.path) bindSync(f, () => { let d; try { d = getPath(fresh, ctl.dataset.path); } catch (err) { d = NaN; } f.classList.toggle('dflt', same(getPath(el, ctl.dataset.path), d)); });
   };
   for (const box of [...root.querySelectorAll('.rt-rows, .rt-pgrid2')]) {
     if (box.closest('.rt-pt, .rt-sweep, .rt-readout, table') || box.parentElement.closest('.rt-f')) continue;
@@ -799,7 +807,7 @@ function renderPanelBody(el) {
   const asTable = tablePart(el);
   // on one of its readout tabs (Rays, Diffraction, Pulse…) the tab's own view starts at the top: its name is in the
   // title, and its place is on its first tab
-  const onSub = asTable && !!vs(el).screenTab && vs(el).screenTab !== 'params';
+  const onSub = asTable && (el.type === 'spectrometer' ? (vs(el).specTab || 'spectrum') === 'spectrum' : !!vs(el).screenTab && vs(el).screenTab !== 'params');
   if (onSub) { /* nothing here */ }
   else if (asTable) { nameF.className = 'rt-pt-row rt-pt-text'; nameF.querySelector('label').className = 'rt-pt-name'; panel.append(h('div', { class: 'rt-pt' }, nameF)); }
   else panel.append(h('div', { class: 'rt-rows' }, nameF));

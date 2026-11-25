@@ -335,7 +335,7 @@
   .rt-mode canvas { flex: none; border-radius: 2px; }
   /* the zoom buttons and the save buttons: each at its own width, the row wrapping when the
      panel is narrow rather than squeezing one into the next */
-  .rt-zoom { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; margin-top: 0.35rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
+  .rt-zoom { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.25rem; margin-top: 0.35rem; font-size: 0.75rem; color: var(--jek-ink-soft); }
   .rt-zoom > * { flex: none; }
   .rt-zoom span { margin-left: 0.35rem; }
   .rt-zoom span:first-child { margin-left: 0; }

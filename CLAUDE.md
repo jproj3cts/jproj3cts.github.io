@@ -172,6 +172,25 @@ comes out of the physics the engine already traces. It is never a rule that asse
 - **Before calling a new part done, list what it gets from the engine and what it asserts.** Anything asserted is
   either removed or raised with the owner.
 
+## Part panels (JEKray; being moved to tables, part by part)
+A part's panel is a table, not a stack of boxed inputs. `propTable(el, rows)` in `ui/panel.js` makes one; a part opts in
+with `table: true` on its `PART_UI` entry (the mirror and the source so far), which also makes its Name and Position rows
+of one. When converting a part, or adding to a converted one:
+- **A row a setting**: name, value, unit and the sweep's ∿ in columns. The unit is its own column, never in the name
+  (the label keeps it out of sight for a screen reader, so its text is still "Radius (mm)"). Values are plain text until
+  pointed at. A row still at a new part's value is dimmed (`dflt`), so what has been set stands out.
+- **Row kinds**: a number (`path`), a choice (`choose`), on or off (`tick`), words (`text`), anything else beside its
+  name (`cell`) or across the row (`node`), and a figure worked out from the settings (`read`, in italics, among the
+  settings it follows from: a focal length, a Rayleigh range). A choice's words are short enough to fit; the long of it
+  goes in the row's `title`.
+- **Sections are the panel's own folding headings** (`h3`), named for what they hold (Surface, Coating), not for the
+  part. No fold-outs inside a section: every setting is a row.
+- **Readouts** (`.rt-readout`) are rows of the same look, and come before Colours. **A part's readout tabs** (Rays,
+  Diffraction, Pulse) start with their own view: Name and Position show on the first tab only, and a tab's settings
+  (Plot, Map scale, MTF, Focus model) are table rows.
+- **The foot**: the part's actions the same size in one row (`rt-actions-even`): Design… (light fill), Duplicate, Delete.
+- Explanations stay as text between or under the tables; nothing explanatory is squeezed into a row.
+
 ## Adding or changing a tool feature — checklist
 0. A new part or behaviour: read the Modelling rule above first.
 1. Part field: `norm` (default so old files load — there are no format migrations) and `guide.fields`; the panel in

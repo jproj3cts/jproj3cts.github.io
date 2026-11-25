@@ -570,9 +570,9 @@
   .rt-panel .rt-pt-row.rt-pt-text > input { grid-column: 2 / -1; font-family: var(--jek-sans); }
   .rt-pt-row.rt-pt-choose, .rt-pt-row.rt-pt-cell, .rt-pt-row.rt-pt-tick { grid-template-columns: auto minmax(0, 1fr); }
   .rt-pt-row.rt-pt-choose > .rt-pt-name, .rt-pt-row.rt-pt-cell > .rt-pt-name { white-space: nowrap; }
-  .rt-panel .rt-pt-row.rt-pt-choose > select { box-sizing: border-box; width: 100%; min-width: 0; height: 1.5rem; padding: 0 0.2rem; text-align: right; text-align-last: right; background: transparent; border: 1px solid transparent; border-radius: 2px; color: var(--jek-ink); font-family: var(--jek-sans); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
-  .rt-panel .rt-pt-row.rt-pt-choose > select:hover, .rt-panel .rt-pt-row.rt-pt-choose > select:focus { background: var(--jek-well); border-color: var(--jek-line-2); }
-  .rt-pt-row.rt-pt-cell > :nth-child(2) { justify-self: end; }
+  .rt-panel .rt-pt-row.rt-pt-choose > select, .rt-panel .rt-pt-row.rt-pt-cell > select { box-sizing: border-box; width: 100%; min-width: 0; height: 1.5rem; padding: 0 0.2rem; text-align: right; text-align-last: right; background: transparent; border: 1px solid transparent; border-radius: 2px; color: var(--jek-ink); font-family: var(--jek-sans); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
+  .rt-panel .rt-pt-row.rt-pt-choose > select:hover, .rt-panel .rt-pt-row.rt-pt-choose > select:focus, .rt-panel .rt-pt-row.rt-pt-cell > select:hover, .rt-panel .rt-pt-row.rt-pt-cell > select:focus { background: var(--jek-well); border-color: var(--jek-line-2); }
+  .rt-pt-row.rt-pt-cell > :nth-child(2):not(select) { justify-self: end; }
   .rt-panel .rt-pt-row.rt-pt-tick > input { grid-column: 2; justify-self: end; width: 0.8125rem; height: 0.8125rem; margin: 0 0.3rem 0 0.6rem; }
   .rt-panel .rt-pt-row.rt-pt-cell > input[type="color"] { width: 2.6rem; height: 1.3rem; padding: 0; margin-right: 0.3rem; }
   .rt-pt-wide { grid-column: 1 / -1; padding: 0.3rem 0; border-bottom: 1px solid var(--jek-line); }
@@ -644,21 +644,16 @@
   .rt-check { align-items: flex-start; }
   .rt-check > input[type=checkbox], .rt-check > input[type=radio] { flex: none; margin: 0.1rem 0 0; }
 
-  .rt-readout {
-    margin-top: 0.75rem;
-    padding: 0.6rem 0.75rem;
-    background: var(--jek-well);
-    border: 1px solid var(--jek-line);
-    border-radius: 2px;
-    font-size: 0.8125rem;
-    color: var(--jek-ink-soft);
-  }
-  .rt-readout dl { display: grid; grid-template-columns: minmax(4.5rem, auto) minmax(9.5rem, 1fr); gap: 0.15rem 0.75rem; margin: 0; }
-  .rt-readout dt { color: var(--jek-ink-soft); }
+  /* what a part reads: rows as its settings' table has them, a name and the figure worked out for it (in italics, as a
+     table's own worked-out rows), no box round them */
+  .rt-readout { margin-top: 0.4rem; font-size: 0.875rem; color: var(--jek-ink-soft); }
+  .rt-readout dl { display: grid; grid-template-columns: minmax(4.5rem, 1.2fr) minmax(0, 1fr); column-gap: 0; margin: 0; }
+  .rt-readout dt, .rt-readout dd { padding: 0.25rem 0; border-bottom: 1px solid var(--jek-line); line-height: 1.3; }
+  .rt-readout dt { color: var(--jek-ink-soft); font-style: italic; }
   /* a line with no label (a note) runs the full width */
   .rt-readout dt:empty { display: none; }
-  .rt-readout dt:empty + dd { grid-column: 1 / -1; }
-  .rt-readout dd { margin: 0; font-family: var(--jek-mono); color: var(--jek-ink); font-variant-numeric: tabular-nums; }
+  .rt-readout dt:empty + dd { grid-column: 1 / -1; text-align: left; font-family: var(--jek-sans); font-style: normal; font-size: 0.8125rem; color: var(--jek-ink-soft); }
+  .rt-readout dd { margin: 0; padding-left: 0.6rem; text-align: right; font-family: var(--jek-mono); font-style: italic; color: var(--jek-ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
   .rt-readout .note { margin: 0.4rem 0 0; font-size: 0.75rem; }
 
   .rt-tabs { display: flex; flex-wrap: wrap; gap: 0 0.1rem; margin: -0.25rem 0 0.75rem; border-bottom: 1px solid var(--jek-line); }
@@ -32254,7 +32249,7 @@ function propTable(el, rows) {
         c.addEventListener('input', () => { beginEdit(); r.set(c.value); changed(false); }); c.addEventListener('change', endEdit); c.addEventListener('blur', endEdit);
         bindSync(c, () => { if (document.activeElement !== c) c.value = r.text(); });
       } else c = r.cell;
-      const row = h('div', { class: 'rt-pt-row rt-pt-' + (r.choose ? 'choose' : r.tick ? 'tick' : r.text ? 'text' : 'cell'), title: r.title }, h('label', { class: 'rt-pt-name', for: r.cell ? undefined : id }, r.name), c);
+      const row = h('div', { class: 'rt-pt-row rt-pt-' + (r.choose ? 'choose' : r.tick ? 'tick' : r.text ? 'text' : 'cell'), title: r.title }, h('label', { class: 'rt-pt-name', for: r.cell ? r.cell.id || undefined : id }, r.name), c);
       if (r.row) r.row(row);
       T.append(row);
       continue;
@@ -32722,7 +32717,8 @@ function sectionise(box, kind) {
     if (c.only) c.body.append(k);
     else (readSec || (readSec = { h3: h('h3', null, 'Readout'), body: h('div', { class: 'rt-secbody' }) })).body.append(k);
   }
-  if (readSec) order.splice(order.lastIndexOf(secs[secs.length - 1]) + 1, 0, readSec);
+  // (before the part's colours, which are last: what it reads goes with what it is set to)
+  if (readSec) { const last = secs[secs.length - 1], at = order.lastIndexOf(last); order.splice(last && last.h3.textContent.trim() === 'Colours' ? at : at + 1, 0, readSec); }
   for (const o of order) {
     if (o instanceof Node) box.append(o);
     else if (o.body.children.length) box.append(makeSection(o.h3, o.body, kind + '|' + o.h3.textContent.trim(), !o.h3.hasAttribute('data-shut')));
@@ -32797,7 +32793,11 @@ function renderPanelBody(el) {
   const nameF = textField('Name', () => el.name, v => { el.name = v; title.firstChild.textContent = v; }, { wide: true });
   // (a part whose panel is a table: its name a row of one, plain until pointed at, as its settings are)
   const asTable = !!(PART_UI[el.type] && PART_UI[el.type].table);
-  if (asTable) { nameF.className = 'rt-pt-row rt-pt-text'; nameF.querySelector('label').className = 'rt-pt-name'; panel.append(h('div', { class: 'rt-pt' }, nameF)); }
+  // on one of its readout tabs (Rays, Diffraction, Pulse…) the tab's own view starts at the top: its name is in the
+  // title, and its place is on its first tab
+  const onSub = asTable && !!vs(el).screenTab && vs(el).screenTab !== 'params';
+  if (onSub) { /* nothing here */ }
+  else if (asTable) { nameF.className = 'rt-pt-row rt-pt-text'; nameF.querySelector('label').className = 'rt-pt-name'; panel.append(h('div', { class: 'rt-pt' }, nameF)); }
   else panel.append(h('div', { class: 'rt-rows' }, nameF));
   // what it reads now, in one line (a detector's mW, a screen's spot, a lens's focal length), kept up to date
   const head = h('p', { class: 'rt-headline', 'aria-live': 'polite' });
@@ -32807,7 +32807,7 @@ function renderPanelBody(el) {
   const dz = panel === mainPanel && !el.retro ? designOneRow(el) : null;   // (a corner cube is three mirrors, not a surface of a lens design)
   // (in a table panel it goes with the part's other actions, at the foot)
   if (dz && !asTable) panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;justify-content:flex-end;gap:0.35rem;margin:0.35rem 0 0.6rem' }, dz));
-  panel.append(h('h3', null, 'Position'));
+  if (!onSub) panel.append(h('h3', null, 'Position'));
   const rows = h('div', { class: 'rt-rows' });
   // two rows of three: where it is (X, Y, and Z, its height above the breadboard, for a part with one), and how it is
   // turned (Angle on the bench, and Tip and Roll out of it, for a part that can tip), a line under saying what Angle is
@@ -32839,7 +32839,7 @@ function renderPanelBody(el) {
   // with more than one tab: which one it is on (moving it takes it there, the view with it)
   if (project.benches.length > 1) rows.append(selectField('On tab', project.benches.map(b => [b.id, b.name]), () => el.bench,
     v => { el.bench = v; if (panel === mainPanel) switchTab(v); }, { wide: true }));
-  panel.append(rows);
+  if (!onSub) panel.append(rows);
 
   const horn = el.mmw && !el.mmw.part, U = PART_UI[el.type];
   if (horn) rfHornPanel(el);
@@ -33153,7 +33153,7 @@ function rayPlots(el) {
   for (const [v, t] of RAY_PLOTS) sel.append(h('option', { value: v }, t));
   sel.value = vs(el).rayView;
   sel.addEventListener('change', () => { vs(el).rayView = sel.value; renderPanel(); });
-  const rows = h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: sel.id }, 'Plot'), sel));
+  const rows = propTable(el, [{ name: 'Plot', cell: sel }]);
   panel.append(rows);
 
   const cv = h('canvas', { height: '170', style: 'width:100%;display:block' });
@@ -33188,7 +33188,7 @@ function aberSection(el) {
   for (const [v, t] of ABER_PLOTS) sel.append(h('option', { value: v }, t));
   sel.value = vs(el).aberView;
   sel.addEventListener('change', () => { vs(el).aberView = sel.value; renderPanel(); });
-  panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' }, h('div', { class: 'rt-f wide' }, h('label', { for: sel.id }, 'Plot'), sel)));
+  panel.append(propTable(el, [{ name: 'Plot', cell: sel }]));
   const cv = h('canvas', { height: '200', style: 'width:100%;display:block' });
   const note = h('p', { class: 'note', style: 'margin-top:0.4rem' });
   const box = h('div', { class: 'rt-readout' });
@@ -33368,9 +33368,9 @@ function drawRayPlot(cv, note, el) {
 }
 
 function screenPlots(el) {
-  panel.append(h('div', { class: 'rt-rows' }, param('MTF quoted at (lp/mm)', el, 'mtfFreq', { wide: true }),
-    selectField('Focus model', [['auto', 'Vector when steep (NA above 0.3)'], ['on', 'Always vector'], ['off', 'Paraxial only']],
-      () => el.vectorFocus, v => { el.vectorFocus = v; }, { wide: true })));
+  panel.append(propTable(el, [{ name: 'MTF quoted at', path: 'mtfFreq', unit: 'lp/mm' },
+    { name: 'Focus model', choose: [['auto', 'Vector when steep'], ['on', 'Always vector'], ['off', 'Paraxial only']], get: () => el.vectorFocus, set: v => { el.vectorFocus = v; },
+      title: 'How a steep focus is worked out: the vector model once the beam\u2019s NA is above 0.3, always, or the paraxial one only' }]));
   diffractionSection(el);
   panel.append(h('div', { class: 'rt-actions' },
     acctMark(h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)'), 'export a screen\u2019s data')));
@@ -39517,8 +39517,7 @@ function diffractionSection(el) {
   panel.append(h('h3', null, 'Diffraction'));
   const tabs = h('div', { class: 'rt-inline', style: 'margin-bottom:0.4rem;flex-wrap:wrap;column-gap:0.8rem;row-gap:0.2rem' });
   const cv = h('canvas', { style: 'width:100%;display:block' });
-  const scaleRow = h('div', { class: 'rt-rows', style: 'margin-bottom:0.4rem' },
-    selectField('Map scale', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB']], () => el.mapScale, v => { el.mapScale = v; }, { rebuild: false }));
+  const scaleRow = propTable(el, [{ name: 'Map scale', choose: [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB']], get: () => el.mapScale, set: v => { el.mapScale = v; }, opts: { rebuild: false } }]);
   const box = h('div', { class: 'rt-readout' });
   const views = [['map', 'Irradiance'], ['phase', 'Phase'], ['pol', 'Polarisation'], ['psf', 'Profiles'], ['mtf', 'MTF'], ['ee', 'Enclosed energy']];
   for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { vs(el).diffView = key; refresh(); } }, text));

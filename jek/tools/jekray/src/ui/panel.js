@@ -214,7 +214,7 @@ export function propTable(el, rows) {
         c.addEventListener('input', () => { beginEdit(); r.set(c.value); changed(false); }); c.addEventListener('change', endEdit); c.addEventListener('blur', endEdit);
         bindSync(c, () => { if (document.activeElement !== c) c.value = r.text(); });
       } else c = r.cell;
-      const row = h('div', { class: 'rt-pt-row rt-pt-' + (r.choose ? 'choose' : r.tick ? 'tick' : r.text ? 'text' : 'cell'), title: r.title }, h('label', { class: 'rt-pt-name', for: r.cell ? undefined : id }, r.name), c);
+      const row = h('div', { class: 'rt-pt-row rt-pt-' + (r.choose ? 'choose' : r.tick ? 'tick' : r.text ? 'text' : 'cell'), title: r.title }, h('label', { class: 'rt-pt-name', for: r.cell ? r.cell.id || undefined : id }, r.name), c);
       if (r.row) r.row(row);
       T.append(row);
       continue;
@@ -682,7 +682,8 @@ function sectionise(box, kind) {
     if (c.only) c.body.append(k);
     else (readSec || (readSec = { h3: h('h3', null, 'Readout'), body: h('div', { class: 'rt-secbody' }) })).body.append(k);
   }
-  if (readSec) order.splice(order.lastIndexOf(secs[secs.length - 1]) + 1, 0, readSec);
+  // (before the part's colours, which are last: what it reads goes with what it is set to)
+  if (readSec) { const last = secs[secs.length - 1], at = order.lastIndexOf(last); order.splice(last && last.h3.textContent.trim() === 'Colours' ? at : at + 1, 0, readSec); }
   for (const o of order) {
     if (o instanceof Node) box.append(o);
     else if (o.body.children.length) box.append(makeSection(o.h3, o.body, kind + '|' + o.h3.textContent.trim(), !o.h3.hasAttribute('data-shut')));
@@ -757,7 +758,11 @@ function renderPanelBody(el) {
   const nameF = textField('Name', () => el.name, v => { el.name = v; title.firstChild.textContent = v; }, { wide: true });
   // (a part whose panel is a table: its name a row of one, plain until pointed at, as its settings are)
   const asTable = !!(PART_UI[el.type] && PART_UI[el.type].table);
-  if (asTable) { nameF.className = 'rt-pt-row rt-pt-text'; nameF.querySelector('label').className = 'rt-pt-name'; panel.append(h('div', { class: 'rt-pt' }, nameF)); }
+  // on one of its readout tabs (Rays, Diffraction, Pulse…) the tab's own view starts at the top: its name is in the
+  // title, and its place is on its first tab
+  const onSub = asTable && !!vs(el).screenTab && vs(el).screenTab !== 'params';
+  if (onSub) { /* nothing here */ }
+  else if (asTable) { nameF.className = 'rt-pt-row rt-pt-text'; nameF.querySelector('label').className = 'rt-pt-name'; panel.append(h('div', { class: 'rt-pt' }, nameF)); }
   else panel.append(h('div', { class: 'rt-rows' }, nameF));
   // what it reads now, in one line (a detector's mW, a screen's spot, a lens's focal length), kept up to date
   const head = h('p', { class: 'rt-headline', 'aria-live': 'polite' });
@@ -767,7 +772,7 @@ function renderPanelBody(el) {
   const dz = panel === mainPanel && !el.retro ? designOneRow(el) : null;   // (a corner cube is three mirrors, not a surface of a lens design)
   // (in a table panel it goes with the part's other actions, at the foot)
   if (dz && !asTable) panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;justify-content:flex-end;gap:0.35rem;margin:0.35rem 0 0.6rem' }, dz));
-  panel.append(h('h3', null, 'Position'));
+  if (!onSub) panel.append(h('h3', null, 'Position'));
   const rows = h('div', { class: 'rt-rows' });
   // two rows of three: where it is (X, Y, and Z, its height above the breadboard, for a part with one), and how it is
   // turned (Angle on the bench, and Tip and Roll out of it, for a part that can tip), a line under saying what Angle is
@@ -799,7 +804,7 @@ function renderPanelBody(el) {
   // with more than one tab: which one it is on (moving it takes it there, the view with it)
   if (project.benches.length > 1) rows.append(selectField('On tab', project.benches.map(b => [b.id, b.name]), () => el.bench,
     v => { el.bench = v; if (panel === mainPanel) switchTab(v); }, { wide: true }));
-  panel.append(rows);
+  if (!onSub) panel.append(rows);
 
   const horn = el.mmw && !el.mmw.part, U = PART_UI[el.type];
   if (horn) rfHornPanel(el);

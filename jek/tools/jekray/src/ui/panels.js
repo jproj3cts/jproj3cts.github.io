@@ -29,7 +29,7 @@ import { snapVal } from './pointer.js';
 import { CONNS, FIBRE_N, netPower, pkey, portName, portsOf } from '../engines/fibre.js';
 import { signalSection } from './instruments.js';
 import { refNm } from './optimise.js';
-import { helpLine, beginEdit, bindSync, endEdit, fid, numInput, panel, param, renderPanel, selectBox, selectField, setFid, syncPanel, vs } from './panel.js';
+import { helpLine, beginEdit, bindSync, endEdit, fid, numInput, panel, param, propTable, renderPanel, selectBox, selectField, setFid, syncPanel, vs } from './panel.js';
 import { h } from './dom.js';
 import {
   askForGlass, askForMaterial, axisFont, diffractionSection, drawAxes, glassNote, materialOptions, pickMaterial, plotArea,
@@ -327,7 +327,7 @@ function rayPlots(el) {
   for (const [v, t] of RAY_PLOTS) sel.append(h('option', { value: v }, t));
   sel.value = vs(el).rayView;
   sel.addEventListener('change', () => { vs(el).rayView = sel.value; renderPanel(); });
-  const rows = h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: sel.id }, 'Plot'), sel));
+  const rows = propTable(el, [{ name: 'Plot', cell: sel }]);
   panel.append(rows);
 
   const cv = h('canvas', { height: '170', style: 'width:100%;display:block' });
@@ -362,7 +362,7 @@ function aberSection(el) {
   for (const [v, t] of ABER_PLOTS) sel.append(h('option', { value: v }, t));
   sel.value = vs(el).aberView;
   sel.addEventListener('change', () => { vs(el).aberView = sel.value; renderPanel(); });
-  panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' }, h('div', { class: 'rt-f wide' }, h('label', { for: sel.id }, 'Plot'), sel)));
+  panel.append(propTable(el, [{ name: 'Plot', cell: sel }]));
   const cv = h('canvas', { height: '200', style: 'width:100%;display:block' });
   const note = h('p', { class: 'note', style: 'margin-top:0.4rem' });
   const box = h('div', { class: 'rt-readout' });
@@ -542,9 +542,9 @@ function drawRayPlot(cv, note, el) {
 }
 
 function screenPlots(el) {
-  panel.append(h('div', { class: 'rt-rows' }, param('MTF quoted at (lp/mm)', el, 'mtfFreq', { wide: true }),
-    selectField('Focus model', [['auto', 'Vector when steep (NA above 0.3)'], ['on', 'Always vector'], ['off', 'Paraxial only']],
-      () => el.vectorFocus, v => { el.vectorFocus = v; }, { wide: true })));
+  panel.append(propTable(el, [{ name: 'MTF quoted at', path: 'mtfFreq', unit: 'lp/mm' },
+    { name: 'Focus model', choose: [['auto', 'Vector when steep'], ['on', 'Always vector'], ['off', 'Paraxial only']], get: () => el.vectorFocus, set: v => { el.vectorFocus = v; },
+      title: 'How a steep focus is worked out: the vector model once the beam\u2019s NA is above 0.3, always, or the paraxial one only' }]));
   diffractionSection(el);
   panel.append(h('div', { class: 'rt-actions' },
     acctMark(h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)'), 'export a screen\u2019s data')));

@@ -8,7 +8,7 @@ import { benchNms, getEl } from '../state/elements.js';
 import { getCss, inkA, niceStep } from './render.js';
 import { playing } from './sweeps.js';
 import { pctTxt, stopSweepsFor } from './optimise.js';
-import { bindSync, panel, selectField, vs } from './panel.js';
+import { bindSync, panel, propTable, vs } from './panel.js';
 import { h } from './dom.js';
 import { diffractionLater } from '../engines/pd-cavity.js';
 import { changed, downloadFile, safeFileName, toast } from './actions.js';
@@ -332,8 +332,7 @@ export function diffractionSection(el) {
   panel.append(h('h3', null, 'Diffraction'));
   const tabs = h('div', { class: 'rt-inline', style: 'margin-bottom:0.4rem;flex-wrap:wrap;column-gap:0.8rem;row-gap:0.2rem' });
   const cv = h('canvas', { style: 'width:100%;display:block' });
-  const scaleRow = h('div', { class: 'rt-rows', style: 'margin-bottom:0.4rem' },
-    selectField('Map scale', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB']], () => el.mapScale, v => { el.mapScale = v; }, { rebuild: false }));
+  const scaleRow = propTable(el, [{ name: 'Map scale', choose: [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB']], get: () => el.mapScale, set: v => { el.mapScale = v; }, opts: { rebuild: false } }]);
   const box = h('div', { class: 'rt-readout' });
   const views = [['map', 'Irradiance'], ['phase', 'Phase'], ['pol', 'Polarisation'], ['psf', 'Profiles'], ['mtf', 'MTF'], ['ee', 'Enclosed energy']];
   for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { vs(el).diffView = key; refresh(); } }, text));

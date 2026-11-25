@@ -559,6 +559,21 @@
   /* a list with a long choice: its label above it, the list across the row (panel.js stackLongSelects) */
   .rt-rows > .rt-f.rt-fstack > label, .rt-rows > .rt-f.rt-fstack > .rt-lab > label { grid-column: 1 / -1; }
   .rt-rows > .rt-f.rt-fstack.rt-fstack > select:nth-child(n) { grid-column: 1 / -1; grid-row: 2; }
+  /* a part's settings as a table (panel.js propTable): name, value, unit, sweep; a value is plain text until pointed at */
+  .rt-pt { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(1.6rem, auto) 1.35rem; column-gap: 0.4rem; align-items: center; font-variant-numeric: tabular-nums; margin-bottom: 0.4rem; }
+  .rt-pt-row { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; align-items: center; min-height: 1.7rem; border-bottom: 1px solid var(--jek-line); }
+  .rt-pt-row[hidden] { display: none; }
+  .rt-pt-sec { grid-column: 1 / -1; padding: 0.5rem 0 0.2rem; font-size: 0.8125rem; font-weight: 700; color: var(--jek-ink); border-bottom: 1px solid var(--jek-line-2); }
+  .rt-pt-sec:first-child { padding-top: 0.1rem; }
+  .rt-pt-name { font-size: 0.875rem; color: var(--jek-ink-soft); line-height: 1.2; padding: 0.15rem 0; }
+  .rt-pt-unit { font-size: 0.8125rem; color: var(--jek-ink-soft); }
+  .rt-panel .rt-pt-row > input { box-sizing: border-box; width: 100%; min-width: 0; height: 1.5rem; padding: 0 0.3rem; text-align: right; background: transparent; border: 1px solid transparent; border-radius: 2px; color: var(--jek-ink); font-family: var(--jek-mono); font-size: 0.875rem; font-weight: 600; }
+  .rt-panel .rt-pt-row > input:hover { border-color: var(--jek-line-2); }
+  .rt-panel .rt-pt-row > input:focus { background: var(--jek-well); border-color: var(--jek-line-2); text-align: left; }
+  .rt-pt-row.dflt > input { font-weight: 400; color: var(--jek-ink-soft); }
+  .rt-pt-row.derived > .rt-pt-val { text-align: right; padding: 0 0.3rem; font-family: var(--jek-mono); font-size: 0.875rem; color: var(--jek-ink-soft); font-style: italic; border: 1px solid transparent; }
+  .rt-pt-row.derived > .rt-pt-name { font-style: italic; }
+  .rt-pt-box { grid-column: 1 / -1; padding: 0.3rem 0 0.4rem; border-bottom: 1px solid var(--jek-line); }
   /* what a part reads now, under its name (panel.js) */
   .rt-panel p.rt-headline { margin: 0.35rem 0 0.2rem; font-size: 0.9rem; font-weight: 600; color: var(--jek-ink); font-variant-numeric: tabular-nums; }
   /* the Position section: two rows of three, each number with its name over it (panel.js paramGrid) */
@@ -29459,7 +29474,8 @@ function mirrorPanel(el) {
   if (readoutTabs(el, [['params', 'Mirror'], ['rays', 'Rays'], ['plots', 'Diffraction'], ['pulse', 'Pulse']])) return;
   panel.append(h('h3', null, el.retro ? 'Retroreflector' : el.film ? 'Film beam splitter' : el.metal ? 'Metal mirror' : 'Mirror'));
   if (el.retro) {
-    panel.append(h('div', { class: 'rt-rows' }, param('Opening (mm)', el, 'length'), param('Each mirror reflects (%)', el, 'reflect')));
+    panel.append(propTable(el, ['Corner cube', { name: 'Opening', path: 'length', unit: 'mm' }, { name: 'Each mirror reflects', path: 'reflect', unit: '%', dflt: 100 },
+      { name: 'Corner behind the opening', read: () => fmtPt(el.length / Math.SQRT2), unit: 'mm', title: 'Where the three mirrors meet: as deep as a cube corner is under the circle its faces just reach, the opening over \u221a2.' }]));
     panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A hollow corner cube: three flat mirrors square to one another, meeting at a corner ' + (+(el.length / Math.SQRT2).toPrecision(4)) + ' mm behind the middle of its round opening. Light reflects off all three and goes back the way it came, whatever its angle in or out of the bench plane, leaving from the point opposite across the middle. Light that meets only one or two of the mirrors before leaving goes elsewhere, as on a real one. What a mirror does not reflect is lost.'));
     return;
   }
@@ -29473,17 +29489,27 @@ function mirrorPanel(el) {
     panel.append(h('p', { style: 'margin-top:0.6rem' }, 'A dielectric sheet (Mylar is 1.73): its two faces interfere, so what it reflects goes with its thickness over the wavelength, the angle, and the polarisation. Lossless.'));
     return;
   }
-  panel.append(h('div', { class: 'rt-rows' },
-    param('Width (mm)', el, 'length'),
-    param('Radius (mm)', el, 'R', { blank: null, placeholder: 'plane' }),
-    ...(el.metal ? [selectField('Metal', Object.entries(RF_METALS).map(([k, v]) => [k, v.name]), () => el.metal, v => { el.metal = v; })] : [param('Reflectance (%)', el, 'reflect'), param('Passes through (%)', el, 'transmit', { placeholder: 'the rest', blank: null, fmt: v => (v == null ? '' : String(+(+v).toFixed(4))) })])));
-  // its shape beyond a sphere, a hole, an off-axis cut and a chirp: in a fold, open when any is set
-  const shaped = !!(el.k || el.hole > 0 || (el.A && el.A.length) || (el.F && Object.keys(el.F).length) || el.offset || el.gdd);
-  panel.append(moreFold(el.id + '|shape', 'Conic, aspheric terms, hole, off-axis offset, GDD', shaped, h('div', { class: 'rt-rows' },
-    param('Conic k', el, 'k', { blank: 0 }),
-    param('Hole through it (mm)', el, 'hole', { blank: 0, placeholder: 'none' }),
-    // its aspheric terms on the conic, A4 r⁴ … (each added, and the last taken off, as an asphere's)
-    ...(el.A || []).map((_, j) => param('A' + (4 + 2 * j), el, `A.${j}`, { blank: 0 })),
+  // its settings as a table: its surface, then its coating; the figures that follow from them among them
+  const f0 = () => (el.R ? el.R / 2 : null), para = () => !!el.R && el.k === -1 && !!el.offset;
+  panel.append(propTable(el, [
+    'Surface',
+    { name: 'Width', path: 'length', unit: 'mm' },
+    { name: 'Radius', path: 'R', unit: 'mm', dflt: null, opts: { blank: null, placeholder: 'plane' }, title: 'Its radius of curvature: positive is concave towards the reflecting face, negative convex. Blank for a plane mirror.' },
+    { name: 'Conic', path: 'k', dflt: 0, opts: { blank: 0 }, title: '0 a sphere, −1 a paraboloid.' },
+    { name: 'Off-axis offset', path: 'offset', unit: 'mm', dflt: 0, title: 'Slides the mirror this far along its parent curve, off the curve’s axis: with a conic of −1, an off-axis parabola.' },
+    { name: 'Hole through it', path: 'hole', unit: 'mm', dflt: 0, opts: { blank: 0, placeholder: 'none' } },
+    ...(el.A || []).map((_, j) => ({ name: 'A' + (4 + 2 * j), path: `A.${j}`, dflt: 0, opts: { blank: 0 } })),
+    { name: 'Focal length', unit: 'mm', read: () => (f0() === null || para() ? null : fmtPt(f0())), title: 'Half its radius, for light near its axis.' },
+    { name: 'Turns the beam', unit: '°', read: () => (para() ? fmtPt(2 * Math.atan(Math.abs(el.offset) / (2 * Math.abs(f0()))) * 180 / Math.PI) : null), title: 'An off-axis parabola: how far it turns a beam that comes in along its parent’s axis.' },
+    { name: 'Focus from the mirror', unit: 'mm', read: () => (para() ? fmtPt(Math.abs(f0()) + el.offset * el.offset / (4 * Math.abs(f0()))) : null), title: 'An off-axis parabola’s reflected focal length: from the middle of the mirror to its focus.' },
+    el.metal ? null : 'Coating',
+    el.metal ? null : { name: 'Reflectance', path: 'reflect', unit: '%', dflt: 100 },
+    el.metal ? null : { name: 'Passes through', path: 'transmit', unit: '%', dflt: null, opts: { placeholder: 'the rest', blank: null }, title: 'What is neither reflected nor passed is absorbed. Blank: all that is not reflected passes.' },
+    el.metal ? null : { name: 'GDD a reflection', path: 'gdd', unit: 'fs²', dflt: 0, title: 'A chirped mirror: the group delay dispersion each reflection adds. Negative compresses a pulse.' },
+  ]));
+  if (el.metal) panel.append(h('div', { class: 'rt-rows' }, selectField('Metal', Object.entries(RF_METALS).map(([k, v]) => [k, v.name]), () => el.metal, v => { el.metal = v; })));
+  // its aspheric and freeform terms: added and taken off here, each a row above once it is there
+  panel.append(moreFold(el.id + '|shape', 'Aspheric and freeform terms', !!((el.A && el.A.length) || (el.F && Object.keys(el.F).length)), h('div', { class: 'rt-rows' },
     h('div', { class: 'rt-inline wide' },
       (el.A || []).length < 7 ? h('button', { class: 'rt-link', type: 'button', onclick: () => { checkpoint(); el.A = (el.A || []).concat([0]); changed(true); } },
         (el.A || []).length ? 'Add A' + (4 + 2 * el.A.length) + ' term' : 'Add aspheric terms') : null,
@@ -29491,8 +29517,6 @@ function mirrorPanel(el) {
         checkpoint(); removeSweeps(el, 'A.' + (el.A.length - 1)); el.A.pop(); if (!el.A.length) delete el.A; changed(true);
       } }, 'Remove A' + (2 + 2 * el.A.length)) : null),
     ...ffRows(el, el, 'F', el.name || 'the mirror'),
-    param('Off-axis offset (mm)', el, 'offset'),
-    param('GDD a reflection (fs\u00b2)', el, 'gdd', { wide: true }),
   )));
   if (el.mmw && el.R) panel.append(readoutBox('mirror'));
   if (el.metal) panel.append(h('p', { class: 'note' }, 'Reflects ' + (100 * metalR(el.metal, ghz)).toPrecision(4) + ' % at ' + (+ghz.toPrecision(4)) + ' GHz: the loss is 4 Rs / Z0, Rs = \u221a(\u03c0 f \u03bc0 / \u03c3) the surface resistance of ' + RF_METALS[el.metal].name.toLowerCase() + '.'));
@@ -29500,8 +29524,10 @@ function mirrorPanel(el) {
   if (el.source) panel.append(h('p', { class: 'note' }, 'Imported from ' + el.source + '.'));
 }
 
+/* a figure in the table: four figures, no trailing noughts */
+const fmtPt = v => String(+(+v).toPrecision(4));
 const MIRROR_UI = {
-  draw: drawMirror, hit: hitSurface, panel: mirrorPanel, rank: 2,
+  draw: drawMirror, hit: hitSurface, panel: mirrorPanel, rank: 2, table: true,
 };
 /* Lens on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/lens.js */
 
@@ -32194,6 +32220,42 @@ function param(label, el, path, opts = {}) {
   if (P.box) wrap.append(P.box);
   return wrap;
 }
+/* A part's settings as a table: a row a setting, its name, its value, its unit and its sweep's \u223f each in a column of
+   their own, under section rows. A value reads as plain text until it is pointed at or typed in; Enter and the up and
+   down arrows go from row to row, as in a spreadsheet. rows: a string (a section's name), or
+     { name, path, unit, opts, dflt, title }   a setting (dflt: its value on a new plain part: a row still at it is dimmed,
+                                               so what has been set stands out)
+     { name, read: () => text, unit, title }   a figure worked out from the settings, shown among them, not typed
+   (null: no row). The unit is in the label for a screen reader, out of sight. */
+function propTable(el, rows) {
+  const T = h('div', { class: 'rt-pt' });
+  for (const r of rows) {
+    if (!r) continue;
+    if (typeof r === 'string') { T.append(h('div', { class: 'rt-pt-sec' }, r)); continue; }
+    if (r.read) {
+      const v = h('span', { class: 'rt-pt-val' }), row = h('div', { class: 'rt-pt-row derived', title: r.title }, h('span', { class: 'rt-pt-name' }, r.name), v, h('span', { class: 'rt-pt-unit' }, r.unit || ''), h('span'));
+      bindSync(v, () => { const t = r.read(); v.textContent = t; row.hidden = t === null || t === undefined || t === ''; });
+      T.append(row);
+      continue;
+    }
+    const id = 'rtf' + (++fid), full = r.name + (r.unit ? ' (' + r.unit + ')' : '');
+    const P = paramBits(full, el, r.path, Object.assign({ prefix: r.name }, r.opts), id);
+    const row = h('div', { class: 'rt-pt-row' + (P.sw ? ' swept' : ''), title: r.title },
+      h('label', { class: 'rt-pt-name', for: id }, r.name, r.unit ? h('span', { class: 'rt-sr' }, ' (' + r.unit + ')') : null),
+      P.inp, h('span', { class: 'rt-pt-unit' }, r.unit || ''), P.toggle || h('span'));
+    if ('dflt' in r) bindSync(row, () => { const v = getPath(el, r.path); row.classList.toggle('dflt', v === r.dflt || (v === undefined || v === null || v === 0) && (r.dflt === null || r.dflt === 0)); });
+    T.append(row);
+    if (P.box) T.append(h('div', { class: 'rt-pt-box' }, P.box));
+  }
+  // from row to row
+  T.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    if (!e.target.matches || !e.target.matches('.rt-pt-row > input')) return;
+    const all = [...T.querySelectorAll('.rt-pt-row > input')], to = all[all.indexOf(e.target) + (e.key === 'ArrowUp' ? -1 : 1)];
+    if (to) { e.preventDefault(); to.focus(); to.select(); }
+  });
+  return T;
+}
 /* a grid of numbers three to a row, each with its name over it (and its sweep's ∿ beside the name): the Position section's X, Y, Z and Angle, Tip, Roll. items: [path, label] or null
    (an empty cell); the open sweeps' controls follow the grid */
 function paramGrid(el, items, opts = {}, cells = []) {        // cells: filled with each number's cell, in order (null for an empty one)
@@ -32719,6 +32781,17 @@ function renderPanelBody(el) {
   const noSw = el.type === 'draw', hasZ = V3D.free(el) && !NET_3D.has(el.type), tips = tippable(el);
   const pc = [], ac = [];
   // (typed, what is mated to it goes with it)
+  const U0 = PART_UI[el.type];
+  // (a part whose panel is a table, ui/parts: its position a table too)
+  if (U0 && U0.table) {
+    const o = { noSweep: noSw, carry: true };
+    rows.append(h('div', { class: 'rt-f wide', style: 'display:block' }, propTable(el, [
+      { name: 'X', path: 'x', unit: 'mm', opts: o }, { name: 'Y', path: 'y', unit: 'mm', opts: o },
+      hasZ ? { name: 'Z', path: 'z', unit: 'mm', opts: o, dflt: BEAM_Z, title: 'Its height above the breadboard: its optical centre. The beam is at ' + BEAM_Z + ' mm unless a part sets it otherwise.' } : null,
+      { name: 'Angle', path: 'angle', unit: '\u00b0', opts: o, title: 'Angle: ' + angleMeans(el) + '.' },
+      tips ? { name: 'Tip', path: 'tip', unit: '\u00b0', opts: o, dflt: 0, title: el.type === 'mirror' ? 'Tips the mirror up (positive) or down out of the bench plane, as the vertical knob of a kinematic mount does. The reflected light rises or falls by twice the tip.' : 'Tips the part up (positive) or down out of the bench plane, about its own across axis.' } : null,
+      tips ? { name: 'Roll', path: 'roll', unit: '\u00b0', opts: o, dflt: 0, title: 'Turns the part about its own axis (the way it faces), right-handed.' } : null])));
+  } else {
   const pos = paramGrid(el, [['x', 'X (mm)'], ['y', 'Y (mm)'], hasZ ? ['z', 'Z (mm)'] : null], { noSweep: noSw, carry: true }, pc);
   const ang = paramGrid(el, [['angle', 'Angle (\u00b0)'], tips ? ['tip', 'Tip (\u00b0)'] : null, tips ? ['roll', 'Roll (\u00b0)'] : null], { noSweep: noSw, carry: true }, ac);
   if (hasZ) pc[2].title = 'Its height above the breadboard: its optical centre. The beam is at ' + BEAM_Z + ' mm unless a part sets it otherwise; light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down.';
@@ -32730,6 +32803,7 @@ function renderPanelBody(el) {
       : 'Turns the part about its own axis (the way it faces), right-handed: a cylindrical lens\u2019s power, a grating\u2019s grooves, a waveplate\u2019s, polariser\u2019s or crystal\u2019s axis, a Dove prism\u2019s image (turned twice as far).';
   }
   rows.append(pos, ang, h('p', { class: 'rt-anglenote' }, 'Angle: ' + angleMeans(el) + '.'));
+  }
   // with more than one tab: which one it is on (moving it takes it there, the view with it)
   if (project.benches.length > 1) rows.append(selectField('On tab', project.benches.map(b => [b.id, b.name]), () => el.bench,
     v => { el.bench = v; if (panel === mainPanel) switchTab(v); }, { wide: true }));

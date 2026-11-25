@@ -514,6 +514,21 @@
   /* a list with a long choice: its label above it, the list across the row (panel.js stackLongSelects) */
   .rt-rows > .rt-f.rt-fstack > label, .rt-rows > .rt-f.rt-fstack > .rt-lab > label { grid-column: 1 / -1; }
   .rt-rows > .rt-f.rt-fstack.rt-fstack > select:nth-child(n) { grid-column: 1 / -1; grid-row: 2; }
+  /* a part's settings as a table (panel.js propTable): name, value, unit, sweep; a value is plain text until pointed at */
+  .rt-pt { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(1.6rem, auto) 1.35rem; column-gap: 0.4rem; align-items: center; font-variant-numeric: tabular-nums; margin-bottom: 0.4rem; }
+  .rt-pt-row { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; align-items: center; min-height: 1.7rem; border-bottom: 1px solid var(--jek-line); }
+  .rt-pt-row[hidden] { display: none; }
+  .rt-pt-sec { grid-column: 1 / -1; padding: 0.5rem 0 0.2rem; font-size: 0.8125rem; font-weight: 700; color: var(--jek-ink); border-bottom: 1px solid var(--jek-line-2); }
+  .rt-pt-sec:first-child { padding-top: 0.1rem; }
+  .rt-pt-name { font-size: 0.875rem; color: var(--jek-ink-soft); line-height: 1.2; padding: 0.15rem 0; }
+  .rt-pt-unit { font-size: 0.8125rem; color: var(--jek-ink-soft); }
+  .rt-panel .rt-pt-row > input { box-sizing: border-box; width: 100%; min-width: 0; height: 1.5rem; padding: 0 0.3rem; text-align: right; background: transparent; border: 1px solid transparent; border-radius: 2px; color: var(--jek-ink); font-family: var(--jek-mono); font-size: 0.875rem; font-weight: 600; }
+  .rt-panel .rt-pt-row > input:hover { border-color: var(--jek-line-2); }
+  .rt-panel .rt-pt-row > input:focus { background: var(--jek-well); border-color: var(--jek-line-2); text-align: left; }
+  .rt-pt-row.dflt > input { font-weight: 400; color: var(--jek-ink-soft); }
+  .rt-pt-row.derived > .rt-pt-val { text-align: right; padding: 0 0.3rem; font-family: var(--jek-mono); font-size: 0.875rem; color: var(--jek-ink-soft); font-style: italic; border: 1px solid transparent; }
+  .rt-pt-row.derived > .rt-pt-name { font-style: italic; }
+  .rt-pt-box { grid-column: 1 / -1; padding: 0.3rem 0 0.4rem; border-bottom: 1px solid var(--jek-line); }
   /* what a part reads now, under its name (panel.js) */
   .rt-panel p.rt-headline { margin: 0.35rem 0 0.2rem; font-size: 0.9rem; font-weight: 600; color: var(--jek-ink); font-variant-numeric: tabular-nums; }
   /* the Position section: two rows of three, each number with its name over it (panel.js paramGrid) */

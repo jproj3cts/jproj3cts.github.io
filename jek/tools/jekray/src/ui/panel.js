@@ -176,6 +176,42 @@ export function param(label, el, path, opts = {}) {
   if (P.box) wrap.append(P.box);
   return wrap;
 }
+/* A part's settings as a table: a row a setting, its name, its value, its unit and its sweep's \u223f each in a column of
+   their own, under section rows. A value reads as plain text until it is pointed at or typed in; Enter and the up and
+   down arrows go from row to row, as in a spreadsheet. rows: a string (a section's name), or
+     { name, path, unit, opts, dflt, title }   a setting (dflt: its value on a new plain part: a row still at it is dimmed,
+                                               so what has been set stands out)
+     { name, read: () => text, unit, title }   a figure worked out from the settings, shown among them, not typed
+   (null: no row). The unit is in the label for a screen reader, out of sight. */
+export function propTable(el, rows) {
+  const T = h('div', { class: 'rt-pt' });
+  for (const r of rows) {
+    if (!r) continue;
+    if (typeof r === 'string') { T.append(h('div', { class: 'rt-pt-sec' }, r)); continue; }
+    if (r.read) {
+      const v = h('span', { class: 'rt-pt-val' }), row = h('div', { class: 'rt-pt-row derived', title: r.title }, h('span', { class: 'rt-pt-name' }, r.name), v, h('span', { class: 'rt-pt-unit' }, r.unit || ''), h('span'));
+      bindSync(v, () => { const t = r.read(); v.textContent = t; row.hidden = t === null || t === undefined || t === ''; });
+      T.append(row);
+      continue;
+    }
+    const id = 'rtf' + (++fid), full = r.name + (r.unit ? ' (' + r.unit + ')' : '');
+    const P = paramBits(full, el, r.path, Object.assign({ prefix: r.name }, r.opts), id);
+    const row = h('div', { class: 'rt-pt-row' + (P.sw ? ' swept' : ''), title: r.title },
+      h('label', { class: 'rt-pt-name', for: id }, r.name, r.unit ? h('span', { class: 'rt-sr' }, ' (' + r.unit + ')') : null),
+      P.inp, h('span', { class: 'rt-pt-unit' }, r.unit || ''), P.toggle || h('span'));
+    if ('dflt' in r) bindSync(row, () => { const v = getPath(el, r.path); row.classList.toggle('dflt', v === r.dflt || (v === undefined || v === null || v === 0) && (r.dflt === null || r.dflt === 0)); });
+    T.append(row);
+    if (P.box) T.append(h('div', { class: 'rt-pt-box' }, P.box));
+  }
+  // from row to row
+  T.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    if (!e.target.matches || !e.target.matches('.rt-pt-row > input')) return;
+    const all = [...T.querySelectorAll('.rt-pt-row > input')], to = all[all.indexOf(e.target) + (e.key === 'ArrowUp' ? -1 : 1)];
+    if (to) { e.preventDefault(); to.focus(); to.select(); }
+  });
+  return T;
+}
 /* a grid of numbers three to a row, each with its name over it (and its sweep's ∿ beside the name): the Position section's X, Y, Z and Angle, Tip, Roll. items: [path, label] or null
    (an empty cell); the open sweeps' controls follow the grid */
 function paramGrid(el, items, opts = {}, cells = []) {        // cells: filled with each number's cell, in order (null for an empty one)
@@ -701,6 +737,17 @@ function renderPanelBody(el) {
   const noSw = el.type === 'draw', hasZ = V3D.free(el) && !NET_3D.has(el.type), tips = tippable(el);
   const pc = [], ac = [];
   // (typed, what is mated to it goes with it)
+  const U0 = PART_UI[el.type];
+  // (a part whose panel is a table, ui/parts: its position a table too)
+  if (U0 && U0.table) {
+    const o = { noSweep: noSw, carry: true };
+    rows.append(h('div', { class: 'rt-f wide', style: 'display:block' }, propTable(el, [
+      { name: 'X', path: 'x', unit: 'mm', opts: o }, { name: 'Y', path: 'y', unit: 'mm', opts: o },
+      hasZ ? { name: 'Z', path: 'z', unit: 'mm', opts: o, dflt: BEAM_Z, title: 'Its height above the breadboard: its optical centre. The beam is at ' + BEAM_Z + ' mm unless a part sets it otherwise.' } : null,
+      { name: 'Angle', path: 'angle', unit: '\u00b0', opts: o, title: 'Angle: ' + angleMeans(el) + '.' },
+      tips ? { name: 'Tip', path: 'tip', unit: '\u00b0', opts: o, dflt: 0, title: el.type === 'mirror' ? 'Tips the mirror up (positive) or down out of the bench plane, as the vertical knob of a kinematic mount does. The reflected light rises or falls by twice the tip.' : 'Tips the part up (positive) or down out of the bench plane, about its own across axis.' } : null,
+      tips ? { name: 'Roll', path: 'roll', unit: '\u00b0', opts: o, dflt: 0, title: 'Turns the part about its own axis (the way it faces), right-handed.' } : null])));
+  } else {
   const pos = paramGrid(el, [['x', 'X (mm)'], ['y', 'Y (mm)'], hasZ ? ['z', 'Z (mm)'] : null], { noSweep: noSw, carry: true }, pc);
   const ang = paramGrid(el, [['angle', 'Angle (\u00b0)'], tips ? ['tip', 'Tip (\u00b0)'] : null, tips ? ['roll', 'Roll (\u00b0)'] : null], { noSweep: noSw, carry: true }, ac);
   if (hasZ) pc[2].title = 'Its height above the breadboard: its optical centre. The beam is at ' + BEAM_Z + ' mm unless a part sets it otherwise; light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down.';
@@ -712,6 +759,7 @@ function renderPanelBody(el) {
       : 'Turns the part about its own axis (the way it faces), right-handed: a cylindrical lens\u2019s power, a grating\u2019s grooves, a waveplate\u2019s, polariser\u2019s or crystal\u2019s axis, a Dove prism\u2019s image (turned twice as far).';
   }
   rows.append(pos, ang, h('p', { class: 'rt-anglenote' }, 'Angle: ' + angleMeans(el) + '.'));
+  }
   // with more than one tab: which one it is on (moving it takes it there, the view with it)
   if (project.benches.length > 1) rows.append(selectField('On tab', project.benches.map(b => [b.id, b.name]), () => el.bench,
     v => { el.bench = v; if (panel === mainPanel) switchTab(v); }, { wide: true }));

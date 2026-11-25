@@ -8456,7 +8456,7 @@ const TESTS = [
   },
   {
     name: 'Search commands (Ctrl+K) finds the menus’ items by their words and runs the one chosen',
-    why: 'Ctrl+K opens a box; “coating” finds Tools › Coating design in JEKfilm first, and Enter opens JEKfilm in its tab; “png” finds the layout exports under File › Export layout; an item hidden in its menu (My benches, signed out) is not offered; a word in no item says nothing matches (1 when all hold)',
+    why: 'Ctrl+K opens a box; “coating” finds Tools › Coating designer first, and Enter opens the Coating designer in its tab; “png” finds the layout exports under File › Export layout; an item hidden in its menu (My benches, signed out) is not offered; a word in no item says nothing matches (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const W = rigWin(), D = rigDoc(), wait = async (f, n = 80) => { for (let k = 0; k < n && !f(); k++) await new Promise(r => setTimeout(r, 25)); return f(); };
@@ -8465,7 +8465,7 @@ const TESTS = [
       const opened = !!dlg && dlg.open;
       const find = q => { input.value = q; input.dispatchEvent(new W.Event('input')); return [...dlg.querySelectorAll('li[role="option"]')].map(li => li.querySelector('.rt-cmdpath').textContent + ' | ' + li.querySelector('.rt-cmdname').textContent); };
       const coat = find('coating');
-      const coatFirst = coat[0] === 'Tools | Coating design in JEKfilm…';
+      const coatFirst = coat[0] === 'Tools | Coating designer…';
       const png = find('png');
       const pngs = png.length === 2 && png.every(x => /^File › Export layout/.test(x));
       const noCloud = !find('my benches').length && !!dlg.querySelector('.rt-cmdnone');
@@ -11148,7 +11148,7 @@ const TESTS = [
         const c = () => J.serialize().elements[0].surfaces[0].coat;
         const put = c().mode === 'stack' && c().design === 1064 && c().layers.length === 2 && c().label === 'V-coat 1064' && c().src && c().src.id === 'c1' && c().src.v === 3;
         J.select('Plate');
-        const noted = /from the JEKfilm coating “V-coat 1064”, version 3/.test((D.querySelector('.rt-filmnote') || {}).textContent || '');
+        const noted = /from the coating “V-coat 1064”, version 3/.test((D.querySelector('.rt-filmnote') || {}).textContent || '');
         // designed on fused silica, put on N-BK7: the design substrate kept, and the note gives both indices and R both ways
         const subText = (D.querySelector('.rt-filmsub') || {}).textContent || '';
         const sub = c().sub && c().sub.name === 'Fused silica' && Math.abs(c().sub.n - 1.44963) < 1e-4 && /Designed on Fused silica \(n 1\.4496\); this face is N-BK7 \(n 1\.5066\)\. R at 1064 nm, square on: .+ as designed, .+ on this glass\./.test(subText);
@@ -11748,7 +11748,7 @@ const TESTS = [
       const lens = () => J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80 }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }]}] });
       try {
         const items = [...D.querySelectorAll('#toolsMenu [data-ws]')].map(b => b.textContent);
-        const five = items.length === 5 && items[0] === 'Optics designer, new…' && items[4] === 'Coating design in JEKfilm…' && !!D.getElementById('btnNewLens') && !!D.getElementById('btnNewRf');
+        const five = items.length === 5 && items[0] === 'Optics designer, new…' && items[4] === 'Coating designer…' && !!D.getElementById('btnNewLens') && !!D.getElementById('btnNewRf');
         lens(); J.select('Lens');
         D.getElementById('btnLensOfSel').click();
         const lensOpen = ws('lensWs') && (J.serialize().assemblies || []).length === 1;

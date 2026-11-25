@@ -3,10 +3,10 @@ layout: docs
 title: Introduction
 permalink: /jek/docs/jekray/
 redirect_from: /jek/docs/jekray2d/
-description: "What JEKray models and how: free-space optics, fibre, electronics, photonic chips and RF quasi-optics on one bench, three design workspaces on top, and the equations behind each part."
+description: "What JEKray models and how: free-space optics, fibre, electronics and photonic chips on one bench, its Optics and Coating designers beside it, and the equations behind each part."
 ---
 
-<p class="dx-lead">JEKray is a bench simulator used in a web browser, with nothing to install. You lay out sources, optics, fibres, electronics, photonic chips and RF horns and lenses on a bench, and it works out what the light, or the millimetre-wave beam, does: rays, beams, diffraction, interference, cavities, and the signals your detectors would read. Three design workspaces sit on the same bench, for lens systems, RF lens systems and thin-film coatings.</p>
+<p class="dx-lead">JEKray is a bench simulator used in a web browser, with nothing to install. You lay out sources, optics, fibres, electronics and photonic chips on a bench, and it works out what the light does: rays, beams, diffraction, interference, cavities, and the signals your detectors would read. Two designers open beside it, each in a tab of its own: the Optics designer for lens systems and the Coating designer for thin films. RF and millimetre waves are <a href="/jek/docs/jekray/rf/">JEKrf</a>&rsquo;s, an app built on the same code.</p>
 
 <div class="dx-tip" markdown="1">
 [Open JEKray](/jek/tools/jekray.html) in another tab and try each effect on a bench as you read. The **Examples** gallery has a working bench for most of them.
@@ -34,14 +34,14 @@ Five kinds of model share one bench, joined where light and signals pass from on
   <li><a class="rf" href="/jek/docs/jekray/rf/"><b>RF and millimetre waves</b><small>Quasi-optics from 1 GHz to 3 THz: horns launch and receive Gaussian beams, and RF lenses, mirrors, grids and meshes shape them.</small></a></li>
 </ul>
 
-The RF parts are not a separate program. A horn's beam is a Gaussian beam traced by the same tracer as a laser's, through lenses of RF dielectrics instead of glass; the only differences are the units, GHz and dBm, and the parts, which are the ones a quasi-optical bench has.
+The RF parts are JEKrf's, which runs on JEKray's own code, so they are no separate simulator. A horn's beam is a Gaussian beam traced by the same tracer as a laser's, through lenses of RF dielectrics instead of glass; the only differences are the units, GHz and dBm, and the parts, which are the ones a quasi-optical bench has.
 
 ## The designers
 
 <ul class="dx-cards dx-two">
   <li><a href="/jek/docs/jekray/lens-design/"><b>Optics designer</b><small>A lens system surface by surface: prescription, aberrations, spots, wavefront, MTF, optimisation, tolerancing, drawings and a report.</small></a></li>
   <li><a class="rf" href="/jek/docs/jekray/rf/designer/"><b>RF designer</b><small>A feed horn's beam through RF lenses and mirrors as an antenna: gain, sidelobes, cross-polar, scan, tolerancing, and a lens that can be made.</small></a></li>
-  <li><a href="/jek/docs/jekray/jekfilm/"><b>JEKfilm</b><small>A thin-film coating designed over a band and a range of angles, kept in the cloud beside your benches, and put on a face.</small></a></li>
+  <li><a href="/jek/docs/jekray/jekfilm/"><b>Coating designer</b><small>A thin-film coating designed over a band and a range of angles, kept in the cloud beside your benches, and put on a face.</small></a></li>
 </ul>
 
 Each opens from a part on the bench, works on the same data, and writes its result back to the bench, so what is designed is what is traced.
@@ -59,10 +59,10 @@ Each opens from a part on the bench, works on the same data, and writes its resu
 Every free-space and RF part has six degrees of freedom: x and y on the bench, its height above it, facing, tip and roll, and the light is followed in three dimensions through all of them, skew rays included (see [Heights](/jek/docs/jekray/free-space/#heights)). Housings, mounts and baffles can be brought in from CAD as [STL objects](/jek/docs/jekray/free-space/stl/), which stop the light that meets them. What is not modelled:
 
 - **Fibre, electronic and chip parts lie in the plane.** They are followed as networks and signals, not as shapes, and the 3D view leaves them out.
-- **A designer's fields lie in the bench plane.** The Optical and RF designers trace sagittal and skew rays and tolerance tilts both ways, but a field cannot be set out of the plane.
+- **A designer's fields lie in the bench plane.** The Optics and RF designers trace sagittal and skew rays and tolerance tilts both ways, but a field cannot be set out of the plane.
 - **Scatter.** Surfaces reflect and refract by Fresnel's equations and thin-film coatings, weak reflections and ghosts can be followed, and stops and STL objects block, but there is no scattering from rough surfaces, dust or bulk material, and an edge diffracts only through the diffracted field.
 - **Mechanics.** Mounts and flanges are drawn and exported for CAD, but they do not flex, and nothing moves under a force. The exceptions are optical traps, where the forces on atoms and particles, and the gas damping of a levitated particle, are worked out.
-- **Heat.** Thermal lensing and heating by the beam are not modelled. The Optical and RF designers analyse a design at other temperatures, in a housing of a chosen metal.
+- **Heat.** Thermal lensing and heating by the beam are not modelled. The Optics and RF designers analyse a design at other temperatures, in a housing of a chosen metal.
 - **Dynamics.** Electronics are in their steady state, and feedback loops are not closed: a lock's error signal is shown, but the loop is not solved. Fibre nonlinearity is self-phase modulation of pulses only.
 - **Photonic chips** are compact models, TE, one mode, near 1550 nm, without thermal or carrier effects.
 - **RF** beams are paraxial Gaussian beams and their modes, as quasi-optics takes them; mixers and upconverters are ideal apart from their loss and noise; and there are no near-field antennas, wires or circuits on the bench.

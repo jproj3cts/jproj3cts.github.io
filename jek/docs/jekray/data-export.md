@@ -168,6 +168,6 @@ A script writes these same files with `save(name, data, format='csv', meta=None)
 ## What is not here
 
 - The plots of panels drawn as the bench works them out in the background (a screen's field while it is still being worked out) come out as they stand then; the readouts and the screen data work them out to the end.
-- An Aberrations tab's plots, and the designers' own analyses (in the Optical and RF designers each plot has its own CSV), are not in the export.
+- An Aberrations tab's plots, and the designers' own analyses (in the Optics and RF designers each plot has its own CSV), are not in the export.
 - Complex numbers are given as their real and imaginary parts in two columns, not as one complex column.
 - A zip, NumPy or Excel file is at most 4 GB (no ZIP64), far past anything a bench makes.

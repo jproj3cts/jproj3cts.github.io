@@ -20,7 +20,7 @@ export async function check(pw, base, shots) {
     {
       const { p, errs } = await page('?test');
       const s = await p.evaluate(() => ({ title: document.title, name: document.getElementById('filmName').value, rows: document.querySelectorAll('#filmLayers tbody tr').length, plots: document.querySelectorAll('svg.film-plot path.line').length, f: window.JEKfilm.film() }));
-      ok('A new coating: one MgF2 layer on N-BK7, its two plots drawn', s.title === 'Untitled coating | JEKfilm' && s.name === 'Untitled coating' && s.rows === 1 && s.plots === 4 && s.f.layers[0].n === 1.38, JSON.stringify(s));
+      ok('A new coating: one MgF2 layer on N-BK7, its two plots drawn', s.title === 'Untitled coating | Coating designer' && s.name === 'Untitled coating' && s.rows === 1 && s.plots === 4 && s.f.layers[0].n === 1.38, JSON.stringify(s));
       await p.selectOption('select[aria-label="A preset stack"]', 'bb3');
       const before = await p.evaluate(() => window.JEKfilm.film().layers.length);
       await p.click('#filmOptimise'); await p.waitForTimeout(200);
@@ -98,7 +98,7 @@ export async function check(pw, base, shots) {
       ok('Export data: the band, angle and layer tables, as CSV (zip), Excel, NumPy and MATLAB files', dl.join('|') === 'HR mirror, 1064 nm data.zip|HR mirror, 1064 nm data.xlsx|HR mirror, 1064 nm data.npz|HR mirror, 1064 nm data.mat' && ds.join() === 'band:3,angle:3,layers:6', JSON.stringify([dl, ds]));
       // renamed in the bar
       await p.fill('#filmName', 'V-coat, fused silica'); await p.press('#filmName', 'Enter'); await p.waitForTimeout(100);
-      ok('Renamed in the bar: the coating and the tab', await p.evaluate(() => window.JEKfilm.film().name === 'V-coat, fused silica' && document.title === 'V-coat, fused silica | JEKfilm'), 'not renamed');
+      ok('Renamed in the bar: the coating and the tab', await p.evaluate(() => window.JEKfilm.film().name === 'V-coat, fused silica' && document.title === 'V-coat, fused silica | Coating designer'), 'not renamed');
       if (shots) await p.screenshot({ path: shots + '/jekfilm-dark.png' });
       await p.click('#btnTheme'); await p.click('#themeMenu [role=menuitemradio]:nth-child(2)'); await p.waitForTimeout(200);
       ok('The light theme', await p.evaluate(() => document.documentElement.dataset.rtTheme === 'light'), 'still dark');
@@ -140,7 +140,7 @@ export async function check(pw, base, shots) {
       const d0 = await p.evaluate(() => window.JEKfilm.film().layers[0].d);
       await p.click('#filmOptimise'); await p.waitForTimeout(1200);
       const ran = await p.evaluate(() => ({ prompt: !!document.querySelector('#filmSignIn[open]'), d: window.JEKfilm.film().layers[0].d, marked: document.getElementById('filmOptimise').classList.contains('rt-proneed') || document.getElementById('filmOptimise').classList.contains('rt-acctneed') }));
-      ok('A free account: Ctrl+S saves the .jekfilm file, and Optimise runs with nothing asked', !!dl && /\.jekfilm$/.test(dl.suggestedFilename()) && !ran.prompt && !ran.marked && ran.d !== d0, JSON.stringify([dl && dl.suggestedFilename(), ran, d0]));
+      ok('A free account: Ctrl+S saves the .coat file, and Optimise runs with nothing asked', !!dl && /\.coat$/.test(dl.suggestedFilename()) && !ran.prompt && !ran.marked && ran.d !== d0, JSON.stringify([dl && dl.suggestedFilename(), ran, d0]));
       await p.click('#btnFile'); await p.click('#btnCloudSave'); await p.waitForTimeout(300);
       const s = await p.evaluate(() => ({ h: (document.querySelector('#filmSignIn[open] h2') || {}).textContent, plans: !!document.querySelector('#filmSignIn[open] .rt-btn.primary') }));
       ok('A free account: Save to cloud says JEKrayPro is needed, with the plans', s.h === 'JEKrayPro is needed' && s.plans, JSON.stringify(s));

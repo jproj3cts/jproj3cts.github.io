@@ -1,17 +1,17 @@
 ---
 layout: docs
-title: JEKfilm
+title: Coating designer
 permalink: /jek/docs/jekray/jekfilm/
-description: "JEKfilm, the JEK coating designer: a thin-film stack on a substrate, judged over a band of wavelengths and a range of angles, its thicknesses optimised, kept as a .jekfilm file or in the cloud beside your benches."
+description: "The Coating designer, JEKray's thin-film coating designer (once called JEKfilm): a stack on a substrate, judged over a band of wavelengths and a range of angles, its thicknesses optimised, kept as a .coat file or in the cloud beside your benches."
 ---
 
-<p class="dx-lead">JEKfilm designs one thin-film coating at a time: a stack of layers on a substrate, what it is for, what it reflects across the band and against the angle, and the thicknesses that do it best. It uses the thin-film model JEKray traces with, so a coating designed in JEKfilm behaves the same on a JEKray bench.</p>
+<p class="dx-lead">The Coating designer is JEKray's designer for thin-film coatings, once called JEKfilm. It designs one coating at a time: a stack of layers on a substrate, what it is for, what it reflects across the band and against the angle, and the thicknesses that do it best. It uses the thin-film model JEKray traces with, so a coating designed here behaves the same on a JEKray bench. Each coating is a **.coat** file; one saved as a **.jekfilm** before the rename still opens.</p>
 
-Open it at [jeksys.net/jek/tools/jekfilm.html](/jek/tools/jekfilm.html), from [JEKsuite](/jek/docs/jekray/jeksuite/) (**New › JEKfilm coating**, or **JEKfilm** at the top of its left-hand list), or from JEKray: **Tools › Coating design in JEKfilm…**, or a face's **Design a coating in JEKfilm…**. It opens in a tab of its own, reused each time.
+Open it at [jeksys.net/jek/tools/jekfilm.html](/jek/tools/jekfilm.html), from [JEKsuite](/jek/docs/jekray/jeksuite/) (**New › Coating**, or **Coating designer** under JEKray in its left-hand list), or from JEKray: **Tools › Coating designer…**, or a face's **Design a coating…**. It opens in a tab of its own, reused each time.
 
 **File › Open an example…** opens one of six coatings to start from: a V-coat for 1064 nm, a broadband AR over 420–680 nm, a 1064 nm HR mirror, a long-pass edge at 600 nm, a 45° plate beam splitter and protected silver. A link to `jekfilm.html?demo=hr-1064` (or any of `vcoat-1064`, `bbar-visible`, `longpass-600`, `splitter-45`, `protected-silver`) opens one directly.
 
-JEKfilm has three tabs: **Design** (the coating, its curves and its layers), **Tolerance** (how it fares as made, its yield against the limits, and the field in the stack) and **Make it** (what a maker needs to coat the part). The design table stays on the left in all three.
+The Coating designer has three tabs: **Design** (the coating, its curves and its layers), **Tolerance** (how it fares as made, its yield against the limits, and the field in the stack) and **Make it** (what a maker needs to coat the part). The design table stays on the left in all three.
 
 ## The design
 
@@ -20,7 +20,7 @@ The **Design** table on the left says what the stack is for and the light it is 
 - **Target**: anti-reflection (nothing reflected), a high reflector (everything reflected), a beam splitter (with the reflectance wanted), or a dichroic edge (with the wavelength it turns at and which side passes).
 - **Reference λ₀**: the design wavelength, where quarter waves are counted. **Band from** and **Band to**: the wavelengths the stack is judged over. **Angles**: either **Up to** a largest angle of incidence (from square on), or **A band** of angles, from one to another (a beam splitter at 40° to 50°, say). **Polarisation**: s, p or their mean.
 - **Incident medium n**: the index in front (1 for air, about 1.33 for water).
-- **Substrate**: N-BK7, fused silica, B270, the flints, CaF2, MgF2, sapphire, and ZnSe, silicon and germanium for the infrared, each with its dispersion (its index at λ₀ is shown), or an index of your own. JEKfilm says when the substrate is not transparent at λ₀.
+- **Substrate**: N-BK7, fused silica, B270, the flints, CaF2, MgF2, sapphire, and ZnSe, silicon and germanium for the infrared, each with its dispersion (its index at λ₀ is shown), or an index of your own. The Coating designer says when the substrate is not transparent at λ₀.
 
 ## Reflectance, transmittance and absorption
 
@@ -71,13 +71,13 @@ The coating you are working on is kept in this browser as you go, signed in or n
 
 ## On a JEKray bench
 
-**Designing for a face.** A face's **Design a coating in JEKfilm…** (or the lens designer's face table) opens JEKfilm on that face's glass, at the bench's wavelength, with the face's stack, and a line along the top says which face it is for. **Save to cloud…** then starts in the bench's own workspace and folder, and once saved the coating goes onto that face in JEKray, linked to it. Saving to the cloud is JEKrayPro's.
+**Designing for a face.** A face's **Design a coating…** (or the lens designer's face table) opens the Coating designer on that face's glass, at the bench's wavelength, with the face's stack, and a line along the top says which face it is for. **Save to cloud…** then starts in the bench's own workspace and folder, and once saved the coating goes onto that face in JEKray, linked to it. Saving to the cloud is JEKrayPro's.
 
 
-A coating face's **Coating** list (a lens or window face, a beamsplitter cube, a prism) offers the JEKfilm coatings kept in the same cloud folder as the bench, each marked ◆, and **A JEKfilm coating from a file…** for a .jekfilm on your computer. Choosing one puts its layers on the face at its design wavelength; the face keeps its own glass as the substrate. When that glass's index at the design wavelength is more than 0.005 from the one the coating was designed on, a note under it names both and gives the reflectance square on, as designed and on this glass.
+A coating face's **Coating** list (a lens or window face, a beamsplitter cube, a prism) offers the designed coatings kept in the same cloud folder as the bench, each marked ◆, and **A coating from a file (.coat)…** for a .jekfilm on your computer. Choosing one puts its layers on the face at its design wavelength; the face keeps its own glass as the substrate. When that glass's index at the design wavelength is more than 0.005 from the one the coating was designed on, a note under it names both and gives the reflectance square on, as designed and on this glass.
 
-The face keeps a copy of the stack, so the bench traces, shares and opens offline as it always did. A coating from the cloud stays linked to it: the face says which coating and which version it has, with **Open in JEKfilm**. When the coating is saved again in JEKfilm, the bench offers to update its faces when it is next opened (or straight away, if it is open in another tab). Nothing changes until you choose **Update the faces**, and Undo takes it back. To edit a linked face's layers on the bench instead, choose **Thin-film stack**: the face keeps the layers as its own, no longer linked.
+The face keeps a copy of the stack, so the bench traces, shares and opens offline as it always did. A coating from the cloud stays linked to it: the face says which coating and which version it has, with **Open in the Coating designer**. When the coating is saved again in the Coating designer, the bench offers to update its faces when it is next opened (or straight away, if it is open in another tab). Nothing changes until you choose **Update the faces**, and Undo takes it back. To edit a linked face's layers on the bench instead, choose **Thin-film stack**: the face keeps the layers as its own, no longer linked.
 
 A .jekfilm file is JSON: the coating's name, what it is for (`spec`), and its `layers`, each an index `n` and a thickness `d` in nanometres, from the outside in.
 
-**On a lens to be made.** In the [Optics designer](/jek/docs/jekray/lens-design/#make-the-part), a face's Coating list takes a JEKfilm coating too, and **Make the part** under the lens's drawing writes its coating specification beside the part's drawing and specification, in one zip for the maker.
+**On a lens to be made.** In the [Optics designer](/jek/docs/jekray/lens-design/#make-the-part), a face's Coating list takes a designed coating too, and **Make the part** under the lens's drawing writes its coating specification beside the part's drawing and specification, in one zip for the maker.

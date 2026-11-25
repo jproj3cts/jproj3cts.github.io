@@ -12,7 +12,7 @@ description: "Every change to JEKray, version by version, the newest first."
 {% raw %}
 ## Version 1.1
 
-<p class="note">12 October 2026, 285 changes</p>
+<p class="note">12 October 2026, 286 changes</p>
 
 <h3>The few that matter most</h3>
 
@@ -30,6 +30,7 @@ description: "Every change to JEKray, version by version, the newest first."
 <h3>Every change</h3>
 
 <ul>
+<li>JEKfilm is now JEKray’s <b>Coating designer</b>, listed under JEKray beside the Optics designer. Its coatings save as <b>.coat</b> files, and a .jekfilm saved before still opens. Faces offer designed coatings as before, marked (Coating designer).</li>
 <li><b>JEKrf</b>, for RF and millimetre waves, is an app of its own, built on JEKray: its benches are <b>.jekrf</b> files with the RF and circuits parts, and its <b>RF designer</b> opens in its own tab, each design a <b>.rfd</b> used on JEKrf’s benches as the Optics designer’s are on JEKray’s. JEKray no longer offers the RF parts or the RF designer; a bench with RF parts still opens here. JEKrf is experimental while it is checked.</li>
 <li><b>Experimental features</b> are switched on and off in one place for every app: <b>Experimental features…</b> in JEKsuite’s account menu (Help › Experimental features in JEKray opens it). The apps not yet validated, JEKrf and JEKion, are among them, and JEKsuite and the site list them only while they are on.</li>
 <li>The <b>Optics designer</b> is a program of its own, in its own tab, and each design is a file of its own, a <b>.optic</b>: saved, opened and kept in the cloud beside your benches, and listed under JEKray in JEKsuite. <b>Design…</b> on an assembly opens it there; what you change comes back to the bench as you go, as a step of Undo. <b>Use on a bench</b> puts a design on JEKray’s bench with light for it, and a bench whose design has moved on in the cloud offers the newer version.</li>

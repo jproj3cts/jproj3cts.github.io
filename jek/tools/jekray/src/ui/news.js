@@ -190,8 +190,8 @@ export function wireNews() {
     const dlg = document.getElementById('citeDialog');
     document.getElementById('btnCite').addEventListener('click', () => {
       const d = new Date(), iso = d.toISOString().slice(0, 10), year = APP_DATE.slice(-4);
-      document.getElementById('citeText').value = 'JEK Systems (' + year + '). JEKray optical bench simulator, version ' + APP_VERSION + '. ' + CITE_URL + ' (accessed ' + d.getDate() + ' ' + d.toLocaleString('en-GB', { month: 'long' }) + ' ' + d.getFullYear() + ').';
-      document.getElementById('citeBib').value = '@software{jekray,\n  author  = {{JEK Systems}},\n  title   = {{JEKray}: optical bench simulator},\n  version = {' + APP_VERSION + '},\n  year    = {' + year + '},\n  url     = {' + CITE_URL + '},\n  urldate = {' + iso + '}\n}';
+      document.getElementById('citeText').value = 'JEK Systems (' + year + '). JEKray bench simulator, version ' + APP_VERSION + '. ' + CITE_URL + ' (accessed ' + d.getDate() + ' ' + d.toLocaleString('en-GB', { month: 'long' }) + ' ' + d.getFullYear() + ').';
+      document.getElementById('citeBib').value = '@software{jekray,\n  author  = {{JEK Systems}},\n  title   = {{JEKray}: bench simulator},\n  version = {' + APP_VERSION + '},\n  year    = {' + year + '},\n  url     = {' + CITE_URL + '},\n  urldate = {' + iso + '}\n}';
       dlg.showModal();
     });
     dlg.addEventListener('click', e => {

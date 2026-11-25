@@ -627,7 +627,11 @@
   .rt-tab.on { color: var(--jek-ink); border-bottom-color: var(--jek-cyan); }
   /* a view chosen inside a readout tab (the Diffraction tab's maps and plots): the same row of tabs */
   .rt-views { display: flex; flex-wrap: wrap; gap: 0 0.1rem; margin: 0 0 0.5rem; border-bottom: 1px solid var(--jek-line); }
-  .rt-views > .rt-link.rt-view { padding: 0.35rem 0.5rem; font-size: 0.8125rem; font-weight: 600; color: var(--jek-ink-soft); text-decoration: none !important; border-bottom: 2px solid transparent; }
+  .rt-views { flex-wrap: nowrap; justify-content: space-between; }
+  .rt-views > .rt-link.rt-view[data-short] { font-size: 0; }
+  .rt-views > .rt-link.rt-view[data-short]::before { content: attr(data-short); font-size: 0.8125rem; }
+  .rt-actions.rt-actions-data { margin: 0.5rem 0 0.6rem; }
+  .rt-views > .rt-link.rt-view { padding: 0.35rem 0.32rem; white-space: nowrap; font-size: 0.8125rem; font-weight: 600; color: var(--jek-ink-soft); text-decoration: none !important; border-bottom: 2px solid transparent; }
   .rt-views > .rt-link.rt-view.on { color: var(--jek-ink); border-bottom-color: var(--jek-cyan); }
   .rt-tab.empty { opacity: 0.45; }
   .rt-muted { opacity: 0.45; }

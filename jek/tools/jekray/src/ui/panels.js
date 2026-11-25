@@ -551,8 +551,7 @@ function screenPlots(el) {
   panel.append(propTable(el, [{ name: 'MTF quoted at', path: 'mtfFreq', unit: 'lp/mm' },
     { name: 'Focus model', choose: [['auto', 'Vector when steep'], ['on', 'Always vector'], ['off', 'Paraxial only']], get: () => el.vectorFocus, set: v => { el.vectorFocus = v; },
       title: 'How a steep focus is worked out: the vector model once the beam\u2019s NA is above 0.3, always, or the paraxial one only' }]));
-  diffractionSection(el);
-  panel.append(h('div', { class: 'rt-actions' },
+  diffractionSection(el, h('div', { class: 'rt-actions rt-actions-data' },
     acctMark(h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)'), 'export a screen\u2019s data')));
 }
 

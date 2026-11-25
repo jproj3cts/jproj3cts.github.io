@@ -328,14 +328,17 @@ function holdScale(el, which, v) {
   st.hold[which] = Math.max(st.hold[which] || 0, v);
   return st.hold[which];
 }
-export function diffractionSection(el) {
+/* (under: what goes between its plot and what it reads, the screen's Export data) */
+export function diffractionSection(el, under) {
   // (its views chosen as a readout tab's views are: a row of tabs, the one shown marked)
   const tabs = h('div', { class: 'rt-views' });
   const cv = h('canvas', { style: 'width:100%;display:block' });
   const scaleRow = propTable(el, [{ name: 'Map scale', choose: [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB']], get: () => el.mapScale, set: v => { el.mapScale = v; }, opts: { rebuild: false } }]);
   const box = h('div', { class: 'rt-readout' });
   const views = [['map', 'Irradiance'], ['phase', 'Phase'], ['pol', 'Polarisation'], ['psf', 'Profiles'], ['mtf', 'MTF'], ['ee', 'Enclosed energy']];
-  for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link rt-view', type: 'button', onclick: () => { vs(el).diffView = key; refresh(); } }, text));
+  // (the two long names shown short, so the six fit a row: each keeps its words for a screen reader and in its tooltip)
+  const SHORT = { Polarisation: 'Polar.', 'Enclosed energy': 'Energy' };
+  for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link rt-view', type: 'button', title: SHORT[text] ? text : undefined, 'data-short': SHORT[text], onclick: () => { vs(el).diffView = key; refresh(); } }, text));
   const keyBox = h('div', { class: 'rt-diffkey' });
   const refresh = () => {
     const pv = vs(el).diffView === 'phase' || vs(el).diffView === 'pol';
@@ -407,7 +410,7 @@ export function diffractionSection(el) {
   };
   const getZ = () => plotZoom(el, vs(el).diffView), redraw = () => drawDiff(cv, diffractionLater(el).D, el);
   panel.append(tabs, scaleRow, plotFrame(cv, () => 'diff-' + vs(el).diffView, getZ, redraw), keyBox,
-    zoomControls(cv, getZ, redraw, () => !['map', 'phase', 'pol'].includes(vs(el).diffView)), box);
+    zoomControls(cv, getZ, redraw, () => !['map', 'phase', 'pol'].includes(vs(el).diffView)), ...(under ? [under] : []), box);
   bindSync(cv, refresh);
 }
 

@@ -568,9 +568,11 @@
   .rt-panel .rt-pt .rt-pt-name { font-size: 0.875rem; font-weight: 400; color: var(--jek-ink-soft); line-height: 1.2; padding: 0.15rem 0; }
   /* a row of text (the part's name): its value across the unit and sweep columns too */
   .rt-panel .rt-pt-row.rt-pt-text > input { grid-column: 2 / -1; font-family: var(--jek-sans); }
-  /* the part's actions at the foot: what opens its design across the panel, what copies or removes it under it */
-  .rt-actions-wide { flex: 1 0 100%; display: flex; }
-  .rt-actions-wide > .rt-btn { flex: 1; }
+  /* the part's actions at the foot of a table panel: each the same size, sharing the row */
+  .rt-actions.rt-actions-even { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
+  .rt-actions-even > .rt-btn { width: 100%; padding-left: 0.3rem; padding-right: 0.3rem; text-align: center; white-space: nowrap; }
+  .rt-actions-even > .rt-btn[data-short] { font-size: 0; }
+  .rt-actions-even > .rt-btn[data-short]::before { content: attr(data-short); font-size: 0.875rem; }
   .rt-pt-unit { font-size: 0.8125rem; color: var(--jek-ink-soft); }
   .rt-panel .rt-pt-row > input { box-sizing: border-box; width: 100%; min-width: 0; height: 1.5rem; padding: 0 0.3rem; text-align: right; background: transparent; border: 1px solid transparent; border-radius: 2px; color: var(--jek-ink); font-family: var(--jek-mono); font-size: 0.875rem; font-weight: 600; }
   .rt-panel .rt-pt-row > input:hover { border-color: var(--jek-line-2); }
@@ -32835,8 +32837,11 @@ function renderPanelBody(el) {
   }
 
   sectionise(panel, el.type);
-  panel.append(h('div', { class: 'rt-actions' },
-    dz && asTable ? h('span', { class: 'rt-actions-wide' }, dz) : null,
+  // (a table panel's: the three alike, a third of the row each; the design's button keeps its words for a screen
+  // reader and its tooltip, and shows the short of them)
+  if (dz && asTable) { dz.classList.remove('primary'); dz.dataset.short = /^Open/.test(dz.textContent) ? 'Open design\u2026' : 'Design\u2026'; }
+  panel.append(h('div', { class: 'rt-actions' + (asTable ? ' rt-actions-even' : '') },
+    dz && asTable ? dz : null,
     h('button', { class: 'rt-btn', 'data-keep': '', onclick: () => duplicate(el) }, 'Duplicate'),
     h('button', { class: 'rt-btn danger', onclick: () => removeEl(el) }, 'Delete'),
   ));

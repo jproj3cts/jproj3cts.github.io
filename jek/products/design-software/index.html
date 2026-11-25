@@ -34,7 +34,7 @@
   .jek-hero { padding-block: 2rem 1.6rem; }
   .jek-section { padding-block: 1.8rem; }
   /* the apps: a row each, a picture beside its name, line and links; JEKray's designers under it on a rule in its yellow;
-     the experimental ones in a quiet panel, on the page only for someone who switched them on (jek.css hides data-exp) */
+     JEKrf and JEKion on the page only for someone who switched them on (jek.css hides data-exp) */
   .rt-apps .rt-approw, .rt-apps .rt-expapps { max-width: 62rem; }
   .rt-apps > h2 { margin: 0 0 0.4rem; }
   .rt-approw { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 1.4rem; align-items: center; padding: 1.1rem 0; border-top: 1px solid var(--jek-line); }
@@ -44,9 +44,7 @@
   .rt-approw p { margin: 0.3rem 0 0; max-width: 40rem; font-size: 0.95rem; line-height: 1.5; }
   .rt-approw .rt-applinks { display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; margin-top: 0.5rem; }
   .rt-approw.sub { grid-template-columns: 11rem minmax(0, 1fr); margin-left: 3.6rem; padding-left: 1.2rem; border-top: 0; border-left: 3px solid var(--jek-amber); }
-  .rt-expapps { margin-top: 1.4rem; padding: 0.6rem 1.2rem 0.2rem; background: var(--jek-well); border: 1px solid var(--jek-line); border-radius: 3px; }
-  .rt-expapps .rt-approw:first-of-type { border-top: 0; }
-  .rt-expnote { margin: 0.4rem 0 0; font-size: 0.85rem; color: var(--jek-ink-soft); }
+  .rt-expapps { margin: 0; }
   html:not(.exp-jekrf):not(.exp-jekion) .rt-expapps { display: none; }
   @media (max-width: 700px) { .rt-approw, .rt-approw.sub { grid-template-columns: 1fr; } .rt-approw.sub { margin-left: 1rem; } }
   .rt-feats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.6rem 1.8rem; align-items: start; }
@@ -122,7 +120,6 @@
           <div><h3><span class="jek-wm">JEK<b>cad</b></span></h3><p>Parametric CAD: sketch, dimension and build parts from a feature list. In development.</p><p class="rt-applinks"><a href="/jek/products/design-software/jekcad/">About JEKcad</a><a href="/jek/tools/jekcad.html">Launch JEKcad</a></p></div>
         </div>
         <div class="rt-expapps">
-          <p class="rt-expnote">Experimental, shown because you switched them on in JEKsuite&rsquo;s Experimental features: still being checked.</p>
         <div class="rt-approw" data-exp="jekrf">
           <img src="jekray/img/rf-24ghz-lens-antenna.png" alt="A 24 GHz lens antenna on a JEKrf bench: a feed horn and its lens" loading="lazy">
           <div><h3><span class="jek-wm">JEK<b>rf</b></span></h3><p>RF and millimetre-wave quasi-optics on JEKray&rsquo;s code: feed horns, RF lenses and mirrors, and the RF designer, whose designs (.rfd) the benches use.</p><p class="rt-applinks"><a href="/jek/docs/jekray/rf/">About JEKrf</a><a href="/jek/tools/jekray.html?rf">Launch JEKrf</a></p></div>

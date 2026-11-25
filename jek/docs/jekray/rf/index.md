@@ -10,7 +10,7 @@ description: JEKrf, quasi-optics from 1 GHz to 3 THz. Feed horns launch and rece
 
 ## JEKrf
 
-The RF parts are in **JEKrf**, an app of its own built on JEKray: [jekray.html?rf](/jek/tools/jekray.html?rf), or **JEKrf** in [JEKsuite](/jek/docs/jekray/jeksuite/). It is experimental while it is checked: switch it on under **Experimental features…** in JEKsuite's account menu (a free account is enough), and JEKsuite and the site list it.
+The RF parts are in **JEKrf**, an app of its own built on JEKray: [jekray.html?rf](/jek/tools/jekray.html?rf), or **JEKrf** in [JEKsuite](/jek/docs/jekray/jeksuite/).
 
 - **Its bench.** Each bench is a **.jekrf** file. The RF parts are on the **RF** tab of parts, with **Circuits** beside them for what the horns and detectors feed. Its examples are the RF ones.
 - **Its RF designer.** The [RF designer](/jek/docs/jekray/rf/designer/) opens in a tab of its own, and each design is a **.rfd** file used on JEKrf's benches, linked as the [Optics designer's designs](/jek/docs/jekray/lens-design/) are to JEKray's: **Design…** on an assembly opens it there, its changes come back to the bench as you go, and **Use on a bench** puts a design on the bench with its feed horn and its receiver or load.

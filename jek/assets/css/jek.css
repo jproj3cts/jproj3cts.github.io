@@ -208,6 +208,8 @@ footer .bar6 { justify-content: center; }
   border-bottom: none;
 }
 .nav-drop-menu a:hover { background: rgba(255, 255, 255, 0.12); border-bottom-color: transparent; }
+/* an app's designers, under it */
+.nav-drop-menu a.nav-sub { padding-left: 1.6rem; opacity: 0.85; }
 .nav-drop-menu.fixed { position: fixed; top: auto; left: auto; }
 @media (hover: none) {
   .nav-drop:hover .nav-drop-menu { display: none; }

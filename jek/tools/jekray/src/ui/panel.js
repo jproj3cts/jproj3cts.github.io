@@ -188,22 +188,24 @@ export function param(label, el, path, opts = {}) {
      { name, text: () => words, set, placeholder, title }   words typed
      { name, cell: node, title }               anything else beside its name; { node } anything across the whole row
    (null: no row; row(r): given a setting's row once made). The unit is in the label for a screen reader, out of sight. */
+/* a table's row for a figure worked out from the settings ({ name, read: () => text, unit, title }): shown among them, in
+   italics, not typed. read may give the figure with its unit, as "19.85 m": a unit that goes with the figure's size is
+   shown in the unit's column. A panel built the older way puts one among its settings with this (tabulate keeps it). */
+export function readRow(r) {
+  const v = h('span', { class: 'rt-pt-val' }), u = h('span', { class: 'rt-pt-unit' }, r.unit || ''), row = h('div', { class: 'rt-pt-row derived', title: r.title }, h('span', { class: 'rt-pt-name' }, r.name), v, u, h('span'));
+  bindSync(v, () => {
+    const t = r.read(), m = r.unit || t === null || t === undefined ? null : /^(\S+) (\S+)$/.exec(String(t));
+    v.textContent = m ? m[1] : t; if (!r.unit) u.textContent = m ? m[2] : '';
+    row.hidden = t === null || t === undefined || t === '';
+  });
+  return row;
+}
 export function propTable(el, rows) {
   const T = h('div', { class: 'rt-pt' });
   for (const r of rows) {
     if (!r) continue;
     if (typeof r === 'string') { T.append(h('div', { class: 'rt-pt-sec' }, r)); continue; }
-    if (r.read) {
-      // (read may give the figure with its unit, as "19.85 m": a unit that goes with the figure's size is shown in the unit's column)
-      const v = h('span', { class: 'rt-pt-val' }), u = h('span', { class: 'rt-pt-unit' }, r.unit || ''), row = h('div', { class: 'rt-pt-row derived', title: r.title }, h('span', { class: 'rt-pt-name' }, r.name), v, u, h('span'));
-      bindSync(v, () => {
-        const t = r.read(), m = r.unit || t === null || t === undefined ? null : /^(\S+) (\S+)$/.exec(String(t));
-        v.textContent = m ? m[1] : t; if (!r.unit) u.textContent = m ? m[2] : '';
-        row.hidden = t === null || t === undefined || t === '';
-      });
-      T.append(row);
-      continue;
-    }
+    if (r.read) { T.append(readRow(r)); continue; }
     if (r.node) { T.append(h('div', { class: 'rt-pt-wide' }, r.node)); continue; }
     if (r.choose || r.tick || r.text || r.cell) {
       const id = 'rtf' + (++fid);
@@ -261,6 +263,7 @@ function tabulate(root, el) {
   };
   const tick = f => { f.classList.add('rt-pt-row', 'rt-pt-tick'); shorten(f, f); };
   const row = f => {
+    if (f.classList.contains('rt-pt-row')) return;            // (a row already: a worked-out figure, readRow)
     if (f.matches('label.rt-check')) { if (f.querySelectorAll('input').length === 1) tick(f); else f.classList.add('rt-pt-wide'); return; }
     const lab = f.matches('.rt-f') ? f.querySelector(':scope > .rt-lab > label, :scope > label') : null, ctl = lab ? f.querySelector(':scope > input, :scope > select') : null;
     if (!lab || !ctl || f.classList.contains('rt-pair') || f.classList.contains('rt-pgridf') || f.querySelectorAll(':scope > input, :scope > select').length !== 1) { f.classList.add('rt-pt-wide'); return; }

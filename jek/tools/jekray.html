@@ -29518,7 +29518,7 @@ function mirrorPanel(el) {
     { name: 'Off-axis offset', path: 'offset', unit: 'mm', dflt: 0, title: 'Slides the mirror this far along its parent curve, off the curve’s axis: with a conic of −1, an off-axis parabola.' },
     { name: 'Hole through it', path: 'hole', unit: 'mm', dflt: 0, opts: { blank: 0, placeholder: 'none' } },
     ...(el.A || []).map((_, j) => ({ name: 'A' + (4 + 2 * j), path: `A.${j}`, dflt: 0, opts: { blank: 0 } })),
-    { name: 'Focal length', unit: 'mm', read: () => (f0() === null || para() ? null : fmtPt(f0())), title: 'Half its radius, for light near its axis.' },
+    { name: 'EFL', unit: 'mm', read: () => (f0() === null || para() ? null : fmtPt(f0())), title: 'Its effective focal length: half its radius, for light near its axis.' },
     { name: 'Turns the beam', unit: '°', read: () => (para() ? fmtPt(2 * Math.atan(Math.abs(el.offset) / (2 * Math.abs(f0()))) * 180 / Math.PI) : null), title: 'An off-axis parabola: how far it turns a beam that comes in along its parent’s axis.' },
     { name: 'Focus from the mirror', unit: 'mm', read: () => (para() ? fmtPt(Math.abs(f0()) + el.offset * el.offset / (4 * Math.abs(f0()))) : null), title: 'An off-axis parabola’s reflected focal length: from the middle of the mirror to its focus.' },
   ]));
@@ -29653,8 +29653,8 @@ function focalRow(el) {
   const inp = numInput(id, () => { const v = paraxial(el, nm).efl; return isFinite(v) ? +v.toPrecision(6) : ''; }, v => {
     if (!setLensFocal(el, v, nm)) toast('That focal length cannot be reached by scaling its faces');
   }, { commit: true, placeholder: 'none' });
-  return h('div', { class: 'rt-f wide', title: 'Its effective focal length at ' + nm + ' nm (the bench\u2019s first source). Type one to have it: every face\u2019s radius (with its aspheric and diffractive terms) is scaled together, so it keeps its form; its thickness stays.' },
-    h('label', { for: id }, 'Focal length (mm)'), inp);
+  return h('div', { class: 'rt-f wide', title: 'EFL, its effective focal length, at ' + nm + ' nm (the bench\u2019s first source). Type one to have it: every face\u2019s radius (with its aspheric and diffractive terms) is scaled together, so it keeps its form; its thickness stays.' },
+    h('label', { for: id }, 'EFL (mm)'), inp);
 }
 /* the lens to scale, in its own frame (light from the left): each glass tinted, each face's outline (a coated face in
    its coating's colour, a mirror in silver), its radius beside it, its thickness and diameter dimensioned, and a warning
@@ -30322,7 +30322,12 @@ function gratingPanel(el) {
   panel.append(h('div', { class: 'rt-rows' },
     selectField('Type', [['reflect', 'Reflection'], ['transmit', 'Transmission']], () => el.mode, v => { el.mode = v; }, { wide: true }),
     param('Lines per mm', el, 'lpmm'), param('Blaze (nm)', el, 'blaze'),
-    param('Efficiency (%)', el, 'eff'), param('Width (mm)', el, 'length')));
+    param('Efficiency (%)', el, 'eff'), param('Width (mm)', el, 'length'),
+    // what follows from its lines and its blaze alone: the grooves' spacing, and the angle the sawtooth is cut at
+    // (blazed in order 1 in Littrow: sin \u03b8 = \u03bb / 2d)
+    readRow({ name: 'Groove spacing', unit: '\u00b5m', read: () => (el.lpmm > 0 ? String(+(1000 / el.lpmm).toPrecision(5)) : null), title: 'The distance from one groove to the next: 1 mm over its lines per mm.' }),
+    readRow({ name: 'Blaze angle', unit: '\u00b0', read: () => { const q = el.lpmm > 0 ? el.blaze * 1e-6 * el.lpmm / 2 : NaN; return q > 0 && q <= 1 ? String(+(Math.asin(q) * 180 / Math.PI).toPrecision(4)) : null; },
+      title: 'The angle its grooves\u2019 faces are cut at, for its blaze wavelength in order 1 in Littrow: sin \u03b8 = \u03bb / 2d.' })));
   panel.append(readoutBox('grating'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each ray leaves in every order that can propagate, along the grating equation sinθₘ = sinθᵢ + mλ/d, each carrying its share of the power; the diffracted field follows each order the same way. The grooves are a sawtooth blazed for the blaze wavelength in order +1, so that is where the power goes there, falling off either side. Peak efficiency covers what the real surface absorbs and scatters.'));
 }
@@ -30362,7 +30367,11 @@ function fibrePanel(el) {
   panel.append(h('div', { class: 'rt-rows' },
     param('Core (µm)', el, 'core'), param('NA', el, 'na'),
     param('Collimating lens f (mm)', el, 'coll', { wide: true }),
-    param('Diameter (mm)', el, 'length', { wide: true })));
+    param('Diameter (mm)', el, 'length', { wide: true }),
+    // what follows from its core and NA alone: the cone it takes light in over, and the wavelength above which it
+    // guides one mode only (V = \u03c0 d NA / \u03bb below 2.405)
+    readRow({ name: 'Acceptance half-angle', unit: '\u00b0', read: () => (el.na > 0 && el.na <= 1 ? String(+(Math.asin(el.na) * 180 / Math.PI).toPrecision(4)) : null), title: 'The half-angle of the cone of light it guides, in air: sin \u03b8 = NA.' }),
+    readRow({ name: 'Single-mode above', unit: 'nm', read: () => (el.mm || !(el.core > 0 && el.na > 0) ? null : String(+(Math.PI * el.core * 1000 * el.na / 2.405).toPrecision(4))), title: 'Its cut-off wavelength: above it the fibre guides one mode only (V = \u03c0 d NA / \u03bb below 2.405).' })));
   if (el.coll > 0 && !el.mm) {
     // the beam it sends out, as the focal length is edited: lambda f / (pi w) at 1550 nm
     const note = h('p', { class: 'note', style: 'margin-top:0.3rem' });
@@ -32266,22 +32275,24 @@ function param(label, el, path, opts = {}) {
      { name, text: () => words, set, placeholder, title }   words typed
      { name, cell: node, title }               anything else beside its name; { node } anything across the whole row
    (null: no row; row(r): given a setting's row once made). The unit is in the label for a screen reader, out of sight. */
+/* a table's row for a figure worked out from the settings ({ name, read: () => text, unit, title }): shown among them, in
+   italics, not typed. read may give the figure with its unit, as "19.85 m": a unit that goes with the figure's size is
+   shown in the unit's column. A panel built the older way puts one among its settings with this (tabulate keeps it). */
+function readRow(r) {
+  const v = h('span', { class: 'rt-pt-val' }), u = h('span', { class: 'rt-pt-unit' }, r.unit || ''), row = h('div', { class: 'rt-pt-row derived', title: r.title }, h('span', { class: 'rt-pt-name' }, r.name), v, u, h('span'));
+  bindSync(v, () => {
+    const t = r.read(), m = r.unit || t === null || t === undefined ? null : /^(\S+) (\S+)$/.exec(String(t));
+    v.textContent = m ? m[1] : t; if (!r.unit) u.textContent = m ? m[2] : '';
+    row.hidden = t === null || t === undefined || t === '';
+  });
+  return row;
+}
 function propTable(el, rows) {
   const T = h('div', { class: 'rt-pt' });
   for (const r of rows) {
     if (!r) continue;
     if (typeof r === 'string') { T.append(h('div', { class: 'rt-pt-sec' }, r)); continue; }
-    if (r.read) {
-      // (read may give the figure with its unit, as "19.85 m": a unit that goes with the figure's size is shown in the unit's column)
-      const v = h('span', { class: 'rt-pt-val' }), u = h('span', { class: 'rt-pt-unit' }, r.unit || ''), row = h('div', { class: 'rt-pt-row derived', title: r.title }, h('span', { class: 'rt-pt-name' }, r.name), v, u, h('span'));
-      bindSync(v, () => {
-        const t = r.read(), m = r.unit || t === null || t === undefined ? null : /^(\S+) (\S+)$/.exec(String(t));
-        v.textContent = m ? m[1] : t; if (!r.unit) u.textContent = m ? m[2] : '';
-        row.hidden = t === null || t === undefined || t === '';
-      });
-      T.append(row);
-      continue;
-    }
+    if (r.read) { T.append(readRow(r)); continue; }
     if (r.node) { T.append(h('div', { class: 'rt-pt-wide' }, r.node)); continue; }
     if (r.choose || r.tick || r.text || r.cell) {
       const id = 'rtf' + (++fid);
@@ -32339,6 +32350,7 @@ function tabulate(root, el) {
   };
   const tick = f => { f.classList.add('rt-pt-row', 'rt-pt-tick'); shorten(f, f); };
   const row = f => {
+    if (f.classList.contains('rt-pt-row')) return;            // (a row already: a worked-out figure, readRow)
     if (f.matches('label.rt-check')) { if (f.querySelectorAll('input').length === 1) tick(f); else f.classList.add('rt-pt-wide'); return; }
     const lab = f.matches('.rt-f') ? f.querySelector(':scope > .rt-lab > label, :scope > label') : null, ctl = lab ? f.querySelector(':scope > input, :scope > select') : null;
     if (!lab || !ctl || f.classList.contains('rt-pair') || f.classList.contains('rt-pgridf') || f.querySelectorAll(':scope > input, :scope > select').length !== 1) { f.classList.add('rt-pt-wide'); return; }

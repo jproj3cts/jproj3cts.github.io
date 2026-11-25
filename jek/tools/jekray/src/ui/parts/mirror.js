@@ -95,7 +95,7 @@ function mirrorPanel(el) {
     { name: 'Off-axis offset', path: 'offset', unit: 'mm', dflt: 0, title: 'Slides the mirror this far along its parent curve, off the curve’s axis: with a conic of −1, an off-axis parabola.' },
     { name: 'Hole through it', path: 'hole', unit: 'mm', dflt: 0, opts: { blank: 0, placeholder: 'none' } },
     ...(el.A || []).map((_, j) => ({ name: 'A' + (4 + 2 * j), path: `A.${j}`, dflt: 0, opts: { blank: 0 } })),
-    { name: 'Focal length', unit: 'mm', read: () => (f0() === null || para() ? null : fmtPt(f0())), title: 'Half its radius, for light near its axis.' },
+    { name: 'EFL', unit: 'mm', read: () => (f0() === null || para() ? null : fmtPt(f0())), title: 'Its effective focal length: half its radius, for light near its axis.' },
     { name: 'Turns the beam', unit: '°', read: () => (para() ? fmtPt(2 * Math.atan(Math.abs(el.offset) / (2 * Math.abs(f0()))) * 180 / Math.PI) : null), title: 'An off-axis parabola: how far it turns a beam that comes in along its parent’s axis.' },
     { name: 'Focus from the mirror', unit: 'mm', read: () => (para() ? fmtPt(Math.abs(f0()) + el.offset * el.offset / (4 * Math.abs(f0()))) : null), title: 'An off-axis parabola’s reflected focal length: from the middle of the mirror to its focus.' },
   ]));

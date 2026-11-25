@@ -1541,7 +1541,7 @@ const TESTS = [
       const doc = rigDoc(), lens = (surfaces, gaps, materials, d) => J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', id: 'S', name: 'L', x: -40, y: 0, angle: 0, wavelength: 587.6, width: 4, rays: 5 },
         { type: 'lens', id: 'Le', name: 'Lens', x: 0, y: 0, angle: 0, diameter: d || 25.4, surfaces, gaps, materials }] });
       lens([{ R: 51.5 }, { R: null }], [4], [{ glass: 'N-BK7' }]); J.select('Lens'); await frame(); await frame();
-      const drawn = !!doc.querySelector('#panel canvas.rt-lensdiag') && doc.querySelectorAll('#panel .rt-pgrid2').length >= 2 && [...doc.querySelectorAll('#panel .rt-facegrid .rt-facenum')].map(x => x.textContent).join() === '1,2' && !!doc.querySelector('#panel input[aria-label="Radius of face 1 (mm)"]') && !!doc.querySelector('#panel select[aria-label="Coating of face 2"]');
+      const drawn = !!doc.querySelector('#panel canvas.rt-lensdiag') && doc.querySelectorAll('#panel .rt-pt').length >= 2 && [...doc.querySelectorAll('#panel .rt-facegrid .rt-facenum')].map(x => x.textContent).join() === '1,2' && !!doc.querySelector('#panel input[aria-label="Radius of face 1 (mm)"]') && !!doc.querySelector('#panel select[aria-label="Coating of face 2"]');
       const fl = [...doc.querySelectorAll('#panel label')].find(l => l.textContent === 'Focal length (mm)'), inp = fl && doc.getElementById(fl.htmlFor);
       inp.value = '50'; inp.dispatchEvent(new (rigWin().Event)('change')); await frame();
       const L = J.byName('Lens'), f = J.paraxial('Lens', 587.6).efl, focal = Math.abs(f - 50) < 1e-6 && L.surfaces[1].R === null && Math.abs(L.surfaces[0].R / 51.5 - 50 / 99.984) < 0.02;
@@ -1635,7 +1635,7 @@ const TESTS = [
       const doc = rigDoc();
       J.load({ format: 'jekray', version: 1, elements: [{ type: 'lamp', id: 'L', name: 'Bulb', x: 0, y: 0 }] });
       J.select('Bulb');
-      const sel = () => { const f = [...doc.querySelectorAll('#panel .rt-f')].find(x => x.querySelector('label') && x.querySelector('label').textContent === 'Shines'); return f && f.querySelector('select'); };
+      const sel = () => { const l = [...doc.querySelectorAll('#panel label')].find(x => x.textContent === 'Shines'); return l && doc.getElementById(l.htmlFor); };
       const set = v => { const s = sel(); s.value = v; s.dispatchEvent(new Event('change', { bubbles: true })); };
       if (!sel() || sel().value !== '3d') return 0;
       set('2d'); const a = J.byName('Bulb'), flat = a.lampFlat === true && a.lampD === 0 && a.elev === 0 && a.rays === 180 && sel().value === '2d';
@@ -7568,7 +7568,7 @@ const TESTS = [
       J.load(JSON.parse(getDemo('michelson')));
       J.select('Fixed mirror');
       const doc = document.getElementById('rig').contentDocument;
-      const tog = t => doc.querySelector('#panel label[for="' + [...doc.querySelectorAll('#panel label')].find(x => x.textContent === t).htmlFor + '"]').closest('.rt-pcell, .rt-f').querySelector('.rt-sweep-toggle');
+      const tog = t => doc.querySelector('#panel label[for="' + [...doc.querySelectorAll('#panel label')].find(x => x.textContent === t).htmlFor + '"]').closest('.rt-pcell, .rt-f, .rt-pt-row').querySelector('.rt-sweep-toggle');
       tog('X (mm)').click();
       const a = !!doc.querySelector('#panel .rt-sweep') && J.byName('Fixed mirror').sweeps.x;
       tog('Z (mm)').click();
@@ -7596,7 +7596,7 @@ const TESTS = [
       J.load(JSON.parse(getDemo('michelson')));
       J.select('Fixed mirror');
       const doc = document.getElementById('rig').contentDocument;
-      const swept = ['Z (mm)', 'Tip (\u00b0)', 'Roll (\u00b0)'].every(t => { const l = [...doc.querySelectorAll('#panel label')].find(x => x.textContent === t); return l && l.closest('.rt-pcell, .rt-f').querySelector('.rt-sweep-toggle'); });
+      const swept = ['Z (mm)', 'Tip (\u00b0)', 'Roll (\u00b0)'].every(t => { const l = [...doc.querySelectorAll('#panel label')].find(x => x.textContent === t); return l && l.closest('.rt-pcell, .rt-f, .rt-pt-row').querySelector('.rt-sweep-toggle'); });
       J.setParam('Fixed mirror', 'z', 120); J.setParam('Fixed mirror', 'tip', 2); J.setParam('Fixed mirror', 'roll', 190);
       const m = J.byName('Fixed mirror'), set = m.z === 120 && m.tip === 2 && m.roll === -170;
       J.setParam('Fixed mirror', 'z', 75);
@@ -12424,9 +12424,9 @@ const TESTS = [
       J.select('Cup');
       const D = rigDoc(), btn = t => [...D.querySelectorAll('#panel button')].find(x => x.textContent.trim() === t);
       btn('Add aspheric terms').click();
-      const f = [...D.querySelectorAll('#panel .rt-f')].find(x => x.querySelector('label') && x.querySelector('label').textContent.trim() === 'A4');
+      const f = [...D.querySelectorAll('#panel label')].find(x => x.textContent.trim() === 'A4');
       if (!f) return 0;
-      const inp = f.querySelector('input'); inp.value = '-1.5e-8'; inp.dispatchEvent(new (rigWin().Event)('input', { bubbles: true })); inp.dispatchEvent(new (rigWin().Event)('change', { bubbles: true }));
+      const inp = D.getElementById(f.htmlFor); inp.value = '-1.5e-8'; inp.dispatchEvent(new (rigWin().Event)('input', { bubbles: true })); inp.dispatchEvent(new (rigWin().Event)('change', { bubbles: true }));
       const panelOk = J.byName('Cup').A && J.byName('Cup').A[0] === -1.5e-8;
       btn('Design as an assembly…').click();
       try {

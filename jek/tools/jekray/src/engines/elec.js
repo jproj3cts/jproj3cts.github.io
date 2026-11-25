@@ -526,7 +526,7 @@ export function elecNoiseRms(S, f1, f2) {
 /* ---------- where light meets the electronics ----------
    Optical parts carry electrical ports too, after any fibre ports: a photodiode's or
    photodetector's output, a laser's modulation input, an AOM's RF level input, an EOM's
-   modulation input and an optical chopper's reference output. Wires reach them as they
+   modulation input, a steering mirror's tilt input and an optical chopper's reference output. Wires reach them as they
    reach any block.
    The light is worked out quasi-statically: the electronics are far slower than light
    crossing the bench, so each drive is set at levels across its swing, the bench traced
@@ -553,6 +553,7 @@ export function elecExtra(el) {
       const { L, hw } = srcBody(el), d = hw / 2;
       return [{ x: -L, y: d, dx: -1, dy: 0, elec: 'in', name: 'mod' }, { x: -L, y: -d, dx: -1, dy: 0, elec: 'in', name: 'fm' }];
     }
+    case 'mirror': return el.steer ? [{ x: -6 * k, y: 0, dx: -1, dy: 0, elec: 'in', name: 'tilt' }] : [];   // a steering mirror's drive, on its back
     case 'aom': return [{ x: 0, y: el.length / 2 + 4 * k, dx: 0, dy: 1, elec: 'in', name: 'rf' }];
     case 'eom': return [{ x: 0, y: el.length / 2 + 2 * k, dx: 0, dy: 1, elec: 'in', name: 'mod' }];
     case 'chopper': return [{ x: 0, y: -(el.length / 2 + CHOP_HUB), dx: 0, dy: -1, elec: 'out', name: 'ref' }];
@@ -602,6 +603,7 @@ function applyDrive(el, v, port) {
   else if (el.type === 'aom') el.eff = el.eff * Math.sin(Math.PI / 2 * v / vsat(el)) ** 2;
   else if (el.type === 'fcomp' && el.kind === 'aom') el._eta = Math.sin(Math.PI / 2 * v / vsat(el)) ** 2;
   else if (el.type === 'eom' || (el.type === 'fcomp' && (el.kind === 'eom' || el.kind === 'stretch')) || (el.type === 'pic' && el.kind === 'ps')) el._v = v;
+  else if (el.type === 'mirror') el.angle = el.angle + num(el.steerK, 1) * v;   // a steering mirror: turned in the plane, degrees a volt
   else if (el.type === 'chopper') el._closed = !(v > 0.5);
 }
 /* trace the bench with something changed, read it, and put everything back as it was */

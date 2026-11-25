@@ -11,7 +11,16 @@ const USE_LINK = 'link connect another tab feedthrough continue';
 export const PART_USES = {
   // free space
   source: USE_LASER + ' laser diode led lamp gaussian collimated point',
-  mirror: 'reflect steer fold bounce turn mirror retroreflector curved concave focusing cavity',
+  mirror: 'reflect steer fold bounce turn mirror flat plane',
+  concave: 'reflect focus curved concave spherical mirror cavity telescope resonator',
+  convex: 'reflect diverge curved convex spherical mirror expand unstable resonator secondary',
+  parabolic: 'reflect focus collimate parabola paraboloid mirror telescope no spherical aberration',
+  oap: 'reflect focus collimate off axis parabola parabolic oap mirror 90 degrees ultrafast infrared',
+  partial: 'partly reflect transmit split output coupler plate beam splitter pick off sampler half silvered',
+  chirped: 'chirped mirror gdd dispersion compress pulse ultrafast femtosecond',
+  steering: 'steer scan galvo galvanometer piezo tip tilt fast steering mirror fsm point beam signal drive',
+  dichroic: 'dichroic mirror reflect one colour pass another combine separate wavelengths long pass short pass',
+  retro: 'retroreflector retro reflect back return corner cube roof prism porro delay line',
   lens: 'focus collimate image converge diverge magnify expand telescope relay objective',
   asphere: 'focus collimate aspheric lens aberration free high na',
   diffractive: 'focus diffractive fresnel zone plate doe lens',

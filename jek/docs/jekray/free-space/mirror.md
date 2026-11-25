@@ -59,6 +59,27 @@ with $$\phi$$ its **Angle**. Rays meet it in 3D, within its round aperture, and 
 
 A mirror can add a group delay dispersion $$\mathrm{GDD}$$ (fs²) to each reflection: a spectral phase $$\tfrac12\,\mathrm{GDD}\,(\omega - \omega_0)^2$$ on the light reflected from its face. A negative GDD compresses a positively chirped pulse. See [Short pulses](/jek/docs/jekray/free-space/#short-pulses).
 
+### Steering mirrors
+
+A mirror **steered by a signal** (a galvo, a piezo mount) has a **tilt** input for the [electronics](/jek/docs/jekray/electronics/). A voltage $$v$$ on it turns the mirror in the bench plane about its centre by $$\theta = k\,v$$, with $$k$$ its **Turn** in degrees per volt, and the reflected beam turns by $$2\theta$$. The drive is taken quasi-statically, as every drive is: the bench is traced again at levels across the drive's swing and each photodiode's light follows the drive by that table. So a beam scanned across a pinhole or a small photodiode gives the signal a real one would, and a DC level offsets the pointing a detector sees. The bench itself draws the mirror at rest, at 0 V. It turns in the bench plane only, and follows the drive at any frequency: a real mirror's resonance and settling time are not modelled.
+
+## In the parts list
+
+The Mirrors group lists the plain mirror and the kinds most often wanted. Each is this same mirror begun with its kind's settings, so any of them can be made into any other in its panel.
+
+| Entry | A new one is |
+|---|---|
+| Mirror | flat, fully reflecting, at 45° to fold a beam |
+| Concave mirror | spherical, $$R = 200$$ mm, facing the beam: $$f = 100$$ mm |
+| Convex mirror | spherical, $$R = -200$$ mm |
+| Parabolic mirror | $$R = 200$$ mm, conic $$-1$$: no spherical aberration for a beam along its axis |
+| Off-axis parabola | the 90° one: $$R = 50.8$$ mm, conic $$-1$$, offset $$50.8$$ mm, which turns a beam along its axis through a right angle to a focus $$50.8$$ mm away |
+| Partial reflector | flat, reflecting 50 %, the rest passing: a plate beam splitter or an output coupler |
+| Chirped mirror | flat, $$-50$$ fs² a reflection |
+| Steering mirror | flat, steered by a signal, 1° per volt |
+
+Two more entries in the group are other parts: the **Dichroic mirror** is a [filter](/jek/docs/jekray/free-space/filter/#as-a-dichroic) that reflects what it blocks, and the **Retroreflector** is a right-angle [prism](/jek/docs/jekray/free-space/prism/#as-a-retroreflector) with its long face to the beam.
+
 ## Settings
 
 {% include jekray_params.html group="free" key="mirror" %}

@@ -1587,6 +1587,30 @@ const TESTS = [
     },
   },
   {
+    name: 'A steering mirror’s panel has its Turn, and unticking Steered by a signal takes its tilt input and the wire to it away',
+    why: 'a mirror steered by a signal has a tilt input for the circuits. A steering mirror wired from a DC source: its panel’s Electronics section has the tick on and a Turn (° per V) box. Unticked, the mirror is a plain one again (no steer setting), the wire to its input is gone, and the box with it; ticked again it is steered at 1° per volt. A plain mirror on a bench with no electronics is offered no tick at all. 1 when all of that holds.',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const doc = rigDoc();
+      const labels = () => [...doc.querySelectorAll('#panel label')].map(x => x.textContent);
+      const tick = () => { const l = [...doc.querySelectorAll('#panel label.rt-check')].find(x => /^Steered by a signal/.test(x.textContent)); return l && l.querySelector('input'); };
+      const parts = [{ type: 'source', id: 'S', name: 'S', x: 0, y: 0, angle: 0, wavelength: 633 }, { type: 'mirror', id: 'M', name: 'Galvo', x: 100, y: 0, angle: 135, steer: true, steerK: 2 }];
+      J.load({ format: 'jekray', version: 1, elements: [...parts, { type: 'elec', kind: 'dc', id: 'V', name: 'V', x: 40, y: 60, v: 1 }], fibres: [{ a: ['V', 0], b: ['M', 0], wire: true }] });
+      J.select('Galvo');
+      const wires = () => (J.project().fibres || []).filter(F => F.wire).length;
+      const on = !!tick() && tick().checked && labels().includes('Turn (° per V)') && wires() === 1 && J.byName('Galvo').steerK === 2;
+      tick().click();
+      const off = !!tick() && !tick().checked && !labels().includes('Turn (° per V)') && wires() === 0 && J.byName('Galvo').steer === undefined;
+      tick().click();
+      const again = tick().checked && J.byName('Galvo').steer === true && J.byName('Galvo').steerK === 1;
+      J.load({ format: 'jekray', version: 1, elements: [parts[0], { type: 'mirror', id: 'M', name: 'Plain', x: 100, y: 0, angle: 135 }] });
+      J.select('Plain');
+      const none = !tick();
+      if (!(on && off && again && none)) console.log('steering mirror', JSON.stringify({ on, off, again, none, wires: wires() }));
+      return on && off && again && none ? 1 : 0;
+    },
+  },
+  {
     name: 'A lamp is one part: its Shines setting makes it shine every way or round the bench plane only',
     why: 'the Lamp and the Circular lamp were two entries in the parts list for one part. Now the free-space list has one Lamp entry and no Circular lamp, and a lamp’s panel has a Shines list. Set to round the bench plane only, the lamp is flat (a point, no light up and down, 180 rays); set back to every way it is a new lamp’s (1 mm across, 90° up and down, 500 rays), and the list shows each. 1 when all of that holds.',
     want: 1, tol: 0, unit: '',

@@ -6,9 +6,11 @@ import { nextName, num } from '../state/project.js';
 /* Filter: A filter: long-pass, short-pass, band-pass or neutral density, optionally reflecting what it rejects (a dichroic). */
 export const FILTER = {
   type: 'filter', label: 'Filter',
-  picker: [{ key: 'filter', short: 'Filter' }],
-  keys: ['filter'],
-  make: (x, y) => ({ type: 'filter', name: nextName('Filter'), x, y, angle: 0 }),
+  picker: [{ key: 'filter', short: 'Filter' }, { key: 'dichroic', short: 'Dichroic mirror', long: 'Dichroic mirror (reflects one band, passes the rest)' }],
+  keys: ['filter', 'dichroic'],
+  // a dichroic mirror: a long-pass filter that reflects what it rejects, set at 45° to fold the reflected band away
+  make: (x, y, kind) => kind === 'dichroic' ? { type: 'filter', name: nextName('Dichroic mirror'), x, y, angle: 135, ftype: 'longpass', edge: 600, reflect: true }
+    : { type: 'filter', name: nextName('Filter'), x, y, angle: 0 },
   norm(e, base) {
     return Object.assign(base, {
       length: Math.max(0.1, num(e.length, 25)),

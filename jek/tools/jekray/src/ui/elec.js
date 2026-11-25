@@ -269,8 +269,9 @@ function elecChopperPanel(el) {
 /* an optical part's electrical settings and ports, in its panel */
 function elecOpticPanel(el) {
   const X = elecExtra(el);
-  if (el.type === 'chopper' || (!X.length && !isLaser(el))) return;
-  if (!isLaser(el)) panel.append(h('h3', null, 'Electronics'));   // a laser's has its tickbox first
+  const steerable = el.type === 'mirror' && !el.film && !el.metal;
+  if (el.type === 'chopper' || (!X.length && !isLaser(el) && !steerable)) return;
+  if (!isLaser(el) && !steerable) panel.append(h('h3', null, 'Electronics'));   // a laser's, and a mirror's, has its tickbox first
   const rows = h('div', { class: 'rt-rows' });
   let what = '';
   if (isDet(el)) {
@@ -303,6 +304,27 @@ function elecOpticPanel(el) {
     if (el.fmk === undefined) el.fmk = 1;
     rows.append(param('Power modulation (% per V)', el, 'modk'), param('Frequency tuning (GHz per V)', el, 'fmk'));
     what = 'Its mod input sets the power: P = P₀ (1 + m v), never below zero. Its fm input tunes its frequency: Δν = k v (its wavelength shortens as the frequency rises), so a cell’s line, a cavity or an etalon turns it into a change in power.';
+  } else if (steerable) {
+    // a mirror steered by a signal: offered on a bench with electronics (or a mirror that is one already)
+    if (!el.steer && !project.elements.some(e => e.type === 'elec')) return;
+    const tick = h('input', { type: 'checkbox' });
+    tick.checked = !!el.steer;
+    tick.addEventListener('change', () => {
+      checkpoint();
+      if (tick.checked) { el.steer = true; if (el.steerK === undefined) el.steerK = 1; }
+      else {
+        // its input goes, and the wire to it
+        const n = portsOfOptic(el).length;
+        project.fibres = (project.fibres || []).filter(F => !(F.wire && F.b[0] === el.id && F.b[1] >= n));
+        delete el.steer; delete el.steerK;
+      }
+      changed(true);
+    });
+    panel.append(h('h3', null, 'Electronics'));
+    panel.append(h('label', { class: 'rt-check' }, tick, 'Steered by a signal (a galvo or piezo mirror): a tilt input'));
+    if (!el.steer) return;
+    rows.append(param('Turn (° per V)', el, 'steerK', { wide: true }));
+    what = 'Its tilt input turns the mirror in the bench plane about its centre: θ = k v, and the reflected beam turns by twice that. The bench draws it at rest (0 V); photodetectors see the light as it is steered.';
   } else {
     const key = isLaser(el) ? 'modk' : el.kind === 'aom' || el.type === 'aom' ? 'vsat' : 'vpi', d = { modk: 100, vsat: 1, vpi: 5 }[key];
     if (el[key] === undefined) el[key] = d;

@@ -26,6 +26,10 @@ In the prism's own frame, with its size $$a$$:
 | Pellin–Broca prism | a four-sided prism of side $$a$$, angles $$90°$$, $$75°$$, $$135°$$ and $$60°$$: one wavelength, coming in near Brewster's angle, leaves at $$90°$$ after a total internal reflection, the angle set by turning the prism |
 | Polygon | the corners you give, in mm in the prism's own frame (x, y pairs, 3 to 16, in order round the shape) |
 
+### As a retroreflector
+
+**Add part › Retroreflector**, in the Mirrors group, is a right-angle prism of N-BK7 turned with its long face to the beam. Light goes in through that face, reflects off the two short faces by total internal reflection and comes back out parallel to the way it went in, as far the other side of the prism's middle. It does so whatever the beam's angle in the bench plane, up to about $$5.7°$$ one way for N-BK7, past which the first short face no longer reflects totally and light leaks out of it. Each pass of the long face loses its Fresnel reflection unless it is coated. It is a roof, standing up from the bench, and so turns a beam back in the bench plane only: a beam rising out of the plane comes back still rising, where a corner cube would send it back down.
+
 **Apex.** An equilateral prism's apex points along its angle (+x in its own frame), its base behind: at angle 0 a beam travelling +x meets the base side and the light leaves bent away from the apex, towards the base. Turn it by 180° for the apex the other way. Any shape's faces can be **silvered** (the faces by number, the first face 0, round the shape), as a pentaprism's two reflecting faces come.
 
 A Pellin–Broca prism sends light at exactly $$90°$$ only for the wavelength that crosses it at minimum deviation, at the angle where it meets the first face near Brewster's angle; for N-BK7 at 633 nm, light along +x, that is with the prism turned about $$50°$$. Turning it tunes which wavelength leaves at $$90°$$, as the prism is used to pick one line from a laser.

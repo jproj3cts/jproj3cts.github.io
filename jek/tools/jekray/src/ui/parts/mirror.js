@@ -38,6 +38,11 @@ function drawMirror(el, sel) {
     ctx.moveTo(sx(ax), sy(ay)); ctx.lineTo(sx(bx), sy(by));
   }
   ctx.stroke();
+  // a steering mirror: its actuator, a small block on its back
+  if (el.steer) {
+    const b = Math.min(el.length * 0.3, 14 / V().scale), d = Math.min(el.length * 0.22, 10 / V().scale), x0 = sagFn(s, 0) - hat;
+    pathLocal(f, [[x0, -b / 2], [x0 - d, -b / 2], [x0 - d, b / 2], [x0, b / 2]]); ctx.stroke();
+  }
   ctx.strokeStyle = sel ? selInk() : el.reflect >= 100 ? (lightLayer ? metal() : getCss('--rt-metal')) : metal(0.35 + 0.6 * el.reflect / 100);
   ctx.lineWidth = sel ? 3.5 : 3;
   ctx.lineCap = 'round';

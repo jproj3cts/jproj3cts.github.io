@@ -12,7 +12,7 @@ description: "Every change to JEKray, version by version, the newest first."
 {% raw %}
 ## Version 1.1
 
-<p class="note">12 October 2026, 287 changes</p>
+<p class="note">12 October 2026, 289 changes</p>
 
 <h3>The few that matter most</h3>
 
@@ -30,6 +30,8 @@ description: "Every change to JEKray, version by version, the newest first."
 <h3>Every change</h3>
 
 <ul>
+<li>The <b>Mirrors</b> group of the parts list has the kinds most often wanted, each the mirror begun with its settings: <b>Concave</b>, <b>Convex</b>, <b>Parabolic</b>, <b>Off-axis parabola</b> (the 90° one), <b>Partial reflector</b> and <b>Chirped mirror</b>; a <b>Dichroic mirror</b> (a filter that reflects what it blocks) and a <b>Retroreflector</b> (a right-angle prism turned to send a beam back the way it came) are listed there too.</li>
+<li>A <b>Steering mirror</b>: a mirror can be steered by a signal, as a galvo or a piezo mirror is. Its <b>tilt</b> input takes a wire from the circuits and turns it in the bench plane by its <b>Turn</b> (° per V); photodetectors see the light as it is steered (a beam scanned across a pinhole, a pointing offset), while the bench draws the mirror at rest.</li>
 <li>The parts list, tidier: the <b>Lamp</b> and the Circular lamp are one part, a lamp whose <b>Shines</b> setting is every way (3D) or round the bench plane only (2D, fast); the AOM, the EOM and the optical chopper have a group of their own, <b>Modulators</b>; and the fibre tip and collimator are listed under <b>Tabs</b>, with the link plane.</li>
 <li>JEKfilm is now JEKray’s <b>Coating designer</b>, listed under JEKray beside the Optics designer. Its coatings save as <b>.coat</b> files, and a .jekfilm saved before still opens. Faces offer designed coatings as before, marked (Coating designer).</li>
 <li><b>JEKrf</b>, for RF and millimetre waves, is an app of its own, built on JEKray: its benches are <b>.jekrf</b> files with the RF and circuits parts, and its <b>RF designer</b> opens in its own tab, each design a <b>.rfd</b> used on JEKrf’s benches as the Optics designer’s are on JEKray’s. JEKray no longer offers the RF parts or the RF designer; a bench with RF parts still opens here. JEKrf is experimental while it is checked.</li>

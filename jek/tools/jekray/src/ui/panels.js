@@ -340,10 +340,8 @@ function rayPlots(el) {
   const note = h('p', { class: 'note', style: 'margin-top:0.4rem' });
   const getZ = () => plotZoom(el, 'ray-' + vs(el).rayView), redraw = () => drawRayPlot(cv, note, el);
   panel.append(h('div', { style: 'margin-top:0.35rem' }, plotFrame(cv, () => 'ray-' + vs(el).rayView, getZ, redraw)),
-    zoomControls(cv, getZ, redraw, () => vs(el).rayView === 'power'), note);
+    zoomControls(cv, getZ, redraw, () => vs(el).rayView === 'power', dataBtn(el)), note);
   bindSync(cv, () => drawRayPlot(cv, note, el));
-  panel.append(h('div', { class: 'rt-actions' },
-    acctMark(h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)'), 'export a screen\u2019s data')));
 }
 
 const ABER_PLOTS = [
@@ -547,12 +545,14 @@ function drawRayPlot(cv, note, el) {
       : ' Every ray lands at the beam height: give a source a pattern across the beam (a cross, a grid or hexapolar rings, with the 3D view on) to spread them up and down.') : '');
 }
 
+/* a part's data saved from beside a plot's own PNG and CSV: the same small button, "Data" (its full words for a screen
+   reader, and in its tooltip) */
+const dataBtn = el => h('button', { class: 'rt-zb', type: 'button', 'data-short': 'Data', title: 'Export data (CSV): everything this part records, its rays, its plots and what it reads', onclick: () => exportScreen(el) }, 'Export data (CSV)');
 function screenPlots(el) {
   panel.append(propTable(el, [{ name: 'MTF quoted at', path: 'mtfFreq', unit: 'lp/mm' },
     { name: 'Focus model', choose: [['auto', 'Vector when steep'], ['on', 'Always vector'], ['off', 'Paraxial only']], get: () => el.vectorFocus, set: v => { el.vectorFocus = v; },
       title: 'How a steep focus is worked out: the vector model once the beam\u2019s NA is above 0.3, always, or the paraxial one only' }]));
-  diffractionSection(el, h('div', { class: 'rt-actions rt-actions-data' },
-    acctMark(h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)'), 'export a screen\u2019s data')));
+  diffractionSection(el, dataBtn(el));
 }
 
 /* a surface's coating, the list alone (the lens's face table) */

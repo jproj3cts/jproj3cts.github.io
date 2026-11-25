@@ -675,7 +675,8 @@
   .rt-views { flex-wrap: nowrap; justify-content: space-between; }
   .rt-views > .rt-link.rt-view[data-short] { font-size: 0; }
   .rt-views > .rt-link.rt-view[data-short]::before { content: attr(data-short); font-size: 0.8125rem; }
-  .rt-actions.rt-actions-data { margin: 0.5rem 0 0.6rem; }
+  .rt-zb[data-short] { font-size: 0; }
+  .rt-zb[data-short]::before { content: attr(data-short); font-size: 0.75rem; }
   .rt-views > .rt-link.rt-view { padding: 0.35rem 0.32rem; white-space: nowrap; font-size: 0.8125rem; font-weight: 600; color: var(--jek-ink-soft); text-decoration: none !important; border-bottom: 2px solid transparent; }
   .rt-views > .rt-link.rt-view.on { color: var(--jek-ink); border-bottom-color: var(--jek-cyan); }
   .rt-tab.empty { opacity: 0.45; }
@@ -33175,10 +33176,8 @@ function rayPlots(el) {
   const note = h('p', { class: 'note', style: 'margin-top:0.4rem' });
   const getZ = () => plotZoom(el, 'ray-' + vs(el).rayView), redraw = () => drawRayPlot(cv, note, el);
   panel.append(h('div', { style: 'margin-top:0.35rem' }, plotFrame(cv, () => 'ray-' + vs(el).rayView, getZ, redraw)),
-    zoomControls(cv, getZ, redraw, () => vs(el).rayView === 'power'), note);
+    zoomControls(cv, getZ, redraw, () => vs(el).rayView === 'power', dataBtn(el)), note);
   bindSync(cv, () => drawRayPlot(cv, note, el));
-  panel.append(h('div', { class: 'rt-actions' },
-    acctMark(h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)'), 'export a screen\u2019s data')));
 }
 
 const ABER_PLOTS = [
@@ -33382,12 +33381,14 @@ function drawRayPlot(cv, note, el) {
       : ' Every ray lands at the beam height: give a source a pattern across the beam (a cross, a grid or hexapolar rings, with the 3D view on) to spread them up and down.') : '');
 }
 
+/* a part's data saved from beside a plot's own PNG and CSV: the same small button, "Data" (its full words for a screen
+   reader, and in its tooltip) */
+const dataBtn = el => h('button', { class: 'rt-zb', type: 'button', 'data-short': 'Data', title: 'Export data (CSV): everything this part records, its rays, its plots and what it reads', onclick: () => exportScreen(el) }, 'Export data (CSV)');
 function screenPlots(el) {
   panel.append(propTable(el, [{ name: 'MTF quoted at', path: 'mtfFreq', unit: 'lp/mm' },
     { name: 'Focus model', choose: [['auto', 'Vector when steep'], ['on', 'Always vector'], ['off', 'Paraxial only']], get: () => el.vectorFocus, set: v => { el.vectorFocus = v; },
       title: 'How a steep focus is worked out: the vector model once the beam\u2019s NA is above 0.3, always, or the paraxial one only' }]));
-  diffractionSection(el, h('div', { class: 'rt-actions rt-actions-data' },
-    acctMark(h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)'), 'export a screen\u2019s data')));
+  diffractionSection(el, dataBtn(el));
 }
 
 /* a surface's coating, the list alone (the lens's face table) */
@@ -39447,13 +39448,13 @@ function savePlot(cv, kind) {
   const g = c.getContext('2d'); g.fillStyle = getCss('--jek-panel') || '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(cv, 0, 0);
   c.toBlob(b => { if (!b) { toast('The plot could not be saved here.', true); return; } downloadFile(base + '.png', b); toast('Saved ' + base + '.png'); }, 'image/png');
 }
-function plotSaveBtns(cv) {
+function plotSaveBtns(cv, more) {
   const b = (t, k, title) => h('button', { class: 'rt-zb', type: 'button', title, onclick: () => savePlot(cv, k) }, t);
-  // one Free account badge for the pair, the reason in each one's title
-  return acctMark(h('span', { class: 'rt-save' }, b('PNG', 'png', 'Save this plot as a picture'), b('CSV', 'csv', 'Save the numbers behind this plot')), 'save plots');
+  // one Free account badge for them all, the reason in each one's title (more: another save beside them, a part's Data)
+  return acctMark(h('span', { class: 'rt-save' }, b('PNG', 'png', 'Save this plot as a picture'), b('CSV', 'csv', 'Save the numbers behind this plot'), more || null), 'save plots');
 }
 function plotSaveRow(cv, hidden) { const r = h('div', { class: 'rt-zoom rt-saverow' }, plotSaveBtns(cv)); r.hidden = !!hidden; cv._saveRow = r; return r; }
-function zoomControls(cv, getZ, redraw, yFromBase) {
+function zoomControls(cv, getZ, redraw, yFromBase, more) {
   // curves that rise from zero stretch up and down from their baseline, wherever the cursor is
   const yAt = p => yFromBase && yFromBase() ? 0 : p;
   const area = () => cv._area || { l: 0, t: 0, w: cv.clientWidth || 1, h: cv.clientHeight || 1 };
@@ -39493,7 +39494,7 @@ function zoomControls(cv, getZ, redraw, yFromBase) {
     btn('\u2212', 'Zoom out up and down', Z => zoomAxis(Z, 'y', 1 / 1.5, yAt(0.5))),
     btn('+', 'Zoom in up and down', Z => zoomAxis(Z, 'y', 1.5, yAt(0.5))),
     btn('Reset', 'Show the whole plot', Z => Object.assign(Z, { kx: 1, ky: 1, cx: 0.5, cy: 0.5 })),
-    plotSaveBtns(cv));
+    plotSaveBtns(cv, more));
 }
 
 const MAGMA = [[0, 0, 0, 4], [0.13, 28, 16, 68], [0.25, 79, 18, 123], [0.38, 129, 37, 129], [0.5, 181, 54, 122],
@@ -39527,8 +39528,8 @@ function holdScale(el, which, v) {
   st.hold[which] = Math.max(st.hold[which] || 0, v);
   return st.hold[which];
 }
-/* (under: what goes between its plot and what it reads, the screen's Export data) */
-function diffractionSection(el, under) {
+/* (more: another save beside its plot's PNG and CSV, the screen's Data) */
+function diffractionSection(el, more) {
   // (its views chosen as a readout tab's views are: a row of tabs, the one shown marked)
   const tabs = h('div', { class: 'rt-views' });
   const cv = h('canvas', { style: 'width:100%;display:block' });
@@ -39609,7 +39610,7 @@ function diffractionSection(el, under) {
   };
   const getZ = () => plotZoom(el, vs(el).diffView), redraw = () => drawDiff(cv, diffractionLater(el).D, el);
   panel.append(tabs, scaleRow, plotFrame(cv, () => 'diff-' + vs(el).diffView, getZ, redraw), keyBox,
-    zoomControls(cv, getZ, redraw, () => !['map', 'phase', 'pol'].includes(vs(el).diffView)), ...(under ? [under] : []), box);
+    zoomControls(cv, getZ, redraw, () => !['map', 'phase', 'pol'].includes(vs(el).diffView), more), box);
   bindSync(cv, refresh);
 }
 

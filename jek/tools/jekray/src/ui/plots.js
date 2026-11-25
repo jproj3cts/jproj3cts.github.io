@@ -248,13 +248,13 @@ function savePlot(cv, kind) {
   const g = c.getContext('2d'); g.fillStyle = getCss('--jek-panel') || '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(cv, 0, 0);
   c.toBlob(b => { if (!b) { toast('The plot could not be saved here.', true); return; } downloadFile(base + '.png', b); toast('Saved ' + base + '.png'); }, 'image/png');
 }
-function plotSaveBtns(cv) {
+function plotSaveBtns(cv, more) {
   const b = (t, k, title) => h('button', { class: 'rt-zb', type: 'button', title, onclick: () => savePlot(cv, k) }, t);
-  // one Free account badge for the pair, the reason in each one's title
-  return acctMark(h('span', { class: 'rt-save' }, b('PNG', 'png', 'Save this plot as a picture'), b('CSV', 'csv', 'Save the numbers behind this plot')), 'save plots');
+  // one Free account badge for them all, the reason in each one's title (more: another save beside them, a part's Data)
+  return acctMark(h('span', { class: 'rt-save' }, b('PNG', 'png', 'Save this plot as a picture'), b('CSV', 'csv', 'Save the numbers behind this plot'), more || null), 'save plots');
 }
 export function plotSaveRow(cv, hidden) { const r = h('div', { class: 'rt-zoom rt-saverow' }, plotSaveBtns(cv)); r.hidden = !!hidden; cv._saveRow = r; return r; }
-export function zoomControls(cv, getZ, redraw, yFromBase) {
+export function zoomControls(cv, getZ, redraw, yFromBase, more) {
   // curves that rise from zero stretch up and down from their baseline, wherever the cursor is
   const yAt = p => yFromBase && yFromBase() ? 0 : p;
   const area = () => cv._area || { l: 0, t: 0, w: cv.clientWidth || 1, h: cv.clientHeight || 1 };
@@ -294,7 +294,7 @@ export function zoomControls(cv, getZ, redraw, yFromBase) {
     btn('\u2212', 'Zoom out up and down', Z => zoomAxis(Z, 'y', 1 / 1.5, yAt(0.5))),
     btn('+', 'Zoom in up and down', Z => zoomAxis(Z, 'y', 1.5, yAt(0.5))),
     btn('Reset', 'Show the whole plot', Z => Object.assign(Z, { kx: 1, ky: 1, cx: 0.5, cy: 0.5 })),
-    plotSaveBtns(cv));
+    plotSaveBtns(cv, more));
 }
 
 const MAGMA = [[0, 0, 0, 4], [0.13, 28, 16, 68], [0.25, 79, 18, 123], [0.38, 129, 37, 129], [0.5, 181, 54, 122],
@@ -328,8 +328,8 @@ function holdScale(el, which, v) {
   st.hold[which] = Math.max(st.hold[which] || 0, v);
   return st.hold[which];
 }
-/* (under: what goes between its plot and what it reads, the screen's Export data) */
-export function diffractionSection(el, under) {
+/* (more: another save beside its plot's PNG and CSV, the screen's Data) */
+export function diffractionSection(el, more) {
   // (its views chosen as a readout tab's views are: a row of tabs, the one shown marked)
   const tabs = h('div', { class: 'rt-views' });
   const cv = h('canvas', { style: 'width:100%;display:block' });
@@ -410,7 +410,7 @@ export function diffractionSection(el, under) {
   };
   const getZ = () => plotZoom(el, vs(el).diffView), redraw = () => drawDiff(cv, diffractionLater(el).D, el);
   panel.append(tabs, scaleRow, plotFrame(cv, () => 'diff-' + vs(el).diffView, getZ, redraw), keyBox,
-    zoomControls(cv, getZ, redraw, () => !['map', 'phase', 'pol'].includes(vs(el).diffView)), ...(under ? [under] : []), box);
+    zoomControls(cv, getZ, redraw, () => !['map', 'phase', 'pol'].includes(vs(el).diffView), more), box);
   bindSync(cv, refresh);
 }
 

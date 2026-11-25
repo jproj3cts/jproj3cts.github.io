@@ -521,8 +521,16 @@
   .rt-pt-sec { grid-column: 1 / -1; padding: 0.5rem 0 0.2rem; font-size: 0.8125rem; font-weight: 700; color: var(--jek-ink); border-bottom: 1px solid var(--jek-line-2); }
   .rt-pt-sec:first-child { padding-top: 0.1rem; }
   .rt-panel .rt-pt .rt-pt-name { font-size: 0.875rem; font-weight: 400; color: var(--jek-ink-soft); line-height: 1.2; padding: 0.15rem 0; }
-  /* a row of text (the part's name): its value across the unit and sweep columns too */
+  /* a row of text (the part's name), a choice or anything else: its value across the unit and sweep columns too */
   .rt-panel .rt-pt-row.rt-pt-text > input { grid-column: 2 / -1; font-family: var(--jek-sans); }
+  .rt-pt-row.rt-pt-choose, .rt-pt-row.rt-pt-cell, .rt-pt-row.rt-pt-tick { grid-template-columns: auto minmax(0, 1fr); }
+  .rt-pt-row.rt-pt-choose > .rt-pt-name, .rt-pt-row.rt-pt-cell > .rt-pt-name { white-space: nowrap; }
+  .rt-panel .rt-pt-row.rt-pt-choose > select { box-sizing: border-box; width: 100%; min-width: 0; height: 1.5rem; padding: 0 0.2rem; text-align: right; text-align-last: right; background: transparent; border: 1px solid transparent; border-radius: 2px; color: var(--jek-ink); font-family: var(--jek-sans); font-size: 0.875rem; font-weight: 600; cursor: pointer; }
+  .rt-panel .rt-pt-row.rt-pt-choose > select:hover, .rt-panel .rt-pt-row.rt-pt-choose > select:focus { background: var(--jek-well); border-color: var(--jek-line-2); }
+  .rt-pt-row.rt-pt-cell > :nth-child(2) { justify-self: end; }
+  .rt-panel .rt-pt-row.rt-pt-tick > input { grid-column: 2; justify-self: end; width: 1rem; height: 1rem; margin: 0 0.3rem 0 0.6rem; }
+  .rt-panel .rt-pt-row.rt-pt-cell > input[type="color"] { width: 2.6rem; height: 1.3rem; padding: 0; margin-right: 0.3rem; }
+  .rt-pt-wide { grid-column: 1 / -1; padding: 0.3rem 0; border-bottom: 1px solid var(--jek-line); }
   /* the part's actions at the foot of a table panel: each the same size, sharing the row */
   .rt-actions.rt-actions-even { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); }
   .rt-actions-even > .rt-btn { width: 100%; padding-left: 0.3rem; padding-right: 0.3rem; text-align: center; white-space: nowrap; }

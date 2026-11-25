@@ -182,7 +182,11 @@ export function param(label, el, path, opts = {}) {
      { name, path, unit, opts, dflt, title }   a setting (dflt: its value on a new plain part: a row still at it is dimmed,
                                                so what has been set stands out)
      { name, read: () => text, unit, title }   a figure worked out from the settings, shown among them, not typed
-   (null: no row). The unit is in the label for a screen reader, out of sight. */
+     { name, choose: [[value, words]…], get, set, title }   a choice from a list
+     { name, tick: () => on, set: on => …, title }          a setting that is on or off
+     { name, text: () => words, set, placeholder, title }   words typed
+     { name, cell: node, title }               anything else beside its name; { node } anything across the whole row
+   (null: no row; row(r): given a setting's row once made). The unit is in the label for a screen reader, out of sight. */
 export function propTable(el, rows) {
   const T = h('div', { class: 'rt-pt' });
   for (const r of rows) {
@@ -194,12 +198,29 @@ export function propTable(el, rows) {
       T.append(row);
       continue;
     }
+    if (r.node) { T.append(h('div', { class: 'rt-pt-wide' }, r.node)); continue; }
+    if (r.choose || r.tick || r.text || r.cell) {
+      const id = 'rtf' + (++fid);
+      let c;
+      if (r.choose) { c = selectBox(r.choose, r.get, r.set, r.opts || {}); c.id = id; }
+      else if (r.tick) { c = h('input', { id, type: 'checkbox' }); bindSync(c, () => { c.checked = !!r.tick(); }); c.addEventListener('change', () => { checkpoint(); r.set(c.checked); changed(true); }); }
+      else if (r.text) {
+        c = h('input', { id, type: 'text', spellcheck: 'false', placeholder: r.placeholder });
+        c.addEventListener('input', () => { beginEdit(); r.set(c.value); changed(false); }); c.addEventListener('change', endEdit); c.addEventListener('blur', endEdit);
+        bindSync(c, () => { if (document.activeElement !== c) c.value = r.text(); });
+      } else c = r.cell;
+      const row = h('div', { class: 'rt-pt-row rt-pt-' + (r.choose ? 'choose' : r.tick ? 'tick' : r.text ? 'text' : 'cell'), title: r.title }, h('label', { class: 'rt-pt-name', for: r.cell ? undefined : id }, r.name), c);
+      if (r.row) r.row(row);
+      T.append(row);
+      continue;
+    }
     const id = 'rtf' + (++fid), full = r.name + (r.unit ? ' (' + r.unit + ')' : '');
     const P = paramBits(full, el, r.path, Object.assign({ prefix: r.name }, r.opts), id);
     const row = h('div', { class: 'rt-pt-row' + (P.sw ? ' swept' : ''), title: r.title },
       h('label', { class: 'rt-pt-name', for: id }, r.name, r.unit ? h('span', { class: 'rt-sr' }, ' (' + r.unit + ')') : null),
       P.inp, h('span', { class: 'rt-pt-unit' }, r.unit || ''), P.toggle || h('span'));
     if ('dflt' in r) bindSync(row, () => { const v = getPath(el, r.path); row.classList.toggle('dflt', v === r.dflt || (v === undefined || v === null || v === 0) && (r.dflt === null || r.dflt === 0)); });
+    if (r.row) r.row(row);
     T.append(row);
     if (P.box) T.append(h('div', { class: 'rt-pt-box' }, P.box));
   }
@@ -349,13 +370,20 @@ export function textField(label, get, set, opts = {}) {
   return h('div', { class: 'rt-f' + (opts.wide ? ' wide' : '') }, h('label', { for: id }, label), inp);
 }
 /* a laser's coherence: the choice of three, and the fields that go with it */
+const setSpectrum = (el, v) => {
+  const V = vs(el);
+  if (el.cmode === 'line') V.lineCoh = el.coh;
+  if (v === 'line' && el.cmode !== 'line') el.coh = V.lineCoh > 0 ? V.lineCoh : 300;
+  el.cmode = v; syncLine(el);
+};
+/* (the same as rows of a table: propTable) */
+export const coherenceRows = el => [
+  el.led ? null : { name: 'Spectrum', choose: [['single', 'One frequency'], ['line', 'A spectral line'], ['broad', 'Broadband']], get: () => el.cmode, set: v => setSpectrum(el, v) },
+  el.cmode === 'line' ? { name: 'Coherence length', path: 'coh', unit: 'mm' } : null,
+  el.cmode === 'line' ? { name: 'Line shape', choose: [['lorentz', 'Lorentzian'], ['gauss', 'Gaussian']], get: () => el.lineshape, set: v => { el.lineshape = v; } } : null,
+  el.cmode === 'broad' ? { name: 'Bandwidth', path: 'bw', unit: 'nm' } : null];
 export function coherenceFields(el, rows) {
-  if (!el.led) rows.append(selectField('Spectrum', [['single', 'One frequency'], ['line', 'A spectral line'], ['broad', 'Broadband']], () => el.cmode, v => {
-    const V = vs(el);
-    if (el.cmode === 'line') V.lineCoh = el.coh;
-    if (v === 'line' && el.cmode !== 'line') el.coh = V.lineCoh > 0 ? V.lineCoh : 300;
-    el.cmode = v; syncLine(el);
-  }, { wide: true }));
+  if (!el.led) rows.append(selectField('Spectrum', [['single', 'One frequency'], ['line', 'A spectral line'], ['broad', 'Broadband']], () => el.cmode, v => setSpectrum(el, v), { wide: true }));
   if (el.cmode === 'line') rows.append(param('Coherence length (mm)', el, 'coh'),
     selectField('Line shape', [['lorentz', 'Lorentzian'], ['gauss', 'Gaussian']], () => el.lineshape, v => { el.lineshape = v; }, { wide: true }));
   if (el.cmode === 'broad') rows.append(param('Bandwidth (nm)', el, 'bw'));

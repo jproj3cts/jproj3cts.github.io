@@ -61,6 +61,7 @@ The site should read as written by the people who build the things on it. Before
 | Accounts / benches / billing API (Cloudflare Worker) | `jek-api/` (routes in `src/index.js`, D1 migrations in `migrations/`) |
 | Shop fulfilment worker | `worker/` (separate; products in `src/catalogue.js`) |
 | Instagram post rules | `.claude/commands/instagram-conversion.md`; tag parsing `src/core/src-tag.js` |
+| JEKray's bug ledger from the Instagram reel runs | `jek/tools/jekray/REEL-BUGS.md`, on the branch `claude/reel-bug-ledger` only (new entries at its end). **Leave it alone until the owner says to work on it**: do not read it into a plan, fix from it or merge that branch. When told to: go through the entries, fix what can be fixed on a normal feature branch, and mark each entry's status on the ledger branch (fixed, with the commit; not a bug, with why; or cannot reproduce) |
 
 ### Inside `jek/tools/jekray/src/`
 Layers (lint-enforced): `core/ state/ parts/ engines/ worker/` never import `ui/ io/ page/`; engines reach the page only

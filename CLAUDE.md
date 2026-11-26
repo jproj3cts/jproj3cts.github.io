@@ -172,9 +172,9 @@ comes out of the physics the engine already traces. It is never a rule that asse
 - **Before calling a new part done, list what it gets from the engine and what it asserts.** Anything asserted is
   either removed or raised with the owner.
 
-## Part panels (JEKray's free-space, fibre and circuit parts are tables)
+## Part panels (every JEKray part's panel is a table)
 A part's panel is a table, not a stack of boxed inputs (`tablePart(el)` in `ui/panel.js`: every free-space part, an
-imported body, every fibre component and every circuit block; a photonic chip's parts are still boxes). Two ways a panel becomes one, both giving the
+imported body, every fibre component, every circuit block and every part of a photonic chip). Two ways a panel becomes one, both giving the
 same rows: `propTable(el, rows)` builds a table from row specs (the mirror and the source: used where figures worked out
 from the settings sit among them), and `tabulate(panel, el)` turns a panel built the older way (`param`, `selectField`,
 `textField`, ticks, in `rt-rows` or `grid2`) into tables in place after the part's `panel()` has run, keeping each row's

@@ -912,11 +912,12 @@ function describe(S) {
   const big = S.tones.slice().sort((a, b) => Math.hypot(b.re, b.im) - Math.hypot(a.re, a.im)).slice(0, 5).sort((a, b) => a.f - b.f);
   for (const t of big) {
     const A = Math.hypot(t.re, t.im);
-    rows.push([fmtHz(t.f), elecFmtSig(A, u) + ' peak (' + elecFmtSig(A / Math.SQRT2, u) + ' rms), phase ' + (+(Math.atan2(t.im, t.re) * 180 / Math.PI).toFixed(1)) + '°']);
+    // a figure a row: its peak, its rms and its phase
+    rows.push([fmtHz(t.f) + ', peak', elecFmtSig(A, u)], [fmtHz(t.f) + ', rms', elecFmtSig(A / Math.SQRT2, u)], [fmtHz(t.f) + ', phase', (+(Math.atan2(t.im, t.re) * 180 / Math.PI).toFixed(1)) + '°']);
   }
   if (S.tones.length > 5) rows.push(['', (S.tones.length - 5) + ' more tones']);
   let pk = 0, fpk = 0; for (let i = 0; i < NF; i++) if (S.psd[i] > pk) { pk = S.psd[i]; fpk = FG[i]; }
-  if (pk > 0) rows.push(['Noise', elecFmtSig(Math.sqrt(elecPsdAt(S, 1000)), u) + '/√Hz at 1 kHz; ' + elecFmtSig(elecNoiseRms(S, 1, 1e9), u) + ' rms from 1 Hz to 1 GHz']);
+  if (pk > 0) rows.push(['Noise density at 1 kHz', elecFmtSig(Math.sqrt(elecPsdAt(S, 1000)), u) + '/√Hz'], ['Noise, 1 Hz to 1 GHz', elecFmtSig(elecNoiseRms(S, 1, 1e9), u) + ' rms']);
   return rows;
 }
 function elecReadout(el) {
@@ -932,17 +933,17 @@ function elecReadout(el) {
     if (L && L.ok) {
       rows.push(['Reference', fmtHz(L.fref) + (L.h > 1 ? ', detecting its harmonic ' + L.h + ' at ' + fmtHz(L.fd) : '')],
         ['X', elecFmtSig(L.X, u) + ' rms'], ['Y', elecFmtSig(L.Y, u) + ' rms'], ['R', elecFmtSig(L.R, u) + ' rms'], ['θ', (+L.theta.toFixed(2)) + '°'],
-        ['Noise on X, Y', elecFmtSig(L.sigma, u) + ' rms (noise bandwidth ' + (+L.enbw.toPrecision(3)) + ' Hz)' + (L.sigma > 0 ? ': R/σ = ' + (+(L.R / L.sigma).toPrecision(3)) : '')],
-        ['Settles', 'in about ' + fmtSec(L.settle) + ' (to 99%)']);
+        ['Noise on X, Y', elecFmtSig(L.sigma, u) + ' rms'], ['Noise bandwidth', (+L.enbw.toPrecision(3)) + ' Hz'], ...(L.sigma > 0 ? [['R over the noise', String(+(L.R / L.sigma).toPrecision(3))]] : []),
+        ['Settles to 99% in', fmtSec(L.settle)]);
       if (L.ripple > 1e-3 * Math.max(L.R, 1e-30)) rows.push(['Ripple', elecFmtSig(L.ripple, u) + ' left on X by the filter (lengthen the time constant or steepen the slope)']);
     }
   }
   if (el.kind === 'daq') {
     const D = R.lock.get(el.id);
     if (D) {
-      rows.unshift(['Sampling', (+D.fs.toPrecision(4)) + ' S/s (up to ' + fmtHz(D.fs / 2) + '), ' + D.bits + ' bits'],
-        ['One step', elecFmtSig(D.lsb, 'V') + ' (quantisation noise ' + elecFmtSig(D.qn, 'V') + ' rms)']);
-      if (D.folded.length) rows.splice(2, 0, ['Aliases', D.folded.slice(0, 4).map(q => fmtHz(q.f) + ' \u2192 ' + fmtHz(q.fa)).join(', ') + (D.folded.length > 4 ? ', \u2026' : '')]);
+      rows.unshift(['Sample rate', (+D.fs.toPrecision(4)) + ' S/s'], ['Reads up to', fmtHz(D.fs / 2)], ['Bits', String(D.bits)],
+        ['One step', elecFmtSig(D.lsb, 'V')], ['Quantisation noise', elecFmtSig(D.qn, 'V') + ' rms']);
+      if (D.folded.length) rows.splice(5, 0, ['Aliases', D.folded.slice(0, 4).map(q => fmtHz(q.f) + ' \u2192 ' + fmtHz(q.fa)).join(', ') + (D.folded.length > 4 ? ', \u2026' : '')]);
     }
   }
   for (const w of R.warn.get(el.id) || []) rows.push(['Note', w]);

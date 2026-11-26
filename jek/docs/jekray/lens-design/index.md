@@ -26,7 +26,7 @@ The RF designer still opens on the bench itself; it gets files of its own (.rfd)
 
 ## Making an assembly
 
-**One part.** A lens, mirror or window on its own has **Design as an assembly…** in its panel, just under its name (and in its right-click menu). It is made an assembly of one and opened in the Optics designer, where surfaces and singlets can be added to it.
+**One part.** A lens, mirror or window on its own has **Design…** at the foot of its panel, beside Duplicate and Delete (and **Design as an assembly…** in its right-click menu). It is made an assembly of one and opened in the Optics designer, where surfaces and singlets can be added to it.
 
 **Several parts.** Select the lenses, mirrors and stops (Shift- or Ctrl-click, or drag a box round them), then **Make an assembly** in their panel or the right-click menu. They must be:
 

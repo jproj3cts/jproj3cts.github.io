@@ -14280,6 +14280,125 @@ const TESTS = [
       } finally { f.remove(); }
     },
   },
+  { group: 'Part panels as tables' },
+  {
+    name: 'Every part’s panel is a table: no list of boxes left, its name and place rows of one, each label keeping its words',
+    why: 'a part’s settings are rows of a table (name, value, unit, sweep), not boxed inputs. Each of the 26 free-space types, 8 fibre kinds, 8 circuit kinds and 4 photonic kinds is put on a bench and selected: its panel has no old list of settings left (no .rt-rows or grid2 of fields outside a sweep’s own controls), has table rows, a Name row and X, Y and Angle rows whose labels still read "X (mm)" and so on (the unit kept in the label, out of sight), and Duplicate and Delete the same size at its foot. How many parts fail (0).',
+    want: 0, tol: 0, unit: '',
+    run: J => {
+      const doc = rigDoc(), bad = [];
+      const free = ['source', 'mirror', 'lens', 'cube', 'prism', 'waveplate', 'polariser', 'stop', 'mask', 'screen', 'grating', 'crystal', 'filter', 'faraday', 'isolator', 'gain', 'cell', 'nlc', 'particle', 'fibre', 'detector', 'spectrometer', 'chopper', 'aom', 'eom', 'link'].map(t => ({ type: t }));
+      const net = [...['laser', 'coupler', 'amp', 'fbg', 'voa', 'pd', 'delay', 'osa'].map(k => ({ type: 'fcomp', kind: k })), ...['dc', 'sig', 'amp', 'lpf', 'mixer', 'scope', 'lockin', 'daq'].map(k => ({ type: 'elec', kind: k })), ...['ring', 'ps', 'gc', 'dc'].map(k => ({ type: 'pic', kind: k }))];
+      for (const it of [...free, ...net]) {
+        J.load({ format: 'jekray', version: 1, elements: [Object.assign({ id: 'P', name: 'Part', x: 0, y: 0, angle: 0 }, it)] });
+        J.select('Part');
+        // (a spectrometer opens on its Spectrum tab, which starts with its plot: its settings are on its first tab)
+        if (it.type === 'spectrometer') [...doc.querySelectorAll('#panel .rt-tab')].find(t => t.textContent === 'Spectrometer').click();
+        const P = doc.getElementById('panel'), labels = [...P.querySelectorAll('label')].map(l => l.textContent);
+        const old = [...P.querySelectorAll('.rt-rows, .rt-pgrid2')].filter(b => !b.closest('.rt-sweep, .rt-readout, table, .rt-f, .rt-lensdiag') && b.querySelector(':scope > .rt-f')).length;
+        const foot = [...P.querySelectorAll('.rt-actions-even > .rt-btn')].map(b => Math.round(b.getBoundingClientRect().width));
+        const ok = old === 0 && P.querySelectorAll('.rt-pt .rt-pt-row').length >= 4 && labels.includes('Name') && labels.includes('X (mm)') && labels.includes('Y (mm)') && labels.includes('Angle (°)')
+          && foot.length >= 2 && Math.max(...foot) - Math.min(...foot) <= 1 && !!P.querySelector('.rt-pt-unit');
+        if (!ok) bad.push((it.kind ? it.type + ':' + it.kind : it.type) + ' old=' + old + ' rows=' + P.querySelectorAll('.rt-pt .rt-pt-row').length + ' foot=' + foot);
+      }
+      if (bad.length) console.log('table panels', bad.join('; '));
+      return bad.length;
+    },
+  },
+  {
+    name: 'A row of a table: the unit in its own column, dimmed while it is a new part’s value, typed into as a box, Enter to the next row',
+    why: 'a plane mirror’s Radius row: its label reads "Radius (mm)" with the unit in a column of its own, and it is dimmed, being a new mirror’s value. Typing 200 into it curves the mirror (R 200) and the row is no longer dimmed; a Focal length row appears among the settings, 100 mm, worked out and not typed (it has no box). Enter in the Radius box moves to the Conic box under it. 1 when all of that holds.',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const doc = rigDoc(), W = rigWin();
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'mirror', id: 'M', name: 'M', x: 0, y: 0, angle: 180 }] });
+      J.select('M');
+      const lab = t => [...doc.querySelectorAll('#panel label')].find(l => l.textContent === t), box = t => doc.getElementById(lab(t).htmlFor), row = t => lab(t).closest('.rt-pt-row');
+      const derived = t => { const r = [...doc.querySelectorAll('#panel .rt-pt-row.derived')].find(x => !x.hidden && x.querySelector('.rt-pt-name').textContent === t); return r ? r.querySelector('.rt-pt-val').textContent + ' ' + r.querySelector('.rt-pt-unit').textContent : null; };
+      const a = !!lab('Radius (mm)') && row('Radius (mm)').querySelector('.rt-pt-unit').textContent === 'mm' && row('Radius (mm)').classList.contains('dflt') && derived('Focal length') === null;
+      const inp = box('Radius (mm)'); inp.value = '200'; inp.dispatchEvent(new W.Event('input', { bubbles: true })); inp.dispatchEvent(new W.Event('change', { bubbles: true }));
+      const b = J.byName('M').R === 200 && !row('Radius (mm)').classList.contains('dflt') && derived('Focal length') === '100 mm' && !row('Radius (mm)').parentElement.querySelector('.rt-pt-row.derived input');
+      const r2 = box('Radius (mm)'); r2.focus(); r2.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      const c = doc.activeElement === box('Conic');
+      if (!(a && b && c)) console.log('table row', JSON.stringify({ a, b, c, f: derived('Focal length'), R: J.byName('M').R, active: doc.activeElement && doc.activeElement.id }));
+      return a && b && c ? 1 : 0;
+    },
+  },
+  {
+    name: 'Figures worked out from a part’s settings sit among them, and are right',
+    why: 'a figure that follows from the settings alone is a row among them, in italics. An off-axis parabola (R 50.8, conic −1, offset 50.8) turns the beam 90° to a focus 50.8 mm away; a 600 line/mm grating blazed at 500 nm has grooves 1.6667 µm apart cut at 8.627°; a fibre of 4.4 µm core and NA 0.12 accepts 6.892° and is single-mode above 689.7 nm; a 5 mm iris is 19.63 mm² open; a gain line 30 nm wide at 1064 nm is 7944 GHz; an AOM at 80 MHz in 4200 m/s has a 52.5 µm sound wave; a 20 mm right-angle prism’s hypotenuse is 28.284 mm; a quarter-wave plate delays 90°; a ×10 amplifier is 20 dB; a 3 dB fibre attenuator passes 50.12 %. A vapour cell’s Doppler width is among its settings and no longer in its readout. How many are wrong (0).',
+    want: 0, tol: 0, unit: '',
+    run: J => {
+      const doc = rigDoc(), bad = [];
+      const derived = t => { const r = [...doc.querySelectorAll('#panel .rt-pt-row.derived')].find(x => !x.hidden && x.querySelector('.rt-pt-name').textContent === t); return r ? r.querySelector('.rt-pt-val').textContent : null; };
+      const part = el => { J.load({ format: 'jekray', version: 1, elements: [Object.assign({ id: 'P', name: 'Part', x: 0, y: 0, angle: 0 }, el)] }); J.select('Part'); };
+      const want = (el, rows) => { part(el); for (const [t, v] of rows) { const got = derived(t); if (!(got !== null && Math.abs(parseFloat(got) / v - 1) < 2e-4)) bad.push((el.kind || el.type) + ' ' + t + ': ' + got + ' not ' + v); } };
+      want({ type: 'mirror', R: 50.8, k: -1, offset: 50.8 }, [['Turns the beam', 90], ['Focus from the mirror', 50.8]]);
+      want({ type: 'grating', lpmm: 600, blaze: 500 }, [['Groove spacing', 1.6667], ['Blaze angle', 8.627]]);
+      want({ type: 'fibre', core: 4.4, na: 0.12 }, [['Acceptance half-angle', 6.892], ['Single-mode above', 689.7]]);
+      want({ type: 'stop', shape: 'round', aperture: 5 }, [['Open area', 19.63]]);
+      want({ type: 'gain', centre: 1064, fwhm: 30 }, [['Linewidth', 7944]]);
+      want({ type: 'aom', rf: 80, v: 4200 }, [['Acoustic wavelength', 52.5]]);
+      want({ type: 'prism', shape: 'right', size: 20 }, [['Hypotenuse', 28.284]]);
+      want({ type: 'waveplate' }, [['Phase delay', 90]]);
+      want({ type: 'elec', kind: 'amp', gain: 10 }, [['Gain, in decibels', 20]]);
+      want({ type: 'fcomp', kind: 'voa', att: 3 }, [['Passes', 50.12]]);
+      part({ type: 'cell' });
+      if (derived('Doppler width (FWHM)') === null || /Doppler/.test((doc.querySelector('#panel .rt-readout') || {}).textContent || '')) bad.push('cell: its Doppler width among its settings, not in its readout');
+      if (bad.length) console.log('worked-out rows', bad.join('; '));
+      return bad.length;
+    },
+  },
+  {
+    name: 'A part’s readout tabs start with their own view: no name or place on them, its Data beside the plot’s PNG and CSV, its views a row of tabs',
+    why: 'a pulsed beam on a curved mirror. Its first tab has its Name and Position. Its Rays tab has neither, and the plot’s save group is PNG, CSV and Data (the part’s Export data, its full words kept). Its Diffraction tab has two settings as table rows (MTF quoted at, Focus model), six views as a row of tabs with one marked, and no Diffraction heading under the tab. Its Pulse tab reads a figure a row: Duration (FWHM) and Transform limit apart. 1 when all of that holds.',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const doc = rigDoc(), wait = ms => new Promise(r => setTimeout(r, ms));
+      J.load({ format: 'jekray', version: 1, light: { rays: true, envelope: true, field: true }, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -100, y: 0, angle: 0, wavelength: 800, width: 6, rays: 9, gauss: true, w0: 1.5, tau: 50 },
+        { type: 'mirror', id: 'M', name: 'Cup', x: 100, y: 0, angle: 170, length: 25.4, R: 400 }] });
+      const heads = () => [...doc.querySelectorAll('#panel .rt-sech')].map(x => x.textContent.trim()), labels = () => [...doc.querySelectorAll('#panel label')].map(l => l.textContent);
+      J.select('Cup');
+      const first = heads().includes('Position') && labels().includes('Name');
+      J.select('Cup', 'rays'); await wait(300);
+      const save = [...doc.querySelectorAll('#panel .rt-save .rt-zb')];
+      const rays = !heads().includes('Position') && !labels().includes('Name') && save.map(b => b.dataset.short || b.textContent).join() === 'PNG,CSV,Data' && save[2].textContent === 'Export data (CSV)' && labels().includes('Plot');
+      J.select('Cup', 'plots'); await wait(300);
+      const views = [...doc.querySelectorAll('#panel .rt-views .rt-view')];
+      const diff = views.length === 6 && views.filter(v => v.classList.contains('on')).length === 1 && labels().includes('MTF quoted at (lp/mm)') && labels().includes('Focus model') && !heads().includes('Diffraction') && !heads().includes('Position');
+      J.select('Cup', 'pulse'); await wait(1200);
+      const dts = [...doc.querySelectorAll('#panel .rt-readout dt')].map(x => x.textContent);
+      const pulse = dts.includes('Duration (FWHM)') && dts.includes('Transform limit') && dts.includes('Peak power');
+      J.select('Cup', 'params');
+      const back = heads().includes('Position');
+      if (!(first && rays && diff && pulse && back)) console.log('readout tabs', JSON.stringify({ first, rays, diff, pulse, back, save: save.map(b => b.textContent), views: views.length, dts }));
+      return first && rays && diff && pulse && back ? 1 : 0;
+    },
+  },
+  {
+    name: 'A table’s other rows work as their boxes did: a tick, a choice, words typed, and the three actions at its foot',
+    why: 'a source’s panel. Unticking Colour from its wavelength gives it a colour of its own and a Colour row; choosing Even illumination for Starts from makes its field a flat one; typing "486, 656" into More wavelengths gives it those two lines. A mirror’s foot has Design…, Duplicate and Delete the same width; a retroreflector’s has no Design. 1 when all of that holds.',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const doc = rigDoc(), W = rigWin();
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', id: 'S', name: 'Laser', x: 0, y: 0, angle: 0, wavelength: 633, gauss: true, w0: 1 }] });
+      J.select('Laser');
+      const lab = t => [...doc.querySelectorAll('#panel label')].find(l => l.textContent === t), box = t => doc.getElementById(lab(t).htmlFor);
+      box('Colour from its wavelength').click();
+      const tick = J.byName('Laser').colourAuto === false && !!lab('Colour');
+      const sel = box('Starts from'); sel.value = 'flat'; sel.dispatchEvent(new W.Event('change', { bubbles: true }));
+      const choose = J.byName('Laser').gauss === false;
+      const t = box('More wavelengths'); t.value = '486, 656'; t.dispatchEvent(new W.Event('input', { bubbles: true })); t.dispatchEvent(new W.Event('change', { bubbles: true }));
+      const text = J.byName('Laser').lines.join() === '486,656';
+      const foot = el => { J.load({ format: 'jekray', version: 1, elements: [Object.assign({ type: 'mirror', id: 'M', name: 'M', x: 0, y: 0, angle: 135 }, el)] }); J.select('M'); return [...doc.querySelectorAll('#panel .rt-actions-even > .rt-btn')]; };
+      const m = foot({}), w = m.map(b => Math.round(b.getBoundingClientRect().width));
+      const three = m.length === 3 && m[0].dataset.short === 'Design…' && m[0].textContent === 'Design as an assembly…' && Math.max(...w) - Math.min(...w) <= 1;
+      const two = foot({ retro: true, angle: 180 }).map(b => b.textContent).join() === 'Duplicate,Delete';
+      if (!(tick && choose && text && three && two)) console.log('table rows', JSON.stringify({ tick, choose, text, three, two, w }));
+      return tick && choose && text && three && two ? 1 : 0;
+    },
+  },
   { group: 'Smoothness' },
   {
     name: 'A field sweep whose frames would not fit in memory renders every so many steps, keeps within the budget, and plays',

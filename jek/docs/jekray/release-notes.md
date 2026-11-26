@@ -12,7 +12,7 @@ description: "Every change to JEKray, version by version, the newest first."
 {% raw %}
 ## Version 1.1
 
-<p class="note">12 October 2026, 290 changes</p>
+<p class="note">12 October 2026, 291 changes</p>
 
 <h3>The few that matter most</h3>
 
@@ -30,6 +30,7 @@ description: "Every change to JEKray, version by version, the newest first."
 <h3>Every change</h3>
 
 <ul>
+<li>A part’s panel is a <b>table</b>: a row a setting, with its name, value, unit and sweep in columns. A value is plain text until you point at it, Enter and the arrows move from row to row, and a setting still at a new part’s value is dimmed so what you have changed stands out. Figures worked out from the settings sit among them in italics (a mirror’s focal length, a grating’s groove spacing, a fibre’s acceptance angle), and readouts are rows of the same look, a figure each. A part’s Rays, Diffraction and Pulse tabs start with their plot, with <b>Data</b> beside its PNG and CSV; <b>Design…</b> is at the panel’s foot with Duplicate and Delete. Free-space, fibre, circuit and photonic parts alike.</li>
 <li>The <b>Mirrors</b> group of the parts list has the kinds most often wanted, each the mirror begun with its settings: <b>Spherical</b>, <b>Parabolic</b> and <b>Chirped mirror</b>; a <b>Dichroic mirror</b> (a filter that reflects what it blocks) is listed there too.</li>
 <li>A <b>Retroreflector</b>: a hollow corner cube, in the Mirrors group, traced as the three mirrors it is. Light reflects off all three and goes back the way it came, at any angle in or out of the bench plane, from the point opposite across its middle, with the path of a plane mirror at its corner; the polarisation, the beam and the diffracted field follow the three reflections.</li>
 <li>A <b>Steering mirror</b>: a mirror can be steered by signals, as a galvo or a piezo mirror is. Its <b>turn</b> and <b>tip</b> inputs take wires from the circuits and move it by its <b>Turn</b> (° per V), in the bench plane and out of it. The bench shows it where its drive puts it: a DC level moves the beam, a drive of 5 Hz or slower is played as it moves, and a quicker one leaves the mirror at its mean while the photodetectors follow the scan.</li>

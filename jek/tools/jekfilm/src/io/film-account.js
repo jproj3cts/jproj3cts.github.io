@@ -30,7 +30,7 @@ export function filmSignIn(kind, what) {
 }
 export function wireFilmAccount() {
   Object.assign(hooks, {
-    appName: 'JEKfilm', toast,
+    appName: 'JEKray Coating designer', toast,
     exportSignIn: what => filmSignIn('export', what),
     proWhy: () => (accountsOn() ? filmProWhy() : ''),
     proFix: what => filmSignIn('pro', what),

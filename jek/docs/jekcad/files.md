@@ -26,7 +26,7 @@ The part studio you are working on is kept in this browser as you work. When you
 
 ## The cloud and JEKsuite
 
-Signed in with JEKrayPro, or as a member of a team with a plan, **File › Save to cloud** puts the part studio in your workspace or a team's. From then on it saves as you work and keeps its history. Your part studios are listed on [JEKsuite](/jek/tools/jeksuite.html#app=jekcad) with your JEKray, JEKion and JEKfilm work. Open one there and it opens in JEKcad. **New › JEKcad part studio** in JEKsuite starts one. If someone else has it open, JEKcad says who, and you can look, take over, or carry on in a copy.
+Signed in with JEKrayPro, or as a member of a team with a plan, **File › Save to cloud** puts the part studio in your workspace or a team's. From then on it saves as you work and keeps its history. Your part studios are listed on [JEKsuite](/jek/tools/jeksuite.html#app=jekcad) with your work from the other apps. Open one there and it opens in JEKcad. **New › JEKcad part studio** in JEKsuite starts one. If someone else has it open, JEKcad says who, and you can look, take over, or carry on in a copy.
 
 A part studio in the cloud can be at most 2 MB. An imported STEP file is kept inside the part studio, so a large one can take it over that limit. Keep those as .jekcad files.
 

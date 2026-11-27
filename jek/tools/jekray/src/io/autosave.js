@@ -1,16 +1,17 @@
-import { EMBED, STORE_KEY, TEST_MODE, cloud } from '../core/constants.js';
+import { EMBED, STORE_KEY, TEST_MODE, cloud, appStoreKey } from '../core/constants.js';
 import { allParts, project } from '../state/project.js';
 import { serialize } from '../state/elements.js';
 import { setStatus } from '../ui/actions.js';
 import { cloudChanged, cloudNote, cloudOn } from './cloud.js';
 import { keepHere, workChanged } from '../ui/pro.js';
+import { opticChanged } from './designs.js';
 
 /* ==========================================================================
    Autosave in this browser, and the earlier versions kept alongside it.
    ========================================================================== */
 /* Earlier versions: a copy of the project every few minutes while it changes, and one just
    before something replaces it, the newest first, kept in this browser */
-const SNAP_KEY = 'jek-raytracer-snapshots', SNAP_MAX = 12, SNAP_EVERY = 5 * 60e3;
+const SNAP_KEY = appStoreKey('jek-raytracer-snapshots'), SNAP_MAX = 12, SNAP_EVERY = 5 * 60e3;
 export function readSnaps() {
   try { const v = JSON.parse(localStorage.getItem(SNAP_KEY)); return Array.isArray(v) ? v : []; } catch (err) { return []; }
 }
@@ -30,6 +31,7 @@ export let saveTimer = null;
 export function scheduleSave() {
   if (TEST_MODE || EMBED) return;
   if (cloud) cloudChanged();
+  opticChanged();                // the Optics designer: the benches using this design follow it
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     // (ui/pro.js keepHere: kept signed in or not, unless its switch says otherwise; then the sign beside Save says so)
@@ -39,7 +41,7 @@ export function scheduleSave() {
       setStatus(cloud ? (cloud.dirty && cloudOn() ? 'Saving to the cloud shortly' : cloudNote || 'Linked to the cloud') : 'Autosaved in this browser');
       keepSnapshot('Autosave');
     } catch (err) {
-      setStatus('This browser is blocking autosave. Use Save .jekray to keep your work.');
+      setStatus('This browser is blocking autosave. Use Save to keep your work as a file.');
     }
   }, 350);
 }

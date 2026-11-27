@@ -3,7 +3,7 @@ import { lastTrace } from '../../engines/trace.js';
 import { SPEC_L, SPEC_PRESETS, SPEC_SENSORS, SPEC_W, specPresetOf } from '../../parts/spectrometer.js';
 import { specDispersion, specReading, specTrace } from '../../engines/spectrometer.js';
 import { bodyFill, ctx, pathLocal, selInk, sx, sy } from '../render.js';
-import { bindSync, helpLine, panel, param, renderPanel, selectField, vs } from '../panel.js';
+import { bindSync, helpLine, panel, param, renderPanel, selectField, vs, readRow } from '../panel.js';
 import { h } from '../dom.js';
 import { drawAxes, plotArea, plotCsv, plotSaveRow } from '../plots.js';
 
@@ -66,16 +66,19 @@ function specSpectrumSection(el) {
   let sig = '';
   bindSync(cv, () => {
     const R = specReading(el);
-    const r = [['Resolution', (+R.R.toPrecision(3)) + ' nm (' + (+specDispersion(el).toPrecision(3)) + ' nm per µm of array)']];
+    const r = [['Resolution', (+R.R.toPrecision(3)) + ' nm'], ['Dispersion on the array', (+specDispersion(el).toPrecision(3)) + ' nm/\u00b5m']];
     if (!(R.face > 0)) r.push(['Light', 'None reaches its face']);
     else {
-      r.push(['Through the entrance', specFmtMw(R.mw) + (R.share !== null ? ', ' + (100 * R.share).toFixed(R.share < 0.1 ? 2 : 1) + '% of what reaches its face' : '')]);
+      r.push(['Through the entrance', specFmtMw(R.mw)]);
+      if (R.share !== null) r.push(['Share of what reaches its face', (100 * R.share).toFixed(R.share < 0.1 ? 2 : 1) + '%']);
       if (R.peak !== null) {
-        r.push(['Peak', specFmtNm(R.peak) + ', ' + specFmtE(R.counts) + ' counts' + (R.sat ? ' (saturated: shorten the integration time)' : '')]);
-        r.push(['Width (FWHM)', specFmtNm(R.fwhm) + (R.fwhm < 1.5 * R.R ? ', set by the resolution' : '')]);
+        r.push(['Peak', specFmtNm(R.peak)], ['Counts at the peak', specFmtE(R.counts)]);
+        if (R.sat) r.push(['', 'Saturated: shorten the integration time.']);
+        r.push(['Width (FWHM)', specFmtNm(R.fwhm)]);
+        if (R.fwhm < 1.5 * R.R) r.push(['', 'The width is set by the resolution.']);
         r.push(['Signal-to-noise at the peak', R.snr === null ? 'none while saturated' : String(+R.snr.toPrecision(3))]);
       } else if (R.mw > 0) r.push(['Peak', 'Outside its range, ' + el.wmin + ' to ' + el.wmax + ' nm']);
-      if (R.lines.length > 1) r.push(['Lines through the entrance', R.lines.length + ': ' + R.lines.slice(0, 6).map(L => specFmtNm(L.nm)).join(', ') + (R.lines.length > 6 ? '…' : '')]);
+      if (R.lines.length > 1) r.push(['Lines through the entrance', R.lines.length + ': ' + R.lines.slice(0, 6).map(L => specFmtNm(L.nm)).join(', ') + (R.lines.length > 6 ? '\u2026' : '')]);
     }
     const s2 = JSON.stringify(r);
     if (s2 !== sig) { sig = s2; rows.replaceChildren(h('dl', null, ...r.flatMap(([a, b]) => [h('dt', null, a), h('dd', null, b)]))); }
@@ -105,7 +108,10 @@ function spectrometerPanel(el) {
   panel.append(h('h3', null, 'Array'));
   panel.append(h('div', { class: 'rt-rows' }, param('From (nm)', el, 'wmin'), param('To (nm)', el, 'wmax'), param('Pixels', el, 'pixels'), param('Pitch (µm)', el, 'pitch'),
     selectField('Sensor', Object.entries(SPEC_SENSORS).map(([k, S]) => [k, S.name]), () => el.sensor, v => { el.sensor = v; }, { wide: true }),
-    param('Integration (ms)', el, 'tint'), param('Full well (e⁻)', el, 'well'), param('Read noise (e⁻)', el, 'read'), param('Dark (e⁻/s)', el, 'dark')));
+    param('Integration (ms)', el, 'tint'), param('Full well (e⁻)', el, 'well'), param('Read noise (e⁻)', el, 'read'), param('Dark (e⁻/s)', el, 'dark'),
+    // what its entrance, range and array give it
+    readRow({ name: 'Resolution', unit: 'nm', read: () => String(+specReading(el).R.toPrecision(3)), title: 'The narrowest line it can tell apart: set by its entrance and its pixels.' }),
+    readRow({ name: 'Dispersion on the array', unit: 'nm/\u00b5m', read: () => String(+specDispersion(el).toPrecision(3)) })));
   panel.append(helpLine('What it reads, and how.', ['Only the light through its entrance counts: the part of each beam or ray on the slit (or a fibre entrance’s core), arriving within its NA; the rest of its face blocks the light. The array spans its range evenly, so the dispersion is the range over the array’s length, and the resolution is the entrance’s width and two pixels together, times the dispersion: a narrower slit sharpens the lines and lets less light in. Each source arrives as a line as wide as its own (its coherence length’s, or a pulse’s bandwidth). Counts are the photoelectrons in the integration time, by the sensor’s quantum efficiency at each wavelength, up to the full well; the noise is shot, dark and read noise. The kinds set every value to a typical instrument of that kind.'], 'note', 'margin-top:0.6rem'));
 }
 

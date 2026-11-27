@@ -50,7 +50,7 @@ export function normPack(raw, sizeHint) {
     if (raw.version < 2) throw new Error('it has code in it, which a version 1 pack cannot: a module is a version 2 pack');
     if (typeof raw.code !== 'string' || !raw.code.trim()) throw new Error('its "code" is not a script');
     if (raw.code.length > MOD_CODE_MAX) throw new Error('its code is larger than ' + (MOD_CODE_MAX >> 10) + ' KB');
-    if (!exp('mods')) throw new Error('it is a module (it has code), and modules are an experimental feature: turn them on under Help \u203a Experimental features first');
+    if (!exp('mods')) throw new Error('it is a module (it has code), and modules are an experimental feature: turn them on in JEKsuite\u2019s account menu, Experimental features, first');
   }
   if ((sizeHint || JSON.stringify(raw).length) > PACK_MAX) throw new Error('it is larger than ' + (PACK_MAX >> 20) + ' MB');
   const id = packText(raw.id, 64).toLowerCase();

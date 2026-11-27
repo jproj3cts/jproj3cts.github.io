@@ -29,6 +29,7 @@ import { ffGrad, ffSag } from '../core/freeform.js';
 import { dpBend, dpPhase, dpPower, dpSlopeOverR } from '../core/diffractive.js';
 import { GR_REACH, grDelta, grH, grSlopeOverR, grStep } from '../core/gradient.js';
 import { elementSurfaces, meshRay } from '../core/stl.js';
+import { ELEC } from './elec.js';
 import {
   frame, lensEdges, maskBeamFit, maskMeanSlope, stopExtent, stopMargin, stopSlitLike, toLocal, toLocalDir, toWorld,
   toWorldDir
@@ -472,7 +473,7 @@ export const traceKeyNow = () => loadGen + '|' + MODS.rev + '|' + scatRevNow() +
    answers are looked up again when it is taken */
 const traceKeyBase = () => loadGen + '|' + MODS.rev + '|' + heldMark() + traceKeyRest();
 const traceKeyRest = () => project.maxBounces + '|' + project.minPower + '|' + project.ghosts + '|' + (lightOf().rays !== false ? 'R' : '-') + '|' + project.benches.map(b => b.id).join(',') + '|' +
-  JSON.stringify(project.elements.filter(e => e.type !== 'elec' && e.type !== 'draw'), keyCut) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire), keyCut);
+  JSON.stringify(project.elements.filter(e => e.type !== 'elec' && e.type !== 'draw'), keyCut) + '|' + JSON.stringify((project.fibres || []).filter(F => !F.wire), keyCut) + ELEC.steerKey();   // (and where the steering mirrors' drives put them)
 // what changes nothing in the light: a part's name and where it is written, its import notes, drawings; where a
 // fibre component or a chip part sits (their networks are solved by what joins what: a fibre's length is its own
 // setting), and the way a fibre or waveguide is drawn across the bench
@@ -670,7 +671,7 @@ export function rayPattern(src, n) {
 }
 export const zOf = el => el && el.z !== undefined ? el.z : BEAM_Z;
 export function setZ(el, z) { if (!isFinite(z)) return; z = clamp(+z, 0, 2000); if (Math.abs(z - BEAM_Z) < 1e-9) delete el.z; else el.z = +z.toFixed(4); }
-const anyHeights = () => project.elements.some(e => e.type === 'stl' || (e.z !== undefined && e.z !== BEAM_Z) || e.tip || e.roll || (e.type === 'source' && ((e.pattern && e.pattern !== 'line') || lampEmits(e))) || (e.type === 'fibre' && e.emitPattern) || (e.type === 'particle' && e.scatLight !== false));
+const anyHeights = () => project.elements.some(e => e.type === 'stl' || e.retro || (e.z !== undefined && e.z !== BEAM_Z) || e.tip || e.roll || (e.type === 'source' && ((e.pattern && e.pattern !== 'line') || lampEmits(e))) || (e.type === 'fibre' && e.emitPattern) || (e.type === 'particle' && e.scatLight !== false));
 // a mirror tipped out of the plane: degrees, up positive; kept only when not 0
 export const tippable = el => FREE_3D.has(el.type) && el.type !== 'draw' && el.type !== 'link';
 // rolled about its own axis: degrees, right-handed about the way it faces; kept only when not 0
@@ -803,13 +804,17 @@ function tipFace(s, px, py, h0, dx, dy, u, tmin) {
   if (s.flat && !s.cylS) { if (Math.abs(gx) < 1e-15) return null; t = (s.z - fx) / gx; if (t < tmin) return null; }   // (a cylinder curved out of the plane is flat in it, not here)
   else t = intersect3(s, fx, fy, qz, gx, gy, ez, tmin);
   if (t === null) return null;
-  return { t, y: fy + gy * t, z: qz + ez * t };
+  return { t, y: fy + gy * t, z: qz + ez * t, gx };
 }
 function intersectTip(s, px, py, h0, dx, dy, u, tmin) {
   const H = tipFace(s, px, py, h0, dx, dy, u, tmin);
   if (!H) return null;
   const { t, y, z } = H;
   if (inHole(s, y, z)) return null;
+  // a face with an outline of its own (a corner cube's). Where its faces meet, a ray meets two or three of them at one
+  // point: each is met in turn from the last with no way between them (see tMin), and a face the ray is already
+  // leaving is not met again there
+  if (s.clip) return (t > 1e-4 || H.gx < 0) && s.clip(y, z) ? t : null;
   if (s.el && zSquare(s.el)) return Math.abs(y) <= s.semi + 1e-9 && Math.abs(z) <= zHalf(s.el, s.semi) + 1e-9 ? t : null;
   return y * y + z * z <= s.semi * s.semi * (1 + 1e-12) + 1e-12 ? t : null;
 }
@@ -889,7 +894,9 @@ function fromSurfFrame(J, sLoc, d, sig, fx) {
   const pl = [sig * (u[1] * sLoc[2] - u[2] * sLoc[1]), sig * (u[2] * sLoc[0] - u[0] * sLoc[2]), sig * (u[0] * sLoc[1] - u[1] * sLoc[0])];
   return turnJ(J, vdot3(sLoc, S), vdot3(pl, S));
 }
-function traceSceneOnce() {
+/* (the steering mirrors stand where their drives put them for the length of the trace, and at rest again after) */
+function traceSceneOnce() { const rest = ELEC.steerOn(); try { return traceSceneAsPosed(); } finally { rest(); } }
+function traceSceneAsPosed() {
   ensureBenches(project);
   rfNotes.clear();
   // each bench's surfaces on their own: a ray meets only those of the bench it is on
@@ -902,7 +909,8 @@ function traceSceneOnce() {
     const f = frame(el);
     const ss = elementSurfaces(el);
     // a part tipped out of the plane: each surface met in its tipped frame (see intersectTip)
-    for (const s of ss) { s.f = s.lf ? subFrame(f, s.lf) : f; if ((el.tip || el.roll) && !s.mesh) { s.tilt = true; s.tip = (el.tip || 0) * deg; s.roll = (el.roll || 0) * deg; s.ef = f; } surfs.push(s); }
+    // (a face with a tilt of its own, a corner cube's: the part's tip and roll are in it already, core/stl.js)
+    for (const s of ss) { s.f = s.lf ? subFrame(f, s.lf) : f; if (s.ownTip !== undefined) { s.tilt = true; s.tip = s.ownTip; s.roll = 0; s.ef = f; } else if ((el.tip || el.roll) && !s.mesh) { s.tilt = true; s.tip = (el.tip || 0) * deg; s.roll = (el.roll || 0) * deg; s.ef = f; } surfs.push(s); }
     if (el.type === 'link') linkSurf.set(el.id, ss[0]);
     if (el.type === 'lens' && !el.tip && !el.roll) for (const sg of lensEdges(el, ss)) segs.push({ f, sg, el: el.id });
     // a Lamp with a size: its body takes the light that comes back to it (a reflector's, another lamp's)
@@ -1143,7 +1151,7 @@ function traceSceneOnce() {
         // a cavity map's probe ray (engines/scatter-pupil-map.js): its state kept after each reflection, until it leaves
         if (src.vMap && bounce > 0 && pmapStep(src.vMap, vK, bounce, px, py, zh, dx, dy, uz, opl, sr, si, pr, pi, par)) break;
         if (last !== lastSeen) { lastPrev = lastSeen; lastSeen = last; }
-        const tMin = s => s === last || s === lastPrev ? 1e-4 : last && last.el && s.el !== last.el ? -EPS : EPS;
+        const tMin = s => s === last ? 1e-4 : s.clip && last && last.el === s.el ? -EPS : s === lastPrev ? 1e-4 : last && last.el && s.el !== last.el ? -EPS : EPS;   // (a corner cube's other faces: met at once where they join)
         let best = Infinity, hit = null, hitSeg = false;
         const surfs = surfsBy.get(bn) || NONE, segs = segsBy.get(bn) || NONE;
         // a Gaussian beam's reference ray also looks for elements its beam overlaps though it misses them

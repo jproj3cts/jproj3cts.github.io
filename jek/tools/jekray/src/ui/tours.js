@@ -1,8 +1,7 @@
-import { BEAM_Z, EMBED, IN_WORKER, LOCKED, TEST_MODE, clamp, cloud } from '../core/constants.js';
-import { makeAssembly, newLensDesign } from './assembly.js';
-import { newRfDesign } from './rf-workspace.js';
-import { openLensDesign } from './lens-workspace.js';
+import { BEAM_Z, EMBED, IN_WORKER, DESIGNER, LOCKED, TEST_MODE, clamp, cloud } from '../core/constants.js';
+import { makeAssembly } from './assembly.js';
 import { designInFilm } from '../io/film-coats.js';
+import { newOpticDesign, newRfdDesign, openDesign, opticShow } from '../io/designs.js';
 import { asmOfSelection } from '../core/assembly.js';
 import { V, normMat, project, selectOne, setFuture, setHistory, typeLabel } from '../state/project.js';
 import { getEl, selected } from '../state/elements.js';
@@ -238,7 +237,7 @@ function fillMetrics(targetSel, metricSel, famBox) {
 }
 
 /* a new bench, from JEKsuite's New (#new): what was on the bench kept in Earlier versions, unlinked from the cloud */
-export function startNewBench() { if (project.elements.length) keepSnapshot('Before New', true); if (cloud) cloudLink(null); newProject(); }
+export function startNewBench() { if (project.elements.length) keepSnapshot('Before New', true); if (cloud) cloudLink(null); newProject(); if (DESIGNER) opticShow(); }
 export function newProject() {
   pauseAll();
   checkpoint();
@@ -265,8 +264,8 @@ export function wireTours() {
   document.getElementById('fileJekray').addEventListener('change', e => { const f = e.target.files[0]; if (f) openJekray(f); e.target.value = ''; });
 
   document.getElementById('btnImport').addEventListener('click', () => openZmx(false));
-  document.getElementById('btnNewLens').addEventListener('click', () => newLensDesign());
-  document.getElementById('btnNewRf').addEventListener('click', () => newRfDesign());
+  document.getElementById('btnNewLens').addEventListener('click', () => newOpticDesign());
+  document.getElementById('btnNewRf').addEventListener('click', () => newRfdDesign());
   // the selection as a design: its assembly if it is one, else the parts made one (lenses and stops on one axis); an RF
   // system needs RF parts among them, and opens in the RF designer (openLensDesign routes an RF assembly there)
   const ofSelection = rf => {
@@ -274,7 +273,7 @@ export function wireTours() {
     if (!list.length) { toast(rf ? 'Select the RF lenses and mirrors to design as a system first (their horns follow)' : 'Select the lenses and stops to design first', true); return; }
     if (rf && !list.every(e => e.mmw)) { toast('Not an RF system: every part selected must be an RF part', true); return; }
     const a = asmOfSelection(list) || makeAssembly(list);
-    if (a) openLensDesign(a, rf ? {} : { optical: true });
+    if (a) openDesign(a, rf ? {} : { optical: true });
   };
   document.getElementById('btnLensOfSel').addEventListener('click', () => ofSelection(false));
   document.getElementById('btnRfOfSel').addEventListener('click', () => ofSelection(true));

@@ -1,17 +1,32 @@
 ---
 layout: docs
-title: Optical designer
+title: Optics designer
 permalink: /jek/docs/jekray/lens-design/
-description: Assemblies and the Optical designer in JEKray. Lenses, mirrors and stops on one axis are made one assembly and designed together in the Optical designer (conditions, element data, solves, pickups, merit, optimisation, analyses, tolerancing, drawings and a PDF report), then used on the bench as the parts they are.
+description: The Optics designer, JEKray's lens designer. Lenses, mirrors and stops on one axis are designed together (conditions, element data, solves, pickups, merit, optimisation, analyses, tolerancing, drawings and a PDF report); each design is a .optic file, used on any JEKray bench as the parts it is and kept up to date there.
 ---
 
 <p class="dx-lead">An assembly is a set of lenses, mirrors and stops on one axis that are designed together: a doublet, a triplet, an objective, a folded telescope. Its parts stay the bench's own parts, traced as they always are, so making one changes nothing the light does. What it adds is the view a lens designer works in: the parts read as one sequence of surfaces, with the conditions the design is for.</p>
 
-<p><strong>What needs an account.</strong> Anyone can open the Optical designer, build and edit a design, and look at it through every analysis. The design work needs a free account: the optimiser with its global search and glass substitution, tolerancing, the PDF report, lens drawings, and exporting the design as a lens file. So do saving a plot as PNG or CSV and the CAD export (.step, .stl), as every export does. Those buttons carry a <strong>Free account</strong> badge until you sign in. Keeping a design in My parts needs <a href="/jek/tools/jekray.html#pro">JEKrayPro</a>. See the <a href="/jek/tools/jekray-licence.html">JEKray Licence</a>, section 3.</p>
+<p><strong>What needs an account.</strong> Anyone can open the Optics designer, build and edit a design, and look at it through every analysis. The design work needs a free account: the optimiser with its global search and glass substitution, tolerancing, the PDF report, lens drawings, and exporting the design as a lens file. So do saving a plot as PNG or CSV and the CAD export (.step, .stl), as every export does. Those buttons carry a <strong>Free account</strong> badge until you sign in. Keeping a design in My parts needs <a href="/jek/tools/jekray.html#pro">JEKrayPro</a>. See the <a href="/jek/tools/jekray-licence.html">JEKray Licence</a>, section 3.</p>
+
+## The Optics designer and its files
+
+The Optics designer opens in a tab of its own, at [jekray.html?optic](/jek/tools/jekray.html?optic), or from **Optics designer** under JEKray in [JEKsuite](/jek/docs/jekray/jeksuite/). Each design is a file of its own, a **.optic**: **Save** in its bar downloads it, **File › Save to cloud** keeps it in JEKsuite beside your benches, and **File › Open a .optic file…** opens one. It keeps its work in your browser apart from JEKray's bench, so a design and a bench can both be open at once.
+
+A design is used on a bench as a copy of its parts, an assembly linked to the design:
+
+- **Use on a bench**, in the designer's bar, puts the design on the bench in JEKray's tab (opening one if none is open), with a source for each field and a screen at its image.
+- **Design…** on an assembly in JEKray (or a double-click on it) opens it in the Optics designer, linked to it. An assembly made on the bench becomes a design of its own the first time.
+- While both are open, each change in the designer reaches the bench at once, where it stands, as a step of Undo there.
+- A bench opened later whose design has moved on in the cloud offers the newer version. It never takes it by itself.
+- Unlocking a linked assembly's parts (the padlock in a part's panel) unlinks it: its parts are then the bench's own.
+- A .optic opened in JEKray with **File › Open** is put on the bench, linked, in the same way.
+
+The RF designer still opens on the bench itself; it gets files of its own (.rfd) next.
 
 ## Making an assembly
 
-**One part.** A lens, mirror or window on its own has **Design as an assembly…** in its panel, just under its name (and in its right-click menu). It is made an assembly of one and opened in the design workspace, where surfaces and singlets can be added to it.
+**One part.** A lens, mirror or window on its own has **Design…** at the foot of its panel, beside Duplicate and Delete (and **Design as an assembly…** in its right-click menu). It is made an assembly of one and opened in the Optics designer, where surfaces and singlets can be added to it.
 
 **Several parts.** Select the lenses, mirrors and stops (Shift- or Ctrl-click, or drag a box round them), then **Make an assembly** in their panel or the right-click menu. They must be:
 
@@ -24,7 +39,7 @@ A lens off the axis by less than its half-width is *decentred*, one turned from 
 
 An assembly is picked and moved as one, drawn with a dashed outline and its name. Its panel places it by its **X** and **Y** (its first vertex), **Angle** (the way its axis runs) and **Height z**: these move or turn every part together, leaving the design unchanged. Ctrl-click a part to edit it alone; a part moved off the axis turns the outline red. **Split into parts** gives back the separate lenses and stops where they are.
 
-**Starting from nothing.** **Tools › Optical designer, new…** puts a starting assembly on the bench (a 10 mm stop and a biconvex N-BK7 singlet of about 50 mm focal length, designed for the F, d and C lines) and opens it in the workspace. **Optical designer, of the selection** opens the selected lenses and stops as one design, making them an assembly if they are not one already. The same menu opens the [RF designer](/jek/docs/jekray/rf/designer/) and [JEKfilm](/jek/docs/jekray/jekfilm/), for coatings. On **My benches**, **Open a workspace** makes a new cloud bench straight in the designer chosen. In the workspace, **Keep as a part…** saves the whole design by name in **My parts** or a team's **Team parts**.
+**Starting from nothing.** **Tools › Optics designer, new…** in JEKray, **File › New design** in the Optics designer, or **New › Optical design** in JEKsuite starts a design (a 10 mm stop and a biconvex N-BK7 singlet of about 50 mm focal length, designed for the F, d and C lines) in the Optics designer. **Optics designer, of the selection** opens the selected lenses and stops as one design, making them an assembly if they are not one already. The same menu opens the [RF designer](/jek/docs/jekray/rf/designer/) and the [Coating designer](/jek/docs/jekray/jekfilm/). In the workspace, **Keep as a part…** saves the whole design by name in **My parts** or a team's **Team parts**.
 
 ## The prescription
 
@@ -43,7 +58,7 @@ The panel gives the paraxial focal length and back focal distance at the primary
 
 ## Folds, tilts and decentres
 
-**Surfaces with holes, stacked surfaces and mirror coatings.** A lens surface has, beside its radius and conic, a **clear radius** (how far out it reaches; the lens's own radius unless typed) and a **hole radius** (inside it the surface is not there), and a **coating**: bare glass, an AR coating, a **mirror** (ideal, or aluminium, silver or gold with the metal's reflectance at each wavelength), a dielectric high reflector or a coating from [JEKfilm](/jek/docs/jekray/jekfilm/). Light meeting a mirror coating reflects wholly and stays in the glass it came from. A surface given a thickness of **0** is **stacked** on the one before it: the two share a vertex and make one face, each applying between its hole and its clear radius, so a face can be a mirror-coated spot in the middle of a plain flat, or a mirror-coated annulus round a plain centre. A Mangin mirror is a lens whose back is mirror coated; a solid telescope is a block whose front is a flat with a hole and a mirror-coated spot stacked in it, and whose back is a concave mirror coat with a hole and a flat stacked in it. **Stack a surface** in the element data puts a flat, bare surface on the one selected, taking the centre of its face (half way out across it), the selected one holed to where it reaches.
+**Surfaces with holes, stacked surfaces and mirror coatings.** A lens surface has, beside its radius and conic, a **clear radius** (how far out it reaches; the lens's own radius unless typed) and a **hole radius** (inside it the surface is not there), and a **coating**: bare glass, an AR coating, a **mirror** (ideal, or aluminium, silver or gold with the metal's reflectance at each wavelength), a dielectric high reflector or a coating from the [Coating designer](/jek/docs/jekray/jekfilm/). Light meeting a mirror coating reflects wholly and stays in the glass it came from. A surface given a thickness of **0** is **stacked** on the one before it: the two share a vertex and make one face, each applying between its hole and its clear radius, so a face can be a mirror-coated spot in the middle of a plain flat, or a mirror-coated annulus round a plain centre. A Mangin mirror is a lens whose back is mirror coated; a solid telescope is a block whose front is a flat with a hole and a mirror-coated spot stacked in it, and whose back is a concave mirror coat with a hole and a flat stacked in it. **Stack a surface** in the element data puts a flat, bare surface on the one selected, taking the centre of its face (half way out across it), the selected one holed to where it reaches.
 
 For such a lens the designer works out the path the light takes (in through the annulus, off the back, off the spot, out through the centre), the paraxial way, and shows two tables. The **Surfaces** table lists each surface of each part once, in the part's own order (*Block 1*, *Block 2 (on 1)* for one stacked on the first), with its radius, thickness (*stacked* for a gap of 0), glass, coating, clear radius, hole and conic: all typed, varied, solved and picked up as usual, and written back to the part on the bench. A surface the light never meets (a spot the design's rays go round, or a layer behind a mirror coat when the light comes from the front) is listed as such, in grey, edited on the bench. Stacked surfaces of the same clear radius and hole are layers, met one after another (see [the lens](/jek/docs/jekray/free-space/lens/#holes-stacked-surfaces-and-mirror-coatings)). **The light's path** below it lists each meeting in the order the light makes them: what it meets, whether it refracts or reflects, how far it goes and in what, and what is clear and blocked at that meeting (the clear radius and the hole of the surface met, so the rays the real face would turn away are vignetted where it turns them). A face met more than once is listed again, its later rows linked to its first: edited there, it follows, of the other sign when met from the other side. An odd number of reflections sends the light back out the way it came, and the lens folds the axis as a mirror does. A lens saved before surfaces had holes and stacks (with a *Mirrored* zone on a face) opens as the surfaces the zone stood for, stacked.
 
@@ -83,9 +98,9 @@ in three dimensions, so skew rays are traced as exactly as meridional ones. A ra
 
 ## The design workspace
 
-**Design…** in an assembly's panel, or a double-click on it, opens it on a page of its own. The bar names the bench and the assembly (its name can be edited there); **Back to the bench** (or Esc) returns. Nothing is copied: every change is written to the parts on the bench as it is made, so the bench is always the design, and Undo and Redo work in both places. A design started from nothing has **Place on a bench** instead: it adds a source for each field (collimated, as wide as the entrance pupil) and a screen at the image, then returns.
+The Optics designer's bar has the design's name (edited there; it is the file's name too), **File**, Undo and Redo, **Keep as a part…**, **Report (PDF)**, **Save** and **Use on a bench**, which puts the design on JEKray's bench with a source for each field (collimated, as wide as the entrance pupil) and a screen at the image. A bench using the design follows every change made here, as above.
 
-**File › Import an element (.zmx)…** with **Open it in the Optical designer** ticked reads a lens file as an assembly and opens it here.
+In JEKray, **File › Import an element (.zmx)…** with **Open it in the Optics designer** ticked reads a lens file as an assembly on the bench and opens it here.
 
 ### Design conditions
 
@@ -93,7 +108,7 @@ The left column holds what the design is for: the object, the aperture, the fiel
 
 **The object** is at infinity (the fields are angles, in degrees) or **at a distance** before the first surface (the fields are heights on the object, in mm). Switching turns the fields from angles into heights at that distance, and back. For a finite object the aperture may be given as the **NA at the object**; the **working F-number** is always $$1/(2\,\mathrm{NA}')$$ in image space, from the paraxial marginal ray. The conditions show the paraxial magnification and image distance. Rays from a finite object start at their object point and are aimed through the stop as from infinity, their optical path counted from that point, so a perfect image has no wavefront error; the Seidel sums and the focus solve start from the object's points too.
 
-**Take conditions from the bench** reads the light arriving at the assembly in the bench's last trace: each source whose rays cross a plane just before the first surface, going forward and inside its clear radius, gives a field (the rays' mean angle, with the axis always included) and its wavelengths, and the widest beam there becomes the entrance pupil. When every source's rays come from a point at much the same distance, the object is put there: each point's height a field, the widest cone the NA. A design lit on the bench by the other kind of object says so in its panel.
+**Take conditions from the bench** (in the Optics designer, when the design was opened from a bench: the light as it was then) reads the light arriving at the assembly in the bench's last trace: each source whose rays cross a plane just before the first surface, going forward and inside its clear radius, gives a field (the rays' mean angle, with the axis always included) and its wavelengths, and the widest beam there becomes the entrance pupil. When every source's rays come from a point at much the same distance, the object is put there: each point's height a field, the widest cone the NA. A design lit on the bench by the other kind of object says so in its panel.
 
 **Checked against.** A thick lens with an object 150 mm before it: image distance and magnification from its principal planes and Newton's equation, to 10⁻⁹ mm. An ellipsoidal mirror imaging one focus on the other, and a sphere imaging its centre on itself: no spot, no wavefront error. A doublet lit by a point source 3 mm off the axis: the conditions taken from it, and each of the bench's rays meeting the sensor where the lens engine's does, to 10⁻¹² mm.
 
@@ -271,7 +286,7 @@ The **Drawings** tab gives each lens and window a drawing on an A4 sheet in the 
 | 3/ Surface form | $$3/A(B)$$: $$A$$ fringes of power, $$B$$ of irregularity, "-" where not set |
 | 4/ Centring | the surface's tilt in arcminutes: the lens tilt tolerance plus the decentre tolerance over its radius, or the part's own centring |
 | Finish | polished, or fine ground (a fine-ground face has no surface form or scratch-dig) |
-| Coating | the face's coating by name; a [JEKfilm](/jek/docs/jekray/jekfilm/) coating is marked \* and its requirements are written in the notes, in the manner of ISO 10110-9 |
+| Coating | the face's coating by name; a designed coating (from the [Coating designer](/jek/docs/jekray/jekfilm/)) is marked \* and its requirements are written in the notes, in the manner of ISO 10110-9 |
 | Scratch-dig | surface quality to MIL-PRF-13830B, as scratch number and dig number (60-40) |
 | Chamfer | the widest protective chamfer at the face's edge, at 45° |
 | Material, Index nd, Abbe number Vd | the glass, with the index and Abbe number tolerances |
@@ -296,7 +311,7 @@ Under the drawing, **Make the part** sets what the lens or window is made to, an
 
 The card warns when a chamfer would reach a face's clear aperture (each 45° chamfer takes its width off the face's radius, so a clear aperture as wide as the part leaves it no room), or when the chamfers on a glass's two faces leave less than 0.1 mm of its edge between them. A cemented face has no chamfer of its own. A value not set is shown in grey and follows the design's tolerance settings where they give one, else the commercial grade in the last column. Type one to set it on the part, or clear it to follow them again. The settings are kept with the lens on the bench and saved in the .jekray file.
 
-To coat a face with a coating designed in [JEKfilm](/jek/docs/jekray/jekfilm/), choose it in the face's **Coating** list in the element data: the bench folder's JEKfilm coatings are listed with ◆, and **A JEKfilm coating from a file…** reads a .jekfilm from your computer. The face keeps the coating's layers and what it was designed to: its band, angles, limits and durability.
+To coat a face with a coating designed in the [Coating designer](/jek/docs/jekray/jekfilm/), choose it in the face's **Coating** list in the element data: the bench folder's designed coatings are listed with ◆, and **A coating from a file (.coat)…** reads a .jekfilm from your computer. The face keeps the coating's layers and what it was designed to: its band, angles, limits and durability.
 
 **Make the part** downloads one zip of PDFs:
 
@@ -304,9 +319,9 @@ To coat a face with a coating designed in [JEKfilm](/jek/docs/jekray/jekfilm/), 
 |---|---|
 | *part* - drawing.pdf | the drawing, as above |
 | *part* - part specification.pdf | the order: the part and its quantity, its glass, diameter, thicknesses and centring with their tolerances, each face's radius, clear aperture, finish, surface form, scratch-dig, chamfer and coating, and the documents enclosed |
-| *part* - S*n* coating - *name*.pdf | each JEKfilm coating on it, the same two-page coating specification JEKfilm writes, with its tolerance run and yield |
+| *part* - S*n* coating - *name*.pdf | each designed coating on it, the same two-page coating specification the Coating designer writes, with its tolerance run and yield |
 
-A face with a thin-film stack but no JEKfilm specification (one typed in by hand, or put on before faces kept their specification) is listed in the part specification as having none: put the coating on again from JEKfilm to include it. Making the part needs a free account, as the drawings do.
+A face with a thin-film stack but no coating specification (one typed in by hand, or put on before faces kept their specification) is listed in the part specification as having none: put the coating on again from the Coating designer to include it. Making the part needs a free account, as the drawings do.
 
 **Checked against.** A biconvex lens's edge thickness by hand; CX and CC on biconvex, plano-concave and cemented lenses; the radius tolerance against the tolerancing's own change of radius for the same fringes.
 
@@ -386,7 +401,7 @@ Each ray of a 25 × 25 grid is traced with its polarisation, a 3 × 3 complex ma
 
 $$P = \tau_s\,\hat s\hat s^{\mathsf T} + \tau_p\,\hat p'\hat p^{\mathsf T} + \hat k'\hat k^{\mathsf T},$$
 
-each $$\tau$$ the face's amplitude transmission, the same numbers the bench's rays take (see [Coatings](/jek/docs/jekray/free-space/#coatings)): Fresnel's for a bare face, the characteristic matrix for a stack (with its phase, so retardance as well as diattenuation), $$1 - R$$ alike for a coating known by its reflectance, $$\sqrt{R}$$ for a mirror. The glass between faces takes $$e^{-\alpha L}$$. The product is read as a Jones matrix in the double-pole basis and gives, for each ray, the **transmission** for the polarisation chosen, the **diattenuation** (from the eigenvalues of $$J^\dagger J$$), the **retardance** (from the unitary part of its polar decomposition) and the **polarisation out**. Skew rays come out turned a little even through faces that change nothing (skew aberration). A table gives each face's mean share passed, reflected and absorbed. A face's coating can be chosen there (bare, AR 0.5%, MgF₂ λ/4, a V-coat, or any coating kept by name), and **Design a coating in JEKfilm…** opens [JEKfilm](/jek/docs/jekray/jekfilm/) on it, and the coating saved there comes back onto the face.
+each $$\tau$$ the face's amplitude transmission, the same numbers the bench's rays take (see [Coatings](/jek/docs/jekray/free-space/#coatings)): Fresnel's for a bare face, the characteristic matrix for a stack (with its phase, so retardance as well as diattenuation), $$1 - R$$ alike for a coating known by its reflectance, $$\sqrt{R}$$ for a mirror. The glass between faces takes $$e^{-\alpha L}$$. The product is read as a Jones matrix in the double-pole basis and gives, for each ray, the **transmission** for the polarisation chosen, the **diattenuation** (from the eigenvalues of $$J^\dagger J$$), the **retardance** (from the unitary part of its polar decomposition) and the **polarisation out**. Skew rays come out turned a little even through faces that change nothing (skew aberration). A table gives each face's mean share passed, reflected and absorbed. A face's coating can be chosen there (bare, AR 0.5%, MgF₂ λ/4, a V-coat, or any coating kept by name), and **Design a coating…** opens the [Coating designer](/jek/docs/jekray/jekfilm/) on it, and the coating saved there comes back onto the face.
 
 **Checked against.** A bare face square on, $$1 - ((n-1)/(n+1))^2$$, and at Brewster's angle, p passed whole and the diattenuation $$R_s/(2 - R_s)$$, to 10⁻⁹; a quarter-wave MgF₂ layer's $$1 - ((n_s - n_c^2)/(n_s + n_c^2))^2$$; every face, bare or coated, passing and reflecting to a total of 1 at 0°, 20° and 40°, to 10⁻⁹; a 50/50 stack at 35° giving the stack's own diattenuation and retardance; a singlet's pupil the same under a 90° turn, meridional rays' matrices the identity and skew rays' pure rotations.
 

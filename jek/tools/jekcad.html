@@ -10,7 +10,7 @@
 <meta name="description" content="JEKcad: a parametric CAD Part Studio in the browser. Sketches with constraints and dimensions, a feature list you can roll back, and solids on OpenCascade.">
 <script>if (location.hostname === 'www.jeksys.net') location.replace('https://jeksys.net' + location.pathname + location.search + location.hash);</script>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261121">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261126">
 <style>
   /* Ray tracer: page-specific styles. Site tokens come from jek.css. */
   :root {
@@ -812,15 +812,17 @@
   .rt-meta { font-size: 0.8125rem; color: var(--jek-ink-soft); }
   /* experimental features: a menu under the version line, and a badge for what they add */
   .rt-expwrap { position: relative; display: inline-block; }
-  .rt-expmenu { width: 22rem; padding: 0.7rem 0.8rem; font-size: 0.8125rem; color: var(--jek-ink-soft); cursor: default; }
-  .rt-expmenu label { display: flex; align-items: center; gap: 0.45rem; font-weight: 600; color: var(--jek-ink); cursor: pointer; }
-  .rt-expmenu p { margin: 0.5rem 0 0.4rem; line-height: 1.45; }
-  .rt-expmenu ul { margin: 0; padding: 0; list-style: none; }
-  .rt-expmenu ul.off { opacity: 0.6; }
-  .rt-expmenu li { margin-bottom: 0.35rem; }
-  .rt-expmenu label.rt-exppick { align-items: flex-start; font-weight: 400; color: var(--jek-ink-soft); }
-  .rt-expmenu label.rt-exppick input { margin-top: 0.2rem; flex: none; }
-  .rt-expmenu li b { color: var(--jek-ink); }
+  /* the experimental features, set in JEKsuite's dialog for every app */
+  .rt-expdialog { max-width: 34rem; font-size: 0.875rem; color: var(--jek-ink-soft); }
+  .rt-expdialog label.rt-expmaster { display: flex; align-items: center; gap: 0.45rem; margin: 0.6rem 0; font-weight: 600; color: var(--jek-ink); cursor: pointer; }
+  .rt-expdialog p { margin: 0.5rem 0 0.4rem; line-height: 1.45; }
+  .rt-expdialog h3 { margin: 0.8rem 0 0.35rem; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-expdialog ul { margin: 0; padding: 0; list-style: none; }
+  .rt-expdialog .rt-explist.off { opacity: 0.6; }
+  .rt-expdialog li { margin-bottom: 0.45rem; }
+  .rt-expdialog label.rt-exppick { display: flex; align-items: flex-start; gap: 0.45rem; color: var(--jek-ink-soft); cursor: pointer; }
+  .rt-expdialog label.rt-exppick input { margin-top: 0.2rem; flex: none; }
+  .rt-expdialog li b { color: var(--jek-ink); }
   .rt-exp { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; border: 1px dashed currentColor; color: var(--jek-ink-soft); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
   .rt-dot.exp { background: var(--jek-ink-soft); }
   .rt-link { padding: 0; font: inherit; color: var(--jek-cyan-dark); background: none; border: 0; cursor: pointer; }
@@ -1134,6 +1136,9 @@
   }
   .rt-toast.show { opacity: 1; }
   .rt-toast.bad { color: var(--jek-red); font-weight: 600; }
+  /* a note with an offer in it (an update to take up): its button can be pressed */
+  .rt-toast.show.act { pointer-events: auto; }
+  .rt-toast .rt-toastact { margin-left: 0.3rem; font-weight: 600; }
 
   /* The tool fills the whole window, edge to edge, with no site bar above it: the JEKray logo
      at the left of the toolbar leads back to its product page, and nothing separates the
@@ -1538,6 +1543,12 @@
   /* ---------- The lens design workspace ---------- */
   .rt-lens { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; background: var(--jek-well); color: var(--jek-ink); font-family: var(--jek-sans); text-align: left; outline: none; }
   .rt-lens[hidden] { display: none !important; }
+  /* the Optics designer (?optic, io/optic.js): the page's bar moved into the workspace's head, out of .rt-wrap, whose
+     rule hides [hidden] there; its name in place of JEKray's mark */
+  .rt-ophead [hidden] { display: none !important; }
+  .rt-ophead .rt-space { margin-right: 0.2rem; }
+  .rt-ophead a.rt-opmark, .rt-ophead a.rt-opmark:hover { color: var(--jek-ink); text-decoration: none; }
+  .rt-ophead .rt-more { position: relative; }
   .rt-lens .mono, .rt-lnum, .rt-lglass { font-family: var(--jek-mono); }
   .rt-lhead { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; padding: 0.6rem 1rem; background: var(--jek-panel); border-bottom: 1px solid var(--jek-line); flex: none; }
   .rt-lcrumb { display: flex; align-items: center; gap: 0.5rem; min-width: 0; font-size: 0.95rem; }
@@ -2447,7 +2458,6 @@ dialog.rt-dialog .rt-signrow { justify-content: flex-start; flex-wrap: wrap; mar
    Constants
    ========================================================================== */
 
-const STORE_KEY = 'jek-raytracer-session-v1';
 let cloud = null, cloudOpening = false;       // the cloud bench this one is linked to (see Cloud benches)
 function setCloudOpening(v) { return (cloudOpening = v); }
 function setCloud(v) { return (cloud = v); }
@@ -2465,6 +2475,27 @@ const EMBED = IN_PAGE && !TEST_MODE && /(^|[?&])embed\b/.test(QUERY);
 // ?embed=locked: the parts stay where they are; the reader pans, zooms, turns the 3D view and plays the sweeps
 const LOCKED = EMBED && /(^|[?&])embed=locked\b/.test(QUERY);
 const FORMAT = 'jekray';
+/* The page as another program, by its query (each keeps its work apart from JEKray's bench in this browser: each
+   store's key, appStoreKey, has the mode after it):
+   ?optic  the Optics designer, JEKray's lens designer as a program of its own; its document is a design, a .optic
+           (format 'jekoptic'): the parts of one assembly and its record, with a uid that links the benches using it
+   ?rf     JEKrf, the RF bench (format 'jekrf', a .jekrf): JEKray's bench with the RF parts alone
+   ?rfd    JEKrf's RF designer, a program of its own as the Optics designer is; its document a .rfd (format 'jekrfd')
+   (io/designs.js links the designs and the benches that use them) */
+const PAGE_Q = typeof location === 'undefined' || !IN_PAGE || IN_WORKER ? '' : location.search;
+const OPTIC = /(^|[?&])optic\b/.test(PAGE_Q);
+const RFD = !OPTIC && /(^|[?&])rfd\b/.test(PAGE_Q);
+const RFAPP = !OPTIC && !RFD && /(^|[?&])rf\b/.test(PAGE_Q);
+const DESIGNER = OPTIC || RFD;
+const OPTIC_FORMAT = 'jekoptic', RF_FORMAT = 'jekrf', RFD_FORMAT = 'jekrfd';
+/* the page's own mode ('ray', 'optic', 'rf' or 'rfd') and the format of the file it keeps */
+const PAGE_MODE = OPTIC ? 'optic' : RFD ? 'rfd' : RFAPP ? 'rf' : 'ray';
+const PAGE_FORMAT = { ray: FORMAT, optic: OPTIC_FORMAT, rf: RF_FORMAT, rfd: RFD_FORMAT }[PAGE_MODE];
+const PAGE_FORMATS = [FORMAT, OPTIC_FORMAT, RF_FORMAT, RFD_FORMAT];
+/* the page's query, kept in the address when a link's hash is taken off */
+const PAGE_QUERY = { ray: '', optic: '?optic', rf: '?rf', rfd: '?rfd' }[PAGE_MODE];
+const appStoreKey = k => (PAGE_MODE === 'ray' ? k : k + '-' + PAGE_MODE);
+const STORE_KEY = appStoreKey('jek-raytracer-session-v1');
 const VERSION = 1;
 const TRACE_BUDGET = 4e6;  // ray–element interactions per redraw, keeps the page responsive
 const FAR = 2e4;          // mm: how far an escaping ray is drawn
@@ -12621,7 +12652,7 @@ function wireCadAccount() {
    in this browser's autosave and goes up when the connection returns: the link is kept with the autosave.
    ========================================================================== */
 const CLOUD_KEY = 'jek-cad-cloud-link', CLOUD_EVERY = 30000, CLOUD_RETRY = 60000, LEASE_EVERY = 60000;
-const OTHER_APPS = { jekray: ['/jek/tools/jekray.html', 'JEKray'], jekion: ['/jek/tools/jekion.html', 'JEKion'], jekfilm: ['/jek/tools/jekfilm.html', 'JEKfilm'] };
+const OTHER_APPS = { jekray: ['/jek/tools/jekray.html', 'JEKray'], jekion: ['/jek/tools/jekion.html', 'JEKion'], jekfilm: ['/jek/tools/jekfilm.html', 'the Coating designer'] };
 let cloudTimer = null, cloudBusy = false, cloudAgain = false;
 const lease = { held: false, editing: null, timer: null };
 const jsonBody = body => ({ headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

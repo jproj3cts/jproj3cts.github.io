@@ -35,14 +35,17 @@ test('a folder goes to the top or into another, not into itself or a folder insi
   assert.equal(folderFits(folders, 'a', 'b'), false);
   assert.equal(folderFits(folders, 'b', 'a'), true);
 });
-test('orders: newest and largest first, names and apps by the alphabet, turned round by flip', () => {
+test('orders: newest and largest first, names by the alphabet, apps as the hub lists them, turned round by flip', () => {
   const ids = (key, flip, where) => sortBenches(benches, key, flip, where).map(b => b.id).join('');
   assert.equal(ids('changed'), '2314');
   assert.equal(ids('size'), '4231');
   assert.equal(ids('name'), '2431');
   assert.equal(ids('name', true), '1342');
-  assert.equal(ids('app'), '4231');
+  assert.equal(ids('app'), '3124');
   assert.equal(ids('folder', false, b => b.folder_id || ''), '1243');
+  // each app's designers straight after it (JEKray's, then JEKrf with its RF designer), then JEKion and JEKcad; an app the hub does not know, last
+  const mix = ['jekcad', 'jekion', 'jekrfd', 'jekfilm', 'jekrf', 'jekoptic', 'jekray', 'newapp'].map((tool, i) => ({ id: String(i), name: 'x', tool, updated_at: i, size_bytes: i }));
+  assert.equal(sortBenches(mix, 'app').map(b => b.tool).join(), 'jekray,jekoptic,jekfilm,jekrf,jekrfd,jekion,jekcad,newapp');
   assert.equal(ids('nonsense'), '2314');
   assert.equal(benches[0].id, '1', 'the list given is left as it was');
 });

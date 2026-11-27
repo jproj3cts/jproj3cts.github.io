@@ -3,7 +3,9 @@ import { ELEC } from '../engines/elec.js';
 /* Optical chopper: An optical chopper: a slotted wheel across the beam, open for the first part of each cycle; photodetectors behind it see the chopped light (the bench draws it open). */
 export const CHOPPER = {
   type: 'chopper', label: 'Optical chopper',
-  picker: [{ key: 'elec:chopper', short: 'Chopper', long: 'Optical chopper' }],
+  picker: [{ key: 'chopper', short: 'Chopper', long: 'Optical chopper' }],
+  keys: ['chopper'],
+  make: (x, y) => ELEC.make('chopper', x, y),
   norm(e, base) {
     return ELEC.normChopper(e, base);
   },

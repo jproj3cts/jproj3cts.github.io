@@ -12,7 +12,7 @@ import { RF_METALS, hornLam } from '../core/rf.js';
 import { deg, extraSel, project, selectOne, selectedId } from '../state/project.js';
 import { FIBRE_COLOUR, FREE_3D, NET_3D, detR, fieldDec, getEl, lightOf, srcBody } from '../state/elements.js';
 import { portWorld, portsOf, portsOfOptic } from '../engines/fibre.js';
-import { ELEC_YELLOW } from '../engines/elec.js';
+import { ELEC, ELEC_YELLOW } from '../engines/elec.js';
 import { PIC_GREEN } from '../engines/pic.js';
 import { benchName, curBench, linkPartner } from '../state/tabs.js';
 import { lensSurfaces, polyVerts, rawSag, sagFn, lensStacks } from '../core/geometry.js';
@@ -584,7 +584,16 @@ export const V3D = (() => {
         return g;
       }
       case 'mirror': {
-        const [s] = elementSurfaces(el), sg = sag3(s);
+        const [s] = elementSurfaces(el);
+        // a corner cube: a block with its three mirrors cut into its front, the corner at the bottom (as core/stl.js has them:
+        // each face's depth −D − √2 (y cos f + z sin f), the cube's inside the deepest of the three)
+        if (s.retro) {
+          const D = s.retro, F = [0, 1, 2].map(i => Math.PI / 2 + 2 * Math.PI * i / 3);
+          const cut = (y, z) => -D + Math.SQRT2 * Math.max(...F.map(f => -(y * Math.cos(f) + z * Math.sin(f))));
+          add(...sagSolid(cut, s.semi, -D - Math.max(2, 0.15 * L), false, mat.metal(), mat.matte(0x3a3f45)));
+          return g;
+        }
+        const sg = sag3(s);
         let lo = sg(0, 0); for (let j = 0; j < 32; j++) lo = Math.min(lo, sg(s.semi * Math.cos(j * Math.PI / 16), s.semi * Math.sin(j * Math.PI / 16)));
         const t = Math.max(2, Math.min(10, L * 0.25)), R0 = el.reflect >= 100;
         // an RF metal mirror is the colour of its metal, through and through; an optical one a coated glass
@@ -910,7 +919,8 @@ export const V3D = (() => {
       }
       if (!p) continue;
       used.add(el.id);
-      p.position.set(el.x, el.y, z3(el)); p.rotation.set((el.roll || 0) * deg, -(el.tip || 0) * deg, el.angle * deg, 'ZYX'); benchAxes(p);
+      const sp = ELEC.steerPose(el);            // a steering mirror stands where its drive puts it
+      p.position.set(el.x, el.y, z3(el)); p.rotation.set((el.roll || 0) * deg, -((el.tip || 0) + sp[1]) * deg, (el.angle + sp[0]) * deg, 'ZYX'); benchAxes(p);
       p.userData.id = el.id; p.traverse(o => { o.userData.id = el.id; if (o.userData.phosphor) for (const t of o.userData.texs) phosphorRoll(t, el); });
       G.parts.add(p);
       if (names) {

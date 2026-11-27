@@ -118,13 +118,17 @@ export async function readJson(req) {
   }
 }
 
-// Which tool a bench's content is for: a .jekion says format 'jekion', a .jekfilm (a JEKfilm coating) format
-// 'jekfilm', a .jekcad (a JEKcad part studio) format 'jekcad'; anything else is JEKray's.
-export const TOOLS = { jekray: { name: 'JEKray', ext: 'jekray' }, jekion: { name: 'JEKion', ext: 'jekion' }, jekfilm: { name: 'JEKfilm', ext: 'jekfilm', thing: 'coating' }, jekcad: { name: 'JEKcad', ext: 'jekcad', thing: 'part studio' } };
+// Which tool a bench's content is for: a .jekion says format 'jekion', a .coat (a coating from JEKray's Coating
+// designer, once JEKfilm, whose older files are .jekfilm) format
+// 'jekfilm', a .jekcad (a JEKcad part studio) format 'jekcad', a .optic (a design in JEKray's Optics designer) format
+// 'jekoptic', a .jekrf (a JEKrf bench) 'jekrf' and a .rfd (a design in JEKrf's RF designer) 'jekrfd'; anything else
+// is JEKray's.
+export const TOOLS = { jekray: { name: 'JEKray', ext: 'jekray' }, jekion: { name: 'JEKion', ext: 'jekion' }, jekfilm: { name: 'Coating designer', ext: 'coat', thing: 'coating', label: 'a coating' }, jekcad: { name: 'JEKcad', ext: 'jekcad', thing: 'part studio' },
+  jekoptic: { name: 'Optics designer', ext: 'optic', thing: 'design', label: 'an Optics designer design' }, jekrf: { name: 'JEKrf', ext: 'jekrf' }, jekrfd: { name: 'RF designer', ext: 'rfd', thing: 'design', label: 'an RF designer design' } };
 export function toolOf(content) {
   try {
     const f = JSON.parse(content).format;
-    return f === 'jekion' || f === 'jekfilm' || f === 'jekcad' ? f : 'jekray';
+    return f === 'jekion' || f === 'jekfilm' || f === 'jekcad' || f === 'jekoptic' || f === 'jekrf' || f === 'jekrfd' ? f : 'jekray';
   } catch {
     return 'jekray';
   }
@@ -319,7 +323,7 @@ export async function save(req, env, user, benchId) {
   const b = a.bench;
   const was = TOOLS[b.tool] ? b.tool : 'jekray', given = toolOf(content);
   if (given !== was) {
-    throw new ApiError(400, 'bad_bench', `This is a ${TOOLS[was].name} ${TOOLS[was].thing || 'bench'}: a .${TOOLS[given].ext} cannot be saved over it.`);
+    throw new ApiError(400, 'bad_bench', `This is ${TOOLS[was].label || `a ${TOOLS[was].name} ${TOOLS[was].thing || 'bench'}`}: a .${TOOLS[given].ext} cannot be saved over it.`);
   }
   // someone else is editing it: they hold its lease (take it over first, or open theirs)
   if (b.lease_user && b.lease_user !== user.id) {

@@ -2,10 +2,10 @@
 layout: docs
 title: Matching layers
 permalink: /jek/docs/jekray/coating-design/
-description: "Design an RF lens's matching layer in JEKray: a printed skin a quarter wave thick, judged over the system's band, its thickness and density optimised, and put on the lens's faces. Optical coatings are designed in JEKfilm."
+description: "Design an RF lens's matching layer in JEKray: a printed skin a quarter wave thick, judged over the system's band, its thickness and density optimised, and put on the lens's faces. Optical coatings are designed in the Coating designer."
 ---
 
-<p class="dx-lead">An RF lens's faces can carry a matching layer: a skin of the lens's own plastic printed less dense, a quarter wave thick at the design frequency. The matching-layer workspace shows what the faces reflect across the band and against the angle, and optimises the layer. Optical coatings (anti-reflection, reflectors, splitters, edges) are designed in <a href="/jek/docs/jekray/jekfilm/">JEKfilm</a>, which sends them back to the face.</p>
+<p class="dx-lead">An RF lens's faces can carry a matching layer: a skin of the lens's own plastic printed less dense, a quarter wave thick at the design frequency. The matching-layer workspace shows what the faces reflect across the band and against the angle, and optimises the layer. Optical coatings (anti-reflection, reflectors, splitters, edges) are designed in JEKray's <a href="/jek/docs/jekray/jekfilm/">Coating designer</a>, which sends them back to the face.</p>
 
 ## Opening it
 
@@ -14,7 +14,7 @@ description: "Design an RF lens's matching layer in JEKray: a printed skin a qua
 
 **Back to the bench** (or Esc) leaves without writing anything.
 
-An optical face's **Design a coating in JEKfilm…**, the lens designer's face table and **Tools › Coating design in JEKfilm…** open [JEKfilm](/jek/docs/jekray/jekfilm/) in its own tab. Started from a face, JEKfilm begins on that face's glass at the bench's wavelength with the face's stack, and saving the coating to the cloud (in the bench's folder, chosen for you) puts it on the face, linked.
+An optical face's **Design a coating…**, the lens designer's face table and **Tools › Coating designer…** open the [Coating designer](/jek/docs/jekray/jekfilm/) in its own tab. Started from a face, the Coating designer begins on that face's glass at the bench's wavelength with the face's stack, and saving the coating to the cloud (in the bench's folder, chosen for you) puts it on the face, linked.
 
 ## The layer
 
@@ -24,7 +24,7 @@ The workspace takes the frequency in GHz and the band as a share either side, th
 
 The reflectance is the stack's power reflectance from the characteristic matrices of its layers, the same calculation the bench's rays, the diffracted field, the lens designer's polarisation trace and the RF designer's reflections take for a coating given as a stack (see [Coatings](/jek/docs/jekray/free-space/#coatings)). A coating written to a face is a stack (`mode: 'stack'`, its design wavelength and its layers' indices and thicknesses), so a face carries the design itself, not a reflectance that stands for it, and meets it at every angle and wavelength the light has. The indices are taken as constant across the band.
 
-A coating kept by name in this browser before JEKfilm still appears at the bottom of every face's Coating list (★); JEKfilm's **File › Coatings kept in JEKray…** opens each one there, to save to the cloud. Choosing it writes its stack to the face, and the bench then carries the stack.
+A coating kept by name in this browser before the Coating designer still appears at the bottom of every face's Coating list (★); the Coating designer's **File › Coatings kept in JEKray…** opens each one there, to save to the cloud. Choosing it writes its stack to the face, and the bench then carries the stack.
 
 **Checked against.**
 - a quarter-wave MgF₂ layer on N-BK7 at 550 nm square on: $$((n_s - n_c^2)/(n_s + n_c^2))^2$$, 1.26%, to 10⁻⁹, and the same number the bench reads from that stack on a face, to 10⁻¹²;

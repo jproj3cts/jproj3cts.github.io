@@ -1,5 +1,5 @@
 import { NEWS } from './news-data.js';
-import { EMBED } from '../core/constants.js';
+import { EMBED, RFAPP } from '../core/constants.js';
 import { exerciseInvite } from './challenge.js';
 import { project } from '../state/project.js';
 import { phoneSheet } from './panel.js';
@@ -7,8 +7,7 @@ import { h } from './dom.js';
 import { saveFile, toast, typingIn } from './actions.js';
 import { shareBase, shareHash } from '../io/share.js';
 import { openProjectData } from '../io/open.js';
-import { EXPERIMENTAL, exp, expOn, expPicked, expWhy, setExperimental } from './experimental.js';
-import { hooks } from '../core/hooks.js';
+import { exp, expOn, expWhy } from './experimental.js';
 import { readSnaps } from '../io/autosave.js';
 import { openDemo, startTour } from './tours.js';
 import { API_BASE } from '../io/account.js';
@@ -29,6 +28,8 @@ const BUG_TO = 'support@jeksys.net', BUG_MAILTO_MAX = 1900;
 
 /* The examples, by group: file name in demos/, title, and one line on what it shows. The
    gallery shows each with a picture from demos/thumbs/ (demos/thumbs/light/ in the Light theme). */
+/* the examples a program shows: JEKrf's RF ones alone, JEKray's the rest (J.examples() and #demo= reach every one) */
+export const examplesShown = () => EXAMPLES.filter(g => (g[0] === 'RF and millimetre waves') === RFAPP);
 export const EXAMPLES = [
   ['Interference and cavities', false, [
     ['michelson', 'Michelson interferometer', 'Move a mirror and watch the fringes at the output port walk.'],
@@ -189,8 +190,8 @@ export function wireNews() {
     const dlg = document.getElementById('citeDialog');
     document.getElementById('btnCite').addEventListener('click', () => {
       const d = new Date(), iso = d.toISOString().slice(0, 10), year = APP_DATE.slice(-4);
-      document.getElementById('citeText').value = 'JEK Systems (' + year + '). JEKray optical bench simulator, version ' + APP_VERSION + '. ' + CITE_URL + ' (accessed ' + d.getDate() + ' ' + d.toLocaleString('en-GB', { month: 'long' }) + ' ' + d.getFullYear() + ').';
-      document.getElementById('citeBib').value = '@software{jekray,\n  author  = {{JEK Systems}},\n  title   = {{JEKray}: optical bench simulator},\n  version = {' + APP_VERSION + '},\n  year    = {' + year + '},\n  url     = {' + CITE_URL + '},\n  urldate = {' + iso + '}\n}';
+      document.getElementById('citeText').value = 'JEK Systems (' + year + '). JEKray bench simulator, version ' + APP_VERSION + '. ' + CITE_URL + ' (accessed ' + d.getDate() + ' ' + d.toLocaleString('en-GB', { month: 'long' }) + ' ' + d.getFullYear() + ').';
+      document.getElementById('citeBib').value = '@software{jekray,\n  author  = {{JEK Systems}},\n  title   = {{JEKray}: bench simulator},\n  version = {' + APP_VERSION + '},\n  year    = {' + year + '},\n  url     = {' + CITE_URL + '},\n  urldate = {' + iso + '}\n}';
       dlg.showModal();
     });
     dlg.addEventListener('click', e => {
@@ -204,33 +205,11 @@ export function wireNews() {
   }
 
   {
-    const btn = document.getElementById('btnExp'), menu = document.getElementById('expMenu');
-    const account = () => !(hooks.proWhy && /^Sign in/.test(hooks.proWhy() || ''));
-    const fill = () => {
-      const cb = h('input', { type: 'checkbox' });
-      cb.checked = expOn;
-      const n = () => EXPERIMENTAL.filter(f => expPicked(f.key)).length;
-      cb.addEventListener('change', () => { setExperimental(cb.checked); fill(); menu.querySelector('input').focus(); toast(expOn ? 'Experimental features on: ' + n() + ' of ' + EXPERIMENTAL.length + ' ticked' : 'Experimental features off'); });
-      // each feature its own tick, kept whether the master switch is on or off; it acts only while it is on
-      const row = f => {
-        const t = h('input', { type: 'checkbox', 'data-exp': f.key });
-        t.checked = expPicked(f.key);
-        t.addEventListener('change', () => { setExperimental(null, { [f.key]: t.checked }); if (expOn) toast(f.name + (t.checked ? ' on' : ' off')); });
-        return h('li', null, h('label', { class: 'rt-exppick' }, t, h('span', null, h('b', null, f.name), ': ', f.what)));
-      };
-      // for any signed-in account: signed out, the switch is shown but held off, with the way to sign in
-      const why = expWhy();
-      cb.disabled = !!why;
-      menu.replaceChildren(h('label', { class: why ? 'rt-off' : null, title: why || null }, cb, 'Turn on experimental features'),
-        why ? h('p', { class: 'rt-exppro' }, h('b', null, 'For signed-in accounts. '), 'Sign in, top right: a free account is enough, and JEKrayPro has them too. ', h('button', { type: 'button', class: 'rt-link', onclick: () => { show(false); if (hooks.proFix) hooks.proFix('', 'exp'); } }, 'Sign in…')) : null,
-        h('p', null, 'Features still being built and checked, before they reach beta. They may change, or give wrong answers: nothing made with them is validated yet. Tick the ones you want; the switch above turns them all on or off together. The settings are kept in this browser.'),
-        EXPERIMENTAL.length ? h('ul', { class: expOn ? null : 'off' }, ...EXPERIMENTAL.map(row))
-          : h('p', { style: 'margin:0' }, 'There are none at the moment.'));
-    };
-    const show = on => { menu.hidden = !on; btn.setAttribute('aria-expanded', on ? 'true' : 'false'); if (on) { fill(); menu.querySelector('input').focus(); } };
-    btn.addEventListener('click', e => { e.stopPropagation(); show(menu.hidden); });
-    document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target) && e.target !== btn) show(false); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) { show(false); btn.focus(); } });
+    // the switch and the ticks are set in one place for every app, JEKsuite's account menu: this opens it there
+    document.getElementById('btnExp').addEventListener('click', () => {
+      const w = window.open('/jek/tools/jeksuite.html#experimental', 'jeksuite');
+      if (w) w.focus();
+    });
     document.getElementById('expDot').hidden = !(expOn && !expWhy());
   }
 
@@ -294,7 +273,7 @@ export function wireNews() {
     const fill = () => {
       const q = search.value.trim().toLowerCase();
       grid.replaceChildren();
-      for (const [group, beta, list] of EXAMPLES) {
+      for (const [group, beta, list] of examplesShown()) {
         const hits = list.filter(([id, t, d, x]) => (!x || exp(x)) && (!q || (group + ' ' + t + ' ' + d).toLowerCase().includes(q)));
         if (!hits.length) continue;
         grid.append(h('h3', null, group, beta ? h('span', { class: 'rt-beta' }, 'Beta') : null),

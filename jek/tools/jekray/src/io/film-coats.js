@@ -69,7 +69,7 @@ function filmFaceCoat(d, src) {
 /* a cloud coating as a face's coating: its stack fetched, linked to it */
 export async function filmCoat(id) {
   const b = await api('/v1/benches/' + id);
-  if (b.tool !== 'jekfilm') throw new Error('“' + b.name + '” is not a JEKfilm coating');
+  if (b.tool !== 'jekfilm') throw new Error('“' + b.name + '” is not a coating');
   const d = JSON.parse(b.content);
   return filmFaceCoat(Object.assign({}, d, { name: b.name }), { id: b.id, v: b.version });
 }
@@ -79,7 +79,7 @@ export async function useFilmOn(holder, id) {
     const coat = await filmCoat(id);
     checkpoint(); holder.coat = coat; changed(true);
     track('designer', 'film-use');
-    toast('“' + coat.label + '” is on this face: a copy, linked to the coating in JEKfilm');
+    toast('“' + coat.label + '” is on this face: a copy, linked to the coating in the Coating designer');
   } catch (err) { toast(err.status === 401 ? 'Sign in to use the coatings in the cloud' : 'Could not fetch the coating: ' + err.message, true); hooks.renderPanel(); }
 }
 /* a .jekfilm's content onto a face: a copy, with no link; false if it is not a coating */
@@ -90,7 +90,7 @@ export function filmDocOn(holder, d, name) {
 }
 /* a .jekfilm file from this computer onto a face: a copy, with no link (done, if given, called once it is settled) */
 export function filmFileOn(holder, done) {
-  const input = h('input', { type: 'file', accept: '.jekfilm,application/json', hidden: '' }), end = () => { hooks.renderPanel(); if (done) done(); };
+  const input = h('input', { type: 'file', accept: '.coat,.jekfilm,application/json', hidden: '' }), end = () => { hooks.renderPanel(); if (done) done(); };
   document.body.append(input);
   input.addEventListener('change', () => {
     const f = input.files[0]; input.remove();
@@ -99,7 +99,7 @@ export function filmFileOn(holder, done) {
     rd.onload = () => {
       let d = null;
       try { d = JSON.parse(rd.result); } catch (err) { /* below */ }
-      if (!filmDocOn(holder, d, f.name.replace(/\.jekfilm$/i, ''))) { toast(f.name + ' is not a JEKfilm coating (.jekfilm)', true); end(); return; }
+      if (!filmDocOn(holder, d, f.name.replace(/\.(coat|jekfilm)$/i, ''))) { toast(f.name + ' is not a coating file (.coat)', true); end(); return; }
       track('import', 'film-face-file');
       toast('“' + holder.coat.label + '” is on this face, from the file');
       if (done) done();
@@ -143,7 +143,7 @@ export function filmUpdates() {
   if (!dlg) { dlg = h('dialog', { class: 'rt-dialog', id: 'filmUpdate', 'aria-labelledby': 'filmUpdateTitle' }); document.body.append(dlg); }
   const close = () => dlg.close(), faces = n => n + (n === 1 ? ' face' : ' faces');
   dlg.replaceChildren(h('h2', { id: 'filmUpdateTitle' }, stale.length === 1 ? 'A newer coating' : 'Newer coatings'),
-    h('p', null, 'These coatings were saved again in JEKfilm since they were put on this bench. The faces keep their copies until you update them.'),
+    h('p', null, 'These coatings were saved again in the Coating designer since they were put on this bench. The faces keep their copies until you update them.'),
     h('ul', null, ...stale.map(s => h('li', null, h('b', null, s.name), ': version ' + s.to + ' (this bench has version ' + s.from + ', on ' + faces(s.holders.length) + ')'))),
     h('div', { class: 'rt-actions' },
       h('button', { class: 'rt-btn', type: 'button', id: 'filmUpdateKeep', onclick: () => { close(); track('designer', 'film-keep'); } }, 'Keep these copies'),

@@ -1,13 +1,11 @@
-import { TEST_MODE } from '../core/constants.js';
-import { RF } from '../parts/rf.js';
-import { FREE_GROUPS, FREE_PARTS, pickerRows } from '../parts/registry.js';
+import { RFAPP, TEST_MODE, appStoreKey } from '../core/constants.js';
+import { EXPERIMENTAL, expRead, expWrite } from '../core/exp-list.js';
+import { PALETTE_GROUPS, PALETTE_PARTS, pickerRows } from '../parts/registry.js';
 import { V, project, selectOne } from '../state/project.js';
 import { makeElement, normElement, selected } from '../state/elements.js';
 import { STL_UNITS, meshCache, meshEncode, meshHullCache, parseSTL } from '../core/stl.js';
 import { DPR, H, W, asOnBench, benchBg, canvas, ctx, draw, halfSize, requestRender, setCtx, setDPR, setH, setW, wx, wy } from './render.js';
 import { snapVal } from './pointer.js';
-import { PIC } from '../engines/pic.js';
-import { ELEC } from '../engines/elec.js';
 import { V3D } from './view3d.js';
 import { renderPanel } from './panel.js';
 import { h } from './dom.js';
@@ -26,21 +24,16 @@ import { track } from '../io/usage.js';
    New features start here, off until someone switches them on, then move to beta (a Beta
    badge on their examples), then into the tool proper. The switch is kept in this browser.
    To add one: list it in EXPERIMENTAL, and have its code ask exp('its key'): a part for the
-   Add row takes the key as a fourth entry in PALETTES, an example as a fourth entry in its
+   Add row takes the key as exp on its picker entry (parts/<type>.js), an example as a fourth entry in its
    EXAMPLES line, and anything else (a panel section, a readout, a model) tests exp() where it
    would appear. A bench that uses one still opens and traces with the switch off: only what
    offers it (the Add row, the gallery, the panels) keeps it out of sight. */
-export const EXPERIMENTAL = [
-  // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
-  { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
-  { key: 'mods', name: 'Modules (parts with code)', what: 'part packs that carry code, run in a sandbox: new plates, polarisation plates, fibre components, electronics blocks and readouts written by anyone, installed from a file or a link (File \u203a Part packs and modules\u2026) after a prompt saying what each adds. Their code cannot reach your account, your files or the internet.' },
-  { key: 'raylook', name: 'How the rays look', what: 'a window of settings for how rays are drawn in 2D, for figures and recordings: fading trails as the light changes, a glow round each ray, and the rays\u2019 width (the button under Light in the Bench panel, and View \u203a How the rays look\u2026). Kept with the bench; a bench that has them set is drawn with them whether this is on or not.' },
-  { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
-];
-const EXP_KEY = 'jek-raytracer-experimental', EXP_PICKS = 'jek-raytracer-experimental-picks';
-// the master switch, and each feature's own tick (ticked unless unticked): a feature is on when both are
-export let expOn = (() => { try { return !TEST_MODE && localStorage.getItem(EXP_KEY) === '1'; } catch (err) { return false; } })();          // (a private window: off)
-export let expPicks = (() => { try { const v = !TEST_MODE && JSON.parse(localStorage.getItem(EXP_PICKS) || '{}'); return v && typeof v === 'object' ? v : {}; } catch (err) { return {}; } })();   // (none kept: all ticked)
+/* (the list, and the store every app shares: core/exp-list.js) */
+
+// the master switch, and each feature's own tick (ticked unless unticked): a feature is on when both are; as this
+// browser keeps them, followed as they change (JEKsuite sets them: followExperimental)
+export let expOn = expRead().on;
+export let expPicks = expRead().picks;
 export const expPicked = key => expPicks[key] !== false;
 // experimental features need an account (free or JEKrayPro): the gate says why they are not available (not signed in), or ''
 // when they are; set by the cloud module once accounts are up (the tests, and a build without accounts, are not gated)
@@ -54,7 +47,16 @@ export function setExperimental(on, picks) {
   if (on !== undefined && on !== null && !!on !== expOn) track('experimental', on ? 'on' : 'off');
   if (on !== undefined && on !== null) expOn = !!on;
   if (picks) for (const f of EXPERIMENTAL) if (f.key in picks) expPicks[f.key] = !!picks[f.key];
-  if (!TEST_MODE) try { localStorage.setItem(EXP_KEY, expOn ? '1' : '0'); localStorage.setItem(EXP_PICKS, JSON.stringify(expPicks)); } catch (err) { /* not kept: fine */ }
+  expWrite(expOn, expPicks);
+  expShown();
+}
+/* the switch or a tick changed in another tab (JEKsuite's, where they are set): this page follows */
+export function followExperimental() {
+  const S = expRead();
+  expOn = S.on; expPicks = S.picks;
+  expShown();
+}
+function expShown() {
   const dot = document.getElementById('expDot');
   if (dot) dot.hidden = !(expOn && !expWhy());
   modsSync(); expMenuShown();
@@ -63,38 +65,33 @@ export function setExperimental(on, picks) {
 }
 /* The Add row: a palette of free-space optics or of fibre components, as buttons, as many
    as fit on the row; the rest in More. The palette switch is the button before them: orange for free space, red for fibre. */
+/* (each palette's rows are its parts' own picker entries, parts/registry.js PALETTE_PARTS; read when asked: the registry
+   loads after this on the dev page) */
 export const PALETTES = {
-  get free() { return pickerRows(FREE_PARTS); },                                           // from the parts (read when asked: the registry loads after this on the dev page)
-  fibre: [['laser', 'Laser', 'Fibre laser'], ['led', 'LED', 'Fibre-coupled LED'], ['coupler', 'Coupler', '2\u00d72 coupler'], ['splitter', 'Splitter', 'Splitter (1\u00d7N)'], ['combiner', 'Combiner', 'Combiner (N\u00d71)'], ['fibre', 'Fibre tip', 'Fibre tip (to free space)'], ['collimator', 'Collimator', 'Fibre collimator (to free space)'], ['pd', 'Photodetector', 'Fibre photodetector'], ['bpd', 'Balanced detector', 'Balanced photodetector'],
-    ['pbs', 'PBS', 'Polarisation beam splitter / combiner'], ['fmir', 'Mirror', 'Fibre mirror (partial reflector)'], ['osa', 'OSA', 'Optical spectrum analyser'],
-    ['circ', 'Circulator'], ['iso', 'Isolator'], ['wdm', 'WDM'], ['voa', 'Attenuator'], ['pc', 'Pol. controller', 'Polarisation controller'],
-    ['pol', 'Polariser', 'In-line polariser'], ['amp', 'Amplifier', 'Fibre amplifier (EDFA)'], ['fm', 'Faraday mirror'], ['fbg', 'Bragg grating', 'Fibre Bragg grating'], ['tbf', 'Tunable filter', 'Tunable band-pass filter'], ['switch', 'Switch', 'Optical switch (2\u00d72)'],
-    ['delay', 'Delay line', 'Variable delay line'], ['stretch', 'Stretcher', 'Fibre stretcher (piezo phase)'], ['star', 'Star coupler', 'Star coupler (M\u00d7N)'],
-    ['depol', 'Depolariser', 'Depolariser (Lyot)'], ['soa', 'SOA', 'Semiconductor optical amplifier'], ['term', 'Terminator'],
-    ['faom', 'AOM', 'Fibre AOM'], ['feom', 'EOM', 'Fibre EOM'], ['thru', 'Feedthrough', 'Feedthrough (to another tab)']],
-  get elec() { return ELEC.PALETTE; },                                                       // ELEC hook (read when asked: ELEC is made after this table)
-  get rf() { return pickerRows([RF]); },
-  get pic() { return PIC.PALETTE; },                                                         // PIC hook (likewise)
+  get free() { return pickerRows(PALETTE_PARTS.free); },
+  get fibre() { return pickerRows(PALETTE_PARTS.fibre); },
+  get elec() { return pickerRows(PALETTE_PARTS.elec); },
+  get rf() { return pickerRows(PALETTE_PARTS.rf); },
+  get pic() { return pickerRows(PALETTE_PARTS.pic); },
 };
-export let palette = (() => { try { const pv = localStorage.getItem('jek-raytracer-palette'); return pv === 'fibre' || pv === 'pic' || pv === 'elec' || pv === 'rf' || pv === 'draw' ? pv : 'free'; } catch (err) { return 'free'; } })();   // (a private window: free space)
+export let palette = (() => { try { const pv = localStorage.getItem(appStoreKey('jek-raytracer-palette')); if (RFAPP) return pv === 'draw' || pv === 'elec' ? pv : 'rf'; return pv === 'fibre' || pv === 'pic' || pv === 'elec' || pv === 'draw' ? pv : 'free'; } catch (err) { return 'free'; } })();   // (a private window: free space)
 export function assignPalette(v) { return (palette = v); }
 /* The parts, two ways in: a picker (+ Add part, or A or /) with a search, a tab for each palette and
    the parts in groups, each with its symbol as the bench draws it; and a rail down the bench's left
    edge, a button for each group, its parts in a flyout. Either way a part is clicked to add it at
    the middle of the view, or dragged onto the bench to put it there. */
 export const PALETTE_NAMES = { free: 'Free space', fibre: 'Fibre', elec: 'Circuits', rf: 'RF', pic: 'Photonic', draw: 'Draw' };
+/* (and its groups the parts' own, PALETTE_GROUPS) */
 export const PART_GROUPS = {
-  get free() { return FREE_GROUPS; },
-  fibre: [['Sources', ['laser', 'led']], ['Splitting and routing', ['coupler', 'splitter', 'combiner', 'star', 'switch', 'circ', 'iso']],
-    ['Polarisation', ['pc', 'pol', 'pbs', 'depol']], ['Filters and spectra', ['wdm', 'fbg', 'tbf', 'voa', 'delay']],
-    ['Amplifiers and modulators', ['amp', 'soa', 'faom', 'feom', 'stretch']], ['Detection', ['pd', 'bpd', 'osa']],
-    ['Ends and links', ['fibre', 'collimator', 'fmir', 'fm', 'term', 'thru']]],
-  get rf() { return RF.groups; },
-  pic: [['Couplers', ['pic:gc', 'pic:dc', 'pic:mmi12', 'pic:mmi22']], ['Rings', ['pic:ring', 'pic:ringad']], ['Control and detection', ['pic:ps', 'pic:pd']]],
-  elec: [['Sources', ['elec:dc', 'elec:sig', 'elec:noise']], ['Amplifiers', ['elec:amp', 'elec:tia', 'elec:att']], ['Filters', ['elec:lpf', 'elec:hpf', 'elec:bpf']],
-    ['Signal handling', ['elec:mixer', 'elec:sum', 'elec:biastee', 'elec:comp', 'elec:node']], ['Instruments', ['elec:scope', 'elec:spec', 'elec:lockin', 'elec:daq']]],
+  get free() { return PALETTE_GROUPS.free; },
+  get fibre() { return PALETTE_GROUPS.fibre; },
+  get rf() { return PALETTE_GROUPS.rf; },
+  get pic() { return PALETTE_GROUPS.pic; },
+  get elec() { return PALETTE_GROUPS.elec; },
 };
-export const palettesOn = () => Object.keys(PALETTES).filter(p => (p !== 'pic' || exp('pic')) );
+/* the palettes offered: JEKrf's RF parts and the circuits they feed; JEKray's the rest (the RF parts are JEKrf's: a
+   bench holding some still opens and traces in JEKray) */
+export const palettesOn = () => (RFAPP ? ['rf', 'elec'] : Object.keys(PALETTES).filter(p => p !== 'rf' && (p !== 'pic' || exp('pic'))));
 export const partsOf = pal => PALETTES[pal].filter(it => !it[3] || exp(it[3])).map(([key, short, long]) => ({ key, short, long: long || short, pal }));
 // a palette's parts in their groups; any not listed in a group under Other
 export function partGroups(pal) {
@@ -119,8 +116,13 @@ export function partIcon(key) {
   try {
     const el = makeElement(key, 0, 0);
     if (el) {
-      const r = Math.max(halfSize(el), el.type === 'fcomp' || el.type === 'elec' || el.type === 'pic' ? 9 : 0, el.type === 'source' ? 14 : 0, 4);
-      setCtx(c); setW(N); setH(N); setDPR(2); project.view = { cx: el.x, cy: el.y, scale: N * 0.4 / r };
+      let r = Math.max(halfSize(el), el.type === 'fcomp' || el.type === 'elec' || el.type === 'pic' ? 9 : 0, el.type === 'source' ? 14 : 0, 4), cx = el.x, cy = el.y;
+      // the symbol alone, not the part added: a curved mirror's curve is drawn deeper than a new one's really is (200 mm
+      // on a 25 mm mirror is all but flat at this size), so concave, convex and plane tell apart; and a corner cube is
+      // framed about its whole depth, not its opening
+      if (el.type === 'mirror' && el.R && !el.offset) el.R = Math.sign(el.R) * el.length * 0.8;
+      if (el.type === 'mirror' && el.retro) { const D = el.length / Math.SQRT2, a = el.angle * Math.PI / 180; cx -= D / 2 * Math.cos(a); cy -= D / 2 * Math.sin(a); r = Math.hypot(el.length / 2, D / 2); }
+      setCtx(c); setW(N); setH(N); setDPR(2); project.view = { cx, cy, scale: N * 0.4 / r };
       asOnBench(() => draw(el));
       url = cv.toDataURL();
     }

@@ -51,7 +51,7 @@ export async function create(req, env, user) {
   }
   const body = await readJson(req);
   const data = body.data;
-  if (typeof data !== 'string' || !DATA.test(data)) throw new ApiError(400, 'bad_link', 'That is not a bench from JEKray or JEKion, a JEKfilm coating or a JEKcad Part Studio.');
+  if (typeof data !== 'string' || !DATA.test(data)) throw new ApiError(400, 'bad_link', 'That is not a bench from JEKray or JEKion, a coating or a JEKcad Part Studio.');
   if (data.length > MAX_LINK) throw new ApiError(413, 'too_large', 'A shared bench can be at most 1 MB compressed: save it as a .jekray file instead.');
   const name = cleanName(body.name, 'Untitled bench');
   const n = await linkCount(env, user);

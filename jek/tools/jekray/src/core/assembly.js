@@ -93,13 +93,19 @@ export function normRfMc(m) {
   });
   return { keys, configs, active: Math.round(clamp(num(m.active, 0), 0, configs.length - 1)) };
 }
+/* where a design on a bench came from: the .optic it is a copy of (io/designs.js), by its uid, and when it is in the
+   cloud its bench id and the version copied */
+export function normOpticSrc(s) {
+  if (!s || typeof s !== 'object' || typeof s.uid !== 'string' || !/^[A-Za-z0-9_-]{8,40}$/.test(s.uid)) return null;
+  return { uid: s.uid, ...(typeof s.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(s.id) ? { id: s.id } : {}), ...(Number.isInteger(s.v) && s.v > 0 ? { v: s.v } : {}) };
+}
 export function normAssemblies(list, els) {
   const groups = new Set(els.filter(e => e.group).map(e => e.group)), out = [], seen = new Set();
   for (const a of Array.isArray(list) ? list : []) {
     if (!a || typeof a.id !== 'string' || !groups.has(a.id) || seen.has(a.id)) continue;
     seen.add(a.id);
     const ref = els.find(e => e.id === a.ref && e.group === a.id) || els.find(e => e.group === a.id && asmKind(e) === 'lens') || els.find(e => e.group === a.id);
-    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, ...(a.lock === true ? { lock: true } : {}), ...(isFinite(a.z) && a.z !== null ? { z: +a.z } : {}), cond: normCond(a.cond), ...(a.design ? { design: normDesign(a.design) } : {}), ...(a.kind === 'rf' ? { kind: 'rf', rf: normRfCond(a.rf), ...(a.rfTol && typeof a.rfTol === 'object' ? { rfTol: JSON.parse(JSON.stringify(a.rfTol)) } : {}), ...(a.rfOpt && typeof a.rfOpt === 'object' ? { rfOpt: JSON.parse(JSON.stringify(a.rfOpt)) } : {}), ...(normRfMc(a.rfMc) ? { rfMc: normRfMc(a.rfMc) } : {}) } : a.kind === 'optical' ? { kind: 'optical' } : {}) });
+    out.push({ id: a.id, name: String(a.name || 'Assembly').slice(0, 80), bench: ref.bench, ref: ref.id, rev: a.rev === true, ...(normOpticSrc(a.src) ? { src: normOpticSrc(a.src) } : {}), ...(a.lock === true ? { lock: true } : {}), ...(isFinite(a.z) && a.z !== null ? { z: +a.z } : {}), cond: normCond(a.cond), ...(a.design ? { design: normDesign(a.design) } : {}), ...(a.kind === 'rf' ? { kind: 'rf', rf: normRfCond(a.rf), ...(a.rfTol && typeof a.rfTol === 'object' ? { rfTol: JSON.parse(JSON.stringify(a.rfTol)) } : {}), ...(a.rfOpt && typeof a.rfOpt === 'object' ? { rfOpt: JSON.parse(JSON.stringify(a.rfOpt)) } : {}), ...(normRfMc(a.rfMc) ? { rfMc: normRfMc(a.rfMc) } : {}) } : a.kind === 'optical' ? { kind: 'optical' } : {}) });
   }
   return out;
 }

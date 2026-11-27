@@ -9,7 +9,7 @@ import { frame } from '../../core/mask.js';
 import { FSYM, bodyFill, ctx, drawPorts, getCss, pathLocal, roundRect, selInk, sx, sy } from '../render.js';
 import { FC, FC_W, fcH, thruPartner } from '../../engines/fibre.js';
 import { osaSection, signalSection } from '../instruments.js';
-import { helpLine, bindSync, coherenceFields, coherenceNote, panel, param, renderPanel, selectField, textField } from '../panel.js';
+import { helpLine, bindSync, coherenceFields, coherenceNote, panel, param, renderPanel, selectField, textField, readRow } from '../panel.js';
 import { h } from '../dom.js';
 import { pulseLine, pulseToggle, readoutBox, partnerSection } from '../panels.js';
 
@@ -88,6 +88,11 @@ function fcompPanel(el) {
       panel.append(prow, pl);
     }
   }
+  // a figure or two that follow from a component's settings alone, among them
+  { const sg = v => String(+(+v).toPrecision(4)), pick = { voa: () => [{ name: 'Passes', unit: '%', read: () => sg(100 * Math.pow(10, -Math.max(0, el.att) / 10)) }],
+      coupler: () => [{ name: 'Straight through', unit: '%', read: () => sg(100 - el.ratio), title: 'What stays on the fibre it came in on, before the excess loss.' }],
+      delay: () => [{ name: 'As fibre', unit: 'mm', read: () => sg(el.delay * 0.299792458 / 1.468), title: 'The length of fibre that delays light as long, at a group index of 1.468.' }] }[el.kind];
+    if (pick) for (const r of pick()) rows.append(readRow(r)); }
   if (el.kind === 'thru') rows.append(textField('Pair name', () => el.pair, v => { el.pair = v.trim().slice(0, 60) || el.pair; }, { wide: true }));
   if (el.kind !== 'laser' && el.kind !== 'pd' && el.kind !== 'split') panel.append(rows);
   if (el.kind === 'eom') rows.append(selectField('Modulates', [['phase', 'Phase (sidebands J\u2099(\u03b2))'], ['amplitude', 'Amplitude (Mach\u2013Zehnder)']], () => el.emode, v => { el.emode = v; }, { wide: true }));

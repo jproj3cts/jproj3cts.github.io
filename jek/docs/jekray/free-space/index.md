@@ -336,18 +336,16 @@ with $$\theta_\parallel$$ the beam's angle to the face's normal across and $$\th
 <ul class="dx-cards">
   <li><a class="free" href="/jek/docs/jekray/free-space/source/"><b>Source</b><small>A ray fan and a Gaussian beam: coherence, M², higher-order modes, pulses, fibre launch.</small></a></li>
   <li><a class="free" href="/jek/docs/jekray/free-space/lamp/"><b>Lamp</b><small>A point that shines all round: a lighthouse’s lamp, a bulb.</small></a></li>
-  <li><a class="free" href="/jek/docs/jekray/free-space/detector/"><b>Photodetector</b><small>A photodiode and amplifier: DC, beat notes, noise and demodulation.</small></a></li>
   <li><a class="free" href="/jek/docs/jekray/free-space/screen/"><b>Screen</b><small>Spots, profiles, PSF and MTF, aberrations, pulses and optical traps.</small></a></li>
-  <li><a class="free" href="/jek/docs/jekray/free-space/scattering/"><b>Scattering by a particle</b><small>A sphere by Lorenz–Mie, a rod or spheroid as an array of dipoles, in a tight focus or a wide beam.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray/free-space/detector/"><b>Photodetector</b><small>A photodiode and amplifier: DC, beat notes, noise and demodulation.</small></a></li>
   <li><a class="free" href="/jek/docs/jekray/free-space/spectrometer/"><b>Spectrometer</b><small>Counts against wavelength through a slit or fibre entrance: resolution, saturation, signal-to-noise.</small></a></li>
-  <li><a class="free" href="/jek/docs/jekray/free-space/fibre-tip/"><b>Fibre tip</b><small>Into a fibre by mode overlap, and back out as a beam.</small></a></li>
-  <li><a class="free" href="/jek/docs/jekray/free-space/fibre-tip/#collimator"><b>Collimator</b><small>A fibre tip with its lens: a collimated beam out, and in.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray/free-space/scattering/"><b>Scattering by a particle</b><small>A sphere by Lorenz–Mie, a rod or spheroid as an array of dipoles, in a tight focus or a wide beam.</small></a></li>
 </ul>
 
 ### Mirrors
 
 <ul class="dx-cards">
-  <li><a class="free" href="/jek/docs/jekray/free-space/mirror/"><b>Mirror</b><small>Plane, spherical or conic; partly transmitting; chirped.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray/free-space/mirror/"><b>Mirror</b><small>Plane, spherical, parabolic or off-axis; partly transmitting; chirped; steered by signals; a corner-cube retroreflector.</small></a></li>
 </ul>
 
 ### Lenses
@@ -383,6 +381,11 @@ with $$\theta_\parallel$$ the beam's angle to the face's normal across and $$\th
   <li><a class="free" href="/jek/docs/jekray/free-space/gain/"><b>Gain medium</b><small>A saturable gain sheet that makes a cavity lase.</small></a></li>
   <li><a class="free" href="/jek/docs/jekray/free-space/cell/"><b>Vapour cell</b><small>Rb, Cs or K: absorption, saturation, Zeeman.</small></a></li>
   <li><a class="free" href="/jek/docs/jekray/free-space/nlc/"><b>Nonlinear crystal</b><small>Second-harmonic generation in PPLN or PPKTP.</small></a></li>
+</ul>
+
+### Modulators
+
+<ul class="dx-cards">
   <li><a class="free" href="/jek/docs/jekray/free-space/aom/"><b>AOM</b><small>A Bragg cell: deflection and a frequency shift.</small></a></li>
   <li><a class="free" href="/jek/docs/jekray/free-space/eom/"><b>EOM</b><small>Phase sidebands, or amplitude modulation.</small></a></li>
   <li><a class="free" href="/jek/docs/jekray/free-space/chopper/"><b>Optical chopper</b><small>A slotted wheel, with a reference for a lock-in.</small></a></li>
@@ -392,4 +395,6 @@ with $$\theta_\parallel$$ the beam's angle to the face's normal across and $$\th
 
 <ul class="dx-cards">
   <li><a class="free" href="/jek/docs/jekray/free-space/link/"><b>Link plane</b><small>Joins two tabs: one plane seen from two benches.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray/free-space/fibre-tip/"><b>Fibre tip</b><small>Into a fibre by mode overlap, and back out as a beam.</small></a></li>
+  <li><a class="free" href="/jek/docs/jekray/free-space/fibre-tip/#collimator"><b>Collimator</b><small>A fibre tip with its lens: a collimated beam out, and in.</small></a></li>
 </ul>

@@ -14,7 +14,7 @@ import { changed } from '../actions.js';
 import { checkpoint } from '../tabs.js';
 import { asmOf } from '../../core/assembly.js';
 import { makeAssembly } from '../assembly.js';
-import { openLensDesign } from '../lens-workspace.js';
+import { openDesign } from '../../io/designs.js';
 
 /* Mask on the page: drawn on the bench, picked by the pointer, edited in its panel. What it is: parts/mask.js */
 
@@ -73,7 +73,7 @@ function grinPanel(el) {
       D.M.name + ': typical values; these plastics vary with brand, colour and moisture.' + (D.checks.length ? ' Check: ' + D.checks.join(' ') : '')], 'note')));
   // the system it is part of, designed in the RF designer (made an assembly of its own first if it is not one)
   panel.append(h('div', { class: 'rt-rows' }, h('button', { class: 'rt-btn', type: 'button', title: 'Its feed horn’s beam through it to the goal: design the disc and the system in the RF designer',
-    onclick: () => { const a = asmOf(el) || makeAssembly([el]); if (a) openLensDesign(a); } }, 'Design as an RF assembly…')));
+    onclick: () => { const a = asmOf(el) || makeAssembly([el]); if (a) openDesign(a); } }, 'Design as an RF assembly…')));
   mountSection(el);
   panel.append(h('div', { class: 'rt-readout', 'data-readout': 'grin' }));        // the beam at it, kept current
   rfLensPatternSection(el);

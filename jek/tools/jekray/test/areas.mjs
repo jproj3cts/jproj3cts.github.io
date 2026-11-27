@@ -15,8 +15,8 @@ export const AREAS = {
       'src/core/geometry.js', 'src/core/sag.js', 'src/core/coatings.js', 'src/core/metals.js', 'src/core/coatdesign.js', 'src/core/face-pol.js', 'src/core/glass.js', 'src/core/glass-catalog.js', 'src/core/glass-thermal.js',
       'src/core/maths.js', 'src/core/numeric.js', 'src/core/special.js', 'src/core/format.js', 'src/core/colour.js', 'src/core/part-colours.js', 'src/core/freeform.js', 'src/core/diffractive.js', 'src/core/gradient.js', 'src/core/mask.js', 'src/core/traps.js',
       'src/parts/', 'src/ui/parts/', 'src/ui/render.js', 'src/ui/panel.js', 'src/ui/panels.js', 'src/ui/pointer.js', 'src/ui/picker.js', 'src/ui/rail.js', 'src/ui/actions.js', 'src/ui/readouts.js',
-      'src/ui/plots.js', 'src/ui/sweeps.js', 'src/ui/sweep-audit.js', 'src/engines/sweep-store.js', 'src/ui/instruments.js', 'src/ui/optimise.js', 'src/ui/heavy.js', 'src/ui/tours.js', 'src/ui/commands.js', 'src/ui/part-uses.js', 'src/io/figure.js', 'src/io/pdf.js', 'src/io/recent.js', 'src/ui/news.js', 'src/ui/experimental.js', 'src/ui/coat-workspace.js', 'src/io/film-coats.js'],
-    node: ['engines.test.mjs', 'trace-store.test.mjs', 'sweep-store.test.mjs', 'frames-budget.test.mjs', 'part-colours.test.mjs', 'physics-reels.test.mjs', 'physics-gain-aperture.test.mjs', 'physics-diffraction.test.mjs', 'demos.test.mjs', 'parts.test.mjs', 'numeric.test.mjs', 'face-pol.test.mjs', 'coatdesign.test.mjs', 'physics-metal-films.test.mjs', 'zoned.test.mjs', 'grin.test.mjs', 'cyl-roll.test.mjs', 'phosphor.test.mjs', 'phosphor-line.test.mjs', 'pro-gate.test.mjs', 'optimise-stress.test.mjs', 'suppress.test.mjs'],
+      'src/ui/plots.js', 'src/ui/sweeps.js', 'src/ui/sweep-audit.js', 'src/ui/steer.js', 'src/engines/sweep-store.js', 'src/ui/instruments.js', 'src/ui/optimise.js', 'src/ui/heavy.js', 'src/ui/tours.js', 'src/ui/commands.js', 'src/ui/part-uses.js', 'src/io/figure.js', 'src/io/pdf.js', 'src/io/recent.js', 'src/ui/news.js', 'src/ui/experimental.js', 'src/ui/coat-workspace.js', 'src/io/film-coats.js'],
+    node: ['engines.test.mjs', 'trace-store.test.mjs', 'sweep-store.test.mjs', 'frames-budget.test.mjs', 'part-colours.test.mjs', 'physics-reels.test.mjs', 'physics-mirror-kinds.test.mjs', 'physics-gain-aperture.test.mjs', 'physics-diffraction.test.mjs', 'demos.test.mjs', 'parts.test.mjs', 'numeric.test.mjs', 'face-pol.test.mjs', 'coatdesign.test.mjs', 'physics-metal-films.test.mjs', 'zoned.test.mjs', 'grin.test.mjs', 'cyl-roll.test.mjs', 'phosphor.test.mjs', 'phosphor-line.test.mjs', 'pro-gate.test.mjs', 'optimise-stress.test.mjs', 'suppress.test.mjs'],
     demos: true,
     browser: ['Materials and dispersion', 'Paraxial optics', 'Geometric tracing', 'Fresnel, coatings and polarisation', 'Thin-film coatings', 'Optical path and interference', 'Gaussian beams',
       'Stops and masks on the field', 'Measurements and the ray fan', 'Off-axis apertures, near and far', 'Tolerancing', 'System, absorption and screens', 'A beam across an element’s edge',
@@ -61,10 +61,10 @@ export const AREAS = {
     browser: ['The 3D view', 'STL objects', 'The field in 3D', 'Mates and groups in 3D'],   // The 3D view is two groups of that name
   },
   'lens-design': {
-    what: 'the Optical designer: assemblies, the sequential engine, analyses, optimiser, tolerancing, drawings, report',
-    src: ['src/engines/lens-', 'src/core/assembly.js', 'src/ui/lens-', 'src/ui/assembly.js', 'src/ui/pro.js', 'src/core/part-make.js', '../jekfilm/src/core/', '../jekfilm/src/io/film-pages.js'],
+    what: 'the Optics designer: its page and .optic files, the benches using them, assemblies, the sequential engine, analyses, optimiser, tolerancing, drawings, report',
+    src: ['src/engines/lens-', 'src/core/assembly.js', 'src/io/designs.js', 'src/ui/lens-', 'src/ui/assembly.js', 'src/ui/pro.js', 'src/core/part-make.js', '../jekfilm/src/core/', '../jekfilm/src/io/film-pages.js'],
     node: ['lens-', 'optimise-stress.test.mjs', 'assembly.test.mjs', 'cad-export.test.mjs', 'zmx-cb.test.mjs', 'pro-gate.test.mjs'],
-    browser: ['Surfaces: holes, stacks and mirror coatings', 'Import, files and tools', 'The Optical designer', 'The Optical designer and the workspaces'],
+    browser: ['Surfaces: holes, stacks and mirror coatings', 'Import, files and tools', 'The Optics designer', 'The Optics designer and its files', 'The Optics designer and the workspaces'],
   },
   rf: {
     what: 'RF: horns, antennas, metal and dielectric parts, graded and zoned lenses, the RF designer',

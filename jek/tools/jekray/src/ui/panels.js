@@ -29,7 +29,7 @@ import { snapVal } from './pointer.js';
 import { CONNS, FIBRE_N, netPower, pkey, portName, portsOf } from '../engines/fibre.js';
 import { signalSection } from './instruments.js';
 import { refNm } from './optimise.js';
-import { helpLine, beginEdit, bindSync, endEdit, fid, numInput, panel, param, renderPanel, selectBox, selectField, setFid, syncPanel, vs } from './panel.js';
+import { helpLine, beginEdit, bindSync, endEdit, fid, numInput, panel, param, propTable, renderPanel, selectBox, selectField, setFid, syncPanel, vs } from './panel.js';
 import { h } from './dom.js';
 import {
   askForGlass, askForMaterial, axisFont, diffractionSection, drawAxes, glassNote, materialOptions, pickMaterial, plotArea,
@@ -115,12 +115,18 @@ export function pulseSection(el) {
     const rows = [];
     if (!R) rows.push(['', 'No pulsed source reaches it. Give a source (or a fibre laser) a pulse duration.']);
     else {
-      rows.push(['Duration (FWHM)', R.dur ? fmtFs(R.dur) + (R.tl ? ', ' + (+(R.dur / R.tl).toPrecision(3)) + '× its transform limit (' + fmtFs(R.tl) + ')' : '') : 'more than one pulse: see below']);
-      rows.push(['Peak power', fmtW(R.peak) + (R.parts.length === 1 ? ', ' + fmtJ(R.parts[0].energy) + ' a pulse' : '')]);
+      // a figure a row: the duration and how it stands against its limit, the peak and a pulse's energy, then each pulse's
+      // delay and dispersion
+      const many = R.branches.length > 1;
+      rows.push(['Duration (FWHM)', R.dur ? fmtFs(R.dur) : 'more than one pulse: see below']);
+      if (R.dur && R.tl) rows.push(['Transform limit', fmtFs(R.tl) + ' (' + (+(R.dur / R.tl).toPrecision(3)) + '\u00d7 it)']);
+      rows.push(['Peak power', fmtW(R.peak)]);
+      if (R.parts.length === 1) rows.push(['Energy a pulse', fmtJ(R.parts[0].energy)]);
       for (const b of R.branches) {
-        rows.push(['Pulse ' + b.n + (R.branches.length > 1 ? ' (' + (+(100 * b.share).toPrecision(3)) + '%)' : ''),
-          (R.branches.length > 1 ? 'arrives ' + fmtFs(b.arrive) + ' after the first; ' : 'after ' + fmtFs(b.GD) + '; ') +
-          'GDD ' + fmtFs2(b.GDD) + ', TOD ' + fmtFs3(b.TOD) + (b.shown ? '' : ' (not in the plot: too far off)')]);
+        const who = many ? 'Pulse ' + b.n + ' ' : '';
+        rows.push(many ? ['Pulse ' + b.n + ' (' + (+(100 * b.share).toPrecision(3)) + '%)', fmtFs(b.arrive) + ' after the first'] : ['Delay', fmtFs(b.GD)]);
+        rows.push([who + 'GDD', fmtFs2(b.GDD)], [who + 'TOD', fmtFs3(b.TOD)]);
+        if (!b.shown) rows.push(['', (many ? 'Pulse ' + b.n : 'It') + ' is not in the plot: too far off.']);
         const sig3 = (v, eps) => Math.abs(v) < eps ? '0' : String(+v.toPrecision(3));
         if (Math.abs(b.chirpY) > 1e-4 || b.pft > 0.01) rows.push(['', 'spatial chirp ' + sig3(1000 * b.chirpY, 0.05) + ' µm/nm, angular dispersion ' + sig3(1e6 * b.angD, 0.005) + ' µrad/nm, pulse-front tilt ' + sig3(b.pft, 0.005) + '°']);
       }
@@ -327,17 +333,15 @@ function rayPlots(el) {
   for (const [v, t] of RAY_PLOTS) sel.append(h('option', { value: v }, t));
   sel.value = vs(el).rayView;
   sel.addEventListener('change', () => { vs(el).rayView = sel.value; renderPanel(); });
-  const rows = h('div', { class: 'rt-rows' }, h('div', { class: 'rt-f wide' }, h('label', { for: sel.id }, 'Plot'), sel));
+  const rows = propTable(el, [{ name: 'Plot', cell: sel }]);
   panel.append(rows);
 
   const cv = h('canvas', { height: '170', style: 'width:100%;display:block' });
   const note = h('p', { class: 'note', style: 'margin-top:0.4rem' });
   const getZ = () => plotZoom(el, 'ray-' + vs(el).rayView), redraw = () => drawRayPlot(cv, note, el);
   panel.append(h('div', { style: 'margin-top:0.35rem' }, plotFrame(cv, () => 'ray-' + vs(el).rayView, getZ, redraw)),
-    zoomControls(cv, getZ, redraw, () => vs(el).rayView === 'power'), note);
+    zoomControls(cv, getZ, redraw, () => vs(el).rayView === 'power', dataBtn(el)), note);
   bindSync(cv, () => drawRayPlot(cv, note, el));
-  panel.append(h('div', { class: 'rt-actions' },
-    acctMark(h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)'), 'export a screen\u2019s data')));
 }
 
 const ABER_PLOTS = [
@@ -362,7 +366,7 @@ function aberSection(el) {
   for (const [v, t] of ABER_PLOTS) sel.append(h('option', { value: v }, t));
   sel.value = vs(el).aberView;
   sel.addEventListener('change', () => { vs(el).aberView = sel.value; renderPanel(); });
-  panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.4rem' }, h('div', { class: 'rt-f wide' }, h('label', { for: sel.id }, 'Plot'), sel)));
+  panel.append(propTable(el, [{ name: 'Plot', cell: sel }]));
   const cv = h('canvas', { height: '200', style: 'width:100%;display:block' });
   const note = h('p', { class: 'note', style: 'margin-top:0.4rem' });
   const box = h('div', { class: 'rt-readout' });
@@ -541,13 +545,14 @@ function drawRayPlot(cv, note, el) {
       : ' Every ray lands at the beam height: give a source a pattern across the beam (a cross, a grid or hexapolar rings, with the 3D view on) to spread them up and down.') : '');
 }
 
+/* a part's data saved from beside a plot's own PNG and CSV: the same small button, "Data" (its full words for a screen
+   reader, and in its tooltip) */
+const dataBtn = el => h('button', { class: 'rt-zb', type: 'button', 'data-short': 'Data', title: 'Export data (CSV): everything this part records, its rays, its plots and what it reads', onclick: () => exportScreen(el) }, 'Export data (CSV)');
 function screenPlots(el) {
-  panel.append(h('div', { class: 'rt-rows' }, param('MTF quoted at (lp/mm)', el, 'mtfFreq', { wide: true }),
-    selectField('Focus model', [['auto', 'Vector when steep (NA above 0.3)'], ['on', 'Always vector'], ['off', 'Paraxial only']],
-      () => el.vectorFocus, v => { el.vectorFocus = v; }, { wide: true })));
-  diffractionSection(el);
-  panel.append(h('div', { class: 'rt-actions' },
-    acctMark(h('button', { class: 'rt-btn', onclick: () => exportScreen(el) }, 'Export data (CSV)'), 'export a screen\u2019s data')));
+  panel.append(propTable(el, [{ name: 'MTF quoted at', path: 'mtfFreq', unit: 'lp/mm' },
+    { name: 'Focus model', choose: [['auto', 'Vector when steep'], ['on', 'Always vector'], ['off', 'Paraxial only']], get: () => el.vectorFocus, set: v => { el.vectorFocus = v; },
+      title: 'How a steep focus is worked out: the vector model once the beam\u2019s NA is above 0.3, always, or the paraxial one only' }]));
+  diffractionSection(el, dataBtn(el));
 }
 
 /* a surface's coating, the list alone (the lens's face table) */
@@ -557,15 +562,15 @@ export function coatingSelect(el, holder, label) {
 function coatingOptions(el, short, holder) {
   return [['bare', short ? 'Uncoated' : el.mmw ? 'Uncoated face (its own reflection)' : 'Uncoated (about 4% a face)'], ['ar', 'AR coated'], ['band', 'Coated over a band'],
     ['custom', 'Custom reflectance'], ['stack', 'Thin-film stack'], ['mirror', 'Mirror coating'], ['hr', short ? 'Dielectric HR' : 'Dielectric HR (over a band)'], ...(el.mmw ? [['match', short ? 'Matching layer' : 'Matching layer (\u03bb/4 at the bench frequency)']] : []),
-    ['design', el.mmw ? 'Design a matching layer\u2026' : 'Design a coating in JEKfilm\u2026'], ...(hooks.keptCoatings ? hooks.keptCoatings().map(k => ['kept:' + k.id, '\u2605 ' + k.name]) : []),
+    ['design', el.mmw ? 'Design a matching layer\u2026' : 'Design a coating\u2026'], ...(hooks.keptCoatings ? hooks.keptCoatings().map(k => ['kept:' + k.id, '\u2605 ' + k.name]) : []),
     // JEKfilm's coatings: those in the bench's cloud folder, the one this face is linked to, and a .jekfilm file
-    ...filmOptions(holder), ...(hooks.filmFileOn ? [['filmfile', 'A JEKfilm coating from a file\u2026']] : [])];
+    ...filmOptions(holder), ...(hooks.filmFileOn ? [['filmfile', 'A coating from a file (.coat)\u2026']] : [])];
 }
 /* the ◆ entries: each JEKfilm coating in the cloud bench's folder, and the face's own linked one if it is elsewhere */
 function filmOptions(holder) {
   const list = hooks.filmFolder ? hooks.filmFolder() : [], src = holder && holder.coat && holder.coat.src;
-  const out = list.map(f => ['film:' + f.id, '\u25c6 ' + f.name + ' (JEKfilm)']);
-  if (src && !list.some(f => f.id === src.id)) out.push(['film:' + src.id, '\u25c6 ' + (holder.coat.label || 'JEKfilm coating') + ' (JEKfilm)']);
+  const out = list.map(f => ['film:' + f.id, '\u25c6 ' + f.name + ' (Coating designer)']);
+  if (src && !list.some(f => f.id === src.id)) out.push(['film:' + src.id, '\u25c6 ' + (holder.coat.label || 'Coating') + ' (Coating designer)']);
   return out;
 }
 const coatingValue = (el, holder) => (holder.coat.src ? 'film:' + holder.coat.src.id : holder.coat.label === 'Matching layer' && el.mmw ? 'match' : holder.coat.mode === 'band' && holder.coat.label === 'Dielectric HR' ? 'hr' : holder.coat.mode);
@@ -637,10 +642,10 @@ function filmNote(holder) {
   const c = holder.coat, f = (hooks.filmFolder ? hooks.filmFolder() : []).find(x => x.id === c.src.id);
   const newer = f && f.version > c.src.v;
   return h('div', { class: 'note rt-filmnote', style: 'margin-top:0.4rem' },
-    c.layers.length + (c.layers.length === 1 ? ' layer' : ' layers') + ' at ' + c.design + ' nm, from the JEKfilm coating “' + (c.label || 'coating') + '”, version ' + c.src.v + (newer ? ' (version ' + f.version + ' is saved)' : '') + '. ',
+    c.layers.length + (c.layers.length === 1 ? ' layer' : ' layers') + ' at ' + c.design + ' nm, from the coating “' + (c.label || 'coating') + '”, version ' + c.src.v + (newer ? ' (version ' + f.version + ' is saved)' : '') + '. ',
     newer ? h('button', { class: 'rt-link', type: 'button', onclick: () => { if (hooks.updateFilms) hooks.updateFilms([{ id: f.id, name: f.name, from: c.src.v, to: f.version, holders: [holder] }]); } }, 'Update this face') : null,
     newer ? ' ' : null,
-    h('button', { class: 'rt-link', type: 'button', onclick: () => { if (hooks.openFilm) hooks.openFilm(c.src.id); } }, 'Open in JEKfilm'));
+    h('button', { class: 'rt-link', type: 'button', onclick: () => { if (hooks.openFilm) hooks.openFilm(c.src.id); } }, 'Open in the Coating designer'));
 }
 function stackRows(el, holder) {
   const base = coatPath(el, holder);
@@ -1107,7 +1112,7 @@ export function groupPanel(list) {
     h('button', { class: 'rt-btn danger', type: 'button', onclick: () => removeEls(list) }, 'Delete')));
   // lenses and stops on one axis: one assembly, to design as one
   const mk = makeAssemblyRow(list);
-  if (mk) { panel.append(h('h3', null, 'Optical designer')); panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' }, mk)); }
+  if (mk) { panel.append(h('h3', null, 'Optics designer')); panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;gap:0.35rem' }, mk)); }
   if (project.benches.length > 1) panel.append(h('div', { class: 'rt-rows', style: 'margin-top:0.5rem' },
     selectField('Move to tab', [['', 'Choose a tab\u2026'], ...project.benches.map(b => [b.id, b.name])], () => '', v => { if (v) moveToTab(list, v); }, { wide: true })));
   panel.append(helpLine('Drag any of them to move them all; right-click for more.', ['Drag any of them to move them all; the arrow keys nudge them. Shift- or Ctrl-click an element to add it or take it out; drag across empty bench (or empty space in 3D) to pick a boxful (Shift to add to these). Ctrl+C, Ctrl+X and Ctrl+V copy, cut and paste, between tabs and projects too; right-click for the rest. Locked elements stay where they are.'], 'note', 'margin-top:0.6rem'));

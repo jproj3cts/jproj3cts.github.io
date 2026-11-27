@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex" />
 <title>JEKray regression tests</title>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261121">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261126">
 <style>
   .tt-wrap { width: 100%; max-width: 1100px; text-align: left; }
   .tt-bar {
@@ -84,6 +84,10 @@
         <button type="button" class="nav-drop-btn" aria-expanded="false">Tools</button>
         <span class="nav-drop-menu">
           <a href="/jek/tools/jeksuite.html">JEKsuite</a>
+          <a href="/jek/tools/jekray.html">JEKray</a>
+          <a class="nav-sub" href="/jek/tools/jekray.html?optic">Optics designer</a>
+          <a class="nav-sub" href="/jek/tools/jekfilm.html">Coating designer</a>
+          <a href="/jek/tools/jekcad.html">JEKcad</a>
           <a href="/jek/calculators/">Calculators</a>
         </span>
       </span> |
@@ -1537,7 +1541,7 @@ const TESTS = [
       const doc = rigDoc(), lens = (surfaces, gaps, materials, d) => J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', id: 'S', name: 'L', x: -40, y: 0, angle: 0, wavelength: 587.6, width: 4, rays: 5 },
         { type: 'lens', id: 'Le', name: 'Lens', x: 0, y: 0, angle: 0, diameter: d || 25.4, surfaces, gaps, materials }] });
       lens([{ R: 51.5 }, { R: null }], [4], [{ glass: 'N-BK7' }]); J.select('Lens'); await frame(); await frame();
-      const drawn = !!doc.querySelector('#panel canvas.rt-lensdiag') && doc.querySelectorAll('#panel .rt-pgrid2').length >= 2 && [...doc.querySelectorAll('#panel .rt-facegrid .rt-facenum')].map(x => x.textContent).join() === '1,2' && !!doc.querySelector('#panel input[aria-label="Radius of face 1 (mm)"]') && !!doc.querySelector('#panel select[aria-label="Coating of face 2"]');
+      const drawn = !!doc.querySelector('#panel canvas.rt-lensdiag') && doc.querySelectorAll('#panel .rt-pt').length >= 2 && [...doc.querySelectorAll('#panel .rt-facegrid .rt-facenum')].map(x => x.textContent).join() === '1,2' && !!doc.querySelector('#panel input[aria-label="Radius of face 1 (mm)"]') && !!doc.querySelector('#panel select[aria-label="Coating of face 2"]');
       const fl = [...doc.querySelectorAll('#panel label')].find(l => l.textContent === 'Focal length (mm)'), inp = fl && doc.getElementById(fl.htmlFor);
       inp.value = '50'; inp.dispatchEvent(new (rigWin().Event)('change')); await frame();
       const L = J.byName('Lens'), f = J.paraxial('Lens', 587.6).efl, focal = Math.abs(f - 50) < 1e-6 && L.surfaces[1].R === null && Math.abs(L.surfaces[0].R / 51.5 - 50 / 99.984) < 0.02;
@@ -1580,6 +1584,64 @@ const TESTS = [
       const ok = pairOk && lines === '486.1,656.3' && shown === '486.1, 656.3' && typed && lampOk && hex && pd && ps;
       if (!ok) console.log('source panel', { pairOk, lines, shown, typed, lampOk, ln, hex, pd, ps });
       return ok ? 1 : 0;
+    },
+  },
+  {
+    name: 'A steering mirror stands where its drive puts it, is played when its drive is slow, and unticking Steered by signals takes its inputs and wires away',
+    why: 'a mirror steered by signals has turn and tip inputs for the circuits. A steering mirror at 2° per volt wired from a 1 V DC source: the bench shows it 2° from rest (its pose, and the beam off it turned 4°), its Angle still reads 135, and its panel says "Now +2° turned". Driven at 0.5 Hz it is played: its pose changes from one moment to the next. Driven at 1 kHz it is not, and stands at the drive’s mean. Unticked, the mirror is a plain one again (no steer setting), the wire to its input is gone and the Turn box with it; a plain mirror on a bench with no electronics is offered no tick, and a retroreflector none either. 1 when all of that holds.',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const doc = rigDoc(), wait = ms => new Promise(r => setTimeout(r, ms));
+      const labels = () => [...doc.querySelectorAll('#panel label')].map(x => x.textContent);
+      const tick = () => { const l = [...doc.querySelectorAll('#panel label.rt-check')].find(x => /^Steered by signals/.test(x.textContent)); return l && l.querySelector('input'); };
+      const parts = [{ type: 'source', id: 'S', name: 'S', x: 0, y: 0, angle: 0, wavelength: 633, width: 0, rays: 1 }, { type: 'mirror', id: 'M', name: 'Galvo', x: 100, y: 0, angle: 135, steer: true, steerK: 2 }];
+      const bench = gen => ({ format: 'jekray', version: 1, elements: [...parts, gen], fibres: [{ a: ['G', 0], b: ['M', 0], wire: true }] });
+      const gen = (f, offset) => ({ type: 'elec', kind: 'sig', id: 'G', name: 'G', x: 40, y: 60, f, amp: 1, offset, wave: 'sine' });
+      J.load(bench({ type: 'elec', kind: 'dc', id: 'G', name: 'V', x: 40, y: 60, v: 1 }));
+      J.select('Galvo');
+      const wires = () => (J.project().fibres || []).filter(F => F.wire).length;
+      // the ray's last leg, off the mirror: 4 degrees from straight up the bench (90\u00b0)
+      const off = J.rays().map(r => r.angle).pop() - 90;
+      const note = () => (doc.getElementById('steerNow') || {}).textContent || '';
+      const dc = !!tick() && tick().checked && labels().includes('Turn (° per V)') && wires() === 1 && Math.abs(J.steerPose('Galvo')[0] - 2) < 1e-9 && Math.abs(Math.abs(off) - 4) < 1e-6 && J.byName('Galvo').angle === 135 && /Now \+2° turned/.test(note());
+      // slow: played
+      J.load(bench(gen(0.5, 0))); J.select('Galvo');
+      const seen = [];
+      for (let i = 0; i < 8; i++) { await wait(120); seen.push(J.steerPose('Galvo')[0]); }
+      const slow = J.steerPlaying() && Math.max(...seen) - Math.min(...seen) > 0.3 && seen.every(v => Math.abs(v) <= 2 + 1e-9) && J.byName('Galvo').angle === 135 && /shows it moving/.test(note());
+      // quick: at its mean
+      J.load(bench(gen(1000, 0.5))); J.select('Galvo');
+      await wait(200);
+      const quick = !J.steerPlaying() && Math.abs(J.steerPose('Galvo')[0] - 1) < 1e-9 && /not drawn/.test(note());
+      tick().click();
+      const un = !!tick() && !tick().checked && !labels().includes('Turn (° per V)') && wires() === 0 && J.byName('Galvo').steer === undefined && J.steerPose('Galvo')[0] === 0;
+      tick().click();
+      const again = tick().checked && J.byName('Galvo').steer === true && J.byName('Galvo').steerK === 1;
+      J.load({ format: 'jekray', version: 1, elements: [parts[0], { type: 'mirror', id: 'M', name: 'Plain', x: 100, y: 0, angle: 135 }] });
+      J.select('Plain');
+      let none = !tick();
+      J.load({ format: 'jekray', version: 1, elements: [parts[0], { type: 'mirror', id: 'M', name: 'Cube', x: 100, y: 0, angle: 180, retro: true }, { type: 'elec', kind: 'dc', id: 'G', name: 'V', x: 40, y: 60, v: 1 }] });
+      J.select('Cube');
+      none = none && !tick() && labels().includes('Opening (mm)') && !labels().includes('Radius (mm)');
+      if (!(dc && slow && quick && un && again && none)) console.log('steering mirror', JSON.stringify({ dc, slow, quick, un, again, none, off, seen, note: note(), pose: J.steerPose('Galvo') }));
+      return dc && slow && quick && un && again && none ? 1 : 0;
+    },
+  },
+  {
+    name: 'A lamp is one part: its Shines setting makes it shine every way or round the bench plane only',
+    why: 'the Lamp and the Circular lamp were two entries in the parts list for one part. Now the free-space list has one Lamp entry and no Circular lamp, and a lamp’s panel has a Shines list. Set to round the bench plane only, the lamp is flat (a point, no light up and down, 180 rays); set back to every way it is a new lamp’s (1 mm across, 90° up and down, 500 rays), and the list shows each. 1 when all of that holds.',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const doc = rigDoc();
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lamp', id: 'L', name: 'Bulb', x: 0, y: 0 }] });
+      J.select('Bulb');
+      const sel = () => { const l = [...doc.querySelectorAll('#panel label')].find(x => x.textContent === 'Shines'); return l && doc.getElementById(l.htmlFor); };
+      const set = v => { const s = sel(); s.value = v; s.dispatchEvent(new Event('change', { bubbles: true })); };
+      if (!sel() || sel().value !== '3d') return 0;
+      set('2d'); const a = J.byName('Bulb'), flat = a.lampFlat === true && a.lampD === 0 && a.elev === 0 && a.rays === 180 && sel().value === '2d';
+      set('3d'); const b = J.byName('Bulb'), round = b.lampFlat === false && b.lampD === 1 && b.elev === 90 && b.rays === 500 && sel().value === '3d';
+      if (!(flat && round)) console.log('lamp shines', JSON.stringify({ flat, round, a: [a.lampFlat, a.lampD, a.elev, a.rays], b: [b.lampFlat, b.lampD, b.elev, b.rays] }));
+      return flat && round ? 1 : 0;
     },
   },
   {
@@ -7506,7 +7568,7 @@ const TESTS = [
       J.load(JSON.parse(getDemo('michelson')));
       J.select('Fixed mirror');
       const doc = document.getElementById('rig').contentDocument;
-      const tog = t => doc.querySelector('#panel label[for="' + [...doc.querySelectorAll('#panel label')].find(x => x.textContent === t).htmlFor + '"]').closest('.rt-pcell, .rt-f').querySelector('.rt-sweep-toggle');
+      const tog = t => doc.querySelector('#panel label[for="' + [...doc.querySelectorAll('#panel label')].find(x => x.textContent === t).htmlFor + '"]').closest('.rt-pcell, .rt-f, .rt-pt-row').querySelector('.rt-sweep-toggle');
       tog('X (mm)').click();
       const a = !!doc.querySelector('#panel .rt-sweep') && J.byName('Fixed mirror').sweeps.x;
       tog('Z (mm)').click();
@@ -7534,7 +7596,7 @@ const TESTS = [
       J.load(JSON.parse(getDemo('michelson')));
       J.select('Fixed mirror');
       const doc = document.getElementById('rig').contentDocument;
-      const swept = ['Z (mm)', 'Tip (\u00b0)', 'Roll (\u00b0)'].every(t => { const l = [...doc.querySelectorAll('#panel label')].find(x => x.textContent === t); return l && l.closest('.rt-pcell, .rt-f').querySelector('.rt-sweep-toggle'); });
+      const swept = ['Z (mm)', 'Tip (\u00b0)', 'Roll (\u00b0)'].every(t => { const l = [...doc.querySelectorAll('#panel label')].find(x => x.textContent === t); return l && l.closest('.rt-pcell, .rt-f, .rt-pt-row').querySelector('.rt-sweep-toggle'); });
       J.setParam('Fixed mirror', 'z', 120); J.setParam('Fixed mirror', 'tip', 2); J.setParam('Fixed mirror', 'roll', 190);
       const m = J.byName('Fixed mirror'), set = m.z === 120 && m.tip === 2 && m.roll === -170;
       J.setParam('Fixed mirror', 'z', 75);
@@ -8320,7 +8382,7 @@ const TESTS = [
     },
   },  { group: 'Surfaces: holes, stacks and mirror coatings' },
   {
-    name: 'A solid telescope of two stacked faces focuses behind its centre where the Optical designer says; a Mangin mirror folds',
+    name: 'A solid telescope of two stacked faces focuses behind its centre where the Optics designer says; a Mangin mirror folds',
     why: 'a block of N-BK7 40 mm thick: a flat front with a hole of 16.5 and a flat mirror-coated spot stacked in it, a back R −200 mirror coated (aluminium) with a hole of 6.5 and a flat stacked in it: rays entering round the spot come to a focus about 12.8 mm behind the block; the assembly’s prescription has four rows, each surface met once, in the order the light meets them, with the holes as obscurations; the designer’s path and the bench’s rays agree; a Mangin mirror (its back mirror coated) brings the light back and folds the axis (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
@@ -8444,7 +8506,7 @@ const TESTS = [
   },
   {
     name: 'Search commands (Ctrl+K) finds the menus’ items by their words and runs the one chosen',
-    why: 'Ctrl+K opens a box; “coating” finds Tools › Coating design in JEKfilm first, and Enter opens JEKfilm in its tab; “png” finds the layout exports under File › Export layout; an item hidden in its menu (My benches, signed out) is not offered; a word in no item says nothing matches (1 when all hold)',
+    why: 'Ctrl+K opens a box; “coating” finds Tools › Coating designer first, and Enter opens the Coating designer in its tab; “png” finds the layout exports under File › Export layout; an item hidden in its menu (My benches, signed out) is not offered; a word in no item says nothing matches (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const W = rigWin(), D = rigDoc(), wait = async (f, n = 80) => { for (let k = 0; k < n && !f(); k++) await new Promise(r => setTimeout(r, 25)); return f(); };
@@ -8453,7 +8515,7 @@ const TESTS = [
       const opened = !!dlg && dlg.open;
       const find = q => { input.value = q; input.dispatchEvent(new W.Event('input')); return [...dlg.querySelectorAll('li[role="option"]')].map(li => li.querySelector('.rt-cmdpath').textContent + ' | ' + li.querySelector('.rt-cmdname').textContent); };
       const coat = find('coating');
-      const coatFirst = coat[0] === 'Tools | Coating design in JEKfilm…';
+      const coatFirst = coat[0] === 'Tools | Coating designer…';
       const png = find('png');
       const pngs = png.length === 2 && png.every(x => /^File › Export layout/.test(x));
       const noCloud = !find('my benches').length && !!dlg.querySelector('.rt-cmdnone');
@@ -8633,7 +8695,7 @@ const TESTS = [
   },
   {
     name: 'Parts are found by what they do, not only by their names: in Add part and in Ctrl+K',
-    why: 'Add part’s search “focus” lists the parts named for it first (Focusing mirror) and then the lenses (Lens among them); “measure power” finds the photodetector; Ctrl+K “frequency doubling” offers the nonlinear crystal (1 when all hold)',
+    why: 'Add part’s search “focus” lists the lenses (Lens among them; the RF focusing mirror is JEKrf’s now); “measure power” finds the photodetector; Ctrl+K “frequency doubling” offers the nonlinear crystal (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const W = rigWin(), D = rigDoc();
@@ -8641,7 +8703,7 @@ const TESTS = [
       const search = D.querySelector('.rt-picker input[type="search"], #pickerDialog input');
       const tiles = q => { search.value = q; search.dispatchEvent(new W.Event('input')); return [...D.querySelectorAll('.rt-pbody .rt-pgrid > *')].map(t => t.textContent.trim()); };
       const focus = tiles('focus'), power = tiles('measure power');
-      const byName = /^Focusing mirror/.test(focus[0] || '') && focus.some(t => /^Lens/.test(t)), meas = power.some(t => /^Photodetector/.test(t));
+      const byName = focus.some(t => /^Lens/.test(t)) && !focus.some(t => /^Focusing mirror/.test(t)), meas = power.some(t => /^Photodetector/.test(t));
       search.value = ''; D.body.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       const pk = D.querySelector('dialog[open]'); if (pk) pk.close();
       D.body.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
@@ -8751,11 +8813,11 @@ const TESTS = [
   },
   {
     name: 'The bar holds every palette\u2019s groups, and its switcher changes the mode (in 2D: in 3D there is no switcher)',
-    why: 'the bar across the bench: + Add, the mode (Parts) and the groups of every palette at once (free space, fibre, circuits, RF), a line between palettes; the switcher lists Parts and Draw (in 2D), each with a line of what it is; Draw shows its tools in the bar, Parts brings the groups back; a fibre group\u2019s parts open from the bar with no change of mode (1 when all hold)',
+    why: 'the bar across the bench: + Add, the mode (Parts) and the groups of every palette at once (free space, fibre, circuits: RF is JEKrf’s), a line between palettes; the switcher lists Parts and Draw (in 2D), each with a line of what it is; Draw shows its tools in the bar, Parts brings the groups back; a fibre group\u2019s parts open from the bar with no change of mode (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
       const D = rigDoc(), sw = () => D.getElementById('palSwitch');
-      const pals = ['free', 'fibre', 'elec', 'rf'].every(p => D.querySelectorAll('#rail .rt-rgroup.' + p).length > 0) && D.querySelectorAll('#rail .rt-rsep').length >= 3;
+      const pals = ['free', 'fibre', 'elec'].every(p => D.querySelectorAll('#rail .rt-rgroup.' + p).length > 0) && !D.querySelectorAll('#rail .rt-rgroup.rf').length && D.querySelectorAll('#rail .rt-rsep').length >= 2;
       const start = sw() && /Parts/.test(sw().textContent) && pals;
       sw().click();
       const menu = D.querySelector('.rt-palmenu'), items = [...menu.querySelectorAll('button')];
@@ -9416,8 +9478,8 @@ const TESTS = [
     },
   },
   {
-    name: 'RF is on for everyone, and an RF lens is a part of its own',
-    why: 'the RF tab of parts shows with the experimental switch off and on; an RF lens is labelled as one, its material menu is the RF dielectrics and a constant index only, at the bench’s frequency (150 GHz here), and an optical lens’s menu has none of them (1 when all hold)',
+    name: 'RF is JEKrf’s, and an RF lens is a part of its own',
+    why: 'JEKray’s parts leave out the RF tab with the experimental switch off and on (it is JEKrf’s, ?rf); a bench with RF parts still opens here; an RF lens is labelled as one, its material menu is the RF dielectrics and a constant index only, at the bench’s frequency (150 GHz here), and an optical lens’s menu has none of them (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: J => {
       try {
@@ -9431,7 +9493,7 @@ const TESTS = [
         const rfm = J.materialOptions(J.byName('L1')), opt = J.materialOptions(J.byName('L2'));
         const rfOk = rfm.length === 15 && rfm.some(o => o[1] === 'PTFE (Teflon), n = 1.44 at 150 GHz') && rfm.some(o => o[1] === 'PLA, n = 1.643 at 150 GHz (typical)') && !rfm.some(o => o[0] === 'N-BK7');
         const optOk = !opt.some(o => o[0] === 'HDPE' || o[0] === 'PTFE') && opt.some(o => o[0] === 'N-BK7');
-        return off && on && unticked && label && rfOk && optOk ? 1 : 0;
+        return !off && !on && unticked && label && rfOk && optOk ? 1 : 0;
       } finally { J.experimental(false); }
     },
   },
@@ -10586,7 +10648,7 @@ const TESTS = [
       return F.Gdbi - C.Gdbi;
     },
   },
-  { group: 'The Optical designer' },
+  { group: 'The Optics designer' },
   {
     name: 'Lenses and a stop made an assembly change nothing on the bench, read as one prescription, and split back the same',
     why: 'a Cooke triplet (three lenses and an iris on one axis, a published prescription of 50 mm focal length) and a sensor: made an assembly, the sensor sees exactly what it saw before; the assembly reads as 7 surfaces with the stop the 5th and a focal length of 50 mm; split, the sensor still sees the same and the record is gone; a source can’t join one (1 when all hold)',
@@ -11115,7 +11177,7 @@ const TESTS = [
   },
   { group: 'JEKfilm coatings on the faces' },
   {
-    name: 'A JEKfilm coating from the bench’s cloud folder: offered in a face’s Coating list, put on as a linked copy, offered again when it is saved anew, and unlinked as a plain stack',
+    name: 'A designed coating from the bench’s cloud folder: offered in a face’s Coating list, put on as a linked copy, offered again when it is saved anew, and unlinked as a plain stack',
     why: 'with a V-coat in the bench’s folder (version 3), a lens face’s Coating list offers it as ◆; choosing it fetches it and puts its two layers at 1064 nm on the face, linked as { id, v: 3 }, with a note saying so in place of the layer editor, and a second saying it was designed on fused silica, not this N-BK7, and its reflectance both ways; the folder’s coating saved as version 5 makes the face stale, and updating brings it to version 5 (one step of Undo takes it back); Thin-film stack in the list keeps the layers but drops the link (1 when all hold)',
     want: 1, tol: 0, unit: '',
     run: async J => {
@@ -11130,13 +11192,13 @@ const TESTS = [
         F.list = [{ id: 'c1', name: 'V-coat 1064', version: 3 }];
         J.select('Plate');
         const sel = [...D.querySelectorAll('select')].find(s => [...s.options].some(o => o.value === 'film:c1'));
-        const offered = !!sel && /◆ V-coat 1064 \(JEKfilm\)/.test([...sel.options].find(o => o.value === 'film:c1').textContent);
+        const offered = !!sel && /◆ V-coat 1064 \(Coating designer\)/.test([...sel.options].find(o => o.value === 'film:c1').textContent);
         sel.value = 'film:c1'; sel.dispatchEvent(new W.Event('change'));
         await new Promise(r => setTimeout(r, 300));
         const c = () => J.serialize().elements[0].surfaces[0].coat;
         const put = c().mode === 'stack' && c().design === 1064 && c().layers.length === 2 && c().label === 'V-coat 1064' && c().src && c().src.id === 'c1' && c().src.v === 3;
         J.select('Plate');
-        const noted = /from the JEKfilm coating “V-coat 1064”, version 3/.test((D.querySelector('.rt-filmnote') || {}).textContent || '');
+        const noted = /from the coating “V-coat 1064”, version 3/.test((D.querySelector('.rt-filmnote') || {}).textContent || '');
         // designed on fused silica, put on N-BK7: the design substrate kept, and the note gives both indices and R both ways
         const subText = (D.querySelector('.rt-filmsub') || {}).textContent || '';
         const sub = c().sub && c().sub.name === 'Fused silica' && Math.abs(c().sub.n - 1.44963) < 1e-4 && /Designed on Fused silica \(n 1\.4496\); this face is N-BK7 \(n 1\.5066\)\. R at 1064 nm, square on: .+ as designed, .+ on this glass\./.test(subText);
@@ -11331,7 +11393,7 @@ const TESTS = [
         tab('Design a lens');
         set('Lens kind', 'hyperbolic');
         btn('Use this lens').click();
-        const back = lensEl().type === 'lens' && lensEl().surfaces[0].k < -2 && !!ws().querySelector('#rfWs header [title^="The same parts in the Optical"]');
+        const back = lensEl().type === 'lens' && lensEl().surfaces[0].k < -2 && !!ws().querySelector('#rfWs header [title^="The same parts in the Optics"]');
         rigDoc().querySelector('#rfWs header .rt-btn[title^="Undo"]').click();
         const undone = lensEl().type === 'mask' && !!lensEl().grin;
         const all = raised && disc && flat && apOk && fEdit && fUndo && optF && tolEps && ok && has3d && drawn && quoted && back && undone;
@@ -11563,7 +11625,151 @@ const TESTS = [
       } finally { J.closeLensDesign(); }
     },
   },
-  { group: 'The Optical designer and the workspaces' },
+  { group: 'The Optics designer and its files' },
+  {
+    name: 'A design (.optic) made from an assembly, and put on a bench linked to it, its parts locked',
+    why: 'a lens made an assembly: its design file says format jekoptic, carries the uid the assembly is now linked by, its one part and its record; on an empty bench it goes down as an assembly linked to that uid, locked, the lens as it was (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const D = rigDoc();
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80 }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }] }] });
+      try {
+        J.select('Lens'); D.getElementById('btnLensOfSel').click(); J.closeLensDesign();
+        const asm = J.serialize().assemblies[0].name, F = J.designFile(asm), link = J.designLink(asm);
+        const fileOk = F.format === 'jekoptic' && /^o[a-z0-9]{8,}$/.test(F.uid) && link && link.uid === F.uid && F.elements.length === 1 && F.assemblies.length === 1 && F.elements[0].group === F.assemblies[0].id;
+        J.load({ format: 'jekray', version: 1, elements: [] });
+        const name = J.placeDesign(F, { uid: F.uid }), P = J.serialize(), A = P.assemblies[0], L = P.elements.find(e => e.type === 'lens');
+        const placed = name === asm && A.src && A.src.uid === F.uid && A.lock === true && L.group === A.id && L.surfaces[0].R === 80 && L.surfaces[1].R === -80;
+        if (!(fileOk && placed)) console.log('optic file', { F, link, P });
+        return fileOk && placed ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
+    name: 'A bench follows its design: a change sent by the Optics designer lands in place, and Undo takes it back',
+    why: 'a design on the bench, moved to (40, 30) and turned 90°; the designer sends the design with its first radius 60: the bench’s lens takes it where the assembly stands, one step of Undo puts 80 back; a design with another uid changes nothing (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80 }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }] }] });
+      try {
+        J.select('Lens'); rigDoc().getElementById('btnLensOfSel').click(); J.closeLensDesign();
+        const F = J.designFile(J.serialize().assemblies[0].name);
+        J.load({ format: 'jekray', version: 1, elements: [] });
+        J.placeDesign(F, { uid: F.uid });
+        const lens = () => J.serialize().elements.find(e => e.type === 'lens');
+        J.set(lens().name, { x: 40, y: 30, angle: 90 });
+        const at = lens(), G = JSON.parse(JSON.stringify(F));
+        G.elements[0].surfaces[0].R = 60;
+        J.followDesign({ kind: 'design', uid: 'oSomethingElse1', content: G });
+        const other = lens().surfaces[0].R === 80;
+        J.followDesign({ kind: 'design', uid: F.uid, content: G });
+        const now = lens(), took = now.surfaces[0].R === 60 && Math.abs(now.x - at.x) < 1e-6 && Math.abs(now.y - at.y) < 1e-6 && Math.abs(now.angle - at.angle) < 1e-6 && J.serialize().assemblies[0].src.uid === F.uid;
+        J.undo();
+        const back = lens().surfaces[0].R === 80;
+        if (!(other && took && back)) console.log('optic follow', { other, at, now, back: lens() });
+        return other && took && back ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
+    name: 'A .optic opened on a bench is put on it linked, with light for it; unlocking its parts unlinks it',
+    why: 'File › Open with a design: the bench keeps what it had and gains the design, linked, a source per field and a screen at its image; the padlock in a part’s panel, opened, drops the link and says so (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const D = rigDoc();
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80 }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }] }] });
+      try {
+        J.select('Lens'); D.getElementById('btnLensOfSel').click(); J.closeLensDesign();
+        const F = J.designFile(J.serialize().assemblies[0].name);
+        J.load({ format: 'jekray', version: 1, elements: [{ type: 'mirror', name: 'Mirror', x: -100, y: 0, angle: 45, length: 25 }] });
+        J.openFileData(F, 'Doublet.optic');
+        const P = J.serialize(), A = (P.assemblies || [])[0];
+        const opened = !!A && A.src && A.src.uid === F.uid && P.elements.some(e => e.name === 'Mirror') && P.elements.filter(e => e.type === 'source').length >= 1 && P.elements.some(e => e.type === 'screen');
+        J.select(P.elements.find(e => e.type === 'lens').name); await new Promise(r => setTimeout(r, 50));
+        const pad = D.querySelector('#panel .rt-padlock'); if (pad) pad.click();
+        const unlinked = !!pad && !J.serialize().assemblies[0].src && /no longer follows/.test(D.getElementById('toast').textContent);
+        if (!(opened && unlinked)) console.log('optic open', { P, pad: !!pad, toast: D.getElementById('toast').textContent });
+        return opened && unlinked ? 1 : 0;
+      } finally { J.closeLensDesign(); }
+    },
+  },
+  {
+    name: 'Design… on an assembly opens the Optics designer in its own tab, handing the design over linked',
+    why: 'with the designer in its own tab (as on the site, not on a test page): the part’s Open the assembly design opens jekray.html?optic#take in the tab named jekoptic, the hand-over holding the design and the link the assembly now has, and the bench’s own workspace stays shut (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const D = rigDoc(), W = rigWin(), wasOpen = W.open, opened = [];
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80 }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }] }] });
+      try {
+        J.select('Lens'); D.getElementById('btnLensOfSel').click(); J.closeLensDesign();
+        J.opticTabs(true);
+        W.open = (url, name) => { opened.push([url, name]); return { focus() {} }; };
+        J.select('Lens'); await new Promise(r => setTimeout(r, 50));
+        const btn = [...D.querySelectorAll('#panel button')].find(b => b.textContent === 'Open the assembly design…');
+        if (btn) btn.click();
+        let hand = null; try { hand = JSON.parse(W.localStorage.getItem('jek-optic-handoff')); W.localStorage.removeItem('jek-optic-handoff'); } catch (err) { /* none */ }
+        const link = J.designLink(J.serialize().assemblies[0].name);
+        const ok = !!btn && opened.length === 1 && /jekray(-dev)?\.html\?optic#take$/.test(opened[0][0]) && opened[0][1] === 'jekoptic' && !J.lensDesignOpen()
+          && hand && link && hand.src.uid === link.uid && hand.content.uid === link.uid && hand.content.format === 'jekoptic' && hand.content.elements.length === 1;
+        if (!ok) console.log('optic tab', { btn: !!btn, opened, hand, link });
+        return ok ? 1 : 0;
+      } finally { W.open = wasOpen; J.opticTabs(false); J.closeLensDesign(); }
+    },
+  },
+  {
+    name: 'The page as the Optics designer (?optic): a new design, the bar in its head, a .optic file',
+    why: 'jekray.html?optic in a frame of its own: its title, the design open with no bench to go back to, Save, File and Use on a bench in its head, the bench’s exports out of File, New design and Open a .optic file there, and the file it keeps a design (format jekoptic with a uid) (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async () => {
+      const dev = /[?&]dev=1/.test(location.search), wait = ms => new Promise(r => setTimeout(r, ms));
+      const f = document.createElement('iframe');
+      f.style.cssText = 'position:absolute;left:-5000px;top:0;width:1400px;height:800px;border:0';
+      f.src = '/jek/tools/' + (dev ? 'jekray-dev.html' : 'jekray.html') + '?test&optic';
+      document.body.append(f);
+      try {
+        const W = f.contentWindow;
+        for (let i = 0; i < 300 && !(W.JEKray && W.JEKray.serialize && W.document.getElementById('lensUse')); i++) await wait(100);
+        const D = W.document, head = D.querySelector('#lensWs .rt-lhead'), P = W.JEKray.serialize(), shown = id => { const e = D.getElementById(id); return !!e && !e.hidden; };
+        const r = {
+          title: D.title, open: W.JEKray.lensDesignOpen(), inHead: ['btnSave', 'btnFile', 'lensUse'].every(id => head && head.contains(D.getElementById(id))), leave: !D.getElementById('lensLeave'),
+          words: D.getElementById('btnNew').textContent === 'New design' && /^Open a \.optic file/.test(D.getElementById('btnOpen').textContent),
+          hidden: !shown('btnExportData') && !shown('btnImportStl') && !shown('btnPacks'), file: P.format === 'jekoptic' && /^o[a-z0-9]{8,}$/.test(P.uid) && (P.assemblies || []).length === 1,
+        };
+        const ok = r.title === 'Optics designer | JEKray' && r.open && r.inHead && r.leave && r.words && r.hidden && r.file;
+        if (!ok) console.log('optic page', r);
+        return ok ? 1 : 0;
+      } finally { f.remove(); }
+    },
+  },
+  {
+    name: 'JEKrf (?rf) and its RF designer (?rfd): their own pages, palettes and files',
+    why: 'jekray.html?rf in a frame: titled JEKrf, its parts the RF and circuits palettes alone, its file a .jekrf (format jekrf), the optical designers out of Tools; jekray.html?rfd: the RF designer open on a new design with no bench to go back to, Use on a bench and Save in its head, its file a design (format jekrfd with a uid) (1 when all hold)',
+    want: 1, tol: 0, unit: '',
+    run: async () => {
+      const dev = /[?&]dev=1/.test(location.search), wait = ms => new Promise(r => setTimeout(r, ms));
+      const frame = async q => {
+        const f = document.createElement('iframe');
+        f.style.cssText = 'position:absolute;left:-5000px;top:0;width:1400px;height:800px;border:0';
+        f.src = '/jek/tools/' + (dev ? 'jekray-dev.html' : 'jekray.html') + '?test&' + q;
+        document.body.append(f);
+        for (let i = 0; i < 300 && !(f.contentWindow.JEKray && f.contentWindow.JEKray.serialize); i++) await wait(100);
+        await wait(300);
+        return f;
+      };
+      const fr = await frame('rf'), fd = await frame('rfd');
+      try {
+        const R = fr.contentWindow, Dr = R.document, P = R.JEKray.serialize(), hidden = id => { const e = Dr.getElementById(id); return !e || e.hidden; };
+        const rf = { title: Dr.title, pals: R.JEKray.palettesOn().join(), fmt: P.format, wm: Dr.querySelector('.rt-title .jek-wm').textContent, lens: hidden('btnNewLens') && hidden('btnLensOfSel') && !hidden('btnNewRf') };
+        const W = fd.contentWindow, D = W.document, Q = W.JEKray.serialize(), head = D.querySelector('#rfWs .rt-lhead');
+        const rfd = { title: D.title, open: !!head && !D.getElementById('rfWs').hidden, inHead: ['btnSave', 'btnFile', 'rfUse'].every(id => head && head.contains(D.getElementById(id))), leave: !D.getElementById('rfLeave'), fmt: Q.format, uid: /^o[a-z0-9]{8,}$/.test(Q.uid || ''), asm: (Q.assemblies || []).length === 1 && Q.assemblies[0].kind === 'rf' };
+        const ok = rf.title === 'JEKrf' && rf.pals === 'rf,elec' && rf.fmt === 'jekrf' && rf.wm === 'JEKrf' && rf.lens
+          && rfd.title === 'RF designer | JEKrf' && rfd.open && rfd.inHead && rfd.leave && rfd.fmt === 'jekrfd' && rfd.uid && rfd.asm;
+        if (!ok) console.log('jekrf pages', { rf, rfd });
+        return ok ? 1 : 0;
+      } finally { fr.remove(); fd.remove(); }
+    },
+  },
+  { group: 'The Optics designer and the workspaces' },
   {
     name: 'A lens’s readout lists focal lengths at the wavelengths whose light reaches it, not every source on the bench',
     why: 'two lasers, 633 nm into a lens and 532 nm past it: the lens’s panel gives its EFL at 633 nm only; a second lens nothing reaches gives both, and says no light reaches it (1 when both hold)',
@@ -11592,7 +11798,7 @@ const TESTS = [
       const lens = () => J.load({ format: 'jekray', version: 1, elements: [{ type: 'lens', name: 'Lens', x: 0, y: 0, angle: 0, diameter: 25, surfaces: [{ R: 80 }, { R: -80 }], gaps: [5], materials: [{ glass: 'N-BK7' }]}] });
       try {
         const items = [...D.querySelectorAll('#toolsMenu [data-ws]')].map(b => b.textContent);
-        const five = items.length === 5 && items[0] === 'Optical designer, new…' && items[4] === 'Coating design in JEKfilm…' && !!D.getElementById('btnNewLens') && !!D.getElementById('btnNewRf');
+        const five = items.length === 5 && items[0] === 'Optics designer, new…' && items[4] === 'Coating designer…' && !!D.getElementById('btnNewLens') && !!D.getElementById('btnNewRf');
         lens(); J.select('Lens');
         D.getElementById('btnLensOfSel').click();
         const lensOpen = ws('lensWs') && (J.serialize().assemblies || []).length === 1;
@@ -11769,7 +11975,7 @@ const TESTS = [
       } finally { J.closeLensDesign(); }
     },
   },
-  { group: 'The Optical designer' },
+  { group: 'The Optics designer' },
   {
     name: 'Image simulation: the test chart formed over the whole field and in a patch, and the user\u2019s own picture',
     why: 'the published Cooke triplet\u2019s Analyses \u203a Image simulation: over the whole field the chart is formed with each colour at the design\u2019s nearest wavelength; a patch at 20\u00b0 is moved in to lie within the field; a picture of the user\u2019s own, all one red, comes out that red in the middle over the whole field, and dimmer in the corners (relative illumination) (1 when all hold)',
@@ -12218,9 +12424,9 @@ const TESTS = [
       J.select('Cup');
       const D = rigDoc(), btn = t => [...D.querySelectorAll('#panel button')].find(x => x.textContent.trim() === t);
       btn('Add aspheric terms').click();
-      const f = [...D.querySelectorAll('#panel .rt-f')].find(x => x.querySelector('label') && x.querySelector('label').textContent.trim() === 'A4');
+      const f = [...D.querySelectorAll('#panel label')].find(x => x.textContent.trim() === 'A4');
       if (!f) return 0;
-      const inp = f.querySelector('input'); inp.value = '-1.5e-8'; inp.dispatchEvent(new (rigWin().Event)('input', { bubbles: true })); inp.dispatchEvent(new (rigWin().Event)('change', { bubbles: true }));
+      const inp = D.getElementById(f.htmlFor); inp.value = '-1.5e-8'; inp.dispatchEvent(new (rigWin().Event)('input', { bubbles: true })); inp.dispatchEvent(new (rigWin().Event)('change', { bubbles: true }));
       const panelOk = J.byName('Cup').A && J.byName('Cup').A[0] === -1.5e-8;
       btn('Design as an assembly…').click();
       try {
@@ -13888,8 +14094,10 @@ const TESTS = [
         await quiet();
         J.set('Output 2', { faceMap: true }); await wait(1000); await quiet();
         const b0 = J.view3d.builds(), t0 = J.traceInfo().count, l0 = J.framesInfo().live; let busy = 0, frames = 0;
-        const tEnd = performance.now() + 4000;
-        while (performance.now() < tEnd) { await new Promise(r => W.requestAnimationFrame(r)); frames++; if (J.activity().bench) busy++; }
+        // (watched for 4 s and at least 40 frames: a busy CI runner can draw an out-of-sight frame only a few times in 4 s,
+        // too few steps to see each one's light taken again; 30 s at most)
+        const tEnd = performance.now() + 4000, tCap = performance.now() + 30000;
+        while ((performance.now() < tEnd || frames < 40) && performance.now() < tCap) { await new Promise(r => W.requestAnimationFrame(r)); frames++; if (J.activity().bench) busy++; }
         const b1 = J.view3d.builds(), res = { workers, also: Object.values(J.workersOk()).every(Boolean), frames, busy, traced: J.traceInfo().count - t0, live: J.framesInfo().live - l0, builds: b1.builds - b0.builds, built: b1.lightBuilt - b0.lightBuilt, reused: b1.lightReused - b0.lightReused, face: J.view3d.faceMaps(), playing: J.layers().playing };
         J.sweepPause();
         const ok = workers && res.also && res.playing === 2 && res.traced === 0 && res.live === 0 && res.busy === 0 && res.built === 0 && res.reused >= 4 && res.builds <= frames + 1 && (res.face || []).includes('Output 2');
@@ -13913,7 +14121,8 @@ const TESTS = [
       try {
         await J.sweepPlay('L', 'power');
         let D = null; const t0 = performance.now();
-        while (performance.now() - t0 < 1300) { await raf(); D = J.scope('D', 0, 'roll'); }
+        // (a little more than a cycle, and on a slow machine on until four steps are shown, 6 s at most)
+        while (performance.now() - t0 < 1300 || (D.rows.length < 4 && performance.now() - t0 < 6000)) { await raf(); D = J.scope('D', 0, 'roll'); }
         const rows = D.rows, ts = rows.map(r => r[0]), lv = rows.map(r => r[1]), sw = rows.map(r => r[2]);
         const rising = ts.every((t, i) => !i || t > ts[i - 1]), within = ts.every(t => t >= -1e-9 && t <= 1 + 1e-9);
         const res = { cols: D.cols, n: rows.length, rising, within, level: [Math.min(...lv), Math.max(...lv)], swing: [Math.min(...sw), Math.max(...sw)] };
@@ -14069,6 +14278,125 @@ const TESTS = [
         if (!ok) throw new Error(JSON.stringify(res).replace(/"/g, ''));
         return 1;
       } finally { f.remove(); }
+    },
+  },
+  { group: 'Part panels as tables' },
+  {
+    name: 'Every part’s panel is a table: no list of boxes left, its name and place rows of one, each label keeping its words',
+    why: 'a part’s settings are rows of a table (name, value, unit, sweep), not boxed inputs. Each of the 26 free-space types, 8 fibre kinds, 8 circuit kinds and 4 photonic kinds is put on a bench and selected: its panel has no old list of settings left (no .rt-rows or grid2 of fields outside a sweep’s own controls), has table rows, a Name row and X, Y and Angle rows whose labels still read "X (mm)" and so on (the unit kept in the label, out of sight), and Duplicate and Delete the same size at its foot. How many parts fail (0).',
+    want: 0, tol: 0, unit: '',
+    run: J => {
+      const doc = rigDoc(), bad = [];
+      const free = ['source', 'mirror', 'lens', 'cube', 'prism', 'waveplate', 'polariser', 'stop', 'mask', 'screen', 'grating', 'crystal', 'filter', 'faraday', 'isolator', 'gain', 'cell', 'nlc', 'particle', 'fibre', 'detector', 'spectrometer', 'chopper', 'aom', 'eom', 'link'].map(t => ({ type: t }));
+      const net = [...['laser', 'coupler', 'amp', 'fbg', 'voa', 'pd', 'delay', 'osa'].map(k => ({ type: 'fcomp', kind: k })), ...['dc', 'sig', 'amp', 'lpf', 'mixer', 'scope', 'lockin', 'daq'].map(k => ({ type: 'elec', kind: k })), ...['ring', 'ps', 'gc', 'dc'].map(k => ({ type: 'pic', kind: k }))];
+      for (const it of [...free, ...net]) {
+        J.load({ format: 'jekray', version: 1, elements: [Object.assign({ id: 'P', name: 'Part', x: 0, y: 0, angle: 0 }, it)] });
+        J.select('Part');
+        // (a spectrometer opens on its Spectrum tab, which starts with its plot: its settings are on its first tab)
+        if (it.type === 'spectrometer') [...doc.querySelectorAll('#panel .rt-tab')].find(t => t.textContent === 'Spectrometer').click();
+        const P = doc.getElementById('panel'), labels = [...P.querySelectorAll('label')].map(l => l.textContent);
+        const old = [...P.querySelectorAll('.rt-rows, .rt-pgrid2')].filter(b => !b.closest('.rt-sweep, .rt-readout, table, .rt-f, .rt-lensdiag') && b.querySelector(':scope > .rt-f')).length;
+        const foot = [...P.querySelectorAll('.rt-actions-even > .rt-btn')].map(b => Math.round(b.getBoundingClientRect().width));
+        const ok = old === 0 && P.querySelectorAll('.rt-pt .rt-pt-row').length >= 4 && labels.includes('Name') && labels.includes('X (mm)') && labels.includes('Y (mm)') && labels.includes('Angle (°)')
+          && foot.length >= 2 && Math.max(...foot) - Math.min(...foot) <= 1 && !!P.querySelector('.rt-pt-unit');
+        if (!ok) bad.push((it.kind ? it.type + ':' + it.kind : it.type) + ' old=' + old + ' rows=' + P.querySelectorAll('.rt-pt .rt-pt-row').length + ' foot=' + foot);
+      }
+      if (bad.length) console.log('table panels', bad.join('; '));
+      return bad.length;
+    },
+  },
+  {
+    name: 'A row of a table: the unit in its own column, dimmed while it is a new part’s value, typed into as a box, Enter to the next row',
+    why: 'a plane mirror’s Radius row: its label reads "Radius (mm)" with the unit in a column of its own, and it is dimmed, being a new mirror’s value. Typing 200 into it curves the mirror (R 200) and the row is no longer dimmed; a Focal length row appears among the settings, 100 mm, worked out and not typed (it has no box). Enter in the Radius box moves to the Conic box under it. 1 when all of that holds.',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const doc = rigDoc(), W = rigWin();
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'mirror', id: 'M', name: 'M', x: 0, y: 0, angle: 180 }] });
+      J.select('M');
+      const lab = t => [...doc.querySelectorAll('#panel label')].find(l => l.textContent === t), box = t => doc.getElementById(lab(t).htmlFor), row = t => lab(t).closest('.rt-pt-row');
+      const derived = t => { const r = [...doc.querySelectorAll('#panel .rt-pt-row.derived')].find(x => !x.hidden && x.querySelector('.rt-pt-name').textContent === t); return r ? r.querySelector('.rt-pt-val').textContent + ' ' + r.querySelector('.rt-pt-unit').textContent : null; };
+      const a = !!lab('Radius (mm)') && row('Radius (mm)').querySelector('.rt-pt-unit').textContent === 'mm' && row('Radius (mm)').classList.contains('dflt') && derived('Focal length') === null;
+      const inp = box('Radius (mm)'); inp.value = '200'; inp.dispatchEvent(new W.Event('input', { bubbles: true })); inp.dispatchEvent(new W.Event('change', { bubbles: true }));
+      const b = J.byName('M').R === 200 && !row('Radius (mm)').classList.contains('dflt') && derived('Focal length') === '100 mm' && !row('Radius (mm)').parentElement.querySelector('.rt-pt-row.derived input');
+      const r2 = box('Radius (mm)'); r2.focus(); r2.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      const c = doc.activeElement === box('Conic');
+      if (!(a && b && c)) console.log('table row', JSON.stringify({ a, b, c, f: derived('Focal length'), R: J.byName('M').R, active: doc.activeElement && doc.activeElement.id }));
+      return a && b && c ? 1 : 0;
+    },
+  },
+  {
+    name: 'Figures worked out from a part’s settings sit among them, and are right',
+    why: 'a figure that follows from the settings alone is a row among them, in italics. An off-axis parabola (R 50.8, conic −1, offset 50.8) turns the beam 90° to a focus 50.8 mm away; a 600 line/mm grating blazed at 500 nm has grooves 1.6667 µm apart cut at 8.627°; a fibre of 4.4 µm core and NA 0.12 accepts 6.892° and is single-mode above 689.7 nm; a 5 mm iris is 19.63 mm² open; a gain line 30 nm wide at 1064 nm is 7944 GHz; an AOM at 80 MHz in 4200 m/s has a 52.5 µm sound wave; a 20 mm right-angle prism’s hypotenuse is 28.284 mm; a quarter-wave plate delays 90°; a ×10 amplifier is 20 dB; a 3 dB fibre attenuator passes 50.12 %. A vapour cell’s Doppler width is among its settings and no longer in its readout. How many are wrong (0).',
+    want: 0, tol: 0, unit: '',
+    run: J => {
+      const doc = rigDoc(), bad = [];
+      const derived = t => { const r = [...doc.querySelectorAll('#panel .rt-pt-row.derived')].find(x => !x.hidden && x.querySelector('.rt-pt-name').textContent === t); return r ? r.querySelector('.rt-pt-val').textContent : null; };
+      const part = el => { J.load({ format: 'jekray', version: 1, elements: [Object.assign({ id: 'P', name: 'Part', x: 0, y: 0, angle: 0 }, el)] }); J.select('Part'); };
+      const want = (el, rows) => { part(el); for (const [t, v] of rows) { const got = derived(t); if (!(got !== null && Math.abs(parseFloat(got) / v - 1) < 2e-4)) bad.push((el.kind || el.type) + ' ' + t + ': ' + got + ' not ' + v); } };
+      want({ type: 'mirror', R: 50.8, k: -1, offset: 50.8 }, [['Turns the beam', 90], ['Focus from the mirror', 50.8]]);
+      want({ type: 'grating', lpmm: 600, blaze: 500 }, [['Groove spacing', 1.6667], ['Blaze angle', 8.627]]);
+      want({ type: 'fibre', core: 4.4, na: 0.12 }, [['Acceptance half-angle', 6.892], ['Single-mode above', 689.7]]);
+      want({ type: 'stop', shape: 'round', aperture: 5 }, [['Open area', 19.63]]);
+      want({ type: 'gain', centre: 1064, fwhm: 30 }, [['Linewidth', 7944]]);
+      want({ type: 'aom', rf: 80, v: 4200 }, [['Acoustic wavelength', 52.5]]);
+      want({ type: 'prism', shape: 'right', size: 20 }, [['Hypotenuse', 28.284]]);
+      want({ type: 'waveplate' }, [['Phase delay', 90]]);
+      want({ type: 'elec', kind: 'amp', gain: 10 }, [['Gain, in decibels', 20]]);
+      want({ type: 'fcomp', kind: 'voa', att: 3 }, [['Passes', 50.12]]);
+      part({ type: 'cell' });
+      if (derived('Doppler width (FWHM)') === null || /Doppler/.test((doc.querySelector('#panel .rt-readout') || {}).textContent || '')) bad.push('cell: its Doppler width among its settings, not in its readout');
+      if (bad.length) console.log('worked-out rows', bad.join('; '));
+      return bad.length;
+    },
+  },
+  {
+    name: 'A part’s readout tabs start with their own view: no name or place on them, its Data beside the plot’s PNG and CSV, its views a row of tabs',
+    why: 'a pulsed beam on a curved mirror. Its first tab has its Name and Position. Its Rays tab has neither, and the plot’s save group is PNG, CSV and Data (the part’s Export data, its full words kept). Its Diffraction tab has two settings as table rows (MTF quoted at, Focus model), six views as a row of tabs with one marked, and no Diffraction heading under the tab. Its Pulse tab reads a figure a row: Duration (FWHM) and Transform limit apart. 1 when all of that holds.',
+    want: 1, tol: 0, unit: '',
+    run: async J => {
+      const doc = rigDoc(), wait = ms => new Promise(r => setTimeout(r, ms));
+      J.load({ format: 'jekray', version: 1, light: { rays: true, envelope: true, field: true }, elements: [
+        { type: 'source', id: 'S', name: 'S', x: -100, y: 0, angle: 0, wavelength: 800, width: 6, rays: 9, gauss: true, w0: 1.5, tau: 50 },
+        { type: 'mirror', id: 'M', name: 'Cup', x: 100, y: 0, angle: 170, length: 25.4, R: 400 }] });
+      const heads = () => [...doc.querySelectorAll('#panel .rt-sech')].map(x => x.textContent.trim()), labels = () => [...doc.querySelectorAll('#panel label')].map(l => l.textContent);
+      J.select('Cup');
+      const first = heads().includes('Position') && labels().includes('Name');
+      J.select('Cup', 'rays'); await wait(300);
+      const save = [...doc.querySelectorAll('#panel .rt-save .rt-zb')];
+      const rays = !heads().includes('Position') && !labels().includes('Name') && save.map(b => b.dataset.short || b.textContent).join() === 'PNG,CSV,Data' && save[2].textContent === 'Export data (CSV)' && labels().includes('Plot');
+      J.select('Cup', 'plots'); await wait(300);
+      const views = [...doc.querySelectorAll('#panel .rt-views .rt-view')];
+      const diff = views.length === 6 && views.filter(v => v.classList.contains('on')).length === 1 && labels().includes('MTF quoted at (lp/mm)') && labels().includes('Focus model') && !heads().includes('Diffraction') && !heads().includes('Position');
+      J.select('Cup', 'pulse'); await wait(1200);
+      const dts = [...doc.querySelectorAll('#panel .rt-readout dt')].map(x => x.textContent);
+      const pulse = dts.includes('Duration (FWHM)') && dts.includes('Transform limit') && dts.includes('Peak power');
+      J.select('Cup', 'params');
+      const back = heads().includes('Position');
+      if (!(first && rays && diff && pulse && back)) console.log('readout tabs', JSON.stringify({ first, rays, diff, pulse, back, save: save.map(b => b.textContent), views: views.length, dts }));
+      return first && rays && diff && pulse && back ? 1 : 0;
+    },
+  },
+  {
+    name: 'A table’s other rows work as their boxes did: a tick, a choice, words typed, and the three actions at its foot',
+    why: 'a source’s panel. Unticking Colour from its wavelength gives it a colour of its own and a Colour row; choosing Even illumination for Starts from makes its field a flat one; typing "486, 656" into More wavelengths gives it those two lines. A mirror’s foot has Design…, Duplicate and Delete the same width; a retroreflector’s has no Design. 1 when all of that holds.',
+    want: 1, tol: 0, unit: '',
+    run: J => {
+      const doc = rigDoc(), W = rigWin();
+      J.load({ format: 'jekray', version: 1, elements: [{ type: 'source', id: 'S', name: 'Laser', x: 0, y: 0, angle: 0, wavelength: 633, gauss: true, w0: 1 }] });
+      J.select('Laser');
+      const lab = t => [...doc.querySelectorAll('#panel label')].find(l => l.textContent === t), box = t => doc.getElementById(lab(t).htmlFor);
+      box('Colour from its wavelength').click();
+      const tick = J.byName('Laser').colourAuto === false && !!lab('Colour');
+      const sel = box('Starts from'); sel.value = 'flat'; sel.dispatchEvent(new W.Event('change', { bubbles: true }));
+      const choose = J.byName('Laser').gauss === false;
+      const t = box('More wavelengths'); t.value = '486, 656'; t.dispatchEvent(new W.Event('input', { bubbles: true })); t.dispatchEvent(new W.Event('change', { bubbles: true }));
+      const text = J.byName('Laser').lines.join() === '486,656';
+      const foot = el => { J.load({ format: 'jekray', version: 1, elements: [Object.assign({ type: 'mirror', id: 'M', name: 'M', x: 0, y: 0, angle: 135 }, el)] }); J.select('M'); return [...doc.querySelectorAll('#panel .rt-actions-even > .rt-btn')]; };
+      const m = foot({}), w = m.map(b => Math.round(b.getBoundingClientRect().width));
+      const three = m.length === 3 && m[0].dataset.short === 'Design…' && m[0].textContent === 'Design as an assembly…' && Math.max(...w) - Math.min(...w) <= 1;
+      const two = foot({ retro: true, angle: 180 }).map(b => b.textContent).join() === 'Duplicate,Delete';
+      if (!(tick && choose && text && three && two)) console.log('table rows', JSON.stringify({ tick, choose, text, three, two, w }));
+      return tick && choose && text && three && two ? 1 : 0;
     },
   },
   { group: 'Smoothness' },

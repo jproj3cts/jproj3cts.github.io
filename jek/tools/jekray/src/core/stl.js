@@ -235,6 +235,36 @@ function crystalSurfaces(el) {
   return crystalGeom(el).faces.map(f => faceSurf(el, ...f));
 }
 
+/* A corner cube: three flat mirrors square to one another, meeting at a corner behind the middle of a round opening of
+   the part's width, the corner as deep as a cube corner's is under the circle its three faces just reach (width/√2).
+   In the cube's own frame (x out along its axis, towards the light) the faces' normals stand 54.7° from the axis, 120°
+   apart round it, the first leaning straight up. Each face is a surface with its own place and tilt: its normal, with
+   the part's tip and roll already in it, is given as a turn in the plane (lf.a) and a tip out of it (ownTip), which the
+   tracer meets as it meets any tipped face; its plane passes through the corner (z, along its normal). A face ends
+   where it meets the other two, at the opening's plane and at the cylinder behind the opening (clip). */
+function retroSurfaces(el) {
+  const a = el.length / 2, D = a * Math.SQRT2, tp = (el.tip || 0) * deg, rl = (el.roll || 0) * deg;
+  const ct = Math.cos(tp), st = Math.sin(tp), cr = Math.cos(rl), sr = Math.sin(rl);
+  // from the cube's own frame into the part's frame on the bench (turned by its angle only): rolled, then tipped
+  const out = ([x, y, z]) => { [y, z] = [y * cr - z * sr, y * sr + z * cr]; return [x * ct - z * st, y, x * st + z * ct]; };
+  const dot = (u, v) => u[0] * v[0] + u[1] * v[1] + u[2] * v[2];
+  const axis = out([1, 0, 0]), apex = out([-D, 0, 0]);
+  const N = [0, 1, 2].map(i => { const f = Math.PI / 2 + 2 * Math.PI * i / 3; return out([1 / Math.sqrt(3), Math.sqrt(2 / 3) * Math.cos(f), Math.sqrt(2 / 3) * Math.sin(f)]); });
+  return N.map((n, i) => {
+    const fa = Math.asin(Math.max(-1, Math.min(1, n[1]))), ft = Math.atan2(n[2], n[0]), ca = Math.cos(fa), sa = Math.sin(fa), c = Math.cos(ft), s = Math.sin(ft), z0 = dot(n, apex);
+    const others = N.filter((_, j) => j !== i);
+    // a point of the face (y across it, z up it, in its own frame) in the part's frame, and whether the face is there
+    const clip = (y, z) => {
+      const X = z0 * ca - y * sa, Y = z0 * sa + y * ca, p = [X * c - z * s, Y, X * s + z * c], ax = dot(p, axis);
+      if (ax > 1e-9) return false;
+      const r = [p[0] - ax * axis[0], p[1] - ax * axis[1], p[2] - ax * axis[2]];
+      if (Math.hypot(r[0], r[1], r[2]) > a * (1 + 1e-9)) return false;
+      const q = [p[0] - apex[0], p[1] - apex[1], p[2] - apex[2]];
+      return others.every(m => dot(q, m) >= -1e-9);
+    };
+    return makeSurf(el, z0, 0, 0, 0, [], a, { kind: 'mirror', lf: { x: 0, y: 0, a: fa }, ownTip: ft, clip, retro: D });
+  });
+}
 export function elementSurfaces(el) {
   if (el.type === 'stl') return [makeSurf(el, 0, 0, 0, 0, [], 1, { kind: 'absorb', mesh: true })];
   // a source's own light leaves its aperture; light coming the other way (a return beam, another
@@ -268,6 +298,7 @@ export function elementSurfaces(el) {
   }
   if (el.type === 'lens') return lensSurfaces(el);
   if (el.type === 'mirror') {
+    if (el.retro) return retroSurfaces(el);
     const c = el.R ? 1 / el.R : 0;
     return [makeSurf(el, 0, c, el.k || 0, 0, el.A ? el.A.slice() : [], el.length / 2, { kind: 'mirror', y0: el.offset || 0, FL: ffList(el.F), ...(el.hole > 0 ? { hole: el.hole / 2 } : {}) })];
   }

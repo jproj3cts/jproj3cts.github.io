@@ -91,8 +91,8 @@ export function partSpecRec(D, films, o) {
   if (!coated.length) pspara(pg, 'No face is coated.');
   for (const s of coated) {
     const f = films.find(x => x.surface === s.n);
-    pspara(pg, 'S' + s.n + ': ' + (f && f.doc ? '“' + f.doc.name + '”, designed in JEKfilm, to its coating specification enclosed (' + coatFileName(D.name, f) + ').'
-      : f ? s.coat + ': a thin-film stack with no coating specification kept. *Put the coating on again from JEKfilm to include one.'
+    pspara(pg, 'S' + s.n + ': ' + (f && f.doc ? '“' + f.doc.name + '”, designed in the Coating designer, to its coating specification enclosed (' + coatFileName(D.name, f) + ').'
+      : f ? s.coat + ': a thin-film stack with no coating specification kept. *Put the coating on again from the Coating designer to include one.'
         : s.coat + ', the maker’s standard coating of that kind.'));
   }
   pshead(pg, 'Documents and inspection');
@@ -170,10 +170,10 @@ export function makeCard(asm, D, i, state) {
         h('td', null, ground ? '—' : sd), h('td', null, num(f.chamfer, f.from.chamfer, 'Chamfer of S' + s.n + ' (mm)', faceSet(j, 'chamfer'), { w: '3.4rem' })),
         h('td', null, s.coat || 'None'));
     })));
-  const go = proMark(h('button', { class: 'rt-btn primary', type: 'button', id: 'lensMakePart', title: 'The drawing, the part specification and each JEKfilm coating’s specification, as one zip to send to the maker' }, 'Make the part'), 'make the part');
+  const go = proMark(h('button', { class: 'rt-btn primary', type: 'button', id: 'lensMakePart', title: 'The drawing, the part specification and each designed coating’s specification, as one zip to send to the maker' }, 'Make the part'), 'make the part');
   go.addEventListener('click', () => { makeThePart(asm, i); });
   card.append(h('h3', null, 'Make the part'),
-    h('p', { class: 'rt-lnote' }, 'What ' + D.name + ' is made to. Values in grey follow the tolerance settings or a commercial grade; type one to set it here, or clear it to follow them again. Make the part downloads the drawing, the part specification and each JEKfilm coating’s specification as one zip.'),
+    h('p', { class: 'rt-lnote' }, 'What ' + D.name + ' is made to. Values in grey follow the tolerance settings or a commercial grade; type one to set it here, or clear it to follow them again. Make the part downloads the drawing, the part specification and each designed coating’s specification as one zip.'),
     ...(D.chamferWarnings || []).map(t => h('p', { class: 'rt-lmakewarn', role: 'note' }, t)),
     h('div', { class: 'rt-lmakegrid' }, part, h('div', { class: 'rt-ltwrap' }, faces)),
     h('div', { class: 'rt-lbar' }, go));

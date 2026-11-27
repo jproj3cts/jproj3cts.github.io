@@ -14,9 +14,9 @@ import { zip } from './zip.js';
 const safe = (s) =>
   String(s || 'Untitled').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '').replace(/\s+/g, ' ').trim().replace(/^\.+/, '').trim().slice(0, 80) || 'Untitled';
 
-// a share link's bench as JSON text: its text is a letter (z, i, f: deflated JSON of JEKray, JEKion, JEKfilm; j, k, g:
+// a share link's bench as JSON text: its text is a letter (z, i, f: deflated JSON of JEKray, JEKion, the Coating designer (once JEKfilm); j, k, g:
 // plain) then base64url; and the file it is kept as
-export const LINK_EXT = { z: 'jekray', j: 'jekray', i: 'jekion', k: 'jekion', f: 'jekfilm', g: 'jekfilm', c: 'jekcad', d: 'jekcad' };
+export const LINK_EXT = { z: 'jekray', j: 'jekray', i: 'jekion', k: 'jekion', f: 'coat', g: 'coat', c: 'jekcad', d: 'jekcad' };
 async function linkBench(t) {
   try {
     const b = atob(t.slice(1).replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((t.length - 1 + 3) % 4));

@@ -60,11 +60,6 @@ export const ELEC_KINDS = {
   daq: { label: 'DAQ (ADC)', tag: 'DAQ', ins: ['in'], outs: ['out'],
     params: [['rate', 'Sample rate (S/s)', 1e4], ['bits', 'Bits', 16], ['range', 'Range, ± (V)', 10]] },
 };
-const ELEC_PALETTE = [['elec:node', 'Node', 'Node: a wire junction, to route and fan out wires'], ['elec:dc', 'DC source'], ['elec:sig', 'Signal generator'], ['elec:noise', 'Noise source'], ['elec:amp', 'Amplifier'], ['elec:tia', 'TIA', 'Transimpedance amplifier'],
-  ['elec:lpf', 'Low-pass', 'Low-pass filter'], ['elec:hpf', 'High-pass', 'High-pass filter'], ['elec:bpf', 'Band-pass', 'Band-pass filter'], ['elec:att', 'Attenuator'], ['elec:mixer', 'Mixer'],
-  ['elec:sum', 'Summing junction'], ['elec:biastee', 'Bias tee'], ['elec:comp', 'Comparator'], ['elec:scope', 'Oscilloscope'], ['elec:spec', 'Spectrum analyser'], ['elec:lockin', 'Lock-in', 'Lock-in amplifier'],
-  ['elec:daq', 'DAQ', 'DAQ (analogue-to-digital converter)'], ['elec:thru', 'Feedthrough', 'Electrical feedthrough (to another tab)']]
-  .map(([k, l, t]) => [k, l, t || l]);
 /* ---------- a part's box and ports ----------
    Inputs down the left, outputs down the right, at a fixed pitch; the box as tall as the
    side with more of them. Ports carry elec: 'in' or 'out'. */
@@ -337,15 +332,53 @@ function daq(el, S, note) {
    Every output's signal, in the order the wires need: a block is worked out once all that
    feeds it is. An input left open reads nothing; a loop is reported and its blocks read
    nothing. Returns { out: Map(pkey -> signal), warn: Map(element id -> [notes]) }. */
-let memo = { key: null, R: null };
-export function solve() {
+let memo = { key: null, R: null }, liteMemo = { key: null, R: null };
+/* ---------- steering mirrors ----------
+   A mirror steered by a signal stands, on the bench, where its drive puts it: its angle and tip as set (at rest, which
+   is what the file keeps and the panel shows) plus its Turn (degrees a volt) times the volts on its turn and tip
+   inputs. What the wires carry to it is the network's alone (a photodiode's output into a drive is a loop through the
+   light, which reads nothing), so it is worked out without the light (solve(true)), and is the same on the page and in
+   every worker. The level shown is the drive's DC, and with a clock set (the page's, while a slow drive plays: ui/steer.js)
+   its tones up to STEER_SLOW_HZ as they stand at that moment; quicker tones are left to the photodiodes, which follow
+   every drive quasi-statically (opticalSignals), from the mirrors at rest (steer.hold). The tracer poses the mirrors
+   for the length of a trace (steerOn, in traceSceneOnce) and its key carries their poses (steerKey). */
+export const STEER_SLOW_HZ = 5;
+const steer = { hold: 0, t: null };
+const steerMirrors = () => project.elements.filter(e => e.type === 'mirror' && e.steer && !e.retro);
+const restKey = () => { steer.hold++; try { return traceKeyNow(); } finally { steer.hold--; } };
+const steerVolts = S => !S ? 0 : S.dc + (steer.t === null ? 0 : S.tones.reduce((a, t) => a + (t.f <= STEER_SLOW_HZ ? t.re * Math.cos(2 * Math.PI * t.f * steer.t) - t.im * Math.sin(2 * Math.PI * t.f * steer.t) : 0), 0));
+/* how far a mirror stands from rest now, degrees: [turned in the plane, tipped out of it] */
+function steerPose(el) {
+  if (steer.hold || !el.steer || el.type !== 'mirror') return [0, 0];
+  const L = solve(true).get(el.id), K = num(el.steerK, 1);
+  return L ? [K * steerVolts(L.turn), K * steerVolts(L.tip)] : [0, 0];
+}
+const steerKey = () => { if (steer.hold) return ''; const M = steerMirrors(); return M.length ? JSON.stringify(M.map(e => steerPose(e).map(v => +v.toFixed(7)))) : ''; };
+/* pose the mirrors (or the one given), and hand back what puts them back at rest */
+function steerOn(one) {
+  const back = [];
+  if (!steer.hold) for (const e of one ? [one] : steerMirrors()) {
+    const [a, t] = steerPose(e);
+    if (!a && !t) continue;
+    back.push([e, e.angle, 'tip' in e, e.tip]);
+    e.angle += a; if (t) e.tip = (e.tip || 0) + t;
+  }
+  return () => { for (const [e, a, had, t] of back) { e.angle = a; if (had) e.tip = t; else delete e.tip; } };
+}
+/* a mirror's drives as the page shows them: is any slow enough to play, and which are too quick to */
+const steerTones = (el, slow) => { const L = el.steer ? solve(true).get(el.id) : null; return L ? [L.turn, L.tip].some(S => S && S.tones.some(t => (t.f <= STEER_SLOW_HZ) === slow && Math.hypot(t.re, t.im) > 0)) : false; };
+const steerMoving = () => steerMirrors().some(e => steerTones(e, true));
+const setSteerTime = t => { steer.t = t; };
+export function solve(lite) {
   const els = project.elements.filter(e => e.type === 'elec' && ELEC_KINDS[e.kind]), wires = (project.fibres || []).filter(F => F.wire);
   // with light in it, the bench as a whole (the trace's key) decides it
   const optical = wires.some(F => [F.a, F.b].some(p => { const E = getEl(p[0]); return E && E.type !== 'elec'; })) || project.elements.some(e => e.type === 'chopper');
   // what the network is: each block's settings and the wiring, not where a block sits on the bench
   const blocks = JSON.stringify([els.map(e => { const { x, y, angle, name, bench, sweeps, ...rest } = e; return rest; }), wires.map(F => [F.a, F.b])]);
-  const key = (optical ? traceKeyNow() + '|' + detFieldGen : '') + '|' + blocks + (els.some(e => e.mod) ? '|' + MODS.rev : '');   // a mod's block: as its results stand
-  if (memo.key === key) return memo.R;
+  // (lite: only what the wires carry to the steering mirrors, which no light decides: see steerLevels)
+  if (lite && liteMemo.key === blocks) return liteMemo.R;
+  const key = lite ? '' : (optical ? restKey() + '|' + detFieldGen : '') + '|' + blocks + (els.some(e => e.mod) ? '|' + MODS.rev : '');   // a mod's block: as its results stand
+  if (!lite && memo.key === key) return memo.R;
   const feed = new Map(wires.map(F => [pkey(...F.b), F.a]));     // an input's port, to the output wired to it
   const out = new Map(), warn = new Map(), state = new Map(), lock = new Map();
   const note = (el, msg) => { if (!warn.has(el.id)) warn.set(el.id, []); if (!warn.get(el.id).includes(msg)) warn.get(el.id).push(msg); };
@@ -365,7 +398,7 @@ export function solve() {
     const O = getEl(src[0]);
     if (!O) return zero();
     if (O.type === 'chopper') return chopRef(O);
-    if (!isDet(O)) return zero();
+    if (!isDet(O) || lite) return zero();                    // (a photodiode's output into a drive is a loop through the light: nothing, as below)
     if (optState === 1) { note(O, 'Its output feeds back into the light it reads: loops through the light are not solved, so it reads nothing'); return zero(); }
     runOptics();
     return out.get(pkey(...src)) || zero();
@@ -444,6 +477,16 @@ export function solve() {
     for (let i = 0; i < nIn; i++) if (K.ins.length && !feed.has(pkey(el.id, i)) && el.kind !== 'scope' && el.kind !== 'thru') note(el, 'Input ' + K.ins[i] + ' is not wired: it reads nothing');
     state.set(el.id, 2);
   };
+  if (lite) {
+    const lv = new Map();
+    for (const E of steerMirrors()) {
+      const X = elecExtra(E), base = portsOf(E).length - X.length, o = {};
+      X.forEach((P, k) => { if (feed.has(pkey(E.id, base + k))) o[P.name] = input(E, base + k); });
+      lv.set(E.id, o);
+    }
+    liteMemo = { key: blocks, R: lv };
+    return lv;
+  }
   for (const el of els) visit(el);
   if (optical && optState === 0) runOptics();
   memo = { key, R: { out, warn, lock, driven } };
@@ -531,7 +574,7 @@ export function elecNoiseRms(S, f1, f2) {
 /* ---------- where light meets the electronics ----------
    Optical parts carry electrical ports too, after any fibre ports: a photodiode's or
    photodetector's output, a laser's modulation input, an AOM's RF level input, an EOM's
-   modulation input and an optical chopper's reference output. Wires reach them as they
+   modulation input, a steering mirror's tilt input and an optical chopper's reference output. Wires reach them as they
    reach any block.
    The light is worked out quasi-statically: the electronics are far slower than light
    crossing the bench, so each drive is set at levels across its swing, the bench traced
@@ -557,6 +600,11 @@ export function elecExtra(el) {
       if (!el.ext) return [];
       const { L, hw } = srcBody(el), d = hw / 2;
       return [{ x: -L, y: d, dx: -1, dy: 0, elec: 'in', name: 'mod' }, { x: -L, y: -d, dx: -1, dy: 0, elec: 'in', name: 'fm' }];
+    }
+    case 'mirror': {                                         // a steering mirror's two drives, on its back: its turn in the plane, its tip out of it
+      if (!el.steer) return [];
+      const d = Math.min(el.length * 0.25, 9 * k);
+      return [{ x: -6 * k, y: d, dx: -1, dy: 0, elec: 'in', name: 'turn' }, { x: -6 * k, y: -d, dx: -1, dy: 0, elec: 'in', name: 'tip' }];
     }
     case 'aom': return [{ x: 0, y: el.length / 2 + 4 * k, dx: 0, dy: 1, elec: 'in', name: 'rf' }];
     case 'eom': return [{ x: 0, y: el.length / 2 + 2 * k, dx: 0, dy: 1, elec: 'in', name: 'mod' }];
@@ -607,6 +655,9 @@ function applyDrive(el, v, port) {
   else if (el.type === 'aom') el.eff = el.eff * Math.sin(Math.PI / 2 * v / vsat(el)) ** 2;
   else if (el.type === 'fcomp' && el.kind === 'aom') el._eta = Math.sin(Math.PI / 2 * v / vsat(el)) ** 2;
   else if (el.type === 'eom' || (el.type === 'fcomp' && (el.kind === 'eom' || el.kind === 'stretch')) || (el.type === 'pic' && el.kind === 'ps')) el._v = v;
+  // a steering mirror: turned in the plane, or tipped out of it, degrees a volt
+  else if (el.type === 'mirror' && port === 'tip') el.tip = (el.tip || 0) + num(el.steerK, 1) * v;
+  else if (el.type === 'mirror') el.angle = el.angle + num(el.steerK, 1) * v;
   else if (el.type === 'chopper') el._closed = !(v > 0.5);
 }
 /* trace the bench with something changed, read it, and put everything back as it was */
@@ -614,7 +665,9 @@ function withOptics(apply, read) {
   traceScene();
   const keep = { T: lastTrace, K: lastTraceKey, ms: lastTraceMs, V: VSRC };
   const snap = project.elements.map(e => [e, Object.assign({}, e)]);
+  steer.hold++;                                     // from the mirrors at rest: each drive is set by hand here
   try { apply(); traceSceneRaw(); return read(); } finally {
+    steer.hold--;
     for (const [e, s] of snap) { for (const k of Object.keys(e)) if (!(k in s)) delete e[k]; Object.assign(e, s); }
     setLastTrace(keep.T); setLastTraceKey(keep.K); setLastTraceMs(keep.ms); setVSRC(keep.V);
     statsCache.clear(); diffCache.clear(); binCache.clear();
@@ -670,7 +723,7 @@ function spline2(y) {
 let optMemo = { key: null, R: null };
 /* each photodiode's light through time, mW, given the drives: Map(id -> signal), and notes */
 function opticalSignals(drives, dets) {
-  const key = traceKeyNow() + '|' + JSON.stringify(drives.map(d => [d.el.id, d.port, d.S ? [d.S.dc, d.S.tones, Array.from(d.S.psd)] : 0])) + '|' + dets.map(e => e.id);
+  const key = restKey() + '|' + JSON.stringify(drives.map(d => [d.el.id, d.port, d.S ? [d.S.dc, d.S.tones, Array.from(d.S.psd)] : 0])) + '|' + dets.map(e => e.id);
   if (optMemo.key === key) return optMemo.R;
   const analog = drives.filter(d => d.S), chops = drives.filter(d => !d.S);
   const atMean = skip => { for (const d of analog) if (d !== skip) applyDrive(d.el, d.S.dc, d.port); };
@@ -859,11 +912,12 @@ function describe(S) {
   const big = S.tones.slice().sort((a, b) => Math.hypot(b.re, b.im) - Math.hypot(a.re, a.im)).slice(0, 5).sort((a, b) => a.f - b.f);
   for (const t of big) {
     const A = Math.hypot(t.re, t.im);
-    rows.push([fmtHz(t.f), elecFmtSig(A, u) + ' peak (' + elecFmtSig(A / Math.SQRT2, u) + ' rms), phase ' + (+(Math.atan2(t.im, t.re) * 180 / Math.PI).toFixed(1)) + '°']);
+    // a figure a row: its peak, its rms and its phase
+    rows.push([fmtHz(t.f) + ', peak', elecFmtSig(A, u)], [fmtHz(t.f) + ', rms', elecFmtSig(A / Math.SQRT2, u)], [fmtHz(t.f) + ', phase', (+(Math.atan2(t.im, t.re) * 180 / Math.PI).toFixed(1)) + '°']);
   }
   if (S.tones.length > 5) rows.push(['', (S.tones.length - 5) + ' more tones']);
   let pk = 0, fpk = 0; for (let i = 0; i < NF; i++) if (S.psd[i] > pk) { pk = S.psd[i]; fpk = FG[i]; }
-  if (pk > 0) rows.push(['Noise', elecFmtSig(Math.sqrt(elecPsdAt(S, 1000)), u) + '/√Hz at 1 kHz; ' + elecFmtSig(elecNoiseRms(S, 1, 1e9), u) + ' rms from 1 Hz to 1 GHz']);
+  if (pk > 0) rows.push(['Noise density at 1 kHz', elecFmtSig(Math.sqrt(elecPsdAt(S, 1000)), u) + '/√Hz'], ['Noise, 1 Hz to 1 GHz', elecFmtSig(elecNoiseRms(S, 1, 1e9), u) + ' rms']);
   return rows;
 }
 function elecReadout(el) {
@@ -879,17 +933,17 @@ function elecReadout(el) {
     if (L && L.ok) {
       rows.push(['Reference', fmtHz(L.fref) + (L.h > 1 ? ', detecting its harmonic ' + L.h + ' at ' + fmtHz(L.fd) : '')],
         ['X', elecFmtSig(L.X, u) + ' rms'], ['Y', elecFmtSig(L.Y, u) + ' rms'], ['R', elecFmtSig(L.R, u) + ' rms'], ['θ', (+L.theta.toFixed(2)) + '°'],
-        ['Noise on X, Y', elecFmtSig(L.sigma, u) + ' rms (noise bandwidth ' + (+L.enbw.toPrecision(3)) + ' Hz)' + (L.sigma > 0 ? ': R/σ = ' + (+(L.R / L.sigma).toPrecision(3)) : '')],
-        ['Settles', 'in about ' + fmtSec(L.settle) + ' (to 99%)']);
+        ['Noise on X, Y', elecFmtSig(L.sigma, u) + ' rms'], ['Noise bandwidth', (+L.enbw.toPrecision(3)) + ' Hz'], ...(L.sigma > 0 ? [['R over the noise', String(+(L.R / L.sigma).toPrecision(3))]] : []),
+        ['Settles to 99% in', fmtSec(L.settle)]);
       if (L.ripple > 1e-3 * Math.max(L.R, 1e-30)) rows.push(['Ripple', elecFmtSig(L.ripple, u) + ' left on X by the filter (lengthen the time constant or steepen the slope)']);
     }
   }
   if (el.kind === 'daq') {
     const D = R.lock.get(el.id);
     if (D) {
-      rows.unshift(['Sampling', (+D.fs.toPrecision(4)) + ' S/s (up to ' + fmtHz(D.fs / 2) + '), ' + D.bits + ' bits'],
-        ['One step', elecFmtSig(D.lsb, 'V') + ' (quantisation noise ' + elecFmtSig(D.qn, 'V') + ' rms)']);
-      if (D.folded.length) rows.splice(2, 0, ['Aliases', D.folded.slice(0, 4).map(q => fmtHz(q.f) + ' \u2192 ' + fmtHz(q.fa)).join(', ') + (D.folded.length > 4 ? ', \u2026' : '')]);
+      rows.unshift(['Sample rate', (+D.fs.toPrecision(4)) + ' S/s'], ['Reads up to', fmtHz(D.fs / 2)], ['Bits', String(D.bits)],
+        ['One step', elecFmtSig(D.lsb, 'V')], ['Quantisation noise', elecFmtSig(D.qn, 'V') + ' rms']);
+      if (D.folded.length) rows.splice(5, 0, ['Aliases', D.folded.slice(0, 4).map(q => fmtHz(q.f) + ' \u2192 ' + fmtHz(q.fa)).join(', ') + (D.folded.length > 4 ? ', \u2026' : '')]);
     }
   }
   for (const w of R.warn.get(el.id) || []) rows.push(['Note', w]);
@@ -904,7 +958,6 @@ function elecReadout(el) {
 export const ELEC = {
   KINDS: ELEC_KINDS,
   YELLOW: ELEC_YELLOW,
-  PALETTE: ELEC_PALETTE,
   norm: elecNorm,
   make: elecMake,
   hit: elecHit,
@@ -926,6 +979,7 @@ export const ELEC = {
   chopperReadout: elecChopperReadout,
   moreReadout: elecMoreReadout,
   ports: portList,
+  steerOn, steerKey, steerPose, steerMoving, steerTones, setSteerTime,
   names: elecNames,
   label: el => ELEC_KINDS[el.kind] ? ELEC_KINDS[el.kind].label : 'Electronics',
 };

@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <!-- What this page may load and talk to: itself and the JEK API (the same accounts as every JEK app). Its code is inline. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://api.jeksys.net http://localhost:8787; connect-src 'self' https://api.jeksys.net http://localhost:8787; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
-<title>JEKfilm</title>
-<meta name="description" content="JEKfilm: thin-film coatings designed in the browser. Anti-reflection, high reflectors, beam splitters and dichroic edges, judged over a band and a range of angles with the thin-film model JEKray traces with.">
+<title>Coating designer | JEKray</title>
+<meta name="description" content="The Coating designer: thin-film coatings designed in the browser, beside JEKray. Anti-reflection, high reflectors, beam splitters and dichroic edges, judged over a band and a range of angles with the thin-film model JEKray traces with.">
 <script>if (location.hostname === 'www.jeksys.net') location.replace('https://jeksys.net' + location.pathname + location.search + location.hash);</script>
 <script>try { var t = localStorage.getItem('jekray-theme'); if (t === 'light' || (t === 'system' && !matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.dataset.rtTheme = 'light'; } catch (e) {}</script>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261121">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261126">
 <style>
   /* Ray tracer: page-specific styles. Site tokens come from jek.css. */
   :root {
@@ -812,15 +812,17 @@
   .rt-meta { font-size: 0.8125rem; color: var(--jek-ink-soft); }
   /* experimental features: a menu under the version line, and a badge for what they add */
   .rt-expwrap { position: relative; display: inline-block; }
-  .rt-expmenu { width: 22rem; padding: 0.7rem 0.8rem; font-size: 0.8125rem; color: var(--jek-ink-soft); cursor: default; }
-  .rt-expmenu label { display: flex; align-items: center; gap: 0.45rem; font-weight: 600; color: var(--jek-ink); cursor: pointer; }
-  .rt-expmenu p { margin: 0.5rem 0 0.4rem; line-height: 1.45; }
-  .rt-expmenu ul { margin: 0; padding: 0; list-style: none; }
-  .rt-expmenu ul.off { opacity: 0.6; }
-  .rt-expmenu li { margin-bottom: 0.35rem; }
-  .rt-expmenu label.rt-exppick { align-items: flex-start; font-weight: 400; color: var(--jek-ink-soft); }
-  .rt-expmenu label.rt-exppick input { margin-top: 0.2rem; flex: none; }
-  .rt-expmenu li b { color: var(--jek-ink); }
+  /* the experimental features, set in JEKsuite's dialog for every app */
+  .rt-expdialog { max-width: 34rem; font-size: 0.875rem; color: var(--jek-ink-soft); }
+  .rt-expdialog label.rt-expmaster { display: flex; align-items: center; gap: 0.45rem; margin: 0.6rem 0; font-weight: 600; color: var(--jek-ink); cursor: pointer; }
+  .rt-expdialog p { margin: 0.5rem 0 0.4rem; line-height: 1.45; }
+  .rt-expdialog h3 { margin: 0.8rem 0 0.35rem; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-expdialog ul { margin: 0; padding: 0; list-style: none; }
+  .rt-expdialog .rt-explist.off { opacity: 0.6; }
+  .rt-expdialog li { margin-bottom: 0.45rem; }
+  .rt-expdialog label.rt-exppick { display: flex; align-items: flex-start; gap: 0.45rem; color: var(--jek-ink-soft); cursor: pointer; }
+  .rt-expdialog label.rt-exppick input { margin-top: 0.2rem; flex: none; }
+  .rt-expdialog li b { color: var(--jek-ink); }
   .rt-exp { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; border: 1px dashed currentColor; color: var(--jek-ink-soft); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
   .rt-dot.exp { background: var(--jek-ink-soft); }
   .rt-link { padding: 0; font: inherit; color: var(--jek-cyan-dark); background: none; border: 0; cursor: pointer; }
@@ -1134,6 +1136,9 @@
   }
   .rt-toast.show { opacity: 1; }
   .rt-toast.bad { color: var(--jek-red); font-weight: 600; }
+  /* a note with an offer in it (an update to take up): its button can be pressed */
+  .rt-toast.show.act { pointer-events: auto; }
+  .rt-toast .rt-toastact { margin-left: 0.3rem; font-weight: 600; }
 
   /* The tool fills the whole window, edge to edge, with no site bar above it: the JEKray logo
      at the left of the toolbar leads back to its product page, and nothing separates the
@@ -1538,6 +1543,12 @@
   /* ---------- The lens design workspace ---------- */
   .rt-lens { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; background: var(--jek-well); color: var(--jek-ink); font-family: var(--jek-sans); text-align: left; outline: none; }
   .rt-lens[hidden] { display: none !important; }
+  /* the Optics designer (?optic, io/optic.js): the page's bar moved into the workspace's head, out of .rt-wrap, whose
+     rule hides [hidden] there; its name in place of JEKray's mark */
+  .rt-ophead [hidden] { display: none !important; }
+  .rt-ophead .rt-space { margin-right: 0.2rem; }
+  .rt-ophead a.rt-opmark, .rt-ophead a.rt-opmark:hover { color: var(--jek-ink); text-decoration: none; }
+  .rt-ophead .rt-more { position: relative; }
   .rt-lens .mono, .rt-lnum, .rt-lglass { font-family: var(--jek-mono); }
   .rt-lhead { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; padding: 0.6rem 1rem; background: var(--jek-panel); border-bottom: 1px solid var(--jek-line); flex: none; }
   .rt-lcrumb { display: flex; align-items: center; gap: 0.5rem; min-width: 0; font-size: 0.95rem; }
@@ -2174,20 +2185,20 @@ html, body { margin: 0; background: var(--jek-well); }
 </head>
 <body class="film-app">
 
-  <!-- JEKfilm: one coating, its settings, its curves and its layers -->
-  <section class="rt-lens rt-coatws film-ws" id="filmWs" aria-label="JEKfilm, the coating designer">
+  <!-- the Coating designer (once called JEKfilm): one coating, its settings, its curves and its layers -->
+  <section class="rt-lens rt-coatws film-ws" id="filmWs" aria-label="The Coating designer">
     <header class="rt-lhead film-head">
       <a class="film-space" id="btnSpace" href="/jek/tools/jeksuite.html#app=jekfilm" target="jeksuite" title="JEKsuite: every coating and bench you keep in the cloud (in its own tab)"><span class="film-spacemark" aria-hidden="true"></span>JEKsuite</a>
-      <h1 class="film-title"><a href="/jek/products/design-software/jekfilm/" title="About JEKfilm: its product page"><span class="jek-wm">JEK<b>film</b></span></a></h1>
+      <h1 class="film-title"><a href="/jek/products/design-software/jekray/#coating-designer" title="About the Coating designer, on JEKray's page">Coating designer</a></h1>
       <input type="text" id="filmName" class="film-name" aria-label="The coating’s name" spellcheck="false" maxlength="120">
       <div class="rt-more">
         <button class="rt-btn quiet" id="btnFile" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="fileMenu">File</button>
         <div class="rt-menu rt-imenu" id="fileMenu" role="menu" hidden>
           <button type="button" role="menuitem" id="btnNew" data-icon="new">New coating</button>
-          <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .jekfilm file…</button>
+          <button type="button" role="menuitem" id="btnOpen" data-icon="open">Open a .coat file…</button>
           <button type="button" role="menuitem" id="btnFilmExamples" data-icon="book">Open an example…</button>
           <div class="sep"></div>
-          <button type="button" role="menuitem" id="btnSaveFile" data-icon="save" data-need="account" data-what="save a coating file">Save as .jekfilm<span class="k">Ctrl+S</span></button>
+          <button type="button" role="menuitem" id="btnSaveFile" data-icon="save" data-need="account" data-what="save a coating file">Save as .coat<span class="k">Ctrl+S</span></button>
           <div class="sep" id="cloudSep"></div>
           <button type="button" role="menuitem" id="btnCloudSave" data-icon="upload" data-need="pro" data-what="save to the cloud" title="Keep this coating in the cloud, with its history, beside the benches that use it"><span class="lbl">Save to cloud…</span></button>
           <button type="button" role="menuitem" id="btnShareMenu" data-icon="link" data-need="pro" data-what="share a link" title="A short link that opens this coating as it is now, for anyone">Copy a share link…</button>
@@ -2200,7 +2211,7 @@ html, body { margin: 0; background: var(--jek-well); }
       <button class="rt-btn quiet" id="btnRedo" type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" data-icon="redo"></button>
       <span class="film-where"><span id="filmWhere">In this browser</span> <span id="filmStatus" class="rt-status" aria-live="polite"></span></span>
       <span class="rt-lgap"></span>
-      <button class="rt-btn film-save" id="btnSave" type="button" data-icon="save" data-need="account" data-what="save a coating file" title="Save the coating as a .jekfilm file (Ctrl+S)">Save</button>
+      <button class="rt-btn film-save" id="btnSave" type="button" data-icon="save" data-need="account" data-what="save a coating file" title="Save the coating as a .coat file (Ctrl+S)">Save</button>
       <div class="rt-more">
         <button class="rt-btn quiet" id="btnTheme" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="themeMenu" aria-label="Theme" title="Theme" data-icon="theme"></button>
         <div class="rt-menu rt-menu-right rt-imenu" id="themeMenu" role="menu" hidden></div>
@@ -2213,7 +2224,7 @@ html, body { margin: 0; background: var(--jek-well); }
       </div>
     </header>
     <p class="film-for" id="filmFor" hidden></p>
-    <nav class="film-tabs" role="tablist" aria-label="JEKfilm">
+    <nav class="film-tabs" role="tablist" aria-label="The Coating designer">
       <button type="button" role="tab" id="tabDesign" data-tab="design" aria-selected="true">Design</button>
       <button type="button" role="tab" id="tabTolerance" data-tab="tolerance" aria-selected="false">Tolerance</button>
       <button type="button" role="tab" id="tabMake" data-tab="make" aria-selected="false">Make it</button>
@@ -2221,7 +2232,7 @@ html, body { margin: 0; background: var(--jek-well); }
     <div class="rt-lbody" id="filmBody"></div>
     <div class="rt-toast" id="filmToast" role="status"></div>
   </section>
-  <input type="file" id="fileFilm" accept=".jekfilm,application/json" hidden>
+  <input type="file" id="fileFilm" accept=".coat,.jekfilm,application/json" hidden>
 
   <dialog class="rt-dialog rt-wide" id="uniDialog" aria-labelledby="uniTitle">
     <h2 id="uniTitle">University licence</h2>
@@ -2266,7 +2277,6 @@ html, body { margin: 0; background: var(--jek-well); }
    Constants
    ========================================================================== */
 
-const STORE_KEY = 'jek-raytracer-session-v1';
 let cloud = null, cloudOpening = false;       // the cloud bench this one is linked to (see Cloud benches)
 function setCloudOpening(v) { return (cloudOpening = v); }
 function setCloud(v) { return (cloud = v); }
@@ -2284,6 +2294,27 @@ const EMBED = IN_PAGE && !TEST_MODE && /(^|[?&])embed\b/.test(QUERY);
 // ?embed=locked: the parts stay where they are; the reader pans, zooms, turns the 3D view and plays the sweeps
 const LOCKED = EMBED && /(^|[?&])embed=locked\b/.test(QUERY);
 const FORMAT = 'jekray';
+/* The page as another program, by its query (each keeps its work apart from JEKray's bench in this browser: each
+   store's key, appStoreKey, has the mode after it):
+   ?optic  the Optics designer, JEKray's lens designer as a program of its own; its document is a design, a .optic
+           (format 'jekoptic'): the parts of one assembly and its record, with a uid that links the benches using it
+   ?rf     JEKrf, the RF bench (format 'jekrf', a .jekrf): JEKray's bench with the RF parts alone
+   ?rfd    JEKrf's RF designer, a program of its own as the Optics designer is; its document a .rfd (format 'jekrfd')
+   (io/designs.js links the designs and the benches that use them) */
+const PAGE_Q = typeof location === 'undefined' || !IN_PAGE || IN_WORKER ? '' : location.search;
+const OPTIC = /(^|[?&])optic\b/.test(PAGE_Q);
+const RFD = !OPTIC && /(^|[?&])rfd\b/.test(PAGE_Q);
+const RFAPP = !OPTIC && !RFD && /(^|[?&])rf\b/.test(PAGE_Q);
+const DESIGNER = OPTIC || RFD;
+const OPTIC_FORMAT = 'jekoptic', RF_FORMAT = 'jekrf', RFD_FORMAT = 'jekrfd';
+/* the page's own mode ('ray', 'optic', 'rf' or 'rfd') and the format of the file it keeps */
+const PAGE_MODE = OPTIC ? 'optic' : RFD ? 'rfd' : RFAPP ? 'rf' : 'ray';
+const PAGE_FORMAT = { ray: FORMAT, optic: OPTIC_FORMAT, rf: RF_FORMAT, rfd: RFD_FORMAT }[PAGE_MODE];
+const PAGE_FORMATS = [FORMAT, OPTIC_FORMAT, RF_FORMAT, RFD_FORMAT];
+/* the page's query, kept in the address when a link's hash is taken off */
+const PAGE_QUERY = { ray: '', optic: '?optic', rf: '?rf', rfd: '?rfd' }[PAGE_MODE];
+const appStoreKey = k => (PAGE_MODE === 'ray' ? k : k + '-' + PAGE_MODE);
+const STORE_KEY = appStoreKey('jek-raytracer-session-v1');
 const VERSION = 1;
 const TRACE_BUDGET = 4e6;  // ray–element interactions per redraw, keeps the page responsive
 const FAR = 2e4;          // mm: how far an escaping ray is drawn
@@ -2700,7 +2731,7 @@ function coatFromFilm(d, src) {
   d = d && typeof d === 'object' ? d : {};
   const spec = d.spec && typeof d.spec === 'object' ? d.spec : {};
   const layers = (Array.isArray(d.layers) ? d.layers : []).filter(L => L && isFinite(+L.n) && isFinite(+L.d)).slice(0, 200).map(L => ({ n: Math.max(1, +L.n), d: Math.max(0, +L.d), ...(METAL_NK[L.metal] ? { metal: L.metal } : {}) }));
-  return { mode: 'stack', design: clampN(spec.design, 100, 1e9, 550), layers, label: String(d.name || 'JEKfilm coating').slice(0, 120), ...(src && src.id ? { src: { id: String(src.id), v: +src.v || 1 } } : {}) };
+  return { mode: 'stack', design: clampN(spec.design, 100, 1e9, 550), layers, label: String(d.name || 'Coating').slice(0, 120), ...(src && src.id ? { src: { id: String(src.id), v: +src.v || 1 } } : {}) };
 }
 /* a JEKfilm coating designed on another glass than this face's: both indices at its design wavelength and what that
    costs, R square on from air as designed and on this glass (shown when they differ by more than 0.005) */
@@ -5385,7 +5416,7 @@ function render() {
   const nm = document.getElementById('filmName');
   if (nm && document.activeElement !== nm) nm.value = film.name;
   for (const [id, can] of [['btnUndo', canUndo()], ['btnRedo', canRedo()]]) { const b = document.getElementById(id); if (b) b.disabled = !can; }
-  document.title = film.name + ' | JEKfilm';
+  document.title = film.name + ' | Coating designer';
 }
 /* a row of a property table: its name, its value (a control or a figure), its unit */
 const propRow = (label, value, unit, cls) => h('tr', { class: cls || null }, h('th', { scope: 'row' }, label), h('td', null, value), h('td', { class: 'unit' }, unit || ''));
@@ -5709,19 +5740,20 @@ function downloadBlob(name, blob) {
 /* the coating as a .jekfilm file: JEKrayPro's */
 function saveFilmFile() {
   if (!designPro('save a coating file')) return false;
-  const name = filmFileName(film.name, 'jekfilm');
+  // a .coat (one saved before the rename is a .jekfilm, and opens as one)
+  const name = filmFileName(film.name, 'coat');
   downloadBlob(name, new Blob([filmText(film)], { type: 'application/json' }));
   toast('Saved ' + name); track('save', 'film-file'); goal('save');
   return true;
 }
 /* a coating's data put here (undoable): from a file, the cloud or an example */
 function openFilmData(d, name) {
-  if (!d || typeof d !== 'object') { toast('That is not a JEKfilm coating', true); return false; }
+  if (!d || typeof d !== 'object') { toast('That is not a coating file', true); return false; }
   if (d.format !== FILM_FORMAT) {
-    toast(d.format === 'jekion' ? 'That is a JEKion bench: open it in JEKion' : d.format ? 'That is a JEKray bench: open it in JEKray' : 'That is not a JEKfilm coating', true);
+    toast(d.format === 'jekion' ? 'That is a JEKion bench: open it in JEKion' : d.format ? 'That is a JEKray bench: open it in JEKray' : 'That is not a coating file', true);
     return false;
   }
-  if (name && !d.name) d = Object.assign({}, d, { name: String(name).replace(/\.jekfilm$/i, '') });
+  if (name && !d.name) d = Object.assign({}, d, { name: String(name).replace(/\.(coat|jekfilm)$/i, '') });
   setFilm(d);
   return true;
 }
@@ -5729,7 +5761,7 @@ function openFilmFile(file) {
   const rd = new FileReader();
   rd.onload = () => {
     let d = null;
-    try { d = JSON.parse(rd.result); } catch (err) { toast('Could not read ' + file.name + ': it is not a JEKfilm file', true); return; }
+    try { d = JSON.parse(rd.result); } catch (err) { toast('Could not read ' + file.name + ': it is not a coating file', true); return; }
     if (openFilmData(d, file.name)) { hooks.filmUnlink(); filmAutosave(); toast('Opened ' + file.name); track('import', 'film-file'); }
   };
   rd.readAsText(file);
@@ -5797,8 +5829,8 @@ function wireFiles() {
     const f = e.dataTransfer && e.dataTransfer.files[0];
     if (!f) return;
     e.preventDefault();
-    if (/\.(jekfilm|json)$/i.test(f.name)) openFilmFile(f);
-    else toast(/\.jekray$/i.test(f.name) ? f.name + ' is a JEKray bench: open it in JEKray' : 'Drop a .jekfilm coating here', true);
+    if (/\.(coat|jekfilm|json)$/i.test(f.name)) openFilmFile(f);
+    else toast(/\.jekray$/i.test(f.name) ? f.name + ' is a JEKray bench: open it in JEKray' : 'Drop a .coat file here', true);
   });
   window.addEventListener('beforeunload', filmKeepNow);
 }
@@ -5826,7 +5858,7 @@ function filmSignIn(kind, what) {
 }
 function wireFilmAccount() {
   Object.assign(hooks, {
-    appName: 'JEKfilm', toast,
+    appName: 'JEKray Coating designer', toast,
     exportSignIn: what => filmSignIn('export', what),
     proWhy: () => (accountsOn() ? filmProWhy() : ''),
     proFix: what => filmSignIn('pro', what),
@@ -6163,16 +6195,16 @@ const OTHER_LINKS = { z: 'jekray', j: 'jekray', q: 'jekray', i: 'jekion', k: 'je
 async function readFilmHash(hash) {
   const kind = hash[0], body = hash.slice(1);
   if (OTHER_LINKS[kind]) { const nm = { jekion: 'JEKion', jekray: 'JEKray', jekcad: 'JEKcad' }[OTHER_LINKS[kind]]; throw new Error('that is a ' + nm + (nm === 'JEKcad' ? ' Part Studio' : ' bench') + ': open the link in ' + nm); }
-  if (kind !== 'f' && kind !== 'g') throw new Error('the link is not one of JEKfilm’s');
+  if (kind !== 'f' && kind !== 'g') throw new Error('the link is not one of the Coating designer’s');
   let bytes;
   try { bytes = funb64u(body); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
   if (kind === 'f') {
-    if (typeof DecompressionStream === 'undefined') throw new Error('this browser cannot read compressed links; ask for the .jekfilm file instead');
+    if (typeof DecompressionStream === 'undefined') throw new Error('this browser cannot read compressed links; ask for the .coat file instead');
     try { bytes = await fstream(bytes, new DecompressionStream('deflate-raw')); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
   }
   let d;
   try { d = JSON.parse(new TextDecoder().decode(bytes)); } catch (err) { throw new Error('the link does not hold a coating'); }
-  if (!d || d.format !== FILM_FORMAT) throw new Error('the link does not hold a JEKfilm coating');
+  if (!d || d.format !== FILM_FORMAT) throw new Error('the link does not hold a coating');
   return normFilm(d);
 }
 const filmShortUrl = id => location.origin + '/f/' + id;
@@ -6252,7 +6284,7 @@ function filmDataSet(f) {
       col('n', '', L.map(x => (x.metal ? metalNK(x.metal, s.design)[0] : x.n))), col('k', '', L.map(x => (x.metal ? metalNK(x.metal, s.design)[1] : 0))),
       col('thickness', 'nm', L.map(x => x.d)), col('QWOT', '', L.map(x => (x.metal ? NaN : x.d / qwot(x.n, s.design))))] },
   ];
-  return { meta: { title: f.name, tool: 'JEKfilm', version: FILM_VERSION, created: new Date().toISOString(), format: 'jekfilm', target: s.target, substrate: subLabelOf(f.spec.sub), substrate_n: s.ns, design_nm: s.design, band_nm: [s.lo, s.hi], angles_deg: [s.theta0, s.theta], polarisation: s.pol }, items };
+  return { meta: { title: f.name, tool: 'JEKray Coating designer', version: FILM_VERSION, created: new Date().toISOString(), format: 'jekfilm', target: s.target, substrate: subLabelOf(f.spec.sub), substrate_n: s.ns, design_nm: s.design, band_nm: [s.lo, s.hi], angles_deg: [s.theta0, s.theta], polarisation: s.pol }, items };
 }
 async function filmExportData(fmt) {
   if (!accountGate('export data')) return false;
@@ -6302,7 +6334,7 @@ function spage(meta, title, n) {
   stext(g, meta.name, FP_M, 74, { size: 10, ink: FP_SOFT });
   stext(g, meta.date, FP_W - FP_M, 56, { size: 8.5, ink: FP_SOFT, align: 'right' });
   g.strokeStyle = FP_INK; g.lineWidth = 0.8; g.beginPath(); g.moveTo(FP_M, 84); g.lineTo(FP_W - FP_M, 84); g.stroke();
-  stext(g, 'Designed in JEKfilm (jeksys.net). Theoretical performance from the thin-film model and the indices listed.', FP_M, FP_H - 30, { size: 7, ink: FP_SOFT });
+  stext(g, 'Designed in the JEKray Coating designer (jeksys.net). Theoretical performance from the thin-film model and the indices listed.', FP_M, FP_H - 30, { size: 7, ink: FP_SOFT });
   stext(g, 'Page ' + n + ' of 2', FP_W - FP_M, FP_H - 30, { size: 7, ink: FP_SOFT, align: 'right' });
   return { g, y: 108 };
 }

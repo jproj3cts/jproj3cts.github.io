@@ -41,7 +41,7 @@
   } catch (e) { /* not counted */ }
 })();</script>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261121">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261126">
 <style>
 {{STYLE}}
 </style>
@@ -149,13 +149,13 @@
         <div class="rt-more rt-phonegone">
           <button class="rt-btn rt-mbar" id="btnTools" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="toolsMenu" title="The designers, scripts and the bench's settings">Tools</button>
           <div class="rt-menu rt-imenu" id="toolsMenu" role="menu" hidden>
-            <button type="button" role="menuitem" id="btnNewLens" data-ws="lens" data-icon="new" title="An assembly to design: a stop and a singlet to start from, in the Optical designer">Optical designer, new…</button>
-            <button type="button" role="menuitem" id="btnLensOfSel" data-ws="lens" data-icon="open" title="The selected lenses, mirrors and stops, on one axis, designed as one in the Optical designer">Optical designer, of the selection</button>
+            <button type="button" role="menuitem" id="btnNewLens" data-ws="lens" data-icon="new" title="An assembly to design: a stop and a singlet to start from, in the Optics designer">Optics designer, new…</button>
+            <button type="button" role="menuitem" id="btnLensOfSel" data-ws="lens" data-icon="open" title="The selected lenses, mirrors and stops, on one axis, designed as one in the Optics designer">Optics designer, of the selection</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" id="btnNewRf" data-ws="rf" data-icon="new" title="An RF system to design: a made-to-order lens and its feed horn, in the RF designer">RF designer, new…</button>
             <button type="button" role="menuitem" id="btnRfOfSel" data-ws="rf" data-icon="open" title="The selected RF lenses, mirrors and horns as a system in the RF designer">RF designer, of the selection</button>
             <div class="sep"></div>
-            <button type="button" role="menuitem" id="btnCoatDesign" data-ws="coat" data-icon="new" title="A thin-film coating designed in JEKfilm (in its own tab): an anti-reflection stack, a reflector, a splitter or an edge, kept in the cloud for every face’s Coating list">Coating design in JEKfilm…</button>
+            <button type="button" role="menuitem" id="btnCoatDesign" data-ws="coat" data-icon="new" title="A thin-film coating designed in the Coating designer (in its own tab): an anti-reflection stack, a reflector, a splitter or an edge, kept in the cloud for every face’s Coating list">Coating designer…</button>
             <div class="sep"></div>
             <button type="button" role="menuitem" id="btnScripts" data-icon="flask" data-need="account" data-what="run scripts" title="JavaScript or Python run against this bench: read screens and detectors, move parts, sweep a parameter to a table">Scripts…</button>
             <button type="button" role="menuitem" data-click="btnSideTab" data-icon="sliders" title="Light, snapping, notes and the parts list">Bench settings…</button>
@@ -194,7 +194,7 @@
             <div class="sep"></div>
             <button type="button" role="menuitem" id="btnCite" data-icon="quote">Cite JEKray</button>
             <button type="button" role="menuitem" id="btnBug" data-icon="bug">Report a bug</button>
-            <button type="button" role="menuitem" id="btnExp" data-icon="flask" data-need="account" data-what="use the experimental features" aria-haspopup="true" aria-expanded="false" aria-controls="expMenu">Experimental features…<span class="rt-dot exp" id="expDot" hidden></span></button>
+            <button type="button" role="menuitem" id="btnExp" data-icon="flask" data-need="account" data-what="use the experimental features" title="Switched on and off for every app in JEKsuite’s account menu (in its own tab)">Experimental features (in JEKsuite)…<span class="rt-dot exp" id="expDot" hidden></span></button>
             <div class="sep"></div>
             <a role="menuitem" href="/jek/products/design-software/jekray/" data-icon="info">About JEKray</a>
             <a role="menuitem" href="jekray-licence.html" data-icon="pdf">Licence</a>
@@ -202,7 +202,6 @@
             <div class="sep"></div>
             <span class="rt-menunote">JEKray <span id="appVersion"></span> &middot; &copy; 2025&ndash;2026 JEK Systems</span>
           </div>
-          <div class="rt-menu rt-expmenu" id="expMenu" hidden></div>
         </div>
         </div>
         <div class="rt-group rt-tight rt-quick">
@@ -564,7 +563,7 @@
       <label for="zmxAs">Import as</label>
       <select id="zmxAs"></select>
     </div>
-    <label class="rt-check" id="zmxDesignRow" style="margin:0 0 0.75rem"><input type="checkbox" id="zmxDesign"> Open it in the Optical designer, as an assembly to design</label>
+    <label class="rt-check" id="zmxDesignRow" style="margin:0 0 0.75rem"><input type="checkbox" id="zmxDesign"> Open it in the Optics designer, as an assembly to design</label>
     <p id="zmxWhere">The part is placed at the centre of the view with light travelling left to right, as in the file. Lenses and mirrors come across with their exact surfaces. The file describes cubes and prisms with tilted, folded surfaces that can't be read back reliably, so for those the importer takes the glass and size and builds the part itself. Pick the type above if it guesses wrong.</p>
     <p>Glass the tracer doesn't recognise uses the n<sub>d</sub> and V<sub>d</sub> values from the file, which is less accurate far from the visible.</p>
     <p class="rt-error" id="zmxError" hidden></p>

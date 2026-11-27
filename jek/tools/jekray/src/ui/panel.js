@@ -5,7 +5,8 @@ import { assemblyPanel, designOneRow } from './assembly.js';
 import { fmtHz, fmtLen, fmtNum } from '../core/format.js';
 import { syncLine } from '../core/pulses.js';
 import { V, extraSel, project, selectOne, selectedId, suppressedPart, typeLabel } from '../state/project.js';
-import { getEl, selected, NET_3D } from '../state/elements.js';
+import { getEl, normElementBase, selected, NET_3D } from '../state/elements.js';
+import { FREE_PARTS, PARTS } from '../parts/registry.js';
 import { mateFollow, mateHold, matesOf } from '../core/mates.js';
 import { matesPanel } from './mate3d.js';
 import { tippable } from '../engines/trace.js';
@@ -25,7 +26,7 @@ import { coloursRows, fibreLinkPanel, groupPanel, rfHornPanel } from './panels.j
 import { assumedBox } from './plots.js';
 import { renderOverview, setBenchTab } from './panel-cavity.js';
 import { cavitiesOf } from '../engines/cavity.js';
-import { changed, duplicate, removeEl, suppressEls } from './actions.js';
+import { changed, duplicate, removeEl, suppressEls, toast } from './actions.js';
 import { checkpoint, selectEl, switchTab } from './tabs.js';
 import { modPanel } from '../io/mods.js';
 import { h } from './dom.js';
@@ -176,6 +177,122 @@ export function param(label, el, path, opts = {}) {
   if (P.box) wrap.append(P.box);
   return wrap;
 }
+/* A part's settings as a table: a row a setting, its name, its value, its unit and its sweep's \u223f each in a column of
+   their own, under section rows. A value reads as plain text until it is pointed at or typed in; Enter and the up and
+   down arrows go from row to row, as in a spreadsheet. rows: a string (a section's name), or
+     { name, path, unit, opts, dflt, title }   a setting (dflt: its value on a new plain part: a row still at it is dimmed,
+                                               so what has been set stands out)
+     { name, read: () => text, unit, title }   a figure worked out from the settings, shown among them, not typed
+     { name, choose: [[value, words]…], get, set, title }   a choice from a list
+     { name, tick: () => on, set: on => …, title }          a setting that is on or off
+     { name, text: () => words, set, placeholder, title }   words typed
+     { name, cell: node, title }               anything else beside its name; { node } anything across the whole row
+   (null: no row; row(r): given a setting's row once made). The unit is in the label for a screen reader, out of sight. */
+/* a table's row for a figure worked out from the settings ({ name, read: () => text, unit, title }): shown among them, in
+   italics, not typed. read may give the figure with its unit, as "19.85 m": a unit that goes with the figure's size is
+   shown in the unit's column. A panel built the older way puts one among its settings with this (tabulate keeps it). */
+export function readRow(r) {
+  const v = h('span', { class: 'rt-pt-val' }), u = h('span', { class: 'rt-pt-unit' }, r.unit || ''), row = h('div', { class: 'rt-pt-row derived', title: r.title }, h('span', { class: 'rt-pt-name' }, r.name), v, u, h('span'));
+  bindSync(v, () => {
+    const t = r.read(), m = r.unit || t === null || t === undefined ? null : /^(\S+) (\S+)$/.exec(String(t));
+    v.textContent = m ? m[1] : t; if (!r.unit) u.textContent = m ? m[2] : '';
+    row.hidden = t === null || t === undefined || t === '';
+  });
+  return row;
+}
+export function propTable(el, rows) {
+  const T = h('div', { class: 'rt-pt' });
+  for (const r of rows) {
+    if (!r) continue;
+    if (typeof r === 'string') { T.append(h('div', { class: 'rt-pt-sec' }, r)); continue; }
+    if (r.read) { T.append(readRow(r)); continue; }
+    if (r.node) { T.append(h('div', { class: 'rt-pt-wide' }, r.node)); continue; }
+    if (r.choose || r.tick || r.text || r.cell) {
+      const id = 'rtf' + (++fid);
+      let c;
+      if (r.choose) { c = selectBox(r.choose, r.get, r.set, r.opts || {}); c.id = id; }
+      else if (r.tick) { c = h('input', { id, type: 'checkbox' }); bindSync(c, () => { c.checked = !!r.tick(); }); c.addEventListener('change', () => { checkpoint(); r.set(c.checked); changed(true); }); }
+      else if (r.text) {
+        c = h('input', { id, type: 'text', spellcheck: 'false', placeholder: r.placeholder });
+        c.addEventListener('input', () => { beginEdit(); r.set(c.value); changed(false); }); c.addEventListener('change', endEdit); c.addEventListener('blur', endEdit);
+        bindSync(c, () => { if (document.activeElement !== c) c.value = r.text(); });
+      } else c = r.cell;
+      const row = h('div', { class: 'rt-pt-row rt-pt-' + (r.choose ? 'choose' : r.tick ? 'tick' : r.text ? 'text' : 'cell'), title: r.title }, h('label', { class: 'rt-pt-name', for: r.cell ? r.cell.id || undefined : id }, r.name), c);
+      if (r.row) r.row(row);
+      T.append(row);
+      continue;
+    }
+    const id = 'rtf' + (++fid), full = r.name + (r.unit ? ' (' + r.unit + ')' : '');
+    const P = paramBits(full, el, r.path, Object.assign({ prefix: r.name }, r.opts), id);
+    const row = h('div', { class: 'rt-pt-row' + (P.sw ? ' swept' : ''), title: r.title },
+      h('label', { class: 'rt-pt-name', for: id }, r.name, r.unit ? h('span', { class: 'rt-sr' }, ' (' + r.unit + ')') : null),
+      P.inp, h('span', { class: 'rt-pt-unit' }, r.unit || ''), P.toggle || h('span'));
+    if ('dflt' in r) bindSync(row, () => { const v = getPath(el, r.path); row.classList.toggle('dflt', v === r.dflt || (v === undefined || v === null || v === 0) && (r.dflt === null || r.dflt === 0)); });
+    if (r.row) r.row(row);
+    T.append(row);
+    if (P.box) T.append(h('div', { class: 'rt-pt-box' }, P.box));
+  }
+  // from row to row
+  T.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    if (!e.target.matches || !e.target.matches('.rt-pt-row > input')) return;
+    const all = [...T.querySelectorAll('.rt-pt-row > input')], to = all[all.indexOf(e.target) + (e.key === 'ArrowUp' ? -1 : 1)];
+    if (to) { e.preventDefault(); to.focus(); to.select(); }
+  });
+  return T;
+}
+/* Which parts' panels are tables: every free-space part (and an imported body), every fibre component, every circuit
+   block and every part of a photonic chip. */
+export const tablePart = el => !!el && (el.type === 'stl' || el.type === 'fcomp' || el.type === 'elec' || el.type === 'pic' || FREE_PARTS.includes(PARTS[el.type]));
+/* A panel built the older way (param, selectField, textField and ticks in rt-rows and grid2) made a table as it stands:
+   each list of settings becomes a table and each setting a row of it, in place and with what it is made of kept (its
+   label, its box, its sweep's \u223f and controls), so nothing that finds a setting by its label or its row loses it. A
+   label's unit, "(mm)", goes to the unit's column (and stays in the label out of sight); a setting still at a new
+   part's value is dimmed. What is not a setting (a note, a button, a pair of boxes) runs across the table. A part's
+   module can still build its tables itself (propTable), where it wants figures worked out among its settings. */
+const UNIT_IN_LABEL = /^(.*\S)\s*\((per [^()\s]{1,5}|[^()\s]{1,7})\)$/;
+function tabulate(root, el) {
+  let fresh = null;
+  try { fresh = normElementBase(Object.assign({ type: el.type, name: 'x' }, el.type === 'fcomp' || el.type === 'elec' || el.type === 'pic' ? { kind: el.kind } : null)); } catch (err) { fresh = null; }
+  const same = (a, b) => a === b || (a === undefined || a === null || a === 0 || a === '') && (b === undefined || b === null || b === 0 || b === '');
+  // a name with an aside in brackets ("Split in four (reads right less left, top less bottom)") shows its name alone,
+  // the whole of it in its tooltip; its words are kept, out of sight, for a screen reader and for what finds it by them
+  const shorten = (lab, at) => {
+    const t = lab.textContent.trim(), a = /^(.*\S)\s*\(([^()]*\s[^()]*|[^()]{8,})\)$/.exec(t);
+    if (!a || lab.children.length > (lab === at && lab.matches('.rt-check') ? 1 : 0)) return;
+    at.dataset.short = a[1]; if (!at.title) at.title = t;
+  };
+  const tick = f => { f.classList.add('rt-pt-row', 'rt-pt-tick'); shorten(f, f); };
+  const row = f => {
+    if (f.classList.contains('rt-pt-row')) return;            // (a row already: a worked-out figure, readRow)
+    if (f.matches('label.rt-check')) { if (f.querySelectorAll('input').length === 1) tick(f); else f.classList.add('rt-pt-wide'); return; }
+    const lab = f.matches('.rt-f') ? f.querySelector(':scope > .rt-lab > label, :scope > label') : null, ctl = lab ? f.querySelector(':scope > input, :scope > select') : null;
+    if (!lab || !ctl || f.classList.contains('rt-pair') || f.classList.contains('rt-pgridf') || f.querySelectorAll(':scope > input, :scope > select').length !== 1) { f.classList.add('rt-pt-wide'); return; }
+    f.classList.remove('wide', 'rt-fstack');
+    f.classList.add('rt-pt-row');
+    lab.classList.add('rt-pt-name');
+    if (ctl.tagName === 'SELECT') { f.classList.add('rt-pt-choose'); shorten(lab, lab); return; }
+    if (ctl.type === 'checkbox') { f.classList.add('rt-pt-tick'); return; }
+    if (ctl.type !== 'text') { f.classList.add('rt-pt-cell'); return; }
+    // (a unit with words after it, "Open (% of cycle)": the unit to its column, the whole in the tooltip)
+    // (and a unit with a note after it, "Time span (s; 0: auto)")
+    const lone = lab.childNodes.length === 1 && lab.firstChild.nodeType === 3, w = lone ? /^(.*\S)\s*\(([%\u00b0]) [^()]+\)$/.exec(lab.textContent) || /^(.*\S)\s*\(([^();\s]{1,7});\s[^()]+\)$/.exec(lab.textContent) : null;
+    if (w && !f.title) f.title = lab.textContent;
+    const m = w || (lone ? UNIT_IN_LABEL.exec(lab.textContent) : null);
+    if (!ctl.dataset.path && !m) { f.classList.add('rt-pt-text'); shorten(lab, lab); return; }
+    if (m) { const whole = lab.textContent; lab.textContent = m[1]; lab.append(h('span', { class: 'rt-sr' }, whole.slice(m[1].length))); }
+    f.append(h('span', { class: 'rt-pt-unit' }, m ? m[2] : ''));
+    if (!m) shorten(lab, lab);
+    if (fresh && ctl.dataset.path) bindSync(f, () => { let d; try { d = getPath(fresh, ctl.dataset.path); } catch (err) { d = NaN; } f.classList.toggle('dflt', same(getPath(el, ctl.dataset.path), d)); });
+  };
+  for (const box of [...root.querySelectorAll('.rt-rows, .rt-pgrid2')]) {
+    if (box.closest('.rt-pt, .rt-sweep, .rt-readout, table') || box.parentElement.closest('.rt-f')) continue;
+    box.classList.remove('rt-rows', 'rt-pgrid2'); box.classList.add('rt-pt'); box.removeAttribute('style');
+    for (const f of [...box.children]) row(f);
+  }
+  // a tick on its own in the panel: a table of one row
+  for (const c of [...root.querySelectorAll(':scope > label.rt-check')]) { const t = h('div', { class: 'rt-pt' }); c.replaceWith(t); t.append(c); c.removeAttribute('style'); row(c); }
+}
 /* a grid of numbers three to a row, each with its name over it (and its sweep's ∿ beside the name): the Position section's X, Y, Z and Angle, Tip, Roll. items: [path, label] or null
    (an empty cell); the open sweeps' controls follow the grid */
 function paramGrid(el, items, opts = {}, cells = []) {        // cells: filled with each number's cell, in order (null for an empty one)
@@ -313,13 +430,20 @@ export function textField(label, get, set, opts = {}) {
   return h('div', { class: 'rt-f' + (opts.wide ? ' wide' : '') }, h('label', { for: id }, label), inp);
 }
 /* a laser's coherence: the choice of three, and the fields that go with it */
+const setSpectrum = (el, v) => {
+  const V = vs(el);
+  if (el.cmode === 'line') V.lineCoh = el.coh;
+  if (v === 'line' && el.cmode !== 'line') el.coh = V.lineCoh > 0 ? V.lineCoh : 300;
+  el.cmode = v; syncLine(el);
+};
+/* (the same as rows of a table: propTable) */
+export const coherenceRows = el => [
+  el.led ? null : { name: 'Spectrum', choose: [['single', 'One frequency'], ['line', 'A spectral line'], ['broad', 'Broadband']], get: () => el.cmode, set: v => setSpectrum(el, v) },
+  el.cmode === 'line' ? { name: 'Coherence length', path: 'coh', unit: 'mm' } : null,
+  el.cmode === 'line' ? { name: 'Line shape', choose: [['lorentz', 'Lorentzian'], ['gauss', 'Gaussian']], get: () => el.lineshape, set: v => { el.lineshape = v; } } : null,
+  el.cmode === 'broad' ? { name: 'Bandwidth', path: 'bw', unit: 'nm' } : null];
 export function coherenceFields(el, rows) {
-  if (!el.led) rows.append(selectField('Spectrum', [['single', 'One frequency'], ['line', 'A spectral line'], ['broad', 'Broadband']], () => el.cmode, v => {
-    const V = vs(el);
-    if (el.cmode === 'line') V.lineCoh = el.coh;
-    if (v === 'line' && el.cmode !== 'line') el.coh = V.lineCoh > 0 ? V.lineCoh : 300;
-    el.cmode = v; syncLine(el);
-  }, { wide: true }));
+  if (!el.led) rows.append(selectField('Spectrum', [['single', 'One frequency'], ['line', 'A spectral line'], ['broad', 'Broadband']], () => el.cmode, v => setSpectrum(el, v), { wide: true }));
   if (el.cmode === 'line') rows.append(param('Coherence length (mm)', el, 'coh'),
     selectField('Line shape', [['lorentz', 'Lorentzian'], ['gauss', 'Gaussian']], () => el.lineshape, v => { el.lineshape = v; }, { wide: true }));
   if (el.cmode === 'broad') rows.append(param('Bandwidth (nm)', el, 'bw'));
@@ -613,7 +737,8 @@ function sectionise(box, kind) {
     if (c.only) c.body.append(k);
     else (readSec || (readSec = { h3: h('h3', null, 'Readout'), body: h('div', { class: 'rt-secbody' }) })).body.append(k);
   }
-  if (readSec) order.splice(order.lastIndexOf(secs[secs.length - 1]) + 1, 0, readSec);
+  // (before the part's colours, which are last: what it reads goes with what it is set to)
+  if (readSec) { const last = secs[secs.length - 1], at = order.lastIndexOf(last); order.splice(last && last.h3.textContent.trim() === 'Colours' ? at : at + 1, 0, readSec); }
   for (const o of order) {
     if (o instanceof Node) box.append(o);
     else if (o.body.children.length) box.append(makeSection(o.h3, o.body, kind + '|' + o.h3.textContent.trim(), !o.h3.hasAttribute('data-shut')));
@@ -676,7 +801,7 @@ function renderPanelBody(el) {
     const lk = h('button', { class: 'rt-pin rt-padlock' + (locked ? ' on' : ''), type: 'button', 'data-keep': '', 'aria-pressed': locked ? 'true' : 'false',
       'aria-label': locked ? 'Unlock ' + des.name + '’s parts' : 'Lock ' + des.name + '’s parts',
       title: locked ? 'Locked: these parts are as ' + des.name + '’s lens design has them. Click to unlock their fields here (the design workspace can always change them).' : 'Unlocked: these parts’ fields can be changed here. Click to lock them again.',
-      onclick: () => { checkpoint(); des.lock = !locked; changed(false); renderPanel(); } });
+      onclick: () => { checkpoint(); des.lock = !locked; if (locked && des.src) { delete des.src; toast(des.name + ' is unlocked, and no longer follows its design in the Optics designer: its parts are this bench’s own now'); } changed(false); renderPanel(); } });
     lk.innerHTML = locked ? PADLOCK_SVG : UNPADLOCK_SVG;
     title.append(lk);
   }
@@ -685,22 +810,40 @@ function renderPanelBody(el) {
   if (locked) panel.append(h('div', { class: 'rt-locknote' }, 'Locked as designed in ' + des.name + '. Open the padlock to edit here, or open its lens design.'));
   const asm = assumedBox(el);
   if (asm) panel.append(asm);
-  panel.append(h('div', { class: 'rt-rows' },
-    textField('Name', () => el.name, v => { el.name = v; title.firstChild.textContent = v; }, { wide: true })));
+  const nameF = textField('Name', () => el.name, v => { el.name = v; title.firstChild.textContent = v; }, { wide: true });
+  // (a part whose panel is a table: its name a row of one, plain until pointed at, as its settings are)
+  const asTable = tablePart(el);
+  // on one of its readout tabs (Rays, Diffraction, Pulse…) the tab's own view starts at the top: its name is in the
+  // title, and its place is on its first tab
+  const onSub = asTable && (el.type === 'spectrometer' ? (vs(el).specTab || 'spectrum') === 'spectrum' : !!vs(el).screenTab && vs(el).screenTab !== 'params');
+  if (onSub) { /* nothing here */ }
+  else if (asTable) { nameF.className = 'rt-pt-row rt-pt-text'; nameF.querySelector('label').className = 'rt-pt-name'; panel.append(h('div', { class: 'rt-pt' }, nameF)); }
+  else panel.append(h('div', { class: 'rt-rows' }, nameF));
   // what it reads now, in one line (a detector's mW, a screen's spot, a lens's focal length), kept up to date
   const head = h('p', { class: 'rt-headline', 'aria-live': 'polite' });
   bindSync(head, () => { const t = hooks.partHeadline(el); head.textContent = t; head.hidden = !t; });
   panel.append(head);
   // a lens, mirror or window on its own: straight into lens design, right under its name
-  const dz = panel === mainPanel ? designOneRow(el) : null;
-  if (dz) panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;justify-content:flex-end;gap:0.35rem;margin:0.35rem 0 0.6rem' }, dz));
-  panel.append(h('h3', null, 'Position'));
+  const dz = panel === mainPanel && !el.retro ? designOneRow(el) : null;   // (a corner cube is three mirrors, not a surface of a lens design)
+  // (in a table panel it goes with the part's other actions, at the foot)
+  if (dz && !asTable) panel.append(h('div', { class: 'rt-inline', style: 'display:flex;flex-wrap:wrap;justify-content:flex-end;gap:0.35rem;margin:0.35rem 0 0.6rem' }, dz));
+  if (!onSub) panel.append(h('h3', null, 'Position'));
   const rows = h('div', { class: 'rt-rows' });
   // two rows of three: where it is (X, Y, and Z, its height above the breadboard, for a part with one), and how it is
   // turned (Angle on the bench, and Tip and Roll out of it, for a part that can tip), a line under saying what Angle is
   const noSw = el.type === 'draw', hasZ = V3D.free(el) && !NET_3D.has(el.type), tips = tippable(el);
   const pc = [], ac = [];
   // (typed, what is mated to it goes with it)
+  // (a part whose panel is a table, ui/parts: its position a table too)
+  if (asTable) {
+    const o = { noSweep: noSw, carry: true };
+    rows.append(h('div', { class: 'rt-f wide', style: 'display:block' }, propTable(el, [
+      { name: 'X', path: 'x', unit: 'mm', opts: o }, { name: 'Y', path: 'y', unit: 'mm', opts: o },
+      hasZ ? { name: 'Z', path: 'z', unit: 'mm', opts: o, dflt: BEAM_Z, title: 'Its height above the breadboard: its optical centre. The beam is at ' + BEAM_Z + ' mm unless a part sets it otherwise.' } : null,
+      { name: 'Angle', path: 'angle', unit: '\u00b0', opts: o, title: 'Angle: ' + angleMeans(el) + '.' },
+      tips ? { name: 'Tip', path: 'tip', unit: '\u00b0', opts: o, dflt: 0, title: el.type === 'mirror' ? 'Tips the mirror up (positive) or down out of the bench plane, as the vertical knob of a kinematic mount does. The reflected light rises or falls by twice the tip.' : 'Tips the part up (positive) or down out of the bench plane, about its own across axis.' } : null,
+      tips ? { name: 'Roll', path: 'roll', unit: '\u00b0', opts: o, dflt: 0, title: 'Turns the part about its own axis (the way it faces), right-handed.' } : null])));
+  } else {
   const pos = paramGrid(el, [['x', 'X (mm)'], ['y', 'Y (mm)'], hasZ ? ['z', 'Z (mm)'] : null], { noSweep: noSw, carry: true }, pc);
   const ang = paramGrid(el, [['angle', 'Angle (\u00b0)'], tips ? ['tip', 'Tip (\u00b0)'] : null, tips ? ['roll', 'Roll (\u00b0)'] : null], { noSweep: noSw, carry: true }, ac);
   if (hasZ) pc[2].title = 'Its height above the breadboard: its optical centre. The beam is at ' + BEAM_Z + ' mm unless a part sets it otherwise; light passing above or below a part misses it, and a curved surface met off its centre turns the light up or down.';
@@ -712,10 +855,11 @@ function renderPanelBody(el) {
       : 'Turns the part about its own axis (the way it faces), right-handed: a cylindrical lens\u2019s power, a grating\u2019s grooves, a waveplate\u2019s, polariser\u2019s or crystal\u2019s axis, a Dove prism\u2019s image (turned twice as far).';
   }
   rows.append(pos, ang, h('p', { class: 'rt-anglenote' }, 'Angle: ' + angleMeans(el) + '.'));
+  }
   // with more than one tab: which one it is on (moving it takes it there, the view with it)
   if (project.benches.length > 1) rows.append(selectField('On tab', project.benches.map(b => [b.id, b.name]), () => el.bench,
     v => { el.bench = v; if (panel === mainPanel) switchTab(v); }, { wide: true }));
-  panel.append(rows);
+  if (!onSub) panel.append(rows);
 
   const horn = el.mmw && !el.mmw.part, U = PART_UI[el.type];
   if (horn) rfHornPanel(el);
@@ -732,8 +876,13 @@ function renderPanelBody(el) {
       h('button', { class: 'rt-btn', type: 'button', onclick: () => { selectOne(null); setBenchTab('cavity'); renderPanel(); requestRender(); } }, 'Show')));
   }
 
+  if (asTable) tabulate(panel, el);
   sectionise(panel, el.type);
-  panel.append(h('div', { class: 'rt-actions' },
+  // (a table panel's: the three the same size, a third of the row each; the design's button keeps its words for a screen
+  // reader and its tooltip, and shows the short of them)
+  if (dz && asTable) { dz.dataset.short = /^Open/.test(dz.textContent) ? 'Open design\u2026' : 'Design\u2026'; }
+  panel.append(h('div', { class: 'rt-actions' + (asTable ? ' rt-actions-even' : '') },
+    dz && asTable ? dz : null,
     h('button', { class: 'rt-btn', 'data-keep': '', onclick: () => duplicate(el) }, 'Duplicate'),
     h('button', { class: 'rt-btn danger', onclick: () => removeEl(el) }, 'Delete'),
   ));

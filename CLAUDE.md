@@ -54,20 +54,25 @@ The site should read as written by the people who build the things on it. Before
 | Docs parameter tables / AI guide (generated) | `_data/jekray_params.json`, `jek/tools/jekray-ai-guide.md` |
 | JEKion (source) | `jek/tools/jekion/src/` — built into `jek/tools/jekion.html` (committed); shares JEKray's modules by path in its `order.json`; tests `jek/tools/jekion/test/` + `jek/tools/jekion-tests.html`; demos `jek/tools/demos/*.jekion`; docs `jek/docs/jekion/` (`_data/jekion_docs.yml`, `docs: jekion` in front matter) |
 | Site pages (HTML built by Jekyll; nav from `_includes/site-nav.html`) | `jek/*.html`, `jek/products/`, `jek/calculators/`, `index.html`, `404.html` (old-URL map) |
+| The Optics designer (`.optic`, format `jekoptic`), JEKrf (`.jekrf`, `jekrf`) and its RF designer (`.rfd`, `jekrfd`); cloud tools of the same names | JEKray's own page opened with `?optic`, `?rf` or `?rfd` (`PAGE_MODE`, `OPTIC`, `RFAPP`, `RFD`, `DESIGNER` in `core/constants.js`; each mode's stores' keys end `-<mode>`, `appStoreKey`; its file `PAGE_FORMAT`). A designer is the lens workspace (`ui/lens-workspace.js`) or the RF one (`ui/rf-workspace.js`) as the whole page, the bar moved into its head (`barPiece`). JEKrf offers the RF and circuits palettes and RF examples; JEKray no longer offers RF (its old RF benches still open). Files, links and hand-overs in `io/designs.js`: a bench's assembly keeps `src { uid, id, v }`, follows its designer live on BroadcastChannel `jek-optic` / `jek-rfd` (an RF design's horns kept), is offered a newer cloud version; Design… opens the designer's tab at `#take`; Use on a bench opens the bench's tab at `#place-optic` / `#place-rfd`; test pages keep the designers on the bench (`opticTabs`). JEKrf and JEKion are experimental apps (`core/exp-list.js`, set in JEKsuite's account menu for every app; in JEKsuite only while switched on, and not on the site at all until they are ready to sell); docs `jek/docs/jekray/lens-design/`, `jek/docs/jekray/rf/` |
 | JEKsuite, the JEK hub (the apps and every cloud bench, account, plans, teams) | `jek/tools/jeksuite/` — built into `jek/tools/jeksuite.html` (committed), as JEKion is; `README.md` there; the file system (folder tree, drag and drop, picking, the table, names in place) in `src/ui/home.js`, its arithmetic in `src/core/files.js`; the apps' colours there are JEKsuite's alone (`--app` in its `style.css`); tests `node test/run.mjs` (build, Node, a Playwright check against `test/fake-api.mjs`); docs `jek/docs/jekray/jeksuite.md` |
 | JEKfilm, the coating designer (`.jekfilm`; a cloud bench with tool `jekfilm`) | `jek/tools/jekfilm/` — built into `jek/tools/jekfilm.html` (committed), as JEKsuite is; `README.md` there; shares JEKray's `core/coatings.js` and `core/coatdesign.js`; saving and optimising need a free account, the cloud Pro; tests `node test/run.mjs`; docs `jek/docs/jekray/jekfilm.md` |
 | JEKcad, the Part Studio CAD app (`.jekcad`; a cloud bench with tool `jekcad`, also known by its content's format) | `jek/tools/jekcad/` — built into `jek/tools/jekcad.html` (committed), as JEKfilm is; `README.md` there; OpenCascade (replicad-opencascadejs, LGPL-2.1) vendored in `jek/assets/vendor/replicad-opencascadejs/<version>/`, run in a worker, loaded on first use; feature list, sketch solver and tools in `src/core/`; a document is tabs, Part Studios, Assemblies and Drawings (`normFile` in `core/doc.js`, mates in `core/assembly.js`, `ui/assembly.js`; views, dimensions and the PDF in `core/drawing.js`, `ui/drawing.js`); exports need a free account, the cloud Pro (as JEKion); share links short with an account (`io/share.js`, the API's `links.js` letters c and d, `/c/<id>` forwarded by `404.html`); tests `node test/run.mjs`; docs `jek/docs/jekcad/` (`_data/jekcad_docs.yml`); demo `jek/tools/demos/*.jekcad` |
 | Accounts / benches / billing API (Cloudflare Worker) | `jek-api/` (routes in `src/index.js`, D1 migrations in `migrations/`) |
 | Shop fulfilment worker | `worker/` (separate; products in `src/catalogue.js`) |
 | Instagram post rules | `.claude/commands/instagram-conversion.md`; tag parsing `src/core/src-tag.js` |
+| JEKray's bug ledger from the Instagram reel runs | `jek/tools/jekray/REEL-BUGS.md`, on the branch `claude/reel-bug-ledger` only (new entries at its end). **Leave it alone until the owner says to work on it**: do not read it into a plan, fix from it or merge that branch. When told to: go through the entries, fix what can be fixed on a normal feature branch, and mark each entry's status on the ledger branch (fixed, with the commit; not a bug, with why; or cannot reproduce) |
 
 ### Inside `jek/tools/jekray/src/`
 Layers (lint-enforced): `core/ state/ parts/ engines/ worker/` never import `ui/ io/ page/`; engines reach the page only
 through `core/hooks.js`.
+- A corner cube is a mirror with `retro: true`, traced as three real mirror faces (`retroSurfaces` in `core/stl.js`): each face a surface with its own tilt (`lf.a`, `ownTip`) and outline (`clip`), which the tracer meets as any tipped face (`intersectTip`; `tMin` lets a ray meet two faces at one point where they join).
 - **Parts**: `parts/<type>.js` (fields: `norm` defaults/clamps, `guide` text, `make`, picker) + `ui/parts/<type>.js`
-  (`draw`, `hit`, `panel`). Registries: `parts/registry.js` (`FREE_GROUPS`, picker), `ui/parts/registry.js` (`PART_UI`).
+  (`draw`, `hit`, `panel`). Registries: `parts/registry.js` (`PARTS`; every palette's rows and groups are its parts' own
+  `picker` and `groups`, `PALETTE_PARTS` / `PALETTE_GROUPS`: free space many parts, fibre `fcomp`, circuits `elec`, RF `rf`,
+  photonic `pic`), `ui/parts/registry.js` (`PART_UI`).
 - **Physics**: ray/beam tracing `engines/trace.js` (by part type); diffracted field `field.js`, `field2d.js`,
-  `diffraction.js`; cavities `cavity.js`; fibre networks `fibre.js`, `fibre-face.js` (the Bragg grating's coupled-mode model in `core/fbg.js`); electronics `elec.js`;
+  `diffraction.js`; cavities `cavity.js`; fibre networks `fibre.js`, `fibre-face.js` (the Bragg grating's coupled-mode model in `core/fbg.js`); electronics `elec.js` (a steering mirror, `steer: true`, stands where its turn and tip inputs put it: posed for a trace by `steerOn`, its pose in the trace's key `steerKey`, rest in the file; slow drives played by `ui/steer.js`);
   photonic chips `pic.js`; RF `rf-design.js`, `rf-sweep.js`; lens design `lens-*.js`; one particle's scattering `scatter.js`
   (Mie `core/mie.js`, dipole array `core/dda.js`) and, for a Particle part (`parts/particle.js`), its scattered light on the bench
   `scatter-light.js` (a probe one step out, then a cone of rays to each part that sees it, launched at the end of `traceSceneOnce`
@@ -149,7 +154,53 @@ through `core/hooks.js`.
   be deleted. Anything it gains that touches the cloud (benches, parts, links) goes through the API, whose own account
   and plan checks are the gate.
 
+## Modelling rule (the tools)
+JEKray and its sister tools are modelling programs. A part is modelled as the physical thing it is, and its behaviour
+comes out of the physics the engine already traces. It is never a rule that asserts the answer.
+- **Build a part from what it is made of**: real surfaces, materials and coatings, met by the same laws as every other
+  part (reflection, refraction, Fresnel, polarisation in 3D, the beam and the field). A corner cube is three mirrors;
+  a prism is its glass faces. If the result is known in closed form (a ray comes back antiparallel, a lens focuses at
+  f), that is what the tests check the model against, not what the code writes down.
+- **No teleporting or special-casing a part in the tracer** to produce its textbook behaviour: no ray moved to where
+  it "should" leave, no direction set by formula, no polarisation, path or loss put in by hand. If a part needs
+  something the engine cannot do yet (a face with its own tilt, an outline that is not a disc), extend the engine in
+  general terms so any part can use it.
+- **If the proper model is out of reach in the time, stop and say so before building.** State what a proper model
+  needs, what the shortcut would leave out, and ask. Do not ship the shortcut and list its gaps afterwards.
+- **A simplification that stays is a physical idealisation of a real quantity, named in the docs' Assumptions**
+  (a mirror that follows its drive at any frequency, a filter whose edge does not move with tilt), never a missing
+  mechanism. "Not modelled" in a write-up of new work is a sign to go back and model it.
+- **Before calling a new part done, list what it gets from the engine and what it asserts.** Anything asserted is
+  either removed or raised with the owner.
+
+## Part panels (every JEKray part's panel is a table)
+A part's panel is a table, not a stack of boxed inputs (`tablePart(el)` in `ui/panel.js`: every free-space part, an
+imported body, every fibre component, every circuit block and every part of a photonic chip). Two ways a panel becomes one, both giving the
+same rows: `propTable(el, rows)` builds a table from row specs (the mirror and the source: used where figures worked out
+from the settings sit among them), and `tabulate(panel, el)` turns a panel built the older way (`param`, `selectField`,
+`textField`, ticks, in `rt-rows` or `grid2`) into tables in place after the part's `panel()` has run, keeping each row's
+`.rt-f`, label and box so what finds a setting by them still does. So a part's module need not change to be a table; write
+new sections with `propTable`. When adding to a panel:
+- **A row a setting**: name, value, unit and the sweep's ∿ in columns. The unit is its own column, never in the name
+  (the label keeps it out of sight for a screen reader, so its text is still "Radius (mm)"). Values are plain text until
+  pointed at. A row still at a new part's value is dimmed (`dflt`), so what has been set stands out.
+- **Row kinds**: a number (`path`), a choice (`choose`), on or off (`tick`), words (`text`), anything else beside its
+  name (`cell`) or across the row (`node`), and a figure worked out from the settings (`read`, in italics, among the
+  settings it follows from: a focal length, a Rayleigh range). A choice's words are short enough to fit; the long of it
+  goes in the row's `title`.
+- **Sections are the panel's own folding headings** (`h3`), named for what they hold (Surface, Coating), not for the
+  part. No fold-outs inside a section: every setting is a row.
+- **A worked-out figure goes among the settings only if it follows from the settings alone** (a focal length from a radius, a
+  groove spacing from lines per mm): `readRow({ name, read, unit })` appended with the settings. What depends on the
+  light (a wavelength, what arrives) stays in the Readout, and a figure is never shown in both.
+- **Readouts** (`.rt-readout`) are rows of the same look, and come before Colours. **A part's readout tabs** (Rays,
+  Diffraction, Pulse) start with their own view: Name and Position show on the first tab only, and a tab's settings
+  (Plot, Map scale, MTF, Focus model) are table rows.
+- **The foot**: the part's actions the same size in one row (`rt-actions-even`): Design… (light fill), Duplicate, Delete.
+- Explanations stay as text between or under the tables; nothing explanatory is squeezed into a row.
+
 ## Adding or changing a tool feature — checklist
+0. A new part or behaviour: read the Modelling rule above first.
 1. Part field: `norm` (default so old files load — there are no format migrations) and `guide.fields`; the panel in
    `ui/parts/<type>.js`; physics in the engine; 3D model in `ui/view3d.js` if it shows. New module → `order.json`.
 2. `cd jek/tools/jekray && node build.mjs` (writes `jekray.html`, `jekray-dev.html`, `src/main.js`, `src/worker-main.js`;

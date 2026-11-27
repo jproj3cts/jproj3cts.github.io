@@ -33,14 +33,20 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hsignin p { margin: 0 0 0.9rem; line-height: 1.55; color: var(--jek-ink-soft); }
 
 /* an app's launch page: what the app does and the ways to start in it, then its benches beside the one picked */
-.rt-happhead { margin: 0 0 1.2rem; padding: 1rem 1.2rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-left: 3px solid var(--jek-cyan); border-radius: 3px; }
+.rt-happhead { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.2rem; margin: 0 0 1rem; padding: 0.65rem 0.9rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-left: 3px solid var(--jek-cyan); border-radius: 3px; }
 .rt-happhead[class] { border-left-color: var(--app); }
-:root[data-rt-theme="dark"] .rt-happhead.jekfilm { box-shadow: -1px 0 0 var(--jek-line-2); }
-.rt-happhead h2 { margin: 0 0 0.35rem; font-size: 1.25rem; }
-.rt-happhead p { margin: 0 0 0.85rem; max-width: 62ch; line-height: 1.5; color: var(--jek-ink-soft); }
-.rt-happhead .rt-actions { justify-content: flex-start; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.5rem; margin: 0; }
-.rt-happhead .rt-link { margin-left: 0.4rem; font-size: 0.875rem; }
-.rt-hlaunch { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 1.2rem; align-items: start; }
+.rt-happhead .rt-happtext { flex: 1 1 22rem; min-width: 0; }
+.rt-happhead .rt-happtitle { display: flex; align-items: baseline; gap: 0.4rem; }
+.rt-happhead h2 { margin: 0; font-size: 1.1rem; }
+.rt-happhead .rt-hparent { font-size: 0.85rem; color: var(--jek-ink-soft); }
+.rt-happhead .rt-hparent::after { content: ' \203A'; }
+.rt-happhead p { margin: 0.15rem 0 0; line-height: 1.4; font-size: 0.875rem; color: var(--jek-ink-soft); }
+.rt-happhead .rt-actions { flex: none; justify-content: flex-end; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.5rem; margin: 0; }
+.rt-happhead .rt-link { margin-left: 0.2rem; font-size: 0.875rem; }
+.rt-hlaunch { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto 1fr; grid-template-areas: "head prev" "list prev"; column-gap: 1.2rem; align-items: start; }
+.rt-hlaunch > .rt-happhead { grid-area: head; }
+.rt-hlaunch > .rt-hexplore { grid-area: list; }
+.rt-hlaunch > .rt-hprev { grid-area: prev; }
 .rt-hexplore > h3:first-child { margin-top: 0; }
 .rt-hprev { position: sticky; top: 0.5rem; display: flex; flex-direction: column; gap: 0.65rem; padding: 0.8rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 3px; }
 .rt-hprev .thumb { display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; box-sizing: border-box; padding: 0 1rem; border-radius: 2px; background: var(--jek-well); color: var(--jek-ink-soft); font-size: 0.8rem; text-align: center; }
@@ -53,17 +59,29 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hprev .rt-actions { justify-content: flex-start; flex-wrap: wrap; gap: 0.4rem; margin: 0.15rem 0 0; }
 .rt-hprev .rt-actions .rt-btn { display: inline-flex; align-items: center; gap: 0.3rem; }
 .rt-hprev .rt-hprevmore { margin-left: auto; }
-/* each app's colour, here in the suite only: JEKray yellow, JEKion light blue, JEKfilm black, JEKcad red. --app is
-   the colour itself (a tag's fill, an edge), --app-on what is written on it, --app-ink the colour as a line on the
-   page (an icon, a dot), which the theme sets so that it shows on light and on dark */
+/* each app's colour, here in the suite only: JEKray yellow, JEKrf orange, JEKion light blue, JEKcad red; each one's
+   designers (listed under it) shades of its colour. --app is the colour itself (a tag's fill, an
+   edge), --app-on what is written on it, --app-ink the colour as a line on the page (an icon, a pressed chip's edge),
+   darker where amber or blue on white would be faint. */
 .space-home .jekray { --app: var(--jek-amber); --app-on: #1a1a1a; --app-ink: #c27a12; }
+.space-home .jekoptic { --app: #f6cf6e; --app-on: #1a1a1a; --app-ink: #a8740f; }
+.space-home .jekrfd { --app: #e3a33a; --app-on: #1a1a1a; --app-ink: #9a5f0a; }
+.space-home .jekfilm { --app: #c98a1c; --app-on: #fff; --app-ink: #7d5208; }
+.space-home .jekrf { --app: var(--jek-orange); --app-on: #1a1a1a; --app-ink: #c4541f; }
+.space-home .jekrfd { --app: #f7a37a; --app-on: #1a1a1a; --app-ink: #b04a18; }
 .space-home .jekion { --app: var(--jek-sky); --app-on: #1a1a1a; --app-ink: #3d93aa; }
-.space-home .jekfilm { --app: #000; --app-on: #fff; --app-ink: #000; }
 .space-home .jekcad { --app: var(--jek-red); --app-on: #fff; --app-ink: var(--jek-red); }
 :root[data-rt-theme="dark"] .space-home .jekray { --app-ink: var(--jek-amber); }
+:root[data-rt-theme="dark"] .space-home .jekoptic { --app-ink: #f6cf6e; }
+:root[data-rt-theme="dark"] .space-home .jekrfd { --app-ink: #e8ad4c; }
+:root[data-rt-theme="dark"] .space-home .jekfilm { --app-ink: #d99a2b; }
+:root[data-rt-theme="dark"] .space-home .jekrf { --app-ink: var(--jek-orange); }
+:root[data-rt-theme="dark"] .space-home .jekrfd { --app-ink: #f7a37a; }
 :root[data-rt-theme="dark"] .space-home .jekion { --app-ink: var(--jek-sky); }
-:root[data-rt-theme="dark"] .space-home .jekfilm { --app-ink: #f2f2f2; }
 :root[data-rt-theme="dark"] .space-home .jekcad { --app-ink: #ef5d75; }
+/* JEKray's designers under it, in the rail and New's menu; on a designer's page, JEKray above its name */
+.rt-hrail .rt-happbtn.rt-hsub { padding-left: 1.55rem; font-size: 0.92em; }
+.rt-hmenu button.rt-hsub { padding-left: 1.9rem; }
 .space-home .rt-htool, .space-home .rt-hcard .rt-hinfo .rt-htool { display: inline-block; margin-right: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--app, var(--jek-cyan)); color: var(--app-on, #fff); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; white-space: nowrap; }
 .rt-hprev .rt-htool { margin-right: 0; }
 :root[data-rt-theme="dark"] .rt-htool.jekfilm { box-shadow: 0 0 0 1px var(--jek-line-2); }
@@ -72,8 +90,8 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hcount { margin-left: auto; padding-left: 0.6rem; font-size: 0.75rem; font-weight: 400; color: var(--jek-ink-soft); white-space: nowrap; }
 .rt-hsigninline { margin-top: 0; }
 @media (max-width: 900px) {
-  .rt-hlaunch { grid-template-columns: minmax(0, 1fr); }
-  .rt-hprev { position: static; order: -1; }
+  .rt-hlaunch { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "head" "prev" "list"; row-gap: 1rem; }
+  .rt-hprev { position: static; }
 }
 
 @media (max-width: 760px) {
@@ -176,3 +194,32 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hcard[hidden], .rt-hgrid[hidden], .rt-htable[hidden], .rt-hlist h3[hidden], .rt-hlist p[hidden] { display: none; }
 .rt-hhead .rt-htheme { flex: none; display: inline-grid; place-items: center; width: 2.1rem; height: 2.1rem; padding: 0; }
 .rt-hhead .rt-htheme .ic { width: 17px; height: 17px; }
+
+/* ---------- one size for every control ----------
+   The bar (search, New, the theme, the account), the toolbar over the list (the sort, the view, New folder), an app's
+   head and the preview: each control 34px high, text buttons padded alike, icon buttons square, the account round. */
+.space-home { --ctl: 34px; }
+.space-home .rt-hhead #homeSearch, .space-home .rt-hhead .rt-btn, .space-home #homeTools > *, .space-home .rt-happhead .rt-btn, .space-home .rt-hprev .rt-actions .rt-btn {
+  box-sizing: border-box; height: var(--ctl); min-height: var(--ctl); padding-top: 0; padding-bottom: 0; line-height: 1; }
+.space-home .rt-hhead .rt-btn, .space-home #homeTools .rt-btn, .space-home .rt-happhead .rt-btn, .space-home .rt-hprev .rt-actions .rt-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; padding-left: 0.8rem; padding-right: 0.8rem; font-size: 0.875rem; }
+.space-home #homeTools select { padding: 0 0.6rem; font-size: 0.875rem; width: 9.5rem; }
+.space-home #homeTheme, .space-home #homeTools .rt-btn.rt-icon, .space-home #homeTools .rt-btn:not([id]), .space-home .rt-hprevmore { width: var(--ctl); padding: 0; }
+.space-home .rt-hhead #btnAcct { width: var(--ctl); height: var(--ctl); padding: 0; overflow: hidden; }
+.space-home .rt-hhead #btnAcct .rt-avatar { width: 100%; height: 100%; }
+.space-home .rt-hhead #btnAcct img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.space-home .rt-hhead, .space-home #homeTools { align-items: center; }
+.space-home #homeTools { gap: 0.5rem; }
+.space-home .rt-happhead a.rt-happabout { text-decoration: none; }
+/* the preview's actions: Open across the panel, then History and More */
+.space-home .rt-hprevacts { display: grid; grid-template-columns: 1fr var(--ctl); gap: 0.5rem; }
+.space-home .rt-hprevacts #appPreviewOpen { grid-column: 1 / -1; }
+/* on an app’s page the list’s tools sit over its list, from its left edge */
+.space-home .rt-hlisttools { display: flex; justify-content: flex-start; margin: 0 0 0.8rem; }
+.space-home .rt-hlisttools #homeTools { display: flex; }
+/* a folder's card: its name the width of the card, what it holds under it, the apps' dots at the right */
+.space-home .rt-hgrid.folders .rt-hcard.folder > .rt-hopen { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 0.65rem; row-gap: 0.1rem; align-items: center; padding-top: 0.6rem; padding-bottom: 0.6rem; }
+.space-home .rt-hgrid.folders .rt-hcard.folder > .rt-hopen > .ic { grid-row: 1 / 3; grid-column: 1; }
+.space-home .rt-hgrid.folders .rt-hcard.folder > .rt-hopen > span { grid-row: 1; grid-column: 2; }
+.space-home .rt-hgrid.folders .rt-hcard.folder > .rt-hopen > .rt-hcount { grid-row: 2; grid-column: 2; justify-self: start; margin: 0; padding: 0; font-weight: 400; }
+.space-home .rt-hgrid.folders .rt-hcard.folder > .rt-hopen > .rt-hdots { grid-row: 1 / 3; grid-column: 3; margin: 0; padding: 0; }

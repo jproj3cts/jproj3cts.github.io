@@ -7,11 +7,11 @@ import { bodyFill, ctx, figure, getCss, keepOffLabel, portR, pathLocal, portFill
 import { pkey, portName, portWorld, portsOf, portsOfOptic } from '../engines/fibre.js';
 import {
   CHOP_HUB, DARK, ELEC_KINDS, ELEC_YELLOW, INK, NODE_PORT, NODE_R, PITCH, boxH, circ, elecExtra,
-  elecNoiseRms, elecPsdAt, inputOf, isDet, isLaser, line, partner, portList, signalOf, solve
+  elecNoiseRms, elecPsdAt, inputOf, isDet, isLaser, line, partner, portList, signalOf, solve, ELEC, STEER_SLOW_HZ
 } from '../engines/elec.js';
 import { INST } from './instruments.js';
 import { playing } from './sweeps.js';
-import { helpLine, bindSync, panel, param, selectField, textField } from './panel.js';
+import { helpLine, bindSync, panel, param, readRow, selectField, textField } from './panel.js';
 import { h } from './dom.js';
 import { readoutBox, partnerSection } from './panels.js';
 import { plotSaveRow } from './plots.js';
@@ -166,6 +166,14 @@ function elecPanelFor(el) {
     if (opts) box.append(selectField(label, opts.map(([v, t]) => [String(v), t]), () => String(el[k]), v => { const o = opts.find(([x]) => String(x) === v); el[k] = o ? o[0] : el[k]; }));
     else box.append(param(label, el, k));
   }
+  // a figure or two that follow from a block's settings alone, among them
+  const sg = v => String(+(+v).toPrecision(4)), pick = { amp: () => [{ name: 'Gain, in decibels', unit: 'dB', read: () => (el.gain > 0 ? sg(20 * Math.log10(el.gain)) : null) }],
+    att: () => [{ name: 'Passes, of the voltage', unit: '%', read: () => sg(100 * Math.pow(10, -Math.max(0, el.db) / 20)) }],
+    lpf: () => [{ name: 'Time constant', unit: 'ms', read: () => (el.fc > 0 ? sg(1000 / (2 * Math.PI * el.fc)) : null), title: 'Of one pole at its corner: 1 / 2\u03c0 f.' }],
+    hpf: () => [{ name: 'Time constant', unit: 'ms', read: () => (el.fc > 0 ? sg(1000 / (2 * Math.PI * el.fc)) : null), title: 'Of one pole at its corner: 1 / 2\u03c0 f.' }],
+    bpf: () => [{ name: 'Q', read: () => (el.bw > 0 ? sg(el.f0 / el.bw) : null), title: 'Its centre over its bandwidth.' }],
+    sig: () => [{ name: 'Period', unit: 'ms', read: () => (el.f > 0 ? sg(1000 / el.f) : null) }] }[el.kind];
+  if (pick) for (const r of pick()) box.append(readRow(r));
   panel.append(box);
   if (el.kind === 'thru') thruSection(el);
   const io = el.kind === 'node' || el.kind === 'thru' ? [] : [...K.ins.map(n => n + ' (in)'), ...K.outs.map(n => n + ' (out)')];
@@ -269,12 +277,13 @@ function elecChopperPanel(el) {
 /* an optical part's electrical settings and ports, in its panel */
 function elecOpticPanel(el) {
   const X = elecExtra(el);
-  if (el.type === 'chopper' || (!X.length && !isLaser(el))) return;
-  if (!isLaser(el)) panel.append(h('h3', null, 'Electronics'));   // a laser's has its tickbox first
+  const steerable = el.type === 'mirror' && !el.film && !el.metal && !el.retro;
+  if (el.type === 'chopper' || (!X.length && !isLaser(el) && !steerable)) return;
+  if (!isLaser(el) && !steerable) panel.append(h('h3', null, 'Electronics'));   // a laser's, and a mirror's, has its tickbox first
   const rows = h('div', { class: 'rt-rows' });
   let what = '';
   if (isDet(el)) {
-    rows.append(selectField('Output', [['tia', 'Photodetector: a voltage, through its amplifier'], ['diode', 'Photodiode: its current, no amplifier']],
+    rows.append(selectField('Output', [['tia', 'Voltage, amplified'], ['diode', 'Photocurrent, no amplifier']],
       () => el.diode ? 'diode' : 'tia', v => { if (v === 'diode') el.diode = true; else delete el.diode; }, { wide: true }));
     if (el.type === 'detector') rows.append(selectField('Read the light from', [['rays', 'The trace (fast)'], ['field', 'The diffracted field (slow)']],
       () => el.fieldSample ? 'field' : 'rays', v => { if (v === 'field') el.fieldSample = true; else delete el.fieldSample; }, { wide: true }));
@@ -303,6 +312,30 @@ function elecOpticPanel(el) {
     if (el.fmk === undefined) el.fmk = 1;
     rows.append(param('Power modulation (% per V)', el, 'modk'), param('Frequency tuning (GHz per V)', el, 'fmk'));
     what = 'Its mod input sets the power: P = P₀ (1 + m v), never below zero. Its fm input tunes its frequency: Δν = k v (its wavelength shortens as the frequency rises), so a cell’s line, a cavity or an etalon turns it into a change in power.';
+  } else if (steerable) {
+    // a mirror steered by a signal: offered on a bench with electronics (or a mirror that is one already)
+    if (!el.steer && !project.elements.some(e => e.type === 'elec')) return;
+    const tick = h('input', { type: 'checkbox' });
+    tick.checked = !!el.steer;
+    tick.addEventListener('change', () => {
+      checkpoint();
+      if (tick.checked) { el.steer = true; if (el.steerK === undefined) el.steerK = 1; }
+      else {
+        // its input goes, and the wire to it
+        const n = portsOfOptic(el).length;
+        project.fibres = (project.fibres || []).filter(F => !(F.wire && F.b[0] === el.id && F.b[1] >= n));
+        delete el.steer; delete el.steerK;
+      }
+      changed(true);
+    });
+    panel.append(h('h3', null, 'Electronics'));
+    panel.append(h('label', { class: 'rt-check' }, tick, 'Steered by signals (a galvo or piezo mirror): turn and tip inputs'));
+    if (!el.steer) return;
+    rows.append(param('Turn (° per V)', el, 'steerK', { wide: true }));
+    const [pa, pt] = ELEC.steerPose(el), quick = ELEC.steerTones(el, false), slow = ELEC.steerTones(el, true), fmt = v => (v >= 0 ? '+' : '\u2212') + (+Math.abs(v).toPrecision(4)) + '\u00b0';
+    if (pa || pt || quick || slow) rows.append(h('p', { class: 'note wide', id: 'steerNow' }, (slow ? '' : 'Now ' + fmt(pa) + ' turned, ' + fmt(pt) + ' tipped from the angle and tip set above.')
+      + (slow ? ' Its drive is slow enough to watch: the bench shows it moving.' : '') + (quick ? ' A drive quicker than ' + STEER_SLOW_HZ + ' Hz is not drawn: the bench shows the mirror at its mean, and photodetectors follow the motion.' : '')));
+    what = 'Its turn input turns the mirror in the bench plane about its centre and its tip input tips it out of the plane, each by θ = k v; the reflected beam turns by twice that. The Angle and Tip above are where it rests, at 0 V.';
   } else {
     const key = isLaser(el) ? 'modk' : el.kind === 'aom' || el.type === 'aom' ? 'vsat' : 'vpi', d = { modk: 100, vsat: 1, vpi: 5 }[key];
     if (el[key] === undefined) el[key] = d;

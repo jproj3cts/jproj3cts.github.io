@@ -30,16 +30,16 @@ const OTHER_LINKS = { z: 'jekray', j: 'jekray', q: 'jekray', i: 'jekion', k: 'je
 export async function readFilmHash(hash) {
   const kind = hash[0], body = hash.slice(1);
   if (OTHER_LINKS[kind]) { const nm = { jekion: 'JEKion', jekray: 'JEKray', jekcad: 'JEKcad' }[OTHER_LINKS[kind]]; throw new Error('that is a ' + nm + (nm === 'JEKcad' ? ' Part Studio' : ' bench') + ': open the link in ' + nm); }
-  if (kind !== 'f' && kind !== 'g') throw new Error('the link is not one of JEKfilm’s');
+  if (kind !== 'f' && kind !== 'g') throw new Error('the link is not one of the Coating designer’s');
   let bytes;
   try { bytes = funb64u(body); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
   if (kind === 'f') {
-    if (typeof DecompressionStream === 'undefined') throw new Error('this browser cannot read compressed links; ask for the .jekfilm file instead');
+    if (typeof DecompressionStream === 'undefined') throw new Error('this browser cannot read compressed links; ask for the .coat file instead');
     try { bytes = await fstream(bytes, new DecompressionStream('deflate-raw')); } catch (err) { throw new Error('the link is damaged (it may have been cut short)'); }
   }
   let d;
   try { d = JSON.parse(new TextDecoder().decode(bytes)); } catch (err) { throw new Error('the link does not hold a coating'); }
-  if (!d || d.format !== FILM_FORMAT) throw new Error('the link does not hold a JEKfilm coating');
+  if (!d || d.format !== FILM_FORMAT) throw new Error('the link does not hold a coating');
   return normFilm(d);
 }
 export const filmShortUrl = id => location.origin + '/f/' + id;

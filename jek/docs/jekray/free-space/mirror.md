@@ -59,6 +59,37 @@ with $$\phi$$ its **Angle**. Rays meet it in 3D, within its round aperture, and 
 
 A mirror can add a group delay dispersion $$\mathrm{GDD}$$ (fs²) to each reflection: a spectral phase $$\tfrac12\,\mathrm{GDD}\,(\omega - \omega_0)^2$$ on the light reflected from its face. A negative GDD compresses a positively chirped pulse. See [Short pulses](/jek/docs/jekray/free-space/#short-pulses).
 
+### Steering mirrors
+
+A mirror **steered by signals** (a galvo, a piezo mount) has two inputs for the [electronics](/jek/docs/jekray/electronics/): **turn** and **tip**. A voltage $$v$$ on turn turns the mirror in the bench plane about its centre by $$\theta = k\,v$$, and on tip tips it out of the plane by the same, with $$k$$ its **Turn** in degrees per volt. The reflected beam turns by $$2\theta$$. Its **Angle** and **Tip** are where it rests, at 0 V, and are what the file keeps.
+
+The bench shows the mirror where its drive puts it. A DC level moves it and the beam with it, and the panel says how far it stands from rest. A drive with a tone of 5 Hz or slower is played: the bench is traced again as the mirror moves, at the page's own clock. A quicker drive is not drawn. The mirror then stands at the drive's mean, and the photodiodes follow the motion quasi-statically, as they follow every drive: the bench is traced at levels across the drive's swing and each photodiode's light goes with the drive by that table. So a beam scanned across a pinhole or a small photodiode gives the signal a real one would.
+
+The mirror follows its drive at any frequency: a real one's resonance and settling time are not modelled. A photodiode's output wired back to a steering mirror is a loop through the light, which is not solved, so it reads nothing.
+
+### Retroreflectors
+
+A **retroreflector** is a hollow corner cube: three flat mirrors square to one another, meeting at a corner behind a round opening. It is traced as those three mirrors. A ray reflects off each in turn by the same law as off any mirror, and three reflections off three square faces reverse its direction whatever way it came, in the bench plane or out of it, and whichever way the retroreflector is turned or tipped. The ray leaves from the point opposite, across the corner, having gone as far as off a plane mirror set at the corner square to it.
+
+The corner is $$d/\sqrt2$$ behind the middle of an opening of diameter $$d$$, where a cube corner's is under the circle its three faces just reach. The faces' normals stand $$54.7°$$ from the axis, $$120°$$ apart round it, one leaning straight up. Each face ends where it meets the other two, at the opening's plane, and at the cylinder behind the opening.
+
+Because the mirrors are real, the rest follows as it does on the bench. Light far enough off the axis meets only one or two of them before it leaves, and goes elsewhere. **Each mirror reflects** sets one face's reflectance, so three faces at 90 % return 72.9 %, and what a face does not reflect is lost. The polarisation is carried through the three reflections in 3D, as through any tipped mirror: off ideal mirrors a linear polarisation comes back as it went in. The Gaussian beam and the diffracted field follow the three reflections too. A ray into the corner itself, or along the line where two faces meet, meets those faces one after another at that point. The backs of the mirrors absorb.
+
+## In the parts list
+
+The Mirrors group lists the plain mirror and the kinds most often wanted. Each is this same mirror begun with its kind's settings, so any of them can be made into any other in its panel. A partly reflecting mirror (a plate beam splitter, an output coupler) is any of them with its **Reflectance** below 100 %.
+
+| Entry | A new one is |
+|---|---|
+| Mirror | flat, fully reflecting, at 45° to fold a beam |
+| Spherical mirror | $$R = 200$$ mm, concave, facing the beam: $$f = 100$$ mm. A negative radius makes it convex |
+| Parabolic mirror | $$R = 200$$ mm, conic $$-1$$: no spherical aberration for a beam along its axis. With an **Off-axis offset** it is an off-axis parabola: $$R = 50.8$$ mm and an offset of $$50.8$$ mm turn a beam along the axis through a right angle to a focus $$50.8$$ mm away |
+| Chirped mirror | flat, $$-50$$ fs² a reflection |
+| Steering mirror | flat, steered by signals, 1° per volt |
+| Retroreflector | a hollow corner cube with a 25.4 mm opening, facing the beam |
+
+One more entry in the group is another part: the **Dichroic mirror** is a [filter](/jek/docs/jekray/free-space/filter/#as-a-dichroic) that reflects what it blocks.
+
 ## Settings
 
 {% include jekray_params.html group="free" key="mirror" %}

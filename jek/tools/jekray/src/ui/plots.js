@@ -8,7 +8,7 @@ import { benchNms, getEl } from '../state/elements.js';
 import { getCss, inkA, niceStep } from './render.js';
 import { playing } from './sweeps.js';
 import { pctTxt, stopSweepsFor } from './optimise.js';
-import { bindSync, panel, selectField, vs } from './panel.js';
+import { bindSync, panel, propTable, vs } from './panel.js';
 import { h } from './dom.js';
 import { diffractionLater } from '../engines/pd-cavity.js';
 import { changed, downloadFile, safeFileName, toast } from './actions.js';
@@ -248,13 +248,13 @@ function savePlot(cv, kind) {
   const g = c.getContext('2d'); g.fillStyle = getCss('--jek-panel') || '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(cv, 0, 0);
   c.toBlob(b => { if (!b) { toast('The plot could not be saved here.', true); return; } downloadFile(base + '.png', b); toast('Saved ' + base + '.png'); }, 'image/png');
 }
-function plotSaveBtns(cv) {
+function plotSaveBtns(cv, more) {
   const b = (t, k, title) => h('button', { class: 'rt-zb', type: 'button', title, onclick: () => savePlot(cv, k) }, t);
-  // one Free account badge for the pair, the reason in each one's title
-  return acctMark(h('span', { class: 'rt-save' }, b('PNG', 'png', 'Save this plot as a picture'), b('CSV', 'csv', 'Save the numbers behind this plot')), 'save plots');
+  // one Free account badge for them all, the reason in each one's title (more: another save beside them, a part's Data)
+  return acctMark(h('span', { class: 'rt-save' }, b('PNG', 'png', 'Save this plot as a picture'), b('CSV', 'csv', 'Save the numbers behind this plot'), more || null), 'save plots');
 }
 export function plotSaveRow(cv, hidden) { const r = h('div', { class: 'rt-zoom rt-saverow' }, plotSaveBtns(cv)); r.hidden = !!hidden; cv._saveRow = r; return r; }
-export function zoomControls(cv, getZ, redraw, yFromBase) {
+export function zoomControls(cv, getZ, redraw, yFromBase, more) {
   // curves that rise from zero stretch up and down from their baseline, wherever the cursor is
   const yAt = p => yFromBase && yFromBase() ? 0 : p;
   const area = () => cv._area || { l: 0, t: 0, w: cv.clientWidth || 1, h: cv.clientHeight || 1 };
@@ -294,7 +294,7 @@ export function zoomControls(cv, getZ, redraw, yFromBase) {
     btn('\u2212', 'Zoom out up and down', Z => zoomAxis(Z, 'y', 1 / 1.5, yAt(0.5))),
     btn('+', 'Zoom in up and down', Z => zoomAxis(Z, 'y', 1.5, yAt(0.5))),
     btn('Reset', 'Show the whole plot', Z => Object.assign(Z, { kx: 1, ky: 1, cx: 0.5, cy: 0.5 })),
-    plotSaveBtns(cv));
+    plotSaveBtns(cv, more));
 }
 
 const MAGMA = [[0, 0, 0, 4], [0.13, 28, 16, 68], [0.25, 79, 18, 123], [0.38, 129, 37, 129], [0.5, 181, 54, 122],
@@ -328,15 +328,17 @@ function holdScale(el, which, v) {
   st.hold[which] = Math.max(st.hold[which] || 0, v);
   return st.hold[which];
 }
-export function diffractionSection(el) {
-  panel.append(h('h3', null, 'Diffraction'));
-  const tabs = h('div', { class: 'rt-inline', style: 'margin-bottom:0.4rem;flex-wrap:wrap;column-gap:0.8rem;row-gap:0.2rem' });
+/* (more: another save beside its plot's PNG and CSV, the screen's Data) */
+export function diffractionSection(el, more) {
+  // (its views chosen as a readout tab's views are: a row of tabs, the one shown marked)
+  const tabs = h('div', { class: 'rt-views' });
   const cv = h('canvas', { style: 'width:100%;display:block' });
-  const scaleRow = h('div', { class: 'rt-rows', style: 'margin-bottom:0.4rem' },
-    selectField('Map scale', [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB']], () => el.mapScale, v => { el.mapScale = v; }, { rebuild: false }));
+  const scaleRow = propTable(el, [{ name: 'Map scale', choose: [['lin', 'Linear'], ['log', 'Logarithmic, 30 dB']], get: () => el.mapScale, set: v => { el.mapScale = v; }, opts: { rebuild: false } }]);
   const box = h('div', { class: 'rt-readout' });
   const views = [['map', 'Irradiance'], ['phase', 'Phase'], ['pol', 'Polarisation'], ['psf', 'Profiles'], ['mtf', 'MTF'], ['ee', 'Enclosed energy']];
-  for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link', type: 'button', onclick: () => { vs(el).diffView = key; refresh(); } }, text));
+  // (the two long names shown short, so the six fit a row: each keeps its words for a screen reader and in its tooltip)
+  const SHORT = { Polarisation: 'Polar.', 'Enclosed energy': 'Energy' };
+  for (const [key, text] of views) tabs.append(h('button', { class: 'rt-link rt-view', type: 'button', title: SHORT[text] ? text : undefined, 'data-short': SHORT[text], onclick: () => { vs(el).diffView = key; refresh(); } }, text));
   const keyBox = h('div', { class: 'rt-diffkey' });
   const refresh = () => {
     const pv = vs(el).diffView === 'phase' || vs(el).diffView === 'pol';
@@ -345,6 +347,7 @@ export function diffractionSection(el) {
     views.forEach(([key], i) => {
       tabs.children[i].style.fontWeight = vs(el).diffView === key ? '700' : '600';
       tabs.children[i].style.textDecoration = vs(el).diffView === key ? 'underline' : 'none';
+      tabs.children[i].classList.toggle('on', vs(el).diffView === key);
     });
     scaleRow.style.display = vs(el).diffView === 'map' ? '' : 'none';
     cv.style.opacity = busy && !playing.size ? '0.5' : '1';      // while sweeps play, each field shows as it arrives
@@ -407,7 +410,7 @@ export function diffractionSection(el) {
   };
   const getZ = () => plotZoom(el, vs(el).diffView), redraw = () => drawDiff(cv, diffractionLater(el).D, el);
   panel.append(tabs, scaleRow, plotFrame(cv, () => 'diff-' + vs(el).diffView, getZ, redraw), keyBox,
-    zoomControls(cv, getZ, redraw, () => !['map', 'phase', 'pol'].includes(vs(el).diffView)), box);
+    zoomControls(cv, getZ, redraw, () => !['map', 'phase', 'pol'].includes(vs(el).diffView), more), box);
   bindSync(cv, refresh);
 }
 

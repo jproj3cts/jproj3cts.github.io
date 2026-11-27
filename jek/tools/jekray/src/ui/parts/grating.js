@@ -2,7 +2,7 @@ import { V } from '../../state/project.js';
 import { frame } from '../../core/mask.js';
 import { ctx, pathLocal, selInk } from '../render.js';
 import { hitPlate } from './hits.js';
-import { panel, param, selectField } from '../panel.js';
+import { panel, param, readRow, selectField } from '../panel.js';
 import { h } from '../dom.js';
 import { readoutBox } from '../panels.js';
 
@@ -27,7 +27,12 @@ function gratingPanel(el) {
   panel.append(h('div', { class: 'rt-rows' },
     selectField('Type', [['reflect', 'Reflection'], ['transmit', 'Transmission']], () => el.mode, v => { el.mode = v; }, { wide: true }),
     param('Lines per mm', el, 'lpmm'), param('Blaze (nm)', el, 'blaze'),
-    param('Efficiency (%)', el, 'eff'), param('Width (mm)', el, 'length')));
+    param('Efficiency (%)', el, 'eff'), param('Width (mm)', el, 'length'),
+    // what follows from its lines and its blaze alone: the grooves' spacing, and the angle the sawtooth is cut at
+    // (blazed in order 1 in Littrow: sin \u03b8 = \u03bb / 2d)
+    readRow({ name: 'Groove spacing', unit: '\u00b5m', read: () => (el.lpmm > 0 ? String(+(1000 / el.lpmm).toPrecision(5)) : null), title: 'The distance from one groove to the next: 1 mm over its lines per mm.' }),
+    readRow({ name: 'Blaze angle', unit: '\u00b0', read: () => { const q = el.lpmm > 0 ? el.blaze * 1e-6 * el.lpmm / 2 : NaN; return q > 0 && q <= 1 ? String(+(Math.asin(q) * 180 / Math.PI).toPrecision(4)) : null; },
+      title: 'The angle its grooves\u2019 faces are cut at, for its blaze wavelength in order 1 in Littrow: sin \u03b8 = \u03bb / 2d.' })));
   panel.append(readoutBox('grating'));
   panel.append(h('p', { style: 'margin-top:0.6rem' }, 'Each ray leaves in every order that can propagate, along the grating equation sinθₘ = sinθᵢ + mλ/d, each carrying its share of the power; the diffracted field follows each order the same way. The grooves are a sawtooth blazed for the blaze wavelength in order +1, so that is where the power goes there, falling off either side. Peak efficiency covers what the real surface absorbs and scatters.'));
 }

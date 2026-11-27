@@ -32,7 +32,7 @@ Each ray and each wavelength of a source takes the filter's transmission at its 
 
 ### As a dichroic
 
-With **Reflect what it blocks** on, what the filter rejects is reflected as a mirror reflects it, rather than absorbed: a dichroic mirror. The reflected share is $$1 - T(\lambda)$$, and it becomes a branch of its own. That is how two wavelengths are combined or separated, for example a frequency-doubled beam from its fundamental.
+With **Reflect what it blocks** on, what the filter rejects is reflected as a mirror reflects it, rather than absorbed: a dichroic mirror. The reflected share is $$1 - T(\lambda)$$, and it becomes a branch of its own. That is how two wavelengths are combined or separated, for example a frequency-doubled beam from its fundamental. **Add part › Dichroic mirror**, in the Mirrors group, is this filter set so: a long-pass with its edge at 600 nm, reflecting what it blocks, at 45°.
 
 ## Settings
 

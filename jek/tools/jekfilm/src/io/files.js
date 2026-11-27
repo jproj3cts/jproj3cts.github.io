@@ -39,19 +39,20 @@ export function downloadBlob(name, blob) {
 /* the coating as a .jekfilm file: JEKrayPro's */
 export function saveFilmFile() {
   if (!designPro('save a coating file')) return false;
-  const name = filmFileName(film.name, 'jekfilm');
+  // a .coat (one saved before the rename is a .jekfilm, and opens as one)
+  const name = filmFileName(film.name, 'coat');
   downloadBlob(name, new Blob([filmText(film)], { type: 'application/json' }));
   toast('Saved ' + name); track('save', 'film-file'); goal('save');
   return true;
 }
 /* a coating's data put here (undoable): from a file, the cloud or an example */
 export function openFilmData(d, name) {
-  if (!d || typeof d !== 'object') { toast('That is not a JEKfilm coating', true); return false; }
+  if (!d || typeof d !== 'object') { toast('That is not a coating file', true); return false; }
   if (d.format !== FILM_FORMAT) {
-    toast(d.format === 'jekion' ? 'That is a JEKion bench: open it in JEKion' : d.format ? 'That is a JEKray bench: open it in JEKray' : 'That is not a JEKfilm coating', true);
+    toast(d.format === 'jekion' ? 'That is a JEKion bench: open it in JEKion' : d.format ? 'That is a JEKray bench: open it in JEKray' : 'That is not a coating file', true);
     return false;
   }
-  if (name && !d.name) d = Object.assign({}, d, { name: String(name).replace(/\.jekfilm$/i, '') });
+  if (name && !d.name) d = Object.assign({}, d, { name: String(name).replace(/\.(coat|jekfilm)$/i, '') });
   setFilm(d);
   return true;
 }
@@ -59,7 +60,7 @@ export function openFilmFile(file) {
   const rd = new FileReader();
   rd.onload = () => {
     let d = null;
-    try { d = JSON.parse(rd.result); } catch (err) { toast('Could not read ' + file.name + ': it is not a JEKfilm file', true); return; }
+    try { d = JSON.parse(rd.result); } catch (err) { toast('Could not read ' + file.name + ': it is not a coating file', true); return; }
     if (openFilmData(d, file.name)) { hooks.filmUnlink(); filmAutosave(); toast('Opened ' + file.name); track('import', 'film-file'); }
   };
   rd.readAsText(file);
@@ -127,8 +128,8 @@ export function wireFiles() {
     const f = e.dataTransfer && e.dataTransfer.files[0];
     if (!f) return;
     e.preventDefault();
-    if (/\.(jekfilm|json)$/i.test(f.name)) openFilmFile(f);
-    else toast(/\.jekray$/i.test(f.name) ? f.name + ' is a JEKray bench: open it in JEKray' : 'Drop a .jekfilm coating here', true);
+    if (/\.(coat|jekfilm|json)$/i.test(f.name)) openFilmFile(f);
+    else toast(/\.jekray$/i.test(f.name) ? f.name + ' is a JEKray bench: open it in JEKray' : 'Drop a .coat file here', true);
   });
   window.addEventListener('beforeunload', filmKeepNow);
 }

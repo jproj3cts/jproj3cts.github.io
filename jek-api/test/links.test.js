@@ -37,8 +37,8 @@ describe('share links', () => {
     expect((await make(s, { name: 'Bracket plain', data: 'd' + b64u(new TextEncoder().encode(JSON.stringify(cad))) })).status).toBe(201);
     const zip = new Uint8Array(await (await call('/v1/me/export', { token: s.token })).arrayBuffer());
     const names = new TextDecoder('latin1').decode(zip);
-    expect(names).toMatch(/Share links\/V-coat \([A-Z2-7]{10}\)\.jekfilm/);
-    expect(names).toMatch(/Share links\/plain \([A-Z2-7]{10}\)\.jekfilm/);
+    expect(names).toMatch(/Share links\/V-coat \([A-Z2-7]{10}\)\.coat/);
+    expect(names).toMatch(/Share links\/plain \([A-Z2-7]{10}\)\.coat/);
     expect(names).toMatch(/Share links\/Trap \([A-Z2-7]{10}\)\.jekion/);
     expect(names).toMatch(/Share links\/Bracket \([A-Z2-7]{10}\)\.jekcad/);
     expect(names).toMatch(/Share links\/Bracket plain \([A-Z2-7]{10}\)\.jekcad/);

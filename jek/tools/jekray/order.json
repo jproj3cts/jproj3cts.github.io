@@ -1,5 +1,6 @@
 [
   "core/constants.js",
+  "core/exp-list.js",
   "core/hooks.js",
   "core/maths.js",
   "core/numeric.js",
@@ -101,6 +102,7 @@
   "state/params.js",
   "ui/sweeps.js",
   "ui/sweep-audit.js",
+  "ui/steer.js",
   "engines/fibre-face.js",
   "engines/fibre.js",
   "engines/pic.js",
@@ -229,6 +231,7 @@
   "io/usage.js",
   "io/cloud.js",
   "io/film-coats.js",
+  "io/designs.js",
   "io/nudges.js",
   "io/autosave.js",
   "ui/news-data.js",

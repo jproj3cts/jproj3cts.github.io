@@ -10,7 +10,7 @@
 <script>if (location.hostname === 'www.jeksys.net') location.replace('https://jeksys.net' + location.pathname + location.search + location.hash);</script>
 <script>try { var t = localStorage.getItem('jekray-theme'); if (t === 'light' || (t === 'system' && !matchMedia('(prefers-color-scheme: dark)').matches)) document.documentElement.dataset.rtTheme = 'light'; } catch (e) {}</script>
 <link rel="icon" type="image/png" href="/jek/assets/img/favicon.png">
-<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261121">
+<link rel="stylesheet" href="/jek/assets/css/jek.css?v=20261126">
 <style>
   /* Ray tracer: page-specific styles. Site tokens come from jek.css. */
   :root {
@@ -812,15 +812,17 @@
   .rt-meta { font-size: 0.8125rem; color: var(--jek-ink-soft); }
   /* experimental features: a menu under the version line, and a badge for what they add */
   .rt-expwrap { position: relative; display: inline-block; }
-  .rt-expmenu { width: 22rem; padding: 0.7rem 0.8rem; font-size: 0.8125rem; color: var(--jek-ink-soft); cursor: default; }
-  .rt-expmenu label { display: flex; align-items: center; gap: 0.45rem; font-weight: 600; color: var(--jek-ink); cursor: pointer; }
-  .rt-expmenu p { margin: 0.5rem 0 0.4rem; line-height: 1.45; }
-  .rt-expmenu ul { margin: 0; padding: 0; list-style: none; }
-  .rt-expmenu ul.off { opacity: 0.6; }
-  .rt-expmenu li { margin-bottom: 0.35rem; }
-  .rt-expmenu label.rt-exppick { align-items: flex-start; font-weight: 400; color: var(--jek-ink-soft); }
-  .rt-expmenu label.rt-exppick input { margin-top: 0.2rem; flex: none; }
-  .rt-expmenu li b { color: var(--jek-ink); }
+  /* the experimental features, set in JEKsuite's dialog for every app */
+  .rt-expdialog { max-width: 34rem; font-size: 0.875rem; color: var(--jek-ink-soft); }
+  .rt-expdialog label.rt-expmaster { display: flex; align-items: center; gap: 0.45rem; margin: 0.6rem 0; font-weight: 600; color: var(--jek-ink); cursor: pointer; }
+  .rt-expdialog p { margin: 0.5rem 0 0.4rem; line-height: 1.45; }
+  .rt-expdialog h3 { margin: 0.8rem 0 0.35rem; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--jek-ink-soft); }
+  .rt-expdialog ul { margin: 0; padding: 0; list-style: none; }
+  .rt-expdialog .rt-explist.off { opacity: 0.6; }
+  .rt-expdialog li { margin-bottom: 0.45rem; }
+  .rt-expdialog label.rt-exppick { display: flex; align-items: flex-start; gap: 0.45rem; color: var(--jek-ink-soft); cursor: pointer; }
+  .rt-expdialog label.rt-exppick input { margin-top: 0.2rem; flex: none; }
+  .rt-expdialog li b { color: var(--jek-ink); }
   .rt-exp { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; border: 1px dashed currentColor; color: var(--jek-ink-soft); font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; }
   .rt-dot.exp { background: var(--jek-ink-soft); }
   .rt-link { padding: 0; font: inherit; color: var(--jek-cyan-dark); background: none; border: 0; cursor: pointer; }
@@ -1134,6 +1136,9 @@
   }
   .rt-toast.show { opacity: 1; }
   .rt-toast.bad { color: var(--jek-red); font-weight: 600; }
+  /* a note with an offer in it (an update to take up): its button can be pressed */
+  .rt-toast.show.act { pointer-events: auto; }
+  .rt-toast .rt-toastact { margin-left: 0.3rem; font-weight: 600; }
 
   /* The tool fills the whole window, edge to edge, with no site bar above it: the JEKray logo
      at the left of the toolbar leads back to its product page, and nothing separates the
@@ -1538,6 +1543,12 @@
   /* ---------- The lens design workspace ---------- */
   .rt-lens { position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; background: var(--jek-well); color: var(--jek-ink); font-family: var(--jek-sans); text-align: left; outline: none; }
   .rt-lens[hidden] { display: none !important; }
+  /* the Optics designer (?optic, io/optic.js): the page's bar moved into the workspace's head, out of .rt-wrap, whose
+     rule hides [hidden] there; its name in place of JEKray's mark */
+  .rt-ophead [hidden] { display: none !important; }
+  .rt-ophead .rt-space { margin-right: 0.2rem; }
+  .rt-ophead a.rt-opmark, .rt-ophead a.rt-opmark:hover { color: var(--jek-ink); text-decoration: none; }
+  .rt-ophead .rt-more { position: relative; }
   .rt-lens .mono, .rt-lnum, .rt-lglass { font-family: var(--jek-mono); }
   .rt-lhead { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; padding: 0.6rem 1rem; background: var(--jek-panel); border-bottom: 1px solid var(--jek-line); flex: none; }
   .rt-lcrumb { display: flex; align-items: center; gap: 0.5rem; min-width: 0; font-size: 0.95rem; }
@@ -2033,14 +2044,20 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hsignin p { margin: 0 0 0.9rem; line-height: 1.55; color: var(--jek-ink-soft); }
 
 /* an app's launch page: what the app does and the ways to start in it, then its benches beside the one picked */
-.rt-happhead { margin: 0 0 1.2rem; padding: 1rem 1.2rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-left: 3px solid var(--jek-cyan); border-radius: 3px; }
+.rt-happhead { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.2rem; margin: 0 0 1rem; padding: 0.65rem 0.9rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-left: 3px solid var(--jek-cyan); border-radius: 3px; }
 .rt-happhead[class] { border-left-color: var(--app); }
-:root[data-rt-theme="dark"] .rt-happhead.jekfilm { box-shadow: -1px 0 0 var(--jek-line-2); }
-.rt-happhead h2 { margin: 0 0 0.35rem; font-size: 1.25rem; }
-.rt-happhead p { margin: 0 0 0.85rem; max-width: 62ch; line-height: 1.5; color: var(--jek-ink-soft); }
-.rt-happhead .rt-actions { justify-content: flex-start; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.5rem; margin: 0; }
-.rt-happhead .rt-link { margin-left: 0.4rem; font-size: 0.875rem; }
-.rt-hlaunch { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 1.2rem; align-items: start; }
+.rt-happhead .rt-happtext { flex: 1 1 22rem; min-width: 0; }
+.rt-happhead .rt-happtitle { display: flex; align-items: baseline; gap: 0.4rem; }
+.rt-happhead h2 { margin: 0; font-size: 1.1rem; }
+.rt-happhead .rt-hparent { font-size: 0.85rem; color: var(--jek-ink-soft); }
+.rt-happhead .rt-hparent::after { content: ' \203A'; }
+.rt-happhead p { margin: 0.15rem 0 0; line-height: 1.4; font-size: 0.875rem; color: var(--jek-ink-soft); }
+.rt-happhead .rt-actions { flex: none; justify-content: flex-end; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.5rem; margin: 0; }
+.rt-happhead .rt-link { margin-left: 0.2rem; font-size: 0.875rem; }
+.rt-hlaunch { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto 1fr; grid-template-areas: "head prev" "list prev"; column-gap: 1.2rem; align-items: start; }
+.rt-hlaunch > .rt-happhead { grid-area: head; }
+.rt-hlaunch > .rt-hexplore { grid-area: list; }
+.rt-hlaunch > .rt-hprev { grid-area: prev; }
 .rt-hexplore > h3:first-child { margin-top: 0; }
 .rt-hprev { position: sticky; top: 0.5rem; display: flex; flex-direction: column; gap: 0.65rem; padding: 0.8rem; background: var(--jek-panel); border: 1px solid var(--jek-line); border-radius: 3px; }
 .rt-hprev .thumb { display: grid; place-items: center; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; box-sizing: border-box; padding: 0 1rem; border-radius: 2px; background: var(--jek-well); color: var(--jek-ink-soft); font-size: 0.8rem; text-align: center; }
@@ -2053,17 +2070,29 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hprev .rt-actions { justify-content: flex-start; flex-wrap: wrap; gap: 0.4rem; margin: 0.15rem 0 0; }
 .rt-hprev .rt-actions .rt-btn { display: inline-flex; align-items: center; gap: 0.3rem; }
 .rt-hprev .rt-hprevmore { margin-left: auto; }
-/* each app's colour, here in the suite only: JEKray yellow, JEKion light blue, JEKfilm black, JEKcad red. --app is
-   the colour itself (a tag's fill, an edge), --app-on what is written on it, --app-ink the colour as a line on the
-   page (an icon, a dot), which the theme sets so that it shows on light and on dark */
+/* each app's colour, here in the suite only: JEKray yellow, JEKrf orange, JEKion light blue, JEKcad red; each one's
+   designers (listed under it) shades of its colour. --app is the colour itself (a tag's fill, an
+   edge), --app-on what is written on it, --app-ink the colour as a line on the page (an icon, a pressed chip's edge),
+   darker where amber or blue on white would be faint. */
 .space-home .jekray { --app: var(--jek-amber); --app-on: #1a1a1a; --app-ink: #c27a12; }
+.space-home .jekoptic { --app: #f6cf6e; --app-on: #1a1a1a; --app-ink: #a8740f; }
+.space-home .jekrfd { --app: #e3a33a; --app-on: #1a1a1a; --app-ink: #9a5f0a; }
+.space-home .jekfilm { --app: #c98a1c; --app-on: #fff; --app-ink: #7d5208; }
+.space-home .jekrf { --app: var(--jek-orange); --app-on: #1a1a1a; --app-ink: #c4541f; }
+.space-home .jekrfd { --app: #f7a37a; --app-on: #1a1a1a; --app-ink: #b04a18; }
 .space-home .jekion { --app: var(--jek-sky); --app-on: #1a1a1a; --app-ink: #3d93aa; }
-.space-home .jekfilm { --app: #000; --app-on: #fff; --app-ink: #000; }
 .space-home .jekcad { --app: var(--jek-red); --app-on: #fff; --app-ink: var(--jek-red); }
 :root[data-rt-theme="dark"] .space-home .jekray { --app-ink: var(--jek-amber); }
+:root[data-rt-theme="dark"] .space-home .jekoptic { --app-ink: #f6cf6e; }
+:root[data-rt-theme="dark"] .space-home .jekrfd { --app-ink: #e8ad4c; }
+:root[data-rt-theme="dark"] .space-home .jekfilm { --app-ink: #d99a2b; }
+:root[data-rt-theme="dark"] .space-home .jekrf { --app-ink: var(--jek-orange); }
+:root[data-rt-theme="dark"] .space-home .jekrfd { --app-ink: #f7a37a; }
 :root[data-rt-theme="dark"] .space-home .jekion { --app-ink: var(--jek-sky); }
-:root[data-rt-theme="dark"] .space-home .jekfilm { --app-ink: #f2f2f2; }
 :root[data-rt-theme="dark"] .space-home .jekcad { --app-ink: #ef5d75; }
+/* JEKray's designers under it, in the rail and New's menu; on a designer's page, JEKray above its name */
+.rt-hrail .rt-happbtn.rt-hsub { padding-left: 1.55rem; font-size: 0.92em; }
+.rt-hmenu button.rt-hsub { padding-left: 1.9rem; }
 .space-home .rt-htool, .space-home .rt-hcard .rt-hinfo .rt-htool { display: inline-block; margin-right: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 2px; background: var(--app, var(--jek-cyan)); color: var(--app-on, #fff); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.1em; white-space: nowrap; }
 .rt-hprev .rt-htool { margin-right: 0; }
 :root[data-rt-theme="dark"] .rt-htool.jekfilm { box-shadow: 0 0 0 1px var(--jek-line-2); }
@@ -2072,8 +2101,8 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hcount { margin-left: auto; padding-left: 0.6rem; font-size: 0.75rem; font-weight: 400; color: var(--jek-ink-soft); white-space: nowrap; }
 .rt-hsigninline { margin-top: 0; }
 @media (max-width: 900px) {
-  .rt-hlaunch { grid-template-columns: minmax(0, 1fr); }
-  .rt-hprev { position: static; order: -1; }
+  .rt-hlaunch { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-template-areas: "head" "prev" "list"; row-gap: 1rem; }
+  .rt-hprev { position: static; }
 }
 
 @media (max-width: 760px) {
@@ -2176,6 +2205,35 @@ html, body { margin: 0; background: var(--jek-well); }
 .rt-hcard[hidden], .rt-hgrid[hidden], .rt-htable[hidden], .rt-hlist h3[hidden], .rt-hlist p[hidden] { display: none; }
 .rt-hhead .rt-htheme { flex: none; display: inline-grid; place-items: center; width: 2.1rem; height: 2.1rem; padding: 0; }
 .rt-hhead .rt-htheme .ic { width: 17px; height: 17px; }
+
+/* ---------- one size for every control ----------
+   The bar (search, New, the theme, the account), the toolbar over the list (the sort, the view, New folder), an app's
+   head and the preview: each control 34px high, text buttons padded alike, icon buttons square, the account round. */
+.space-home { --ctl: 34px; }
+.space-home .rt-hhead #homeSearch, .space-home .rt-hhead .rt-btn, .space-home #homeTools > *, .space-home .rt-happhead .rt-btn, .space-home .rt-hprev .rt-actions .rt-btn {
+  box-sizing: border-box; height: var(--ctl); min-height: var(--ctl); padding-top: 0; padding-bottom: 0; line-height: 1; }
+.space-home .rt-hhead .rt-btn, .space-home #homeTools .rt-btn, .space-home .rt-happhead .rt-btn, .space-home .rt-hprev .rt-actions .rt-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.35rem; padding-left: 0.8rem; padding-right: 0.8rem; font-size: 0.875rem; }
+.space-home #homeTools select { padding: 0 0.6rem; font-size: 0.875rem; width: 9.5rem; }
+.space-home #homeTheme, .space-home #homeTools .rt-btn.rt-icon, .space-home #homeTools .rt-btn:not([id]), .space-home .rt-hprevmore { width: var(--ctl); padding: 0; }
+.space-home .rt-hhead #btnAcct { width: var(--ctl); height: var(--ctl); padding: 0; overflow: hidden; }
+.space-home .rt-hhead #btnAcct .rt-avatar { width: 100%; height: 100%; }
+.space-home .rt-hhead #btnAcct img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.space-home .rt-hhead, .space-home #homeTools { align-items: center; }
+.space-home #homeTools { gap: 0.5rem; }
+.space-home .rt-happhead a.rt-happabout { text-decoration: none; }
+/* the preview's actions: Open across the panel, then History and More */
+.space-home .rt-hprevacts { display: grid; grid-template-columns: 1fr var(--ctl); gap: 0.5rem; }
+.space-home .rt-hprevacts #appPreviewOpen { grid-column: 1 / -1; }
+/* on an app’s page the list’s tools sit over its list, from its left edge */
+.space-home .rt-hlisttools { display: flex; justify-content: flex-start; margin: 0 0 0.8rem; }
+.space-home .rt-hlisttools #homeTools { display: flex; }
+/* a folder's card: its name the width of the card, what it holds under it, the apps' dots at the right */
+.space-home .rt-hgrid.folders .rt-hcard.folder > .rt-hopen { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 0.65rem; row-gap: 0.1rem; align-items: center; padding-top: 0.6rem; padding-bottom: 0.6rem; }
+.space-home .rt-hgrid.folders .rt-hcard.folder > .rt-hopen > .ic { grid-row: 1 / 3; grid-column: 1; }
+.space-home .rt-hgrid.folders .rt-hcard.folder > .rt-hopen > span { grid-row: 1; grid-column: 2; }
+.space-home .rt-hgrid.folders .rt-hcard.folder > .rt-hopen > .rt-hcount { grid-row: 2; grid-column: 2; justify-self: start; margin: 0; padding: 0; font-weight: 400; }
+.space-home .rt-hgrid.folders .rt-hcard.folder > .rt-hopen > .rt-hdots { grid-row: 1 / 3; grid-column: 3; margin: 0; padding: 0; }
 </style>
 </head>
 <body class="space-app">
@@ -2259,7 +2317,6 @@ html, body { margin: 0; background: var(--jek-well); }
    Constants
    ========================================================================== */
 
-const STORE_KEY = 'jek-raytracer-session-v1';
 let cloud = null, cloudOpening = false;       // the cloud bench this one is linked to (see Cloud benches)
 function setCloudOpening(v) { return (cloudOpening = v); }
 function setCloud(v) { return (cloud = v); }
@@ -2277,6 +2334,27 @@ const EMBED = IN_PAGE && !TEST_MODE && /(^|[?&])embed\b/.test(QUERY);
 // ?embed=locked: the parts stay where they are; the reader pans, zooms, turns the 3D view and plays the sweeps
 const LOCKED = EMBED && /(^|[?&])embed=locked\b/.test(QUERY);
 const FORMAT = 'jekray';
+/* The page as another program, by its query (each keeps its work apart from JEKray's bench in this browser: each
+   store's key, appStoreKey, has the mode after it):
+   ?optic  the Optics designer, JEKray's lens designer as a program of its own; its document is a design, a .optic
+           (format 'jekoptic'): the parts of one assembly and its record, with a uid that links the benches using it
+   ?rf     JEKrf, the RF bench (format 'jekrf', a .jekrf): JEKray's bench with the RF parts alone
+   ?rfd    JEKrf's RF designer, a program of its own as the Optics designer is; its document a .rfd (format 'jekrfd')
+   (io/designs.js links the designs and the benches that use them) */
+const PAGE_Q = typeof location === 'undefined' || !IN_PAGE || IN_WORKER ? '' : location.search;
+const OPTIC = /(^|[?&])optic\b/.test(PAGE_Q);
+const RFD = !OPTIC && /(^|[?&])rfd\b/.test(PAGE_Q);
+const RFAPP = !OPTIC && !RFD && /(^|[?&])rf\b/.test(PAGE_Q);
+const DESIGNER = OPTIC || RFD;
+const OPTIC_FORMAT = 'jekoptic', RF_FORMAT = 'jekrf', RFD_FORMAT = 'jekrfd';
+/* the page's own mode ('ray', 'optic', 'rf' or 'rfd') and the format of the file it keeps */
+const PAGE_MODE = OPTIC ? 'optic' : RFD ? 'rfd' : RFAPP ? 'rf' : 'ray';
+const PAGE_FORMAT = { ray: FORMAT, optic: OPTIC_FORMAT, rf: RF_FORMAT, rfd: RFD_FORMAT }[PAGE_MODE];
+const PAGE_FORMATS = [FORMAT, OPTIC_FORMAT, RF_FORMAT, RFD_FORMAT];
+/* the page's query, kept in the address when a link's hash is taken off */
+const PAGE_QUERY = { ray: '', optic: '?optic', rf: '?rf', rfd: '?rfd' }[PAGE_MODE];
+const appStoreKey = k => (PAGE_MODE === 'ray' ? k : k + '-' + PAGE_MODE);
+const STORE_KEY = appStoreKey('jek-raytracer-session-v1');
 const VERSION = 1;
 const TRACE_BUDGET = 4e6;  // ray–element interactions per redraw, keeps the page responsive
 const FAR = 2e4;          // mm: how far an escaping ray is drawn
@@ -2295,6 +2373,38 @@ function mkCanvas(w, h) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   return c;
 }
+/* ==========================================================================
+   The experimental features, as every app reads them
+   New features start here, off until someone switches them on, then move to beta (a Beta badge on their examples),
+   then into the tool proper. Apps not yet validated are here too (app: true): JEKsuite shows them only to someone who has
+   switched them on, and the site not at all until they are ready. The switch and each feature's tick are kept in this
+   browser (one store for every app on the site) and set in one place, JEKsuite's account menu; each app follows
+   them, as they change, from the store (ui/experimental.js in JEKray, the storage event).
+   ========================================================================== */
+const EXPERIMENTAL = [
+  { key: 'jekrf', app: true, name: 'JEKrf', what: 'RF and millimetre-wave quasi-optics: feed horns, RF lenses and mirrors on a bench of their own (.jekrf), and the RF designer, whose designs (.rfd) the benches use. Not yet fully validated, so treat its numbers as a guide. Shown in JEKsuite while this is ticked.' },
+  { key: 'jekion', app: true, name: 'JEKion', what: 'charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live. Not yet fully validated, so treat its numbers as a guide. Shown in JEKsuite while this is ticked.' },
+  // { key: 'example', name: 'Short name', what: 'One line on what it does and how far to trust it.' },
+  { key: 'tryme', name: 'Try me QR code', what: 'while flying through the bench (the bird on the 3D view\u2019s bar), a white box in the bottom right corner with a QR code that opens a copy of the bench on a phone, \u201cTry me!\u201d above it: for a stand or a lecture. The bench travels in the link itself, so a big one can be too much for a QR code.' },
+  { key: 'mods', name: 'Modules (parts with code)', what: 'part packs that carry code, run in a sandbox: new plates, polarisation plates, fibre components, electronics blocks and readouts written by anyone, installed from a file or a link (File \u203a Part packs and modules\u2026) after a prompt saying what each adds. Their code cannot reach your account, your files or the internet.' },
+  { key: 'raylook', name: 'How the rays look', what: 'a window of settings for how rays are drawn in 2D, for figures and recordings: fading trails as the light changes, a glow round each ray, and the rays\u2019 width (the button under Light in the Bench panel, and View \u203a How the rays look\u2026). Kept with the bench; a bench that has them set is drawn with them whether this is on or not.' },
+  { key: 'pic', name: 'Photonic circuits', what: 'a set of parts of its own (Add part, and the rail), in green: grating couplers, directional couplers, MMIs, rings, phase shifters and on-chip photodiodes, joined by waveguides, TE near 1550 nm, with a spectrum view. Checked against closed forms and SAX on the validation page.' },
+];
+const EXP_KEY = 'jek-raytracer-experimental', EXP_PICKS = 'jek-raytracer-experimental-picks';
+/* the switch and the ticks as this browser keeps them: { on, picks } (a private window, or a test page: off) */
+function expRead() {
+  try {
+    if (TEST_MODE) return { on: false, picks: {} };
+    const v = JSON.parse(localStorage.getItem(EXP_PICKS) || '{}');
+    return { on: localStorage.getItem(EXP_KEY) === '1', picks: v && typeof v === 'object' ? v : {} };
+  } catch (err) { return { on: false, picks: {} }; }
+}
+function expWrite(on, picks) {
+  if (TEST_MODE) return;
+  try { localStorage.setItem(EXP_KEY, on ? '1' : '0'); localStorage.setItem(EXP_PICKS, JSON.stringify(picks || {})); } catch (err) { /* not kept: fine */ }
+}
+/* a feature is on when the switch is and its own tick is (ticked unless unticked) */
+const expHas = (S, key) => !!S && S.on && (S.picks || {})[key] !== false && EXPERIMENTAL.some(f => f.key === key);
 /* ==========================================================================
    Hooks: what the engines tell the page, and what they ask of it. The page installs its own at
    boot (ui/boot.js); without a page (the field worker, the Node tests) these do nothing, so
@@ -2774,23 +2884,37 @@ function h(tag, attrs, ...kids) {
   for (const k of kids) if (k !== null && k !== undefined && k !== false) n.append(k);
   return n;
 }
-/* the apps, as the hub lists and opens them: their page, their tab's name, what they are */
+/* the apps, as the hub lists and opens them: their page, their tab's name, what they are. JEKray's designers are
+   listed under it, indented (parent): the Optics designer is JEKray's page as a program of its own (?optic), its
+   designs .optic files (the cloud's 'jekoptic'); the Coating designer is JEKfilm's page, its files the cloud's
+   'jekfilm'. JEKrf (JEKray's page with ?rf, its benches .jekrf) has its RF designer under it (?rfd, designs .rfd);
+   both are experimental (exp), as JEKion is. short is the name on a bench's tag and a chip. */
 const APPS = [
   { id: 'jekray', name: 'JEKray', url: '/jek/tools/jekray.html', tab: 'jekray', icon: 'bench', about: '/jek/products/design-software/jekray/',
-    line: 'Optics, fibre, electronics and RF on one bench: rays, Gaussian beams and the diffracted field, in 2D and 3D; lens and RF design.' },
-  { id: 'jekion', name: 'JEKion', url: '/jek/tools/jekion.html', tab: 'jekion', icon: 'ion', about: '/jek/products/design-software/jekion/',
-    line: 'Charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live.' },
-  { id: 'jekfilm', name: 'JEKfilm', url: '/jek/tools/jekfilm.html', tab: 'jekfilm', icon: 'coat', about: '/jek/products/design-software/jekfilm/', thing: 'coating',
+    line: 'A bench simulator for optics, fibre and electronics. Light is traced as rays, Gaussian beams and the diffracted field, in 2D and 3D.' },
+  { id: 'jekoptic', name: 'Optics designer', short: 'Optics', parent: 'jekray', url: '/jek/tools/jekray.html?optic', tab: 'jekoptic', icon: 'lens', about: '/jek/products/design-software/jekray/#optics-designer', thing: 'optical design',
+    line: 'Lenses, mirrors and stops on one axis designed together, surface by surface: conditions, analyses, the optimiser, tolerancing, drawings and a report. Each design is a .optic, used on any bench.' },
+  { id: 'jekfilm', name: 'Coating designer', short: 'Coating', parent: 'jekray', url: '/jek/tools/jekfilm.html', tab: 'jekfilm', icon: 'coat', about: '/jek/products/design-software/jekray/#coating-designer', thing: 'coating',
     line: 'Thin-film coatings designed over a band and a range of angles: anti-reflection, high reflectors, beam splitters and dichroic edges.' },
+  { id: 'jekrf', name: 'JEKrf', exp: 'jekrf', url: '/jek/tools/jekray.html?rf', tab: 'jekrf', icon: 'rf', about: '/jek/docs/jekray/rf/',
+    line: 'RF and millimetre-wave quasi-optics: feed horns, RF lenses and mirrors on a bench, traced as rays and Gaussian beams. Each bench is a .jekrf.' },
+  { id: 'jekrfd', name: 'RF designer', short: 'RF', parent: 'jekrf', exp: 'jekrf', url: '/jek/tools/jekray.html?rfd', tab: 'jekrfd', icon: 'lens', about: '/jek/docs/jekray/rf/designer/', thing: 'RF design',
+    line: 'A feed horn’s beam through RF lenses and mirrors, designed as a whole: conditions, analyses, the optimiser, tolerancing and a lens that can be made. Each design is a .rfd, used on any JEKrf bench.' },
+  { id: 'jekion', name: 'JEKion', exp: 'jekion', url: '/jek/tools/jekion.html', tab: 'jekion', icon: 'ion', about: '/jek/products/design-software/jekion/',
+    line: 'Charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live.' },
   { id: 'jekcad', name: 'JEKcad', url: '/jek/tools/jekcad.html', tab: 'jekcad', icon: 'cube', about: '/jek/products/design-software/jekcad/', thing: 'part studio',
     line: 'Parametric CAD: sketches with constraints and dimensions, a feature list you can roll back, and solids made on OpenCascade, with STEP in and out.' },
 ];
-/* what an app's files are called: a JEKfilm coating, a JEKcad part studio, a JEKray or JEKion bench */
+/* the apps shown: an experimental one (exp) only to someone signed in who has switched it on (core/exp-list.js) */
+const appsShown = signedIn => APPS.filter(a => !a.exp || (signedIn && expHas(expRead(), a.exp)));
+/* what an app's files are called: a coating, a part studio, a JEKray or JEKion bench */
 const thingOf = id => appOf(id).thing || 'bench';
+/* the name on a bench's tag and a chip: a designer's short one */
+const shortOf = id => appOf(id).short || appOf(id).name;
 const appOf = id => APPS.find(a => a.id === id) || APPS[0];
 /* an app opened at a hash (#cloud=<id>, #new…), in its own tab */
 function openApp(id, hash) {
-  const a = appOf(id), w = window.open(a.url + (hash ? '#' + hash : ''), a.tab);
+  const a = appOf(id), w = window.open(a.url + (hash ? '#' + hash : a.into ? '#new=' + a.into : ''), a.tab);
   if (w) w.focus();
   return w;
 }
@@ -2832,7 +2956,7 @@ const SPACE_ICONS = {
   card: 'M1.5 3.5H14.5V12.5H1.5Z M1.5 6.5H14.5 M4 10H7', sync: 'M13 6A5.2 5.2 0 0 0 3.4 4.6 M3 2V5H6 M3 10A5.2 5.2 0 0 0 12.6 11.4 M13 14V11H10',
   home: 'M2 7.5L8 2.5L14 7.5 M3.5 6.5V13.5H12.5V6.5 M6.5 13.5V9.5H9.5V13.5', check: 'M3 8.5L6.5 12L13 4.5',
   theme: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M8 1.5V14.5 M8 4H12.5 M8 7H14 M8 10H13.5', cloud: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5Z',
-  lens: 'M8 1.5Q11 8 8 14.5Q5 8 8 1.5Z M1 8H15', rf: 'M3 13L8 3L13 13 M5 9H11', coat: 'M2 4H14 M2 8H14 M2 12H14', ion: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M5 8H11 M8 5V11',
+  flask: 'M6 1.5H10 M6.5 1.5V6L2.5 13.5H13.5L9.5 6V1.5 M4.3 10H11.7', lens: 'M8 1.5Q11 8 8 14.5Q5 8 8 1.5Z M1 8H15', rf: 'M3 13L8 3L13 13 M5 9H11', coat: 'M2 4H14 M2 8H14 M2 12H14', ion: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M5 8H11 M8 5V11',
 };
 function iconNode(name) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -3734,14 +3858,18 @@ function folderFits(folders, id, into) {
   if (!into) return true;
   return !folderPath(folders, into).some(f => f.id === id);
 }
-/* the benches in an order: 'changed' and 'size' largest first, 'name', 'app' and 'folder' by the alphabet; flip
+/* the apps in the order the hub lists them (each with its designers under it): 'app' sorts by it */
+const APP_ORDER = ['jekray', 'jekoptic', 'jekfilm', 'jekrf', 'jekrfd', 'jekion', 'jekcad'];
+const appRank = b => { const i = APP_ORDER.indexOf(b.tool || 'jekray'); return i < 0 ? APP_ORDER.length : i; };
+/* the benches in an order: 'changed' and 'size' largest first, 'name' and 'folder' by the alphabet, 'app' as the hub
+   lists the apps; flip
    turns it round. where(b) is the bench's folder as text */
 const SORTS = { name: 'Name', app: 'App', folder: 'Folder', changed: 'Last changed', size: 'Size' };
 function sortBenches(benches, key, flip, where) {
   const name = (a, b) => a.name.localeCompare(b.name);
   const by = {
     name,
-    app: (a, b) => (a.tool || 'jekray').localeCompare(b.tool || 'jekray') || name(a, b),
+    app: (a, b) => appRank(a) - appRank(b) || name(a, b),
     folder: (a, b) => (where ? where(a).localeCompare(where(b)) : 0) || name(a, b),
     changed: (a, b) => b.updated_at - a.updated_at,
     size: (a, b) => b.size_bytes - a.size_bytes,
@@ -3819,7 +3947,7 @@ let homeSeq = 0, homeRO = null;
    The rail's apps open the app's page here (#app=<id>), not the app: what it does, its benches alone (the same folders,
    search and sorting as My benches), and the one picked shown large beside them, to open in the app. Anything else in
    the rail leaves it. */
-const appHash = () => { const m = location.hash.match(/^#app=(jekray|jekion|jekfilm|jekcad)$/); return m ? m[1] : null; };
+const appHash = () => { const m = location.hash.match(/^#app=(jekray|jekoptic|jekfilm|jekrf|jekrfd|jekion|jekcad)$/); return m ? m[1] : null; };
 function showApp(id) {
   closeMenu();
   if (id) { Object.assign(cloudPlace, { app: id, view: 'folder', folder: null, q: '', history: null, sel: null }); const s = document.getElementById('homeSearch'); if (s) s.value = ''; if (appHash() !== id) location.hash = 'app=' + id; fillHome(); return; }
@@ -3848,7 +3976,7 @@ const copyPlaces = (notWs) => (account ? account.workspaces : []).filter(w => w.
 /* A bench's app, where the API's mark is behind what it holds: an API from before an app was made marks that app's
    benches JEKray's. Each bench marked JEKray's is looked at once (its content says its format), what was found is
    kept by its id for the next visit, and the list is drawn again if any turned out to be another app's. */
-const TOOL_KEY = 'jeksuite-tools', TOOL_OF_FORMAT = { jekcad: 'jekcad', jekfilm: 'jekfilm', jekion: 'jekion' };
+const TOOL_KEY = 'jeksuite-tools', TOOL_OF_FORMAT = { jekcad: 'jekcad', jekfilm: 'jekfilm', jekion: 'jekion', jekoptic: 'jekoptic', jekrf: 'jekrf', jekrfd: 'jekrfd' };
 /* (what was found is kept by the bench's id: 'jekcad' and the like for good, since a bench never changes its app;
    'jekray' with the version it was seen at, as v<n>, so a bench the look failed on, or one saved over since, is
    looked at again. The store is read each time: JEKcad writes to it too, for each part studio it saves or opens.) */
@@ -3983,6 +4111,8 @@ async function mergeDialog(o) {
 async function fillHome() {
   const box = document.getElementById('homeList'), rail = document.getElementById('homeRail');
   const crumbs = document.getElementById('homeCrumbs'), tools = document.getElementById('homeTools'), note = document.getElementById('homeNote');
+  // (the list's tools are in the bar by the path, but under an app's head on its page: put back here, moved below)
+  { const hbar = document.querySelector('.rt-hbar'); if (hbar && tools.parentNode !== hbar) hbar.append(tools); }
   if (!account) { signedOutView(); return; }
   const places = account.workspaces.filter(w => w.kind !== 'institution');
   if (!cloudPlace.ws || !places.some(w => w.id === cloudPlace.ws)) cloudPlace.ws = (personalWs() || places[0] || {}).id;
@@ -4089,7 +4219,7 @@ async function fillHome() {
     for (const c of box.querySelectorAll('.rt-hcard.folder[data-folder]')) {
       const k = shown.get(c.dataset.folder) || { n: 0, apps: {} }, cnt = c.querySelector('.rt-hcount'), dots = c.querySelector('.rt-hdots');
       if (cnt) cnt.textContent = countOf(k.n, thing);
-      if (dots) dots.replaceChildren(...(appPage ? [] : APPS.filter(a => k.apps[a.id]).map(a => h('i', { class: a.id, title: countOf(k.apps[a.id], a.name + ' ' + thingOf(a.id)) }))));
+      if (dots) dots.replaceChildren(...(appPage ? [] : APPS.filter(a => k.apps[a.id]).map(a => h('i', { class: a.id, title: countOf(k.apps[a.id], (a.parent ? '' : a.name + ' ') + thingOf(a.id)) }))));
       // on an app's page, a folder with none of the app's benches in it (or in the folders inside it) is not shown
       c.hidden = !!appPage && !k.n;
     }
@@ -4122,7 +4252,7 @@ async function fillHome() {
   const used = data.usage || (P.lastUsage && P.lastUsage.ws === ws ? P.lastUsage : null);
   if (data.usage) P.lastUsage = Object.assign({ ws }, data.usage);
   rail.replaceChildren(...[
-    h('h2', null, 'Apps'), ...APPS.map(a => railBtn(a.name, a.icon, P.app === a.id, () => { track('cloud', 'app.' + a.id); showApp(a.id); }, 'rt-happbtn ' + a.id)),
+    h('h2', null, 'Apps'), ...appsShown(true).map(a => railBtn(a.name, a.icon, P.app === a.id, () => { track('cloud', 'app.' + a.id); showApp(a.id); }, 'rt-happbtn ' + a.id + (a.parent ? ' rt-hsub' : ''))),
     h('h2', null, 'Benches'),
     ...places.flatMap(w => w.id === ws
       ? [dropOn(railBtn(placeName(w), w.kind === 'personal' ? 'home' : 'users', !P.app && here('folder', null), leave(go('folder', null))), { folder: null }), ...treeNodes(null, 1)]
@@ -4164,7 +4294,8 @@ async function fillHome() {
   // (the benches as a table: its headings sort it, so the list of orders is for the cards)
   const tbl = homeView.rows && !['history', 'parts', 'links'].includes(P.view);
   const showWhere = !!(P.q || P.view === 'recent' || P.view === 'bin');
-  const sortSel = listing && !tbl ? h('select', { 'aria-label': 'Sort by', onchange: e => { homeView.sort = e.target.value; homeView.flip = false; keepView(); fillHome(); } },
+  // (the same tools in either view: the table's headings sort too, and the menu follows them)
+  const sortSel = listing ? h('select', { 'aria-label': 'Sort by', onchange: e => { homeView.sort = e.target.value; homeView.flip = false; keepView(); fillHome(); } },
     ...Object.entries(SORTS).filter(([v]) => v !== 'folder' || showWhere).map(([v, t]) => { const o = h('option', { value: v }, t); o.selected = homeView.sort === v; return o; })) : null;
   const newFolder = () => {
     if (box.querySelector('.rt-hnewfolder')) { box.querySelector('.rt-hnewfolder input').focus(); return; }
@@ -4192,7 +4323,7 @@ async function fillHome() {
       b.thumb ? h('img', { src: API_BASE + b.thumb, alt: '' }) : h('span', { class: 'thumb rt-nopic' }, 'Its picture is drawn the next time it is opened and saved'),
       h('p', null, 'Version ' + b.version + ' · changed ' + whenAgo(b.updated_at) + (b.updated_by && wsInfo && wsInfo.kind !== 'personal' ? ' by ' + b.updated_by.name : '') + ' · ' + kb(b.size_bytes) + (mine ? ' · open on the bench' : '')),
       h('div', { class: 'rt-actions' },
-        h('button', { type: 'button', class: 'rt-btn primary', onclick: () => homeOpenBench(b.id, null, b) }, 'Open in ' + appOf(b.tool).name),
+        h('button', { type: 'button', class: 'rt-btn primary', onclick: () => homeOpenBench(b.id, null, b) }, 'Open in ' + inApp(b.tool)),
         can ? h('button', { type: 'button', class: 'rt-btn', onclick: () => homeFork(b, null, () => {}) }, homeIcon('fork'), ' Fork') : null),
       helpLine('Versions are kept as you work: the last 50, then one a day for 90 days.', ['A version is kept on Save to cloud, every 10 minutes or so while you work, before a restore, and wherever a fork was made: the last 50, then one a day for 90 days, and every fork’s starting point for good.'], 'rt-subsmall'));
     // the events, newest first: a fork comes just after the version it was made from
@@ -4408,7 +4539,7 @@ async function fillHome() {
   const chip = (id, label, n) => h('button', { type: 'button', class: 'rt-hchip' + (id ? ' ' + id : ''), 'aria-pressed': String((homeView.only || null) === id), title: id ? 'Only the ' + label + ' ' + thingOf(id) + 's here' : 'Every app’s benches here',
     onclick: () => { homeView.only = homeView.only === id ? null : id; keepView(); fillHome(); } }, id ? h('i', { class: id }) : null, label, h('small', null, String(n)));
   const chips = !appPage && (Object.keys(appsHere).length > 1 || homeView.only) ? h('div', { class: 'rt-hchips', id: 'homeChips', role: 'group', 'aria-label': 'The benches of one app' },
-    chip(null, 'All', total), ...APPS.filter(a => appsHere[a.id] || homeView.only === a.id).map(a => chip(a.id, a.name, appsHere[a.id] || 0))) : null;
+    chip(null, 'All', total), ...APPS.filter(a => appsHere[a.id] || homeView.only === a.id).map(a => chip(a.id, shortOf(a.id), appsHere[a.id] || 0))) : null;
   if (!appPage && homeView.only) benches = benches.filter(b => (b.tool || 'jekray') === homeView.only);
   const team = wsInfo && wsInfo.kind !== 'personal';
   const menuOf = new Map();
@@ -4448,7 +4579,7 @@ async function fillHome() {
     const app = appOf(b.tool), drag = can && !bin;
     const more = h('button', { type: 'button', class: 'rt-hmore', 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-label': 'More for ' + b.name, title: 'More' }, '⋯');
     const moveTo = () => choose(more, 'Move “' + b.name + '” to', [...placesFor([]).filter(([v]) => v !== (b.folder_id || '')), ...wsChoices([])], moveChosen([b], []));
-    const name = h('b', { class: 'rt-hname', title: b.name }, tbl ? null : h('span', { class: 'rt-htool ' + app.id, title: 'A ' + app.name + ' ' + thingOf(b.tool) + ': it opens in ' + app.name }, app.name), b.name);
+    const name = h('b', { class: 'rt-hname', title: b.name }, tbl ? null : h('span', { class: 'rt-htool ' + app.id, title: oneOf(app.id) + ': it opens in ' + inApp(app.id) }, shortOf(app.id)), b.name);
     const rename = () => {
       if (!can || bin) return false;
       const old = [...name.childNodes];
@@ -4487,7 +4618,7 @@ async function fillHome() {
     const card = h('div', { class: 'rt-hcard' + (tbl ? ' rt-hrow' : '') + (P.flash === b.id ? ' flash' : ''), 'data-bench': b.id, draggable: drag ? 'true' : null, onpointerenter: show },
       tick, open,
       ...(tbl ? [h('div', { class: 'rt-hinfo' }, name, fork, who),
-        h('span', { class: 'rt-hc app' }, h('span', { class: 'rt-htool ' + app.id, title: 'A ' + app.name + ' ' + thingOf(b.tool) + ': it opens in ' + app.name }, app.name)),
+        h('span', { class: 'rt-hc app' }, h('span', { class: 'rt-htool ' + app.id, title: oneOf(app.id) + ': it opens in ' + inApp(app.id) }, shortOf(app.id))),
         showWhere ? h('span', { class: 'rt-hc where' }, whereLink || top) : null,
         h('span', { class: 'rt-hc when' }, when), h('span', { class: 'rt-hc size' }, kb(b.size_bytes))]
       : [h('div', { class: 'rt-hinfo' }, name,
@@ -4516,11 +4647,11 @@ async function fillHome() {
     if (benchCards.length) out.push(folderCards.length ? h('h3', null, 'Benches') : null, h('div', { class: 'rt-hgrid' }, ...benchCards));
   }
   // (an app's page with folders but no benches here: said once the folders with none of its benches are put away)
-  if (appPage && folderCards.length && !benchCards.length) out.push(h('p', { class: 'rt-hempty rt-hnone', hidden: true }, P.folder ? 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's in this folder.' : 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's here yet.'));
+  if (appPage && folderCards.length && !benchCards.length) out.push(h('p', { class: 'rt-hempty rt-hnone', hidden: true }, P.folder ? 'No ' + filesOf(appPage.id) + ' in this folder.' : 'No ' + filesOf(appPage.id) + ' here yet.'));
   if (!folderCards.length && !benchCards.length) out.push(h('p', { class: 'rt-hempty' }, bin ? 'The bin is empty. Deleted benches stay here for 30 days.'
-    : !appPage && homeView.only ? 'No ' + appOf(homeView.only).name + ' ' + thingOf(homeView.only) + 's here.'
+    : !appPage && homeView.only ? 'No ' + filesOf(homeView.only) + ' here.'
     : P.q ? 'No bench matches “' + P.q + '”.' : P.view === 'recent' ? 'Nothing yet.' : P.folder ? 'This folder is empty.'
-    : appPage ? 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's here yet.' : 'No benches yet. Start one with New, top right, or use Save to cloud in an app’s File menu.'));
+    : appPage ? 'No ' + filesOf(appPage.id) + ' here yet.' : 'No benches yet. Start one with New, top right, or use Save to cloud in an app’s File menu.'));
   homeKeys = {
     clear: () => { picked.clear(); pickedF.clear(); paintPicked(); },
     all: () => { if (!order.length && !foldersHere.length) return false; for (const id of order) picked.add(id); if (can) for (const f of foldersHere) pickedF.add(f.id); paintPicked(); return true; },
@@ -4537,8 +4668,8 @@ async function fillHome() {
     for (const c of box.querySelectorAll('.rt-hcard[data-bench]')) c.classList.toggle('sel', c.dataset.bench === P.sel);
     const b = benches.find(x => x.id === P.sel);
     if (!b) {
-      prev.replaceChildren(h('span', { class: 'thumb rt-nopic' }, 'No bench picked'), h('h3', null, 'No ' + appPage.name + ' ' + thingOf(appPage.id) + 's' + (P.folder || P.q ? ' here' : ' yet')),
-        h('p', null, P.folder || P.q ? 'Pick another folder, or start one.' : 'Start one, or save one from ' + appPage.name + ' with File › Save to cloud.'),
+      prev.replaceChildren(h('span', { class: 'thumb rt-nopic' }, 'No bench picked'), h('h3', null, 'No ' + filesOf(appPage.id) + (P.folder || P.q ? ' here' : ' yet')),
+        h('p', null, P.folder || P.q ? 'Pick another folder, or start one.' : 'Start one, or save one from ' + inApp(appPage.id) + ' with File › Save to cloud.'),
         h('div', { class: 'rt-actions' }, h('button', { type: 'button', class: 'rt-btn primary', onclick: () => startNew(appPage.id) }, 'New ' + thingOf(appPage.id))));
       return;
     }
@@ -4548,57 +4679,72 @@ async function fillHome() {
     const ver = b.version || b.head_version;
     prev.replaceChildren(
       b.thumb ? h('img', { class: 'thumb', src: API_BASE + b.thumb, alt: 'The bench “' + b.name + '”' }) : h('span', { class: 'thumb rt-nopic rt-happpic ' + appPage.id }, homeIcon(appPage.icon || 'bench'), h('small', null, 'No picture yet: it is drawn the next time the ' + thingOf(appPage.id) + ' is saved in ' + appPage.name)),
-      h('h3', null, h('span', { class: 'rt-htool ' + appPage.id }, appPage.name), b.name),
+      h('h3', null, h('span', { class: 'rt-htool ' + appPage.id }, shortOf(appPage.id)), b.name),
       h('dl', null,
         h('dt', null, 'In'), h('dd', null, folderName ? top + ' › ' + folderName : top),
         h('dt', null, 'Changed'), h('dd', null, whenAgo(b.updated_at) + (b.updated_by && b.updated_by.name ? ' by ' + b.updated_by.name : '')),
         h('dt', null, 'Size'), h('dd', null, kb(b.size_bytes)),
         ver ? h('dt', null, 'Version') : null, ver ? h('dd', null, String(ver)) : null),
-      h('div', { class: 'rt-actions' },
-        h('button', { type: 'button', class: 'rt-btn primary', id: 'appPreviewOpen', onclick: () => homeOpenBench(b.id, null, b) }, 'Open in ' + appPage.name),
+      h('div', { class: 'rt-actions rt-hprevacts' },
+        h('button', { type: 'button', class: 'rt-btn primary', id: 'appPreviewOpen', onclick: () => homeOpenBench(b.id, null, b) }, 'Open in ' + inApp(appPage.id)),
         h('button', { type: 'button', class: 'rt-btn', onclick: () => { showApp(null); Object.assign(P, { view: 'history', history: { id: b.id, name: b.name } }); fillHome(); } }, homeIcon('history'), ' History'),
         pmore));
   };
-  box.replaceChildren(appHead(appPage), h('div', { class: 'rt-hlaunch' }, h('div', { class: 'rt-hexplore' }, ...out.filter(Boolean)), prev));
+  // (the picked one beside the app's head and its list, from the top: the grid's areas in style.css)
+  // the list's tools (sort, view, New folder) over the list they act on, under the app's head
+  const listTools = h('div', { class: 'rt-hlisttools' }, document.getElementById('homeTools'));
+  box.replaceChildren(h('div', { class: 'rt-hlaunch' }, appHead(appPage), h('div', { class: 'rt-hexplore' }, listTools, ...out.filter(Boolean)), prev));
   fillPreview(); paintPicked(); decorate();
 }
+/* an app's files, as a page or a note says them: JEKray benches, coatings, optical designs */
+const oneOf = id => { const t = (appOf(id).parent ? '' : appOf(id).name + ' ') + thingOf(id); return (/^(?:[aeiou]|RF)/i.test(t) ? 'An ' : 'A ') + t; };
+const inApp = id => (appOf(id).parent ? 'the ' : '') + appOf(id).name;
+const filesOf = id => (appOf(id).parent ? '' : appOf(id).name + ' ') + thingOf(id) + 's';
 /* an app's head on its launch page: what it does, and the ways to start in it */
 function appHead(a) {
-  const starts = a.id === 'jekray' ? NEW_KINDS.filter(k => k.app === 'jekray' && k.into).map(k => h('button', { type: 'button', class: 'rt-btn', onclick: () => startNew('jekray', k.into) }, k.label.replace(' (JEKray)', ''))) : [];
+  // one strip: the name (the app it is under before it) and what it does, the ways in at its right
   return h('div', { class: 'rt-happhead ' + a.id },
-    h('h2', null, a.name),
-    h('p', null, a.line),
+    h('div', { class: 'rt-happtext' },
+      h('div', { class: 'rt-happtitle' }, a.parent ? h('span', { class: 'rt-hparent' }, appOf(a.parent).name) : null, h('h2', null, a.name)),
+      h('p', null, a.line),
+      a.held ? h('p', { class: 'rt-subsmall', id: 'appHeld' }, a.held) : null),
     h('div', { class: 'rt-actions' },
       h('button', { type: 'button', class: 'rt-btn primary', id: 'appOpen', onclick: () => { track('cloud', 'app.' + a.id); openApp(a.id); } }, 'Open ' + a.name),
       h('button', { type: 'button', class: 'rt-btn', id: 'appNew', onclick: () => startNew(a.id) }, 'New ' + thingOf(a.id)),
-      ...starts,
-      a.about ? h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + a.name) : null));
+      a.about ? h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-btn quiet rt-happabout', title: 'About ' + inApp(a.id) + ', in a new tab' }, 'About') : null));
 }
 
 /* ---------- the apps ----------
    Opened from New (its Open group) and the rail, each in its own tab; signed out, under the sign-in panel. */
 function appLinks() {
   return h('div', { class: 'rt-happlinks', 'aria-label': 'Apps' }, h('span', null, 'The apps open without an account:'),
-    ...APPS.map(a => h('button', { type: 'button', class: 'rt-btn', title: a.line, onclick: () => { track('cloud', 'app.' + a.id); openApp(a.id); } }, 'Open ' + a.name)),
-    ...APPS.filter(a => a.about).map(a => h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + a.name)));
+    ...appsShown(!!account).map(a => h('button', { type: 'button', class: 'rt-btn', title: a.line, onclick: () => { track('cloud', 'app.' + a.id); openApp(a.id); } }, 'Open ' + a.name)),
+    ...appsShown(!!account).filter(a => a.about).map(a => h('a', { href: a.about, target: '_blank', rel: 'noopener', class: 'rt-link' }, 'About ' + a.name)));
 }
 /* New's menu: what can be started, a bench in each app first (opening an app is on its page, from the rail) */
 function newMenuItems() {
-  return NEW_KINDS.map(k => [k.label, k.icon, () => startNew(k.app, k.into)]);
+  const shown = new Set(appsShown(!!account).map(a => a.id));
+  return NEW_KINDS.filter(k => shown.has(k.app)).map(k => [k.label, k.icon, () => startNew(k.app, k.into), k.sub ? 'rt-hsub' : null]);
 }
 /* What New starts: a bench in an app, or straight into one of JEKray's designers */
 const NEW_KINDS = [
   { app: 'jekray', into: null, label: 'JEKray bench', icon: 'bench' },
+  { app: 'jekoptic', into: null, label: 'Optical design', icon: 'lens', sub: true },
+  { app: 'jekfilm', into: null, label: 'Coating', icon: 'coat', sub: true },
+  { app: 'jekrf', into: null, label: 'JEKrf bench', icon: 'rf' },
+  { app: 'jekrfd', into: null, label: 'RF design', icon: 'lens', sub: true },
   { app: 'jekion', into: null, label: 'JEKion bench', icon: 'ion' },
-  { app: 'jekfilm', into: null, label: 'JEKfilm coating', icon: 'coat' },
   { app: 'jekcad', into: null, label: 'JEKcad part studio', icon: 'cube' },
-  { app: 'jekray', into: 'lens', label: 'Optical design (JEKray)', icon: 'lens' },
-  { app: 'jekray', into: 'rf', label: 'RF design (JEKray)', icon: 'rf' },
 ];
 /* what a new bench of each app holds: an empty one (JEKfilm's a single MgF2 layer on N-BK7, as the app starts one) */
 function newContent(app, name) {
   if (app === 'jekion') return { format: 'jekion', version: 1, name, electrodes: [], ions: [], detectors: [] };
   if (app === 'jekcad') return { format: 'jekcad', version: 1, name, units: 'mm', variables: [], features: [], rollback: null, parts: {} };
+  // a design: a uid of its own (what the benches using it are linked by), its parts made in the Optics designer
+  // a JEKrf bench, empty; an RF design, its uid of its own (its parts made in the RF designer)
+  if (app === 'jekrf') return { format: 'jekrf', version: 1, name, elements: [], fibres: [] };
+  if (app === 'jekrfd') return { format: 'jekrfd', version: 1, name, uid: 'o' + Array.from(crypto.getRandomValues(new Uint8Array(10)), b => b.toString(36).padStart(2, '0')).join('').slice(0, 18), elements: [], fibres: [] };
+  if (app === 'jekoptic') return { format: 'jekoptic', version: 1, name, uid: 'o' + Array.from(crypto.getRandomValues(new Uint8Array(10)), b => b.toString(36).padStart(2, '0')).join('').slice(0, 18), elements: [], fibres: [] };
   if (app === 'jekfilm') return { format: 'jekfilm', version: 1, name, spec: { target: 'ar', sub: { glass: 'N-BK7' }, lo: 450, hi: 650, design: 550 }, layers: [{ n: 1.38, d: 99.638 }] };
   return { format: 'jekray', version: 1, name, elements: [], fibres: [] };
 }
@@ -4651,7 +4797,7 @@ function signedOutView() {
   document.getElementById('homeNote').hidden = true;
   document.getElementById('homeWhere').textContent = 'Your apps and benches';
   const P = cloudPlace, appPage = P.app ? appOf(P.app) : null;
-  rail.replaceChildren(h('h2', null, 'Apps'), ...APPS.map(a => h('button', { type: 'button', onclick: () => showApp(a.id), title: a.name + ': what it does, and its benches', class: 'rt-happbtn ' + a.id, 'aria-current': String(P.app === a.id) }, homeIcon(a.icon), h('span', null, a.name))));
+  rail.replaceChildren(h('h2', null, 'Apps'), ...appsShown(false).map(a => h('button', { type: 'button', onclick: () => showApp(a.id), title: a.name + ': what it does, and its benches', class: 'rt-happbtn ' + a.id + (a.parent ? ' rt-hsub' : ''), 'aria-current': String(P.app === a.id) }, homeIcon(a.icon), h('span', null, a.name))));
   homeKeys = null; picked.clear(); pickedF.clear();
   box.classList.remove('rows', 'tbl', 'picking');
   if (appPage) {
@@ -4757,7 +4903,41 @@ function spaceAccountExtra(signedIn) {
   const cur = spaceTheme(), theme = h('div', { class: 'rt-hthemes', role: 'group', 'aria-label': 'Theme' }, h('span', null, 'Theme'),
     ...[['dark', 'Dark'], ['light', 'Light'], ['system', 'System']].map(([v, t]) => h('button', { type: 'button', class: 'rt-btn', 'aria-pressed': String(cur === v), onclick: () => { setSpaceTheme(v); closeMenu(); } }, t)));
   const plans = h('button', { type: 'button', role: 'menuitem', 'data-icon': 'star', onclick: () => { closeMenu(); showSubscribe(); } }, 'JEKrayPro: plans and prices\u2026');
-  return signedIn ? [theme] : [plans, theme];
+  const expItem = h('button', { type: 'button', role: 'menuitem', 'data-icon': 'flask', id: 'homeExp', onclick: () => { closeMenu(); showExperimental(); } }, 'Experimental features\u2026', expRead().on ? h('span', { class: 'rt-dot exp' }) : null);
+  return signedIn ? [expItem, theme] : [plans, expItem, theme];
+}
+
+/* ---------- Experimental features, for every app ----------
+   The one place they are switched on and off (core/exp-list.js keeps them in this browser, and each app follows the
+   store as it changes): the apps not yet validated (JEKion), shown here and on the site only while ticked, then
+   JEKray's features. For a signed-in account (a free one is enough), as they always were. */
+function showExperimental() {
+  let dlg = document.getElementById('homeExpDialog');
+  if (dlg) dlg.remove();
+  const S = expRead(), signedIn = !!account;
+  const save = () => { expWrite(S.on, S.picks); track('experimental', S.on ? 'on' : 'off'); fillHome(); };
+  const master = h('input', { type: 'checkbox', id: 'homeExpOn' });
+  master.checked = S.on; master.disabled = !signedIn;
+  const row = f => {
+    const t = h('input', { type: 'checkbox', 'data-exp': f.key });
+    t.checked = S.picks[f.key] !== false;
+    t.addEventListener('change', () => { S.picks[f.key] = t.checked; save(); });
+    return h('li', null, h('label', { class: 'rt-exppick' }, t, h('span', null, h('b', null, f.name), ': ', f.what)));
+  };
+  const apps = EXPERIMENTAL.filter(f => f.app), feats = EXPERIMENTAL.filter(f => !f.app);
+  const list = h('div', { class: 'rt-explist' + (S.on ? '' : ' off') },
+    apps.length ? h('h3', null, 'Apps') : null, apps.length ? h('ul', null, ...apps.map(row)) : null,
+    feats.length ? h('h3', null, 'In JEKray') : null, feats.length ? h('ul', null, ...feats.map(row)) : null);
+  master.addEventListener('change', () => { S.on = master.checked; list.classList.toggle('off', !S.on); save(); toast(S.on ? 'Experimental features on, in every app' : 'Experimental features off'); });
+  dlg = h('dialog', { class: 'rt-dialog rt-expdialog', id: 'homeExpDialog', 'aria-labelledby': 'homeExpTitle' },
+    h('h2', { id: 'homeExpTitle' }, 'Experimental features'),
+    h('p', null, 'Apps and features still being built and checked. They may change, or give wrong answers: nothing made with them is validated yet. Tick the ones you want; the switch turns them all on or off together, in every app, in this browser.'),
+    signedIn ? null : h('p', { class: 'rt-exppro' }, h('b', null, 'For signed-in accounts. '), 'Sign in, top right: a free account is enough.'),
+    h('label', { class: 'rt-expmaster' + (signedIn ? '' : ' rt-off') }, master, 'Turn on experimental features'),
+    list,
+    h('div', { class: 'rt-actions' }, h('button', { type: 'button', class: 'rt-btn primary', onclick: () => dlg.close() }, 'Done')));
+  document.body.append(dlg);
+  dlg.showModal();
 }
 /* ==========================================================================
    JEKsuite's start: the theme (JEKray's, so the hub and the apps look alike), the account and the home wired, the
@@ -4766,7 +4946,7 @@ function spaceAccountExtra(signedIn) {
    ========================================================================== */
 themeApply();
 if (typeof matchMedia === 'function') matchMedia('(prefers-color-scheme: dark)').addEventListener('change', themeApply);
-window.addEventListener('storage', e => { if (e.key === 'jekray-theme') themeApply(); });
+window.addEventListener('storage', e => { if (e.key === 'jekray-theme') themeApply(); if (e.key === EXP_KEY || e.key === EXP_PICKS) fillHome(); });
 if (!window.name) window.name = 'jeksuite';
 // the benches, once the account is known (signed in, or signed out for sure)
 // the shared account's hooks: the hub's name and toasts, its pop-up account menu (made as it opens) with the theme in it
@@ -4783,6 +4963,9 @@ wireUsage();
 usageStart('space');
 accountShown();
 if (accountLoaded) accountLoaded.then(() => fillHome());
+// #experimental (JEKray's Help › Experimental features): the dialog, once the account is known
+if (location.hash === '#experimental') { window.history.replaceState(null, '', location.pathname); Promise.resolve(accountLoaded).then(() => showExperimental()); }
+window.addEventListener('hashchange', () => { if (location.hash === '#experimental') { window.history.replaceState(null, '', location.pathname); showExperimental(); } });
 })();
 </script>
 </body>

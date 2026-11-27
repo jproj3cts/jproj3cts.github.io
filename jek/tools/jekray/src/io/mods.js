@@ -260,7 +260,7 @@ export async function modsOffer() {
   for (const m of project.mods || []) m.hash = await modHash(m.code);
   const want = (project.mods || []).filter(m => { const pk = PACKS.list.find(p => p.id === m.id); return (!pk || pk.hash !== m.hash) && !MODS.offered.has(m.id + '|' + m.hash); });
   if (!want.length) return;
-  if (!exp('mods')) { toast('This bench uses modules (' + want.map(m => m.name).join(', ') + '), an experimental feature: turn modules on under Help › Experimental features to run them'); return; }
+  if (!exp('mods')) { toast('This bench uses modules (' + want.map(m => m.name).join(', ') + '), an experimental feature: turn modules on in JEKsuite’s account menu, Experimental features, to run them'); return; }
   // each as its maker signed it, if the bench carries that, checked as any pack is (an unsigned one is refused, saying why)
   for (const m of want) {
     MODS.offered.add(m.id + '|' + m.hash);

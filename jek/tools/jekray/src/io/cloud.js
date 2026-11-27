@@ -1,4 +1,5 @@
-import { EMBED, TEST_MODE, cloud, cloudOpening, setCloud, setCloudOpening } from '../core/constants.js';
+import { EMBED, PAGE_MODE, TEST_MODE, cloud, cloudOpening, appStoreKey, setCloud, setCloudOpening } from '../core/constants.js';
+import { modePage } from './designs.js';
 import { hooks } from '../core/hooks.js';
 import { V, project } from '../state/project.js';
 import { serialize } from '../state/elements.js';
@@ -22,6 +23,8 @@ import { newLensDesign } from '../ui/assembly.js';
 import { newRfDesign } from '../ui/rf-workspace.js';
 import { noteRecent } from './recent.js';
 
+/* each program's tab, by its mode (a cloud bench of another program opens there) */
+const MODE_TABS = { ray: 'jekray', optic: 'jekoptic', rf: 'jekrf', rfd: 'jekrfd' };
 /* ---------- Cloud benches ----------
    A bench opened from, or saved to, the cloud stays linked to it: `cloud` holds its id,
    workspace and the version this copy is based on. Edits save themselves at most every 30
@@ -30,7 +33,7 @@ import { noteRecent } from './recent.js';
    and the person chooses what to keep. Offline, the bench stays in this browser's autosave
    and goes up when the connection returns: the link and whether it has unsaved changes
    are kept with the autosave, so a reload picks up where it left off. */
-const CLOUD_KEY = 'jek-cloud-link', CLOUD_EVERY = 30000, CLOUD_RETRY = 60000;
+const CLOUD_KEY = appStoreKey('jek-cloud-link'), CLOUD_EVERY = 30000, CLOUD_RETRY = 60000;
 export let cloudTimer = null, cloudBusy = false, cloudAgain = false, cloudNote = '';
 function cloudKeep() {
   if (TEST_MODE || EMBED) return;
@@ -317,9 +320,17 @@ async function cloudOpen(id, version) {
   if (meta.tool === 'jekion') { openInJekion(meta, version); toast('“' + meta.name + '” is a JEKion bench: opened in JEKion'); return; }
   // a coating, by its mark or by its content (one saved by an API from before JEKfilm is marked JEKray's)
   const fmt = (() => { try { return JSON.parse(b.content).format; } catch (err) { return null; } })();
-  if (meta.tool === 'jekfilm' || fmt === 'jekfilm') { openInJekfilm(meta, version); toast('“' + meta.name + '” is a JEKfilm coating: opened in JEKfilm'); return; }
+  if (meta.tool === 'jekfilm' || fmt === 'jekfilm') { openInJekfilm(meta, version); toast('“' + meta.name + '” is a coating: opened in the Coating designer'); return; }
   // a part studio, by its mark or its content (one saved by an API from before JEKcad is marked JEKray's)
   if (meta.tool === 'jekcad' || fmt === 'jekcad') { openInJekcad(meta, version); toast('“' + meta.name + '” is a JEKcad part studio: opened in JEKcad'); return; }
+  // a design opens in its designer, a JEKrf bench in JEKrf, a JEKray bench in JEKray: in that program's tab when it
+  // is not this page (an older JEKray bench is JEKrf's to carry on with too, when it is opened there)
+  const mode = { jekoptic: 'optic', jekrf: 'rf', jekrfd: 'rfd' }[meta.tool] || { jekoptic: 'optic', jekrf: 'rf', jekrfd: 'rfd' }[fmt] || 'ray';
+  if (mode !== PAGE_MODE && !(mode === 'ray' && PAGE_MODE === 'rf')) {
+    window.open(modePage(mode) + '#cloud=' + meta.id + (version ? '@' + version : ''), MODE_TABS[mode]);
+    toast('“' + meta.name + '” is ' + { ray: 'a JEKray bench: opened in JEKray', optic: 'a design: opened in the Optics designer', rf: 'a JEKrf bench: opened in JEKrf', rfd: 'an RF design: opened in the RF designer' }[mode]);
+    return;
+  }
   setCloudOpening(true);
   try { openProjectData(JSON.parse(b.content), '“' + (meta.name || 'bench') + '”' + (version ? ', version ' + version : '') + ' from the cloud'); }
   finally { setCloudOpening(false); }

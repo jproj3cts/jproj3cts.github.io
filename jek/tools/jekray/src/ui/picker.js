@@ -19,7 +19,7 @@ export function pickerShown(on) {
   const tip = document.getElementById('emptyHint');
   if (tip) tip.hidden = !!on;
   if (!on) { picker.hidden = true; addBtn.setAttribute('aria-expanded', 'false'); return; }
-  if (!palettesOn().includes(pickTab) && !(pickTab === 'mine' && mineOn()) && !(pickTab === 'recent' && recentTiles().length)) pickTab = 'free';
+  if (!palettesOn().includes(pickTab) && !(pickTab === 'mine' && mineOn()) && !(pickTab === 'recent' && recentTiles().length)) pickTab = palettesOn()[0];
   if (mineOn()) loadMine().then(() => { if (!picker.hidden && pickTab === 'mine') mineChanged(); });
   // beside the rail's Add part, level with it (or, the rail hidden, at the bench's top left), kept on the screen
   // (under it, the rail being across the top of the bench)

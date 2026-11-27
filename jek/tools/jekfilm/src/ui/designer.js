@@ -80,7 +80,7 @@ export function render() {
   const nm = document.getElementById('filmName');
   if (nm && document.activeElement !== nm) nm.value = film.name;
   for (const [id, can] of [['btnUndo', canUndo()], ['btnRedo', canRedo()]]) { const b = document.getElementById(id); if (b) b.disabled = !can; }
-  document.title = film.name + ' | JEKfilm';
+  document.title = film.name + ' | Coating designer';
 }
 /* a row of a property table: its name, its value (a control or a figure), its unit */
 const propRow = (label, value, unit, cls) => h('tr', { class: cls || null }, h('th', { scope: 'row' }, label), h('td', null, value), h('td', { class: 'unit' }, unit || ''));

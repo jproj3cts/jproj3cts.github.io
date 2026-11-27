@@ -1,26 +1,41 @@
 import { h } from '../../../jekray/src/ui/dom.js';
+import { expHas, expRead } from '../../../jekray/src/core/exp-list.js';
 /* ==========================================================================
    JEKsuite's page helpers: elements, icons, the note at the foot, the pop-up menus, the theme, and the apps it
    opens (each in a tab of its own, named, so a second bench opens in the same tab rather than a new one each time).
    ========================================================================== */
 
-/* the apps, as the hub lists and opens them: their page, their tab's name, what they are */
+/* the apps, as the hub lists and opens them: their page, their tab's name, what they are. JEKray's designers are
+   listed under it, indented (parent): the Optics designer is JEKray's page as a program of its own (?optic), its
+   designs .optic files (the cloud's 'jekoptic'); the Coating designer is JEKfilm's page, its files the cloud's
+   'jekfilm'. JEKrf (JEKray's page with ?rf, its benches .jekrf) has its RF designer under it (?rfd, designs .rfd);
+   both are experimental (exp), as JEKion is. short is the name on a bench's tag and a chip. */
 export const APPS = [
   { id: 'jekray', name: 'JEKray', url: '/jek/tools/jekray.html', tab: 'jekray', icon: 'bench', about: '/jek/products/design-software/jekray/',
-    line: 'Optics, fibre, electronics and RF on one bench: rays, Gaussian beams and the diffracted field, in 2D and 3D; lens and RF design.' },
-  { id: 'jekion', name: 'JEKion', url: '/jek/tools/jekion.html', tab: 'jekion', icon: 'ion', about: '/jek/products/design-software/jekion/',
-    line: 'Charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live.' },
-  { id: 'jekfilm', name: 'JEKfilm', url: '/jek/tools/jekfilm.html', tab: 'jekfilm', icon: 'coat', about: '/jek/products/design-software/jekfilm/', thing: 'coating',
+    line: 'A bench simulator for optics, fibre and electronics. Light is traced as rays, Gaussian beams and the diffracted field, in 2D and 3D.' },
+  { id: 'jekoptic', name: 'Optics designer', short: 'Optics', parent: 'jekray', url: '/jek/tools/jekray.html?optic', tab: 'jekoptic', icon: 'lens', about: '/jek/products/design-software/jekray/#optics-designer', thing: 'optical design',
+    line: 'Lenses, mirrors and stops on one axis designed together, surface by surface: conditions, analyses, the optimiser, tolerancing, drawings and a report. Each design is a .optic, used on any bench.' },
+  { id: 'jekfilm', name: 'Coating designer', short: 'Coating', parent: 'jekray', url: '/jek/tools/jekfilm.html', tab: 'jekfilm', icon: 'coat', about: '/jek/products/design-software/jekray/#coating-designer', thing: 'coating',
     line: 'Thin-film coatings designed over a band and a range of angles: anti-reflection, high reflectors, beam splitters and dichroic edges.' },
+  { id: 'jekrf', name: 'JEKrf', exp: 'jekrf', url: '/jek/tools/jekray.html?rf', tab: 'jekrf', icon: 'rf', about: '/jek/docs/jekray/rf/',
+    line: 'RF and millimetre-wave quasi-optics: feed horns, RF lenses and mirrors on a bench, traced as rays and Gaussian beams. Each bench is a .jekrf.' },
+  { id: 'jekrfd', name: 'RF designer', short: 'RF', parent: 'jekrf', exp: 'jekrf', url: '/jek/tools/jekray.html?rfd', tab: 'jekrfd', icon: 'lens', about: '/jek/docs/jekray/rf/designer/', thing: 'RF design',
+    line: 'A feed horn’s beam through RF lenses and mirrors, designed as a whole: conditions, analyses, the optimiser, tolerancing and a lens that can be made. Each design is a .rfd, used on any JEKrf bench.' },
+  { id: 'jekion', name: 'JEKion', exp: 'jekion', url: '/jek/tools/jekion.html', tab: 'jekion', icon: 'ion', about: '/jek/products/design-software/jekion/',
+    line: 'Charged-particle optics: electrodes, ion traps, lenses and time of flight, solved and flown live.' },
   { id: 'jekcad', name: 'JEKcad', url: '/jek/tools/jekcad.html', tab: 'jekcad', icon: 'cube', about: '/jek/products/design-software/jekcad/', thing: 'part studio',
     line: 'Parametric CAD: sketches with constraints and dimensions, a feature list you can roll back, and solids made on OpenCascade, with STEP in and out.' },
 ];
-/* what an app's files are called: a JEKfilm coating, a JEKcad part studio, a JEKray or JEKion bench */
+/* the apps shown: an experimental one (exp) only to someone signed in who has switched it on (core/exp-list.js) */
+export const appsShown = signedIn => APPS.filter(a => !a.exp || (signedIn && expHas(expRead(), a.exp)));
+/* what an app's files are called: a coating, a part studio, a JEKray or JEKion bench */
 export const thingOf = id => appOf(id).thing || 'bench';
+/* the name on a bench's tag and a chip: a designer's short one */
+export const shortOf = id => appOf(id).short || appOf(id).name;
 export const appOf = id => APPS.find(a => a.id === id) || APPS[0];
 /* an app opened at a hash (#cloud=<id>, #new…), in its own tab */
 export function openApp(id, hash) {
-  const a = appOf(id), w = window.open(a.url + (hash ? '#' + hash : ''), a.tab);
+  const a = appOf(id), w = window.open(a.url + (hash ? '#' + hash : a.into ? '#new=' + a.into : ''), a.tab);
   if (w) w.focus();
   return w;
 }
@@ -62,7 +77,7 @@ export const SPACE_ICONS = {
   card: 'M1.5 3.5H14.5V12.5H1.5Z M1.5 6.5H14.5 M4 10H7', sync: 'M13 6A5.2 5.2 0 0 0 3.4 4.6 M3 2V5H6 M3 10A5.2 5.2 0 0 0 12.6 11.4 M13 14V11H10',
   home: 'M2 7.5L8 2.5L14 7.5 M3.5 6.5V13.5H12.5V6.5 M6.5 13.5V9.5H9.5V13.5', check: 'M3 8.5L6.5 12L13 4.5',
   theme: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M8 1.5V14.5 M8 4H12.5 M8 7H14 M8 10H13.5', cloud: 'M4.5 12.5H12A2.75 2.75 0 0 0 12.2 7A4 4 0 0 0 4.4 6.6A3 3 0 0 0 4.5 12.5Z',
-  lens: 'M8 1.5Q11 8 8 14.5Q5 8 8 1.5Z M1 8H15', rf: 'M3 13L8 3L13 13 M5 9H11', coat: 'M2 4H14 M2 8H14 M2 12H14', ion: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M5 8H11 M8 5V11',
+  flask: 'M6 1.5H10 M6.5 1.5V6L2.5 13.5H13.5L9.5 6V1.5 M4.3 10H11.7', lens: 'M8 1.5Q11 8 8 14.5Q5 8 8 1.5Z M1 8H15', rf: 'M3 13L8 3L13 13 M5 9H11', coat: 'M2 4H14 M2 8H14 M2 12H14', ion: 'M8 1.5A6.5 6.5 0 1 1 7.99 1.5 M5 8H11 M8 5V11',
 };
 export function iconNode(name) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');

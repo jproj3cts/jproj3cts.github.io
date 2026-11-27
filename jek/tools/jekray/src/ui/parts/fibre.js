@@ -3,7 +3,7 @@ import { FIBRE_COLOUR } from '../../state/elements.js';
 import { frame } from '../../core/mask.js';
 import { RAY_PATTERNS } from '../../engines/trace.js';
 import { bodyFill, ctx, drawPorts, pathLocal, selInk } from '../render.js';
-import { bindSync, panel, param, selectField } from '../panel.js';
+import { bindSync, panel, param, readRow, selectField } from '../panel.js';
 import { h } from '../dom.js';
 import { fibreMode } from '../../engines/fibre-face.js';
 import { portsOfOptic } from '../../engines/fibre.js';
@@ -39,7 +39,11 @@ function fibrePanel(el) {
   panel.append(h('div', { class: 'rt-rows' },
     param('Core (µm)', el, 'core'), param('NA', el, 'na'),
     param('Collimating lens f (mm)', el, 'coll', { wide: true }),
-    param('Diameter (mm)', el, 'length', { wide: true })));
+    param('Diameter (mm)', el, 'length', { wide: true }),
+    // what follows from its core and NA alone: the cone it takes light in over, and the wavelength above which it
+    // guides one mode only (V = \u03c0 d NA / \u03bb below 2.405)
+    readRow({ name: 'Acceptance half-angle', unit: '\u00b0', read: () => (el.na > 0 && el.na <= 1 ? String(+(Math.asin(el.na) * 180 / Math.PI).toPrecision(4)) : null), title: 'The half-angle of the cone of light it guides, in air: sin \u03b8 = NA.' }),
+    readRow({ name: 'Single-mode above', unit: 'nm', read: () => (el.mm || !(el.core > 0 && el.na > 0) ? null : String(+(Math.PI * el.core * 1000 * el.na / 2.405).toPrecision(4))), title: 'Its cut-off wavelength: above it the fibre guides one mode only (V = \u03c0 d NA / \u03bb below 2.405).' })));
   if (el.coll > 0 && !el.mm) {
     // the beam it sends out, as the focal length is edited: lambda f / (pi w) at 1550 nm
     const note = h('p', { class: 'note', style: 'margin-top:0.3rem' });

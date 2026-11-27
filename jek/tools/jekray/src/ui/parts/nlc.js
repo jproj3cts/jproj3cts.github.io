@@ -28,7 +28,7 @@ export function nlcPanel(el) {
   panel.append(h('h3', null, 'Nonlinear crystal'));
   panel.append(h('div', { class: 'rt-rows' },
     selectField('Crystal', Object.entries(NLC).map(([k, v]) => [k, v.name + ' (d_eff ' + (v.d * 1e12) + ' pm/V)']), () => el.material, v => { el.material = v; }, { wide: true }),
-    selectField('Its z axis', [['s', 'Out of the bench plane: s light converts'], ['p', 'In the plane: p light converts']], () => el.axis, v => { el.axis = v; }, { wide: true }),
+    (() => { const z = selectField('Its z axis', [['s', 'Out of the plane (s converts)'], ['p', 'In the plane (p converts)']], () => el.axis, v => { el.axis = v; }, { wide: true }); z.title = 'Light polarised along the crystal\u2019s z axis is what converts: s light with the axis out of the bench plane, p light with it in the plane'; return z; })(),
     param('Poling period (µm)', el, 'period'), param('Temperature (°C)', el, 'temp'),
     param('Length (mm)', el, 'nlLen'), param('Diameter (mm)', el, 'length'),
     selectField('End faces', [['ar', 'Anti-reflection coated (0.1%)'], ['bare', 'Bare']], () => el.faces, v => { el.faces = v; }, { wide: true })));
@@ -39,9 +39,18 @@ export function nlcPanel(el) {
     const hits = ((lastTrace.nlc) || []).filter(H => H.id === el.id), rows = [];
     for (const H of hits.slice(0, 4)) {
       const r = H.r, S = getEl(H.src);
-      rows.push([(S ? S.name : 'Beam') + ', ' + (+H.nm.toPrecision(6)) + ' nm', fmtW(H.P) + ' along the crystal’s axis → ' + fmtW(r.P2) + ' at ' + (+(H.nm / 2).toPrecision(6)) + ' nm (' + (+(100 * r.conv).toPrecision(3)) + '% converted); ' + (+(r.eta * 100).toPrecision(3)) + ' %/W small-signal']);
-      rows.push(['Phase matching', (el.period > 0 ? 'period ' + el.period + ' µm' : 'period ' + (+r.period.toPrecision(5)) + ' µm, the best for this beam') + ' (' + (+r.periodPW.toPrecision(5)) + ' µm for a plane wave at ' + el.temp + ' °C); n = ' + r.n1.toFixed(4) + ', ' + r.n2.toFixed(4)]);
-      rows.push(['Focusing', 'ξ = L/b = ' + (+r.xi.toPrecision(3)) + ' (best 2.84), h = ' + (+r.h.toPrecision(3)) + ' of Boyd and Kleinman’s 1.068' + (Math.abs(r.mu) > 0.2 ? '; the waist sits ' + (+(r.mu * 50).toPrecision(2)) + '% of the length from the middle' : '')]);
+      // a figure a row, under the beam they are for
+      const nm2 = (+(H.nm / 2).toPrecision(6)) + ' nm', who = hits.length > 1 ? (S ? S.name : 'Beam') + ': ' : '';
+      rows.push([who + 'Fundamental, ' + (+H.nm.toPrecision(6)) + ' nm', fmtW(H.P)]);
+      rows.push([who + 'Harmonic, ' + nm2, fmtW(r.P2)]);
+      rows.push([who + 'Converted', (+(100 * r.conv).toPrecision(3)) + '%']);
+      rows.push([who + 'Efficiency, small-signal', (+(r.eta * 100).toPrecision(3)) + ' %/W']);
+      rows.push([who + 'Poling period' + (el.period > 0 ? '' : ', best for this beam'), (el.period > 0 ? el.period : +r.period.toPrecision(5)) + ' \u00b5m']);
+      rows.push([who + 'Period for a plane wave at ' + el.temp + ' \u00b0C', (+r.periodPW.toPrecision(5)) + ' \u00b5m']);
+      rows.push([who + 'Indices, fundamental and harmonic', r.n1.toFixed(4) + ', ' + r.n2.toFixed(4)]);
+      rows.push([who + 'Focusing \u03be = L/b (best 2.84)', String(+r.xi.toPrecision(3))]);
+      rows.push([who + 'Boyd\u2013Kleinman h (best 1.068)', String(+r.h.toPrecision(3))]);
+      if (Math.abs(r.mu) > 0.2) rows.push([who + 'Waist from the middle', (+(r.mu * 50).toPrecision(2)) + '% of the length']);
     }
     if (!hits.length) rows.push(['', 'No Gaussian beam crosses it. Send a laser through it focused near its middle (the bench’s Light showing the beams’ envelope or field).']);
     const s2 = JSON.stringify(rows);

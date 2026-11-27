@@ -1,8 +1,7 @@
-import { EMBED, LOCKED, TEST_MODE, clamp, cloud } from '../core/constants.js';
+import { EMBED, LOCKED, PAGE_FORMAT, PAGE_MODE, TEST_MODE, clamp, cloud } from '../core/constants.js';
 import { asmCheck, asmKind, asmOf, asmOfSelection, normAssemblies, remapDesign } from '../core/assembly.js';
 import { liveMates, mateSpread, matesCopied, normMates } from '../core/mates.js';
 import { designOne, makeAssembly, splitAssembly } from './assembly.js';
-import { openLensDesign } from './lens-workspace.js';
 import { fmtLen } from '../core/format.js';
 import { V, deg, dropParts, extraSel, future, history, nextName, num, project, selectOne, selectedId, setSuppressed, uid } from '../state/project.js';
 import { makeElement, normElement, serialize } from '../state/elements.js';
@@ -29,6 +28,7 @@ import { goal } from '../io/usage.js';
 import { hooks } from '../core/hooks.js';
 import { scheduleSave } from '../io/autosave.js';
 import { sweepBenchEdited } from './sweeps.js';
+import { openDesign } from '../io/designs.js';
 
 /* ==========================================================================
    Actions
@@ -263,7 +263,7 @@ export function benchMenu(X, Y, hit, at, in3d) {
       { label: 'Raise to top', key: 'Home', fn: () => restack(list, 'top') }, { label: 'Lower to bottom', key: 'End', fn: () => restack(list, 'bottom') }] : []), '-',
     ...(n > 1 && !grouped ? [{ label: 'Group', key: 'Ctrl+G', fn: () => groupEls(list) }] : []),
     ...(n > 1 && !asmOfSelection(list) && asmCheck(list).ok ? [{ label: 'Make an assembly', fn: () => makeAssembly(list) }] : []),
-    ...(n === 1 && asmOf(list[0]) && !asmOfSelection(list) ? [{ label: 'Open the assembly design\u2026', fn: () => openLensDesign(asmOf(list[0])) }] : []),
+    ...(n === 1 && asmOf(list[0]) && !asmOfSelection(list) ? [{ label: 'Open the assembly design\u2026', fn: () => openDesign(asmOf(list[0])) }] : []),
     ...(n === 1 && !list[0].group && asmKind(list[0]) && asmKind(list[0]) !== 'stop' && asmCheck(list).ok ? [{ label: 'Design as an assembly\u2026', fn: () => designOne(list[0]) }] : []),
     ...(asmOfSelection(list) ? [{ label: 'Split the assembly into parts', fn: () => splitAssembly(asmOfSelection(list)) }] : []),
     ...(list.some(x => x.group) ? [{ label: 'Ungroup', key: 'Ctrl+Shift+G', fn: () => ungroupEls(list) }] : []),
@@ -495,17 +495,20 @@ export function updateUndoButtons() {
 
 export function setStatus(t) {
   const el = document.getElementById('status');
-  el.textContent = t;
+  if (el) el.textContent = t;
 }
 let toastTimer = null;
-export function toast(msg, bad) {
+/* (action: { label, fn }, a button in the note, which then stays longer: an offer to take up) */
+export function toast(msg, bad, action) {
   const ws = document.getElementById('lensWs');
   const t = document.getElementById(ws && !ws.hidden ? 'lensToast' : 'toast');
   t.textContent = msg;
+  if (action) t.append(' ', h('button', { type: 'button', class: 'rt-link rt-toastact', onclick: () => { t.classList.remove('show', 'act'); action.fn(); } }, action.label));
   t.classList.toggle('bad', !!bad);
+  t.classList.toggle('act', !!action);
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove('show'), bad ? 5000 : 2500);
+  toastTimer = setTimeout(() => t.classList.remove('show', 'act'), action ? 12000 : bad ? 5000 : 2500);
 }
 
 /* Save / open .jekray */
@@ -531,8 +534,10 @@ export function markUnsaved(on) {
 }
 export function saveFile() {
   if (!accountGate('save the bench as a file')) return;
-  const name = safeFileName(project.name) + '.jekray';
-  downloadFile(name, new Blob([JSON.stringify(serialize(), null, 2)], { type: 'application/x-jekray' }));
+  // each program's own file: JEKray's .jekray, the Optics designer's .optic, JEKrf's .jekrf, its RF designer's .rfd
+  const ext = { ray: 'jekray', optic: 'optic', rf: 'jekrf', rfd: 'rfd' }[PAGE_MODE];
+  const name = safeFileName(project.name) + '.' + ext;
+  downloadFile(name, new Blob([JSON.stringify(serialize(), null, 2)], { type: 'application/x-' + PAGE_FORMAT }));
   toast('Saved ' + name);
   markUnsaved(false);
   goal('save');
